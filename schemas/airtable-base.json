@@ -1,0 +1,220 @@
+{
+  "baseName": "KEKE_MANAGER",
+  "description": "B2B ტურისტული კომპანია ↔ მძღოლი. Airtable-ში თითო ცხრილი = ერთი Table; ველები შექმენი შესაბამისი ტიპით.",
+  "tables": [
+    {
+      "name": "Users",
+      "purpose": "იდენტობა + როლი აპში",
+      "fields": [
+        { "name": "clerk_id", "type": "singleLineText", "note": "Clerk user id" },
+        { "name": "email", "type": "email", "required": true },
+        { "name": "password_hash", "type": "singleLineText", "note": "აპში Supabase/Auth; Airtable-ში შეიძლება იყოს ცარიელი" },
+        { "name": "role", "type": "singleSelect", "options": ["company", "driver", "admin"] },
+        { "name": "driver_ref", "type": "multipleRecordLinks", "linksTo": "Drivers" },
+        { "name": "company_ref", "type": "multipleRecordLinks", "linksTo": "TourismCompanies" },
+        { "name": "created_at", "type": "dateTime" }
+      ]
+    },
+    {
+      "name": "TourismCompanies",
+      "purpose": "შპს რეგისტრირებული სააგენტო",
+      "fields": [
+        { "name": "legal_name", "type": "singleLineText", "required": true },
+        { "name": "tin", "type": "singleLineText" },
+        { "name": "email", "type": "email" },
+        { "name": "contact_name", "type": "singleLineText" },
+        { "name": "contact_phone", "type": "phoneNumber" },
+        { "name": "is_verified", "type": "checkbox" },
+        { "name": "subscription_plan", "type": "singleSelect", "options": ["trial_half_price", "active_99gel", "suspended"] },
+        { "name": "balance_escrow_proxy", "type": "currency", "options": { "symbol": "GEL" } },
+        { "name": "has_fuel_service", "type": "checkbox", "note": "QR საწვავისთვის" },
+        { "name": "users", "type": "multipleRecordLinks", "linksTo": "Users" },
+        { "name": "bookings", "type": "multipleRecordLinks", "linksTo": "Bookings" }
+      ]
+    },
+    {
+      "name": "Drivers",
+      "purpose": "მძღოლის პროფილი და ვერიფიკაცია",
+      "fields": [
+        { "name": "clerk_id", "type": "singleLineText", "note": "Clerk user id" },
+        { "name": "first_name", "type": "singleLineText" },
+        { "name": "last_name", "type": "singleLineText" },
+        { "name": "dob", "type": "date" },
+        { "name": "photo_3x4", "type": "multipleAttachments" },
+        { "name": "license_doc", "type": "multipleAttachments" },
+        { "name": "experience_years", "type": "number" },
+        { "name": "languages", "type": "multipleSelects", "options": ["KA", "EN", "RU", "TR", "DE", "FR"] },
+        { "name": "micro_entrepreneur_account", "type": "singleLineText" },
+        { "name": "verified", "type": "checkbox" },
+        { "name": "bio", "type": "multilineText" },
+        { "name": "subscription_tier", "type": "singleSelect", "options": ["trial_half", "sedan_29", "minivan_49", "microbus_69", "bus_89"] },
+        { "name": "internal_balance", "type": "currency", "options": { "symbol": "GEL" } },
+        { "name": "vehicles", "type": "multipleRecordLinks", "linksTo": "Vehicles" },
+        { "name": "ratings", "type": "multipleRecordLinks", "linksTo": "Ratings" },
+        { "name": "driver_ref", "type": "multipleRecordLinks", "linksTo": "Users", "note": "მძღოლი → User (Clerk სინქი)" }
+      ]
+    },
+    {
+      "name": "Vehicles",
+      "purpose": "მანქანა → ერთი მძღოლი როლი MVP-ში",
+      "fields": [
+        { "name": "category", "type": "singleSelect", "options": ["sedan", "minivan_small", "minivan", "minibus", "bus", "business"] },
+        { "name": "Model", "type": "singleLineText" },
+        { "name": "Plate", "type": "singleLineText" },
+        { "name": "year", "type": "number" },
+        { "name": "color", "type": "singleLineText" },
+        { "name": "seats", "type": "number" },
+        { "name": "luggage_slots", "type": "number" },
+        { "name": "fuel_type", "type": "singleSelect", "options": ["petrol", "diesel", "electric", "hybrid", "LPG"] },
+        { "name": "amenities_json", "type": "multilineText", "note": "AC, wifi, pets allowed — JSON ან ინდივიდუალური checkbox ველები" },
+        { "name": "photo_exterior", "type": "multipleAttachments" },
+        { "name": "photo_interior", "type": "multipleAttachments" },
+        { "name": "driver", "type": "multipleRecordLinks", "linksTo": "Drivers" },
+        { "name": "tariff_row", "type": "multipleRecordLinks", "linksTo": "TariffRows" },
+        { "name": "calendar_blocks", "type": "multipleRecordLinks", "linksTo": "VehicleCalendar" }
+      ]
+    },
+    {
+      "name": "TariffRows",
+      "purpose": "ავტომატური ფასკვლევა: km×საწვავი×დღეები×ავტოს ფასი + საფორტები",
+      "fields": [
+        { "name": "vehicle_category", "type": "singleSelect", "options": ["sedan", "minivan", "microbus", "bus_economy", "bus_premium", "bus_luxury"] },
+        { "name": "per_km_rate_gel", "type": "currency", "options": { "symbol": "GEL" } },
+        { "name": "daily_fixed_gel_low", "type": "currency", "note": "ავტობუსი 200-300 და ა.შ." },
+        { "name": "daily_fixed_gel_high", "type": "currency" },
+        { "name": "fuel_l_per_100km", "type": "number", "note": "15-18" },
+        { "name": "fuel_price_per_l_gel", "type": "currency" },
+        { "name": "congestion_buffer_pct", "type": "number", "note": "მაგ. 10" },
+        { "name": "airport_transfer_fixed_gel", "type": "currency", "note": "მოკლე ტრანსფერი ფიქსი" },
+        { "name": "overnight_gel_estimate", "type": "currency", "note": "50-70" },
+        { "name": "meals_per_day_gel_estimate", "type": "currency", "note": "30-40" },
+        { "name": "parking_surcharge_pct", "type": "number", "note": "ბიზნეს წესით +10%" },
+        { "name": "lodging_meals_surcharge_pct", "type": "number", "note": "მძ+პლატფორმა 5+5%" },
+        { "name": "difficulty_region_multiplier", "type": "number", "note": "უსაფრთხოების ბუფერი მთიან რეგიონებში" }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "purpose": "ტური / ტრანსფერი / მრავალდღიანი",
+      "fields": [
+        { "name": "kind", "type": "singleSelect", "options": ["ტრანსფერი", "ტური", "ერთდღიანი ტური"] },
+        { "name": "status", "type": "singleSelect", "options": ["draft", "pending_payment", "confirmed", "assigned", "in_progress", "completed", "cancelled", "breakdown_swap", "weather_cancelled"] },
+        { "name": "company", "type": "multipleRecordLinks", "linksTo": "TourismCompanies" },
+        { "name": "assigned_driver", "type": "multipleRecordLinks", "linksTo": "Drivers" },
+        { "name": "assigned_vehicle", "type": "multipleRecordLinks", "linksTo": "Vehicles" },
+        { "name": "start_datetime", "type": "dateTime" },
+        { "name": "end_datetime", "type": "dateTime" },
+        { "name": "pax_count", "type": "number" },
+        { "name": "overnights_count", "type": "number" },
+        { "name": "transfer_segments_count", "type": "number" },
+        { "name": "route_waypoints_json", "type": "multilineText", "note": "ქალაქების წყვილი/სია" },
+        { "name": "distance_km_computed", "type": "number" },
+        { "name": "flight_no", "type": "singleLineText" },
+        { "name": "meet_greet_banner_text", "type": "singleLineText" },
+        { "name": "meet_contact_name", "type": "singleLineText" },
+        { "name": "meet_contact_phone", "type": "phoneNumber" },
+        { "name": "driver_comment", "type": "multilineText" },
+        { "name": "payment_method", "type": "singleSelect", "options": ["pay_now", "reserve_then_pay", "client_card", "balance"] },
+        { "name": "commission_addon_gel", "type": "currency" },
+        { "name": "client_price_gel", "type": "currency" },
+        { "name": "platform_quote_gel", "type": "currency" },
+        { "name": "voucher_generated_at", "type": "dateTime" },
+        { "name": "voucher_code", "type": "singleLineText" },
+        { "name": "paid_at", "type": "dateTime" },
+        { "name": "payout_to_driver_at", "type": "dateTime", "note": "სერვისის შემდეგ 24 სთ ფანჯარა" },
+        { "name": "custom_quote_deadline_at", "type": "dateTime", "note": "2 საათი სპეც შეთავაზებაზე" },
+        { "name": "gps_sessions", "type": "multipleRecordLinks", "linksTo": "GpsSessions" },
+        { "name": "payments", "type": "multipleRecordLinks", "linksTo": "LedgerEntries" }
+      ]
+    },
+    {
+      "name": "VehicleCalendar",
+      "purpose": "დაკავებულობა — ტრანსფერი/ტური",
+      "fields": [
+        { "name": "vehicle", "type": "multipleRecordLinks", "linksTo": "Vehicles" },
+        { "name": "start", "type": "dateTime" },
+        { "name": "end", "type": "dateTime" },
+        { "name": "booking", "type": "multipleRecordLinks", "linksTo": "Bookings" },
+        { "name": "block_type", "type": "singleSelect", "options": ["booking", "maintenance", "manual_hold"] }
+      ]
+    },
+    {
+      "name": "Ratings",
+      "purpose": "რეიტინგული სისტემა × ქულა (არა მხოლოდ ვარსკვლავი)",
+      "fields": [
+        { "name": "booking", "type": "multipleRecordLinks", "linksTo": "Bookings" },
+        { "name": "driver", "type": "multipleRecordLinks", "linksTo": "Drivers" },
+        { "name": "punctuality", "type": "number" },
+        { "name": "cleanliness", "type": "number" },
+        { "name": "communication", "type": "number" },
+        { "name": "driving_quality", "type": "number" },
+        { "name": "weighted_score", "type": "formula", "note": "Airtable formula ველად" },
+        { "name": "low_score_alert", "type": "checkbox" }
+      ]
+    },
+    {
+      "name": "LedgerEntries",
+      "purpose": "ესქროუს ერთსაფულე წიგნი — კომპანია / მძღოლი / პლატფორმა",
+      "fields": [
+        { "name": "booking", "type": "multipleRecordLinks", "linksTo": "Bookings" },
+        { "name": "driver", "type": "multipleRecordLinks", "linksTo": "Drivers", "note": "ფილტრი ბალანსისთვის" },
+        { "name": "amount_gel", "type": "currency" },
+        { "name": "direction", "type": "singleSelect", "options": ["debit_company", "credit_escrow", "debit_escrow_driver_payout", "credit_platform_fee", "refund"] },
+        { "name": "status", "type": "singleSelect", "options": ["pending", "settled", "failed"] },
+        { "name": "external_payment_ref", "type": "singleLineText" },
+        { "name": "created_at", "type": "dateTime" }
+      ]
+    },
+    {
+      "name": "FuelQrTokens",
+      "purpose": "15 წუთიანი QR ლიტრაჟით",
+      "fields": [
+        { "name": "company", "type": "multipleRecordLinks", "linksTo": "TourismCompanies" },
+        { "name": "booking", "type": "multipleRecordLinks", "linksTo": "Bookings" },
+        { "name": "driver", "type": "multipleRecordLinks", "linksTo": "Drivers" },
+        { "name": "liters_cap", "type": "number" },
+        { "name": "valid_until", "type": "dateTime" },
+        { "name": "token_signature", "type": "singleLineText", "note": "ხელით ან webhook" },
+        { "name": "redeemed_at", "type": "dateTime" }
+      ]
+    },
+    {
+      "name": "GpsSessions",
+      "purpose": "ტური ON/OFF და audit",
+      "fields": [
+        { "name": "booking", "type": "multipleRecordLinks", "linksTo": "Bookings" },
+        { "name": "driver", "type": "multipleRecordLinks", "linksTo": "Drivers" },
+        { "name": "started_at", "type": "dateTime" },
+        { "name": "ended_at", "type": "dateTime" },
+        { "name": "track_points_attachment", "type": "multipleAttachments", "note": "ან Mapbox ინტეგრაცია" }
+      ]
+    },
+    {
+      "name": "CampaignsAds",
+      "purpose": "ორმხრივი რეკლამა და KEKE20",
+      "fields": [
+        { "name": "audience", "type": "singleSelect", "options": ["drivers", "companies", "both"] },
+        { "name": "surface", "type": "singleSelect", "options": ["fullscreen_brand_evening", "home_feed"] },
+        { "name": "monthly_fee_gel", "type": "currency", "note": "3000 ორივე / 2500 ერთი" },
+        { "name": "promo_code", "type": "singleLineText" },
+        { "name": "active", "type": "checkbox" }
+      ]
+    },
+    {
+      "name": "SupportTickets",
+      "purpose": "24/7 Support & breakdown swap workflow",
+      "fields": [
+        { "name": "booking", "type": "multipleRecordLinks", "linksTo": "Bookings" },
+        { "name": "category", "type": "singleSelect", "options": ["breakdown", "payment", "dispute", "weather", "other"] },
+        { "name": "priority", "type": "singleSelect", "options": ["normal", "urgent_on_tour"] },
+        { "name": "status", "type": "singleSelect", "options": ["open", "in_progress", "resolved"] },
+        { "name": "details", "type": "multilineText" }
+      ]
+    }
+  ],
+  "syncNotes": [
+    "დოკუმენტები: უკეთესია Doc Expiry ცალკე View + Automation.",
+    "დისპეჩერი: ჯავშნები status=confirmed → assigned queue → top weighted drivers.",
+    "პირველი თვე: Trial flag ობაიქულ ინვოისში, არა უფასო."
+  ]
+}

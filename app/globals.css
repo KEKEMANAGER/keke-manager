@@ -1,0 +1,98 @@
+@import "react-datepicker/dist/react-datepicker.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* react-datepicker — dark theme (company search wizard) */
+.keke-datepicker-popper {
+  z-index: 40 !important;
+}
+
+.keke-datepicker-popper .react-datepicker {
+  font-family: inherit;
+  background-color: #000000;
+  border: 1px solid #242424;
+  border-radius: 0.5rem;
+  color: #ffffff;
+}
+
+.keke-datepicker-popper .react-datepicker__header {
+  background-color: #0a0a0a;
+  border-bottom: 1px solid #242424;
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.keke-datepicker-popper .react-datepicker__current-month,
+.keke-datepicker-popper .react-datepicker-time__header,
+.keke-datepicker-popper .react-datepicker-year-header {
+  color: #ffffff;
+}
+
+.keke-datepicker-popper .react-datepicker__day-name,
+.keke-datepicker-popper .react-datepicker__day,
+.keke-datepicker-popper .react-datepicker__time-name,
+.keke-datepicker-popper .react-datepicker__time-list-item {
+  color: #ffffff;
+}
+
+.keke-datepicker-popper .react-datepicker__day:hover,
+.keke-datepicker-popper .react-datepicker__time-list-item:hover {
+  background-color: #242424 !important;
+  color: #ffffff !important;
+}
+
+.keke-datepicker-popper .react-datepicker__day--selected,
+.keke-datepicker-popper .react-datepicker__day--keyboard-selected,
+.keke-datepicker-popper .react-datepicker__month-text--keyboard-selected,
+.keke-datepicker-popper .react-datepicker__time-list-item--selected {
+  background-color: #f5a623 !important;
+  color: #0f0f0f !important;
+}
+
+.keke-datepicker-popper .react-datepicker__day--today {
+  font-weight: 700;
+  color: #f5a623;
+}
+
+.keke-datepicker-popper .react-datepicker__day--outside-month,
+.keke-datepicker-popper .react-datepicker__day--disabled {
+  color: #555555 !important;
+}
+
+.keke-datepicker-popper .react-datepicker__navigation-icon::before {
+  border-color: #ffffff;
+}
+
+.keke-datepicker-popper .react-datepicker__triangle {
+  display: none;
+}
+
+.keke-datepicker-popper .react-datepicker__time-container {
+  border-left: 1px solid #242424;
+}
+
+.keke-datepicker-popper .react-datepicker__time-container .react-datepicker__time {
+  background: #000000;
+}
+
+.keke-datepicker-popper .react-datepicker__time-list {
+  scrollbar-color: #f5a623 #242424;
+}
+
+:root {
+  --keke-accent: #f5a623;
+}
+
+body {
+  @apply bg-keke-black text-white antialiased;
+}
+
+/* Sharp CTAs like RateHawk */
+.btn-outline {
+  @apply border border-white px-6 py-2 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-keke-black;
+}
+
+.btn-gold {
+  @apply rounded bg-[#f5a623] px-6 py-2 text-sm font-semibold tracking-wide text-[#0f0f0f] transition hover:brightness-110;
+}

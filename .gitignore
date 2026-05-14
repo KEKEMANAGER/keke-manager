@@ -1,0 +1,21 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+
+# next
+/.next/
+/out/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# debug / os
+npm-debug.log*
+.DS_Store
+
+# clerk configuration (can include secrets)
+/.clerk/

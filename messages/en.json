@@ -1,0 +1,40 @@
+{
+  "nav": {
+    "home": "Home",
+    "calendar": "Calendar",
+    "vehicle": "Vehicle",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "company_nav": {
+    "new_booking": "Booking",
+    "drivers": "Drivers",
+    "reports": "Reports"
+  },
+  "dashboard": {
+    "greeting": "Hello",
+    "today": "Today",
+    "weekly": "This week",
+    "bookings": "Bookings",
+    "earnings": "Earnings",
+    "current_bookings": "Current bookings",
+    "board": "Board"
+  },
+  "booking": {
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "transfer": "Transfer",
+    "tour": "Tour",
+    "one_day": "One-day tour",
+    "accept": "Accept",
+    "reject": "Reject"
+  },
+  "landing": {
+    "title": "Tourism transport in one place",
+    "subtitle": "Tourism companies with professional drivers",
+    "start": "Get started",
+    "signin": "Sign in",
+    "signup": "Sign up"
+  }
+}
