@@ -55,6 +55,24 @@ module.exports = {
   expo: {
     ...appJson.expo,
     scheme: 'kekemanager',
+    icon: './assets/logo.png',
+    splash: {
+      image: './assets/splash.png',
+      resizeMode: 'contain',
+      backgroundColor: '#FFFFFF',
+    },
+    ios: {
+      ...(appJson.expo.ios ?? {}),
+      icon: './assets/logo.png',
+      supportsTablet: true,
+    },
+    android: {
+      ...(appJson.expo.android ?? {}),
+      adaptiveIcon: {
+        foregroundImage: './assets/logo.png',
+        backgroundColor: '#FFFFFF',
+      },
+    },
     plugins: [...(appJson.expo.plugins ?? []), 'expo-router'],
     extra: {
       ...(appJson.expo.extra ?? {}),
