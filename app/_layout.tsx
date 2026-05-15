@@ -12,6 +12,7 @@ import {
 import * as Notifications from 'expo-notifications';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import AnimatedSplash from '../components/AnimatedSplash';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { LogoutButton } from '../components/LogoutButton';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
@@ -208,6 +209,12 @@ function I18nBootstrap({ children }: { children: ReactNode }) {
 }
 
 export default function RootLayout() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return <AnimatedSplash onFinish={() => setShowSplash(false)} />;
+  }
+
   return (
     <SafeAreaProvider>
       <I18nBootstrap>
