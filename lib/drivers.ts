@@ -2,7 +2,7 @@ import { fetchDriverAverageRating } from './ratings';
 import { supabase } from './supabase';
 
 export type DriverProfile = {
-  clerk_id: string;
+  user_id: string;
   full_name: string | null;
   avatar_url: string | null;
   bio: string | null;
@@ -32,8 +32,8 @@ export async function fetchDriverProfile(
   driverClerkId: string,
 ): Promise<{ data: DriverProfile | null; error: Error | null }> {
   const [userRes, vehicleRes, ratingRes] = await Promise.all([
-    supabase.from('users').select('*').eq('clerk_id', driverClerkId).maybeSingle(),
-    supabase.from('vehicles').select('*').eq('driver_clerk_id', driverClerkId).maybeSingle(),
+    supabase.from('users').select('*').eq('id', driverClerkId).maybeSingle(),
+    supabase.from('vehicles').select('*').eq('driver_id', driverClerkId).maybeSingle(),
     fetchDriverAverageRating(driverClerkId),
   ]);
 
@@ -54,7 +54,7 @@ export async function fetchDriverProfile(
 
   return {
     data: {
-      clerk_id: driverClerkId,
+      user_id: driverClerkId,
       full_name: user?.full_name ?? null,
       avatar_url: user?.avatar_url ?? null,
       bio: user?.bio ?? null,

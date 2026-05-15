@@ -1,4 +1,3 @@
-import { useUser } from '@clerk/clerk-expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -21,6 +20,8 @@ import {
   type TourDayPersisted,
   type TourTransferLeg,
 } from '../../lib/bookings';
+import { useAuth, type Profile } from '../../contexts/AuthContext';
+import type { User } from '@supabase/supabase-js';
 
 type BookingType = 'transfer' | 'tour' | 'dayTour';
 type VehicleClass = 'ეკონომი' | 'კომფორტი' | 'ბიზნეს';
@@ -43,12 +44,13 @@ function mapBookingType(t: BookingType): DbBookingType {
   return 'day_tour';
 }
 
-function companyDisplayName(user: ReturnType<typeof useUser>['user']) {
-  const raw = user?.unsafeMetadata;
-  const m = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  const cn = m.companyName;
+function companyDisplayName(profile: Profile | null, user: User | null) {
+  const meta = user?.user_metadata as Record<string, unknown> | undefined;
+  const cn = meta?.companyName;
   if (typeof cn === 'string' && cn.trim()) return cn.trim();
-  return user?.firstName || null;
+  const fn = profile?.full_name?.trim();
+  if (fn) return fn;
+  return user?.email ?? null;
 }
 
 function calcMockPrice(params: {
@@ -137,7 +139,7 @@ function transferLegOrNull(leg: TourTransferLeg): TourTransferLeg | null {
 }
 
 export default function NewBookingScreen() {
-  const { user } = useUser();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { preset } = useLocalSearchParams<{ preset?: string }>();
@@ -306,7 +308,7 @@ export default function NewBookingScreen() {
     const transferOutDb: TourTransferLeg | null = isTour ? transferLegOrNull(transferOut) : null;
     const { error } = await insertBooking({
       company_id: user.id,
-      company_name: companyDisplayName(user),
+      company_name: companyDisplayName(profile, user) ?? 'კომპანია',
       kind: mapBookingType(bookingType),
       from_location: bookingType === 'transfer' ? fromPlace.trim() : null,
       to_location: bookingType === 'transfer' ? toPlace.trim() : null,

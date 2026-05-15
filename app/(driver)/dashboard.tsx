@@ -1,4 +1,3 @@
-import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -17,17 +16,21 @@ import {
 } from '../../lib/bookings';
 import { notifyNewOpenBooking } from '../../lib/localNotifications';
 import { fetchDriverAverageRating } from '../../lib/ratings';
+import { useAuth } from '../../contexts/AuthContext';
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
 }
 
 export default function DriverDashboardScreen() {
-  const { user } = useUser();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const firstName = user?.firstName || 'მძღოლი';
-  const clerkId = user?.id;
+  const firstName =
+    profile?.full_name?.trim()?.split(/\s+/)[0] ??
+    user?.email?.split('@')[0] ??
+    'მძღოლი';
+  const userId = user?.id;
 
   const pendingPulse = useRef(new Animated.Value(1)).current;
   const activeDotOpacity = useRef(new Animated.Value(1)).current;
@@ -42,7 +45,7 @@ export default function DriverDashboardScreen() {
   const [ratingCount, setRatingCount] = useState(0);
 
   const load = useCallback(async () => {
-    if (!clerkId) {
+    if (!userId) {
       setAssigned([]);
       setOpenCount(0);
       setCompletedTrips(0);
@@ -55,10 +58,10 @@ export default function DriverDashboardScreen() {
     setError(null);
     setLoading(true);
     const [mine, open, stats, ratingRes] = await Promise.all([
-      fetchBookingsForDriver(clerkId),
+      fetchBookingsForDriver(userId),
       fetchOpenPendingBookings(),
-      aggregateDriverStats(clerkId),
-      fetchDriverAverageRating(clerkId),
+      aggregateDriverStats(userId),
+      fetchDriverAverageRating(userId),
     ]);
     setLoading(false);
     if (mine.error) {
@@ -86,14 +89,14 @@ export default function DriverDashboardScreen() {
       setRatingAvg(ratingRes.average);
       setRatingCount(ratingRes.count);
     }
-  }, [clerkId]);
+  }, [userId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (!clerkId) return;
+    if (!userId) return;
     const ch = subscribeBookingsChanges((payload) => {
       void load();
       if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload)) {
@@ -101,7 +104,7 @@ export default function DriverDashboardScreen() {
       }
     });
     return () => unsubscribeChannel(ch);
-  }, [clerkId, load]);
+  }, [userId, load]);
 
   useEffect(() => {
     if (openCount <= 0) {

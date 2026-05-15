@@ -58,7 +58,6 @@ module.exports = {
     plugins: [...(appJson.expo.plugins ?? []), 'expo-router'],
     extra: {
       ...(appJson.expo.extra ?? {}),
-      clerkPublishableKey: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ?? '',
     },
   },
 };

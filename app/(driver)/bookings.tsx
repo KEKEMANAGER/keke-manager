@@ -1,4 +1,4 @@
-import { useUser } from '@clerk/clerk-expo';
+import type { User } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { COLORS, SPACING } from '../../constants/theme';
+import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { BookingRow } from '../../lib/bookings';
 import {
   acceptBooking,
@@ -57,18 +58,21 @@ const TABS: { key: BookingTabKey; label: string }[] = [
   { key: 'completed', label: 'დასრულებული' },
 ];
 
-function driverDisplayName(user: NonNullable<ReturnType<typeof useUser>['user']>) {
-  const full = user.fullName?.trim();
+function driverDisplayName(user: User | null, profile: Profile | null) {
+  const full = profile?.full_name?.trim();
   if (full) return full;
-  return [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || 'მძღოლი';
+  const meta = user?.user_metadata as Record<string, unknown> | undefined;
+  const nm = typeof meta?.full_name === 'string' ? meta.full_name.trim() : '';
+  if (nm) return nm;
+  return user?.email?.split('@')[0] || 'მძღოლი';
 }
 
-function driverPhone(user: NonNullable<ReturnType<typeof useUser>['user']>) {
-  return user.primaryPhoneNumber?.phoneNumber || '';
+function driverPhone(_user: User | null, profile: Profile | null) {
+  return profile?.phone?.trim() || '';
 }
 
-function driverPlateFromMeta(user: NonNullable<ReturnType<typeof useUser>['user']>) {
-  const m = user.unsafeMetadata;
+function driverPlateFromMeta(user: User | null) {
+  const m = user?.user_metadata;
   if (!m || typeof m !== 'object') return '';
   const p = (m as Record<string, unknown>).vehiclePlate;
   return typeof p === 'string' ? p : '';
@@ -76,8 +80,8 @@ function driverPlateFromMeta(user: NonNullable<ReturnType<typeof useUser>['user'
 
 export default function DriverBookingsScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useUser();
-  const clerkId = user?.id;
+  const { user, profile } = useAuth();
+  const userId = user?.id;
 
   const [tab, setTab] = useState<BookingTabKey>('pending');
   const [openJobs, setOpenJobs] = useState<BookingRow[]>([]);
@@ -87,7 +91,7 @@ export default function DriverBookingsScreen() {
   const [actingId, setActingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!clerkId) {
+    if (!userId) {
       setOpenJobs([]);
       setAssigned([]);
       setLoading(false);
@@ -97,7 +101,7 @@ export default function DriverBookingsScreen() {
     setLoading(true);
     const [openRes, mineRes] = await Promise.all([
       fetchOpenPendingBookings(),
-      fetchBookingsForDriver(clerkId),
+      fetchBookingsForDriver(userId),
     ]);
     setLoading(false);
     if (openRes.error) {
@@ -112,14 +116,14 @@ export default function DriverBookingsScreen() {
     } else {
       setAssigned(mineRes.data);
     }
-  }, [clerkId]);
+  }, [userId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (!clerkId) return;
+    if (!userId) return;
     const ch = subscribeBookingsChanges((payload) => {
       void load();
       if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload)) {
@@ -127,7 +131,7 @@ export default function DriverBookingsScreen() {
       }
     });
     return () => unsubscribeChannel(ch);
-  }, [clerkId, load]);
+  }, [userId, load]);
 
   const data = useMemo(() => {
     if (tab === 'pending') return openJobs;
@@ -140,8 +144,8 @@ export default function DriverBookingsScreen() {
     setActingId(item.id);
     const res = await acceptBooking(item.id, {
       clerkId: user.id,
-      displayName: driverDisplayName(user),
-      phone: driverPhone(user),
+      displayName: driverDisplayName(user, profile),
+      phone: driverPhone(user, profile),
       plate: driverPlateFromMeta(user),
     });
     setActingId(null);

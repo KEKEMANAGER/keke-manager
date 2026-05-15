@@ -1,4 +1,3 @@
-import { useUser } from '@clerk/clerk-expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../../constants/theme';
 import { isBookingRowUuid } from '../../lib/bookings';
 import { insertRating } from '../../lib/ratings';
+import { useAuth } from '../../contexts/AuthContext';
 
 function pickSearchParam(v: string | string[] | undefined): string {
   if (Array.isArray(v)) return String(v[0] ?? '').trim();
@@ -49,7 +49,7 @@ export default function RateBookingScreen() {
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useUser();
+  const { user } = useAuth();
   const params = searchParams as {
     bookingId?: string | string[];
     driverClerkId?: string | string[];

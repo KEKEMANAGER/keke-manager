@@ -1,7 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useClerk, useUser } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,6 +18,7 @@ import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject } from '../../lib/mediaUpload';
 import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
+import { useAuth } from '../../contexts/AuthContext';
 
 function RatingBar({ label, value }: { label: string; value: number }) {
   const pct = (value / 5) * 100;
@@ -37,9 +36,7 @@ function RatingBar({ label, value }: { label: string; value: number }) {
 }
 
 export default function DriverProfileScreen() {
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
-  const router = useRouter();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -47,24 +44,24 @@ export default function DriverProfileScreen() {
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   const loadAvatar = useCallback(async () => {
-    if (!isLoaded) return;
+    if (authLoading) return;
     if (!user?.id) {
-      setPhotoUri(user?.imageUrl ?? null);
+      setPhotoUri(null);
       setPhotoLoading(false);
       return;
     }
     setPhotoLoading(true);
     setPhotoError(null);
     const fromDb = await fetchUserAvatarUrl(user.id);
-    setPhotoUri(fromDb ?? user?.imageUrl ?? null);
+    setPhotoUri(fromDb);
     setPhotoLoading(false);
-  }, [isLoaded, user?.id, user?.imageUrl]);
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
     void loadAvatar();
   }, [loadAvatar]);
 
-  const [name, setName] = useState([user?.firstName, user?.lastName].filter(Boolean).join(' ').trim());
+  const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [languages, setLanguages] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
@@ -81,7 +78,7 @@ export default function DriverProfileScreen() {
     const { data, error } = await supabase
       .from('users')
       .select('full_name, bio, languages, experience_years')
-      .eq('clerk_id', user.id)
+      .eq('id', user.id)
       .maybeSingle();
     setProfileLoading(false);
     if (error || !data) return;
@@ -142,7 +139,6 @@ export default function DriverProfileScreen() {
 
   async function onSignOut() {
     await signOut();
-    router.replace('/sign-in');
   }
 
   async function onSaveProfile() {
@@ -157,7 +153,7 @@ export default function DriverProfileScreen() {
         languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
         experience_years: Number.isFinite(years) && years > 0 ? years : null,
       })
-      .eq('clerk_id', user.id);
+      .eq('id', user.id);
     setSaveBusy(false);
     if (error) {
       setSaveError(error.message);
@@ -179,7 +175,7 @@ export default function DriverProfileScreen() {
 
       <View style={styles.photoSection}>
         <Pressable onPress={pickPhoto} disabled={photoUploading} style={styles.photoRing}>
-          {!isLoaded || photoLoading ? (
+          {authLoading || photoLoading ? (
             <ActivityIndicator color={COLORS.gold} />
           ) : photoUri ? (
             <Image source={{ uri: photoUri }} style={styles.photo} />
@@ -190,13 +186,13 @@ export default function DriverProfileScreen() {
             <View style={styles.photoBusy}>
               <ActivityIndicator color={COLORS.gold} />
             </View>
-          ) : !photoLoading && isLoaded ? (
+          ) : !photoLoading && !authLoading ? (
             <View style={styles.photoEdit}>
               <Ionicons name="camera" size={18} color="#000000" />
             </View>
           ) : null}
         </Pressable>
-        <Text style={styles.photoHint}>შეეხეთ ფოტოს შესაცვლელად (Supabase: media/avatars/[clerk_id].jpg)</Text>
+        <Text style={styles.photoHint}>შეეხეთ ფოტოს შესაცვლელად (Supabase: media/avatars/[user_id].jpg)</Text>
         {photoError ? <Text style={styles.photoError}>{photoError}</Text> : null}
       </View>
 

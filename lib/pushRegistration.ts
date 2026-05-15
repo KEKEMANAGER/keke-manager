@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 
 let notificationHandlerRegistered = false;
 
-export async function registerForPushNotifications(clerkId: string) {
+export async function registerForPushNotifications(userId: string) {
   if (Platform.OS === 'web') return;
 
   if (!notificationHandlerRegistered) {
@@ -48,7 +48,7 @@ export async function registerForPushNotifications(clerkId: string) {
       projectId ? { projectId } : undefined,
     );
     const token = tokenRes.data;
-    const { error } = await supabase.from('users').update({ push_token: token }).eq('clerk_id', clerkId);
+    const { error } = await supabase.from('users').update({ push_token: token }).eq('id', userId);
     if (error && __DEV__) {
       console.warn('[registerForPushNotifications]', error.message);
     }

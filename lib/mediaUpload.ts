@@ -64,17 +64,17 @@ export async function uploadMediaObject(
   return data.publicUrl;
 }
 
-/** `verification/[clerk_id]/[slot].jpg` — slot: license | id | registration */
-export function verificationPhotoObjectPath(clerkId: string, slot: 'license' | 'id' | 'registration'): string {
-  return `verification/${clerkId}/${slot}.jpg`;
+/** `verification/[user_id]/[slot].jpg` — slot: license | id | registration */
+export function verificationPhotoObjectPath(userId: string, slot: 'license' | 'id' | 'registration'): string {
+  return `verification/${userId}/${slot}.jpg`;
 }
 
-/** `avatars/[clerk_id].jpg` inside bucket `media`. */
-export function avatarObjectPath(clerkId: string): string {
-  return `avatars/${clerkId}.jpg`;
+/** `avatars/[user_id].jpg` inside bucket `media`. */
+export function avatarObjectPath(userId: string): string {
+  return `avatars/${userId}.jpg`;
 }
 
-/** `vehicles/[clerk_id]/[angle].jpg` — angle: front | left | right | interior | rear */
-export function vehiclePhotoObjectPath(clerkId: string, angle: string): string {
-  return `vehicles/${clerkId}/${angle}.jpg`;
+/** `vehicles/[user_id]/[angle].jpg` — angle: front | left | right | interior | rear */
+export function vehiclePhotoObjectPath(userId: string, angle: string): string {
+  return `vehicles/${userId}/${angle}.jpg`;
 }

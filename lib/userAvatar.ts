@@ -1,18 +1,18 @@
 import { supabase } from './supabase';
 
-export async function fetchUserAvatarUrl(clerkId: string): Promise<string | null> {
-  const { data, error } = await supabase.from('users').select('avatar_url').eq('clerk_id', clerkId).maybeSingle();
+export async function fetchUserAvatarUrl(userId: string): Promise<string | null> {
+  const { data, error } = await supabase.from('users').select('avatar_url').eq('id', userId).maybeSingle();
   if (error || !data) return null;
   const u = data as { avatar_url?: string | null };
   return typeof u.avatar_url === 'string' && u.avatar_url.startsWith('http') ? u.avatar_url : null;
 }
 
-export async function saveUserAvatarUrl(clerkId: string, publicUrl: string) {
+export async function saveUserAvatarUrl(userId: string, publicUrl: string) {
   const { data, error } = await supabase
     .from('users')
     .update({ avatar_url: publicUrl })
-    .eq('clerk_id', clerkId)
-    .select('clerk_id');
+    .eq('id', userId)
+    .select('id');
 
   if (error) return { error };
 
@@ -21,7 +21,7 @@ export async function saveUserAvatarUrl(clerkId: string, publicUrl: string) {
   }
 
   const ins = await supabase.from('users').insert({
-    clerk_id: clerkId,
+    id: userId,
     avatar_url: publicUrl,
     role: null,
     full_name: null,

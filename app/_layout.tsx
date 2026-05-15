@@ -1,4 +1,4 @@
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import {
@@ -21,7 +21,7 @@ function PushNotificationRegistration() {
     if (Platform.OS === 'web') return;
     if (loading || !user?.id) return;
     void registerForPushNotifications(user.id);
-  }, [loading, user?.id, user]);
+  }, [loading, user?.id]);
 
   return null;
 }
@@ -46,7 +46,9 @@ function NavigationShell() {
   const { user, profile, loading } = useAuth();
   const userId = user?.id;
   const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
+  const role = getUserRole(profile);
 
   useEffect(() => {
     if (loading) return;
@@ -55,56 +57,37 @@ function NavigationShell() {
     const inAuth = root === '(auth)';
     const inApp = root === '(app)';
     const inDriver = root === '(driver)';
-    const role = getUserRole(profile);
     const onSignUpRoute = segments.includes('sign-up');
 
+    let target: string | null = null;
+
     if (!userId && (inApp || inDriver)) {
-      router.replace('/sign-in');
-      return;
+      target = '/sign-in';
+    } else if (userId && !role && (inApp || inDriver)) {
+      target = '/sign-up';
+    } else if (userId && !role && inAuth && !onSignUpRoute) {
+      target = '/sign-up';
+    } else if (userId && inAuth && role) {
+      target = role === 'driver' ? '/(driver)/dashboard' : '/(app)/dashboard';
+    } else if (userId && role === 'driver' && inApp) {
+      target = '/(driver)/dashboard';
+    } else if (userId && (role === 'company' || role === 'admin') && inDriver) {
+      target = '/(app)/dashboard';
     }
 
-    if (userId && !role && (inApp || inDriver)) {
-      router.replace('/sign-up');
-      return;
+    if (target && pathname !== target) {
+      router.replace(target);
     }
-
-    if (userId && !role && inAuth && !onSignUpRoute) {
-      router.replace('/sign-up');
-      return;
-    }
-
-    if (userId && inAuth && role) {
-      router.replace(role === 'driver' ? '/(driver)/dashboard' : '/(app)/dashboard');
-      return;
-    }
-
-    if (userId && role === 'driver' && inApp) {
-      router.replace('/(driver)/dashboard');
-      return;
-    }
-
-    if (userId && role === 'company' && inDriver) {
-      router.replace('/(app)/dashboard');
-      return;
-    }
-
-    if (userId && role === 'admin' && inDriver) {
-      router.replace('/(app)/dashboard');
-      return;
-    }
-  }, [loading, userId, profile, segments, router]);
-
-  if (loading) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={COLORS.gold} size="large" />
-      </View>
-    );
-  }
+  }, [loading, userId, role, segments, pathname, router]);
 
   return (
     <View style={styles.shell}>
       <Slot />
+      {loading ? (
+        <View style={styles.loadingOverlay} pointerEvents="auto">
+          <ActivityIndicator color={COLORS.gold} size="large" />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -132,9 +115,8 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  loading: {
-    flex: 1,
-    width: '100%',
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: COLORS.background,

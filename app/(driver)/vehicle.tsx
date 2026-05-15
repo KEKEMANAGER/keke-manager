@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useUser } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
@@ -19,6 +18,7 @@ import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
 import { uploadMediaObject, vehiclePhotoObjectPath } from '../../lib/mediaUpload';
 import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
 import { fetchVehicleByDriver, saveVehicleInfo, saveVehiclePhotoUrl } from '../../lib/vehicles';
+import { useAuth } from '../../contexts/AuthContext';
 
 const VEHICLE_TYPES = [
   'სედანი',
@@ -89,9 +89,9 @@ const emptyWebFileRefs = (): Record<VehiclePhotoKey, HTMLInputElement | null> =>
 
 export default function DriverVehiclePhotosScreen() {
   const router = useRouter();
-  const { user, isLoaded } = useUser();
+  const { user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
-  const clerkId = user?.id;
+  const userId = user?.id;
 
   const [urls, setUrls] = useState<Record<VehiclePhotoKey, string | null>>(() => rowToUrls(null));
   const [loading, setLoading] = useState(true);
@@ -102,8 +102,8 @@ export default function DriverVehiclePhotosScreen() {
 
   const urlsRef = useRef(urls);
   urlsRef.current = urls;
-  const clerkIdRef = useRef(clerkId);
-  clerkIdRef.current = clerkId;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
   const vehicleTypeRef = useRef(vehicleType);
   vehicleTypeRef.current = vehicleType;
   const chipSavePrev = useRef<{ t: string; c: string } | null>(null);
@@ -112,15 +112,15 @@ export default function DriverVehiclePhotosScreen() {
   const webFileInputRefs = useRef<Record<VehiclePhotoKey, HTMLInputElement | null>>(emptyWebFileRefs());
 
   const load = useCallback(async () => {
-    if (!isLoaded) return;
-    if (!clerkId) {
+    if (authLoading) return;
+    if (!userId) {
       setUrls(rowToUrls(null));
       setLoading(false);
       return;
     }
     setLoadError(null);
     setLoading(true);
-    const { data, error } = await fetchVehicleByDriver(clerkId);
+    const { data, error } = await fetchVehicleByDriver(userId);
     setLoading(false);
     if (error) {
       setLoadError(error.message);
@@ -137,14 +137,14 @@ export default function DriverVehiclePhotosScreen() {
       setVehicleClass(VEHICLE_CLASSES[0]);
       chipSavePrev.current = null;
     }
-  }, [clerkId, isLoaded]);
+  }, [userId, authLoading]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (!clerkId || loading) return;
+    if (!userId || loading) return;
     if (!chipSavePrev.current) {
       chipSavePrev.current = { t: vehicleType, c: vehicleClass };
       return;
@@ -152,14 +152,14 @@ export default function DriverVehiclePhotosScreen() {
     if (chipSavePrev.current.t === vehicleType && chipSavePrev.current.c === vehicleClass) return;
     chipSavePrev.current = { t: vehicleType, c: vehicleClass };
     const id = setTimeout(() => {
-      void saveVehicleInfo(clerkId, vehicleType, vehicleClass).then(({ error: err }) => {
+      void saveVehicleInfo(userId, vehicleType, vehicleClass).then(({ error: err }) => {
         if (err && __DEV__) {
           console.warn('[vehicle] saveVehicleInfo', err.message);
         }
       });
     }, 500);
     return () => clearTimeout(id);
-  }, [vehicleType, vehicleClass, clerkId, loading]);
+  }, [vehicleType, vehicleClass, userId, loading]);
 
   const hasAtLeastOnePhoto = useMemo(
     () => SLOTS.some((s) => hasPhotoUrl(urls[s.column])),
@@ -188,7 +188,7 @@ export default function DriverVehiclePhotosScreen() {
         webUploadFile?: File;
       },
     ) => {
-      const cid = clerkIdRef.current;
+      const cid = userIdRef.current;
       if (!cid) {
         if (opts?.revokeObjectUrl) URL.revokeObjectURL(opts.revokeObjectUrl);
         return;
@@ -239,7 +239,7 @@ export default function DriverVehiclePhotosScreen() {
       const el = event.currentTarget;
       const file = el.files?.[0];
       el.value = '';
-      if (!file || !clerkIdRef.current) return;
+      if (!file || !userIdRef.current) return;
 
       const mime = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
       const objectUrl = URL.createObjectURL(file);
@@ -255,7 +255,7 @@ export default function DriverVehiclePhotosScreen() {
   );
 
   async function pickNativeAndUpload(column: VehiclePhotoKey, angle: string, label: string) {
-    const cid = clerkIdRef.current;
+    const cid = userIdRef.current;
     if (!cid) return;
 
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -277,7 +277,7 @@ export default function DriverVehiclePhotosScreen() {
   function onSubmitPress() {
     console.log('[vehicle] დასრულება pressed', {
       hasAtLeastOnePhoto,
-      clerkId: !!clerkId,
+      userId: !!userId,
       missing: missingPhotoLabels,
     });
 
@@ -320,7 +320,7 @@ export default function DriverVehiclePhotosScreen() {
     >
       <Text style={styles.title}>ავტომობილის ფოტოები</Text>
       <Text style={styles.sub}>
-        ატვირთეთ სასურველი ხედები (ერთი ან მეტი). ბილიკი: media → vehicles/[clerk_id]/[კუთხე].jpg
+        ატვირთეთ სასურველი ხედები (ერთი ან მეტი). ბილიკი: media → vehicles/[user_id]/[კუთხე].jpg
         {Platform.OS === 'web' ? ' · ვებზე: თითო ღილაკი უკავშირდება ფაილის არჩევას.' : ''}
       </Text>
 
@@ -403,8 +403,8 @@ export default function DriverVehiclePhotosScreen() {
                       borderRadius: 14,
                       paddingTop: 14,
                       paddingBottom: 14,
-                      cursor: busy || !clerkId ? 'not-allowed' : 'pointer',
-                      opacity: busy || !clerkId ? 0.7 : 1,
+                      cursor: busy || !userId ? 'not-allowed' : 'pointer',
+                      opacity: busy || !userId ? 0.7 : 1,
                       boxShadow: '0 2px 8px rgba(245, 166, 35, 0.35)',
                       overflow: 'hidden',
                     }}
@@ -415,7 +415,7 @@ export default function DriverVehiclePhotosScreen() {
                       }}
                       type="file"
                       accept="image/*"
-                      disabled={busy || !clerkId}
+                      disabled={busy || !userId}
                       onChange={handleWebFileInputChange(slot.column, slot.angle, slot.label)}
                       style={{
                         position: 'absolute',
@@ -423,7 +423,7 @@ export default function DriverVehiclePhotosScreen() {
                         width: '100%',
                         height: '100%',
                         opacity: 0,
-                        cursor: busy || !clerkId ? 'not-allowed' : 'pointer',
+                        cursor: busy || !userId ? 'not-allowed' : 'pointer',
                         zIndex: 1,
                         fontSize: 0,
                       }}
@@ -443,7 +443,7 @@ export default function DriverVehiclePhotosScreen() {
                 ) : (
                   <Pressable
                     onPress={() => void pickNativeAndUpload(slot.column, slot.angle, slot.label)}
-                    disabled={busy || !clerkId}
+                    disabled={busy || !userId}
                     style={({ pressed }) => [
                       styles.uploadBtn,
                       SHADOWS.gold,

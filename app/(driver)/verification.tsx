@@ -1,4 +1,3 @@
-import { useUser } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 import { uploadMediaObject, verificationPhotoObjectPath } from '../../lib/mediaUpload';
 import {
   fetchVerificationStatus,
@@ -30,9 +30,9 @@ function isRemoteUrl(s: string | null): boolean {
 }
 
 export default function DriverVerificationScreen() {
-  const { user, isLoaded } = useUser();
+  const { user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
-  const clerkId = user?.id;
+  const userId = user?.id;
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,15 +49,15 @@ export default function DriverVerificationScreen() {
   const [picking, setPicking] = useState(false);
 
   const load = useCallback(async () => {
-    if (!isLoaded) return;
-    if (!clerkId) {
+    if (authLoading) return;
+    if (!userId) {
       setLoading(false);
       setVerificationStatus(null);
       return;
     }
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await fetchVerificationStatus(clerkId);
+    const { data, error } = await fetchVerificationStatus(userId);
     setLoading(false);
     if (error) {
       setLoadError(error.message);
@@ -79,14 +79,14 @@ export default function DriverVerificationScreen() {
     setIdPhoto(row?.id_photo?.trim() || null);
     setVehicleRegPhoto(row?.vehicle_registration_photo?.trim() || null);
     setStep(0);
-  }, [clerkId, isLoaded]);
+  }, [userId, authLoading]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   async function pickForStep(index: number) {
-    if (!clerkId || picking) return;
+    if (!userId || picking) return;
     setPicking(true);
     setSubmitError(null);
     try {
@@ -111,7 +111,7 @@ export default function DriverVerificationScreen() {
   }
 
   async function onSubmit() {
-    if (!clerkId) return;
+    if (!userId) return;
     if (!licensePhoto || !idPhoto || !vehicleRegPhoto) {
       setSubmitError('სამივე ფოტო სავალდებულოა');
       return;
@@ -123,7 +123,7 @@ export default function DriverVerificationScreen() {
         if (!uri) throw new Error('ფოტო აკლია');
         if (isRemoteUrl(uri)) return uri.trim();
         const mime = 'image/jpeg';
-        const path = verificationPhotoObjectPath(clerkId, slot);
+        const path = verificationPhotoObjectPath(userId, slot);
         return uploadMediaObject(path, uri, { contentType: mime });
       };
 
@@ -133,7 +133,7 @@ export default function DriverVerificationScreen() {
         resolveUrl(vehicleRegPhoto, 'registration'),
       ]);
 
-      const { error } = await submitVerification(clerkId, {
+      const { error } = await submitVerification(userId, {
         license_photo: licenseUrl,
         id_photo: idUrl,
         vehicle_registration_photo: regUrl,
@@ -153,7 +153,7 @@ export default function DriverVerificationScreen() {
   const approvedView = verificationStatus === 'approved' || (isVerified && verificationStatus !== 'rejected');
   const submittedView = verificationStatus === 'submitted' && !approvedView;
 
-  if (!isLoaded || loading) {
+  if (authLoading || loading) {
     return (
       <View style={[styles.center, { paddingTop: insets.top + SPACING.xl }]}>
         <ActivityIndicator color={COLORS.gold} size="large" />
@@ -161,7 +161,7 @@ export default function DriverVerificationScreen() {
     );
   }
 
-  if (!clerkId) {
+  if (!userId) {
     return (
       <View style={[styles.center, { paddingTop: insets.top + SPACING.xl }]}>
         <Text style={styles.muted}>შედით ანგარიშით</Text>

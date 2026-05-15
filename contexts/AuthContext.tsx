@@ -72,22 +72,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionHydrated, setSessionHydrated] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const initialHydrateDone = useRef(false);
+  const profileUserIdRef = useRef<string | null>(null);
 
   const applySession = useCallback(async (next: Session | null) => {
     setSession(next);
     const nextUser = next?.user ?? null;
     setUser(nextUser);
     if (!nextUser) {
+      profileUserIdRef.current = null;
       setProfile(null);
       setProfileLoading(false);
       return;
     }
-    setProfileLoading(true);
+    const userChanged = profileUserIdRef.current !== nextUser.id;
+    profileUserIdRef.current = nextUser.id;
+    if (userChanged) {
+      setProfileLoading(true);
+    }
     try {
       const row = await fetchProfile(nextUser.id);
       setProfile(row);
     } finally {
-      setProfileLoading(false);
+      if (userChanged) {
+        setProfileLoading(false);
+      }
     }
   }, []);
 
@@ -141,12 +149,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
     if (!result.error && result.data.user?.id) {
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ role })
-        .eq('id', result.data.user.id);
+      const userId = result.data.user.id;
+      const { error: updateError } = await supabase.from('users').update({ role }).eq('id', userId);
       if (updateError && __DEV__) {
         console.warn('[AuthContext] signUp role update', updateError.message);
+      } else {
+        const row = await fetchProfile(userId);
+        setProfile(row);
+        setUser(result.data.user);
+        setSession(result.data.session ?? null);
       }
     }
     return result;

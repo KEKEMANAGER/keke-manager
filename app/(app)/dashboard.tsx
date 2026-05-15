@@ -1,4 +1,4 @@
-import { useClerk, useUser } from '@clerk/clerk-expo';
+import type { User } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -29,17 +29,19 @@ import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
 import { shareVoucherPDF } from '../../lib/voucher';
+import { useAuth, type Profile } from '../../contexts/AuthContext';
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
 }
 
-function companyDisplayName(user: ReturnType<typeof useUser>['user']) {
-  const raw = user?.unsafeMetadata;
-  const m = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  const cn = m.companyName;
+function companyDisplayName(profile: Profile | null, user: User | null) {
+  const meta = user?.user_metadata as Record<string, unknown> | undefined;
+  const cn = meta?.companyName;
   if (typeof cn === 'string' && cn.trim()) return cn.trim();
-  return user?.firstName || 'კომპანია';
+  const fn = profile?.full_name?.trim();
+  if (fn) return fn;
+  return user?.email ?? 'კომპანია';
 }
 
 function statusStyle(status: BookingStatus) {
@@ -66,15 +68,12 @@ function bookingCardStatusBorder(status: BookingStatus) {
 }
 
 export default function CompanyDashboardScreen() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, profile, signOut } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const name = companyDisplayName(user);
-  const clerkId = user?.id;
-  /** Clerk: unsafeMetadata e.g. `{ "role": "admin" }` or `{ "adminAccess": true }`. */
-  const isClerkAdmin =
-    user?.unsafeMetadata?.role === 'admin' || user?.unsafeMetadata?.adminAccess === true;
+  const name = companyDisplayName(profile, user);
+  const userId = user?.id;
+  const isAdmin = profile?.role === 'admin';
 
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -86,7 +85,7 @@ export default function CompanyDashboardScreen() {
   const [driverLoading, setDriverLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!clerkId) {
+    if (!userId) {
       setBookings([]);
       setLoading(false);
       return;
@@ -94,8 +93,8 @@ export default function CompanyDashboardScreen() {
     setError(null);
     setLoading(true);
     const [bRes, sRes] = await Promise.all([
-      fetchBookingsByCompanyId(clerkId),
-      aggregateCompanyStats(clerkId),
+      fetchBookingsByCompanyId(userId),
+      aggregateCompanyStats(userId),
     ]);
     setLoading(false);
     if (bRes.error) {
@@ -111,19 +110,19 @@ export default function CompanyDashboardScreen() {
       setTotalCount(sRes.total);
       setSpent(sRes.spent);
     }
-  }, [clerkId]);
+  }, [userId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (!clerkId) return;
+    if (!userId) return;
     const ch = subscribeBookingsChanges((_payload) => {
       void load();
     });
     return () => unsubscribeChannel(ch);
-  }, [clerkId, load]);
+  }, [userId, load]);
 
   function openWizard(preset: 'transfer' | 'tour' | 'dayTour') {
     router.push({
@@ -154,7 +153,6 @@ export default function CompanyDashboardScreen() {
 
   async function onSignOut() {
     await signOut();
-    router.replace('/(auth)/sign-in');
   }
 
   async function openDriverModal(booking: BookingRow) {
@@ -189,7 +187,7 @@ export default function CompanyDashboardScreen() {
           <Text style={styles.name}>{name}</Text>
         </View>
         <View style={styles.headerRight}>
-          {isClerkAdmin ? (
+          {isAdmin ? (
             <Pressable
               onPress={() => router.push('/(app)/admin-verify')}
               style={({ pressed }) => [styles.adminBtn, pressed && styles.adminBtnPressed]}

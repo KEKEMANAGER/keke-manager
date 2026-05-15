@@ -1,11 +1,8 @@
 /**
  * Admin: review driver verification documents.
  *
- * Grant admin in Clerk Dashboard → Users → unsafeMetadata:
- *   { "role": "admin" }
- * (Configure manually in Clerk; this app reads `unsafeMetadata.role`.)
+ * Admin access: `public.users.role` = `admin` (set in Supabase).
  */
-import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -24,15 +21,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
-function isClerkAdmin(user: ReturnType<typeof useUser>['user']): boolean {
-  const raw = user?.unsafeMetadata;
-  const m = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  return m.role === 'admin';
+function isAdminUser(role: string | null | undefined): boolean {
+  return role === 'admin';
 }
 
 type SubmittedUser = {
-  clerk_id: string;
+  id: string;
   full_name: string | null;
   license_photo: string | null;
   id_photo: string | null;
@@ -41,10 +37,10 @@ type SubmittedUser = {
 };
 
 export default function AdminVerifyScreen() {
-  const { user, isLoaded } = useUser();
+  const { profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const admin = isClerkAdmin(user);
+  const admin = isAdminUser(profile?.role ?? null);
 
   const [rows, setRows] = useState<SubmittedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +57,7 @@ export default function AdminVerifyScreen() {
     setError(null);
     const { data, error: err } = await supabase
       .from('users')
-      .select('clerk_id, full_name, license_photo, id_photo, vehicle_registration_photo, verification_status')
+      .select('id, full_name, license_photo, id_photo, vehicle_registration_photo, verification_status')
       .eq('verification_status', 'submitted');
     setLoading(false);
     if (err) {
@@ -73,10 +69,10 @@ export default function AdminVerifyScreen() {
   }, [admin]);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (authLoading) return;
     if (!admin) return;
     void load();
-  }, [isLoaded, admin, load]);
+  }, [authLoading, admin, load]);
 
   function promptRejectReason(): Promise<string | null> {
     if (Platform.OS === 'web') {
@@ -125,15 +121,15 @@ export default function AdminVerifyScreen() {
     setRejectReason('');
   }
 
-  async function onApprove(clerkId: string) {
-    setActingId(clerkId);
+  async function onApprove(targetUserId: string) {
+    setActingId(targetUserId);
     const { error: err } = await supabase
       .from('users')
       .update({
         is_verified: true,
         verification_status: 'approved',
       })
-      .eq('clerk_id', clerkId);
+      .eq('id', targetUserId);
     setActingId(null);
     if (err) {
       Alert.alert('შეცდომა', err.message);
@@ -142,17 +138,17 @@ export default function AdminVerifyScreen() {
     await load();
   }
 
-  async function onReject(clerkId: string) {
+  async function onReject(targetUserId: string) {
     const reason = await promptRejectReason();
     if (reason == null) return;
-    setActingId(clerkId);
+    setActingId(targetUserId);
     const { error: err } = await supabase
       .from('users')
       .update({
         verification_status: 'rejected',
         rejection_reason: reason,
       })
-      .eq('clerk_id', clerkId);
+      .eq('id', targetUserId);
     setActingId(null);
     if (err) {
       Alert.alert('შეცდომა', err.message);
@@ -161,7 +157,7 @@ export default function AdminVerifyScreen() {
     await load();
   }
 
-  if (!isLoaded) {
+  if (authLoading) {
     return (
       <View style={[styles.center, { paddingTop: insets.top + SPACING.xl }]}>
         <ActivityIndicator color={COLORS.gold} size="large" />
@@ -216,10 +212,10 @@ export default function AdminVerifyScreen() {
           <Text style={styles.empty}>მოლოდინში მძღოლები არ არის</Text>
         ) : (
           rows.map((u) => (
-            <View key={u.clerk_id} style={styles.card}>
+            <View key={u.id} style={styles.card}>
               <Text style={styles.name}>
                 {u.full_name?.trim() || '—'}{' '}
-                <Text style={styles.mono}>({u.clerk_id.length > 14 ? `${u.clerk_id.slice(0, 14)}…` : u.clerk_id})</Text>
+                <Text style={styles.mono}>({u.id.length > 14 ? `${u.id.slice(0, 14)}…` : u.id})</Text>
               </Text>
               <View style={styles.imgRow}>
                 {u.license_photo ? (
@@ -244,25 +240,25 @@ export default function AdminVerifyScreen() {
               </View>
               <View style={styles.btnRow}>
                 <Pressable
-                  onPress={() => void onApprove(u.clerk_id)}
-                  disabled={actingId === u.clerk_id}
+                  onPress={() => void onApprove(u.id)}
+                  disabled={actingId === u.id}
                   style={({ pressed }) => [
                     styles.approve,
-                    (pressed || actingId === u.clerk_id) && styles.approvePressed,
+                    (pressed || actingId === u.id) && styles.approvePressed,
                   ]}
                 >
-                  {actingId === u.clerk_id ? (
+                  {actingId === u.id ? (
                     <ActivityIndicator color="#0f0f0f" />
                   ) : (
                     <Text style={styles.approveText}>დამტკიცება ✅</Text>
                   )}
                 </Pressable>
                 <Pressable
-                  onPress={() => void onReject(u.clerk_id)}
-                  disabled={actingId === u.clerk_id}
+                  onPress={() => void onReject(u.id)}
+                  disabled={actingId === u.id}
                   style={({ pressed }) => [
                     styles.reject,
-                    (pressed || actingId === u.clerk_id) && styles.rejectPressed,
+                    (pressed || actingId === u.id) && styles.rejectPressed,
                   ]}
                 >
                   <Text style={styles.rejectText}>უარყოფა ❌</Text>

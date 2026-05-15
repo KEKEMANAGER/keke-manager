@@ -1,4 +1,3 @@
-import { useSignIn } from '@clerk/clerk-expo';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -14,42 +13,31 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
-function clerkFirstError(err: unknown): { code: string; message: string } {
-  if (typeof err === 'object' && err !== null && 'errors' in err) {
-    const first = (err as { errors?: { code?: string; message?: string }[] }).errors?.[0];
-    return { code: String(first?.code ?? ''), message: String(first?.message ?? '') };
+function mapSupabaseSignInError(err: unknown): string {
+  const msg =
+    typeof err === 'object' && err !== null && 'message' in err
+      ? String((err as { message?: string }).message)
+      : err instanceof Error
+        ? err.message
+        : '';
+  const lower = msg.toLowerCase();
+  if (lower.includes('invalid login credentials')) {
+    return 'ელფოსტა ან პაროლი არასწორია';
   }
-  if (err instanceof Error) return { code: '', message: err.message };
-  return { code: '', message: '' };
-}
-
-function mapSignInErrorForUser(code: string, rawMessage: string): string {
-  switch (code) {
-    case 'form_identifier_not_found':
-      return 'ანგარიში ვერ მოიძებნა. შეამოწმეთ ელფოსტა ან დარეგისტრირდით.';
-    case 'form_password_incorrect':
-      return 'პაროლი არასწორია. სცადეთ თავიდან ან გადააყვანეთ პაროლის აღდგენაზე.';
-    case 'session_exists':
-      return 'სესია უკვე არსებობს. გადატვირთეთ აპლიკაცია ან გამოდით და თავიდან შედით.';
-    default:
-      break;
+  if (lower.includes('email not confirmed')) {
+    return 'ელფოსტა არ არის დადასტურებული';
   }
-  const lower = rawMessage.toLowerCase();
-  if (
-    lower.includes("couldn't find your account") ||
-    lower.includes('couldnt find your account') ||
-    lower.includes('could not find your account')
-  ) {
-    return 'ანგარიში ვერ მოიძებნა. შეამოწმეთ ელფოსტა ან დარეგისტრირდით.';
+  if (lower.includes('network request failed')) {
+    return 'ინტერნეტთან კავშირი ვერ მოხერხდა';
   }
-  const m = rawMessage.trim();
-  if (m) return m;
-  return 'შეცდომა';
+  if (msg.trim()) return msg;
+  return 'შესვლა ვერ მოხერხდა';
 }
 
 export default function SignInScreen() {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  const { signIn } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [emailAddress, setEmailAddress] = useState('');
@@ -58,88 +46,18 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleSignIn() {
-    if (!isLoaded || !signIn) return;
     if (!emailAddress.trim() || !password) return;
     setLoading(true);
     setError(null);
     try {
-      let result = await signIn.create({
-        identifier: emailAddress.trim(),
-      });
-      console.log('SIGNIN STEP1:', result.status);
-
-      const ffv = (result as { firstFactorVerification?: unknown }).firstFactorVerification;
-      console.log('FFV:', JSON.stringify(ffv));
-
-      if (result.status === 'complete' || result.createdSessionId) {
-        if (result.createdSessionId) {
-          await setActive({ session: result.createdSessionId });
-          router.replace('/');
-          return;
-        }
-        if (result.status === 'complete') {
-          setError('სესია ვერ შეიქმნა');
-          return;
-        }
-      }
-
-      if (result.status === 'needs_first_factor') {
-        const attempt = await signIn.attemptFirstFactor({
-          strategy: 'password',
-          password,
-        });
-        console.log('ATTEMPT:', attempt.status, attempt.createdSessionId);
-        if (attempt.status === 'complete' && attempt.createdSessionId) {
-          await setActive({ session: attempt.createdSessionId });
-          router.replace('/');
-          return;
-        }
-        result = attempt;
-      }
-
-      if (result.status === 'complete' && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
-        router.replace('/');
+      const { error: signInError } = await signIn(emailAddress.trim(), password);
+      if (signInError) {
+        setError(mapSupabaseSignInError(signInError));
         return;
       }
-
-      const ffvStrategy =
-        ffv && typeof ffv === 'object' && 'strategy' in ffv
-          ? String((ffv as { strategy?: string }).strategy ?? '')
-          : '';
-      if (
-        ffvStrategy === 'reset_password_email_code' ||
-        ffvStrategy.includes('reset_password')
-      ) {
-        setError(
-          'ახალ მოწყობილობაზე Clerk მოითხოვს პაროლის დადასტურებას ელფოსტით. გამოიყენეთ „დაგავიწყდათ პაროლი“ ან Clerk Dashboard → Password → Client Trust / ახალი კლიენტის პოლიტიკა.',
-        );
-        return;
-      }
-
-      if (result.status === 'needs_second_factor') {
-        setError(
-          'საჭიროა მეორე დადასტურება (ახალი მოწყობილობა / Client Trust ან 2FA). Clerk Dashboard → User & authentication → Password → გამორთეთ „Client Trust“, ან დაასრულეთ დამატებითი ნაბიჯი Clerk-ის ვებინტერფეისით.',
-        );
-        return;
-      }
-
-      if (result.status === 'needs_new_password') {
-        setError(
-          'საჭიროა პაროლის განახლება. გადადით Clerk-ის ვებზონაზე ან გამოიყენეთ „დაგავიწყდათ პაროლი“.',
-        );
-        return;
-      }
-
-      console.log('NEEDS MORE:', JSON.stringify(result));
-      setError(
-        `სტატუსი: ${String(result.status)}. თუ ეს ახალი ტელეფონია, შეამოწმეთ Clerk-ში Client Trust და Email verification პარამეტრები.`,
-      );
+      router.replace('/');
     } catch (err: unknown) {
-      console.log('SIGNIN ERROR:', JSON.stringify(err));
-      const { code, message } = clerkFirstError(err);
-      console.log('ERROR CODE:', code);
-      setError(mapSignInErrorForUser(code, message));
+      setError(mapSupabaseSignInError(err));
     } finally {
       setLoading(false);
     }

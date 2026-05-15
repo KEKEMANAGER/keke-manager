@@ -1,6 +1,5 @@
-import { useAuth, useSignUp, useUser } from '@clerk/clerk-expo';
 import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,182 +13,47 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
-import { getUserRole, type KekeRole } from '../../lib/role';
+import { useAuth, type KekeRole } from '../../contexts/AuthContext';
+import { getUserRole } from '../../lib/role';
 
-/** Instant signup: Clerk has “Verify at sign-up” off → `signUp.create` should end with `status === 'complete'`. */
 type Role = KekeRole;
 
-function CompleteRoleForSignedInUser({
-  user,
-}: {
-  user: NonNullable<ReturnType<typeof useUser>['user']>;
-}) {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const [role, setRole] = useState<Role | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function mapSignUpErrorForUser(err: unknown): string {
+  const msg =
+    typeof err === 'object' && err !== null && 'message' in err
+      ? String((err as { message?: string }).message)
+      : err instanceof Error
+        ? err.message
+        : '';
+  const code =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: string }).code ?? '')
+      : '';
+  const lower = msg.toLowerCase();
 
-  async function onSaveRole() {
-    if (!role) return;
-    setError(null);
-    setSubmitting(true);
-    try {
-      const prev =
-        typeof user.unsafeMetadata === 'object' && user.unsafeMetadata !== null
-          ? (user.unsafeMetadata as Record<string, unknown>)
-          : {};
-      await user.update({
-        unsafeMetadata: { ...prev, role },
-      });
-      router.replace(role === 'driver' ? '/(driver)/dashboard' : '/(app)/dashboard');
-    } catch (e: unknown) {
-      const msg =
-        typeof e === 'object' && e !== null && 'errors' in e
-          ? String((e as { errors?: { message?: string }[] }).errors?.[0]?.message)
-          : e instanceof Error
-            ? e.message
-            : 'როლის შენახვა ვერ მოხერხდა';
-      setError(msg);
-    } finally {
-      setSubmitting(false);
-    }
+  if (
+    code === 'user_already_exists' ||
+    lower.includes('user already registered') ||
+    lower.includes('already registered')
+  ) {
+    return 'ეს ელფოსტა უკვე რეგისტრირებულია — გადადით „შესვლაზე".';
   }
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingTop: insets.top + SPACING.lg, paddingBottom: insets.bottom + SPACING.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.logo}>KEKE.MANAGER</Text>
-        <Text style={styles.stepTitle}>როლის არჩევა</Text>
-        <Text style={styles.roleHelp}>
-          თქვენს ანგარიშს ჯერ არ აქვს როლი. აირჩიეთ მძღოლი ან კომპანია გასაგრძელებლად.
-        </Text>
-
-        <Text style={styles.sectionLabel}>აირჩიეთ როლი</Text>
-        <View style={styles.roleRow}>
-          <Pressable
-            onPress={() => setRole('driver')}
-            style={({ pressed }) => [
-              styles.roleCard,
-              role === 'driver' && styles.roleCardActive,
-              pressed && styles.roleCardPressed,
-            ]}
-          >
-            <Text style={styles.roleEmoji}>🚚</Text>
-            <Text style={[styles.roleTitle, role === 'driver' && styles.roleTitleActive]}>
-              მძღოლი
-            </Text>
-            <Text style={styles.roleHint}>ინდივიდუალური გადაზიდვები</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setRole('company')}
-            style={({ pressed }) => [
-              styles.roleCard,
-              role === 'company' && styles.roleCardActive,
-              pressed && styles.roleCardPressed,
-            ]}
-          >
-            <Text style={styles.roleEmoji}>🏢</Text>
-            <Text style={[styles.roleTitle, role === 'company' && styles.roleTitleActive]}>
-              კომპანია
-            </Text>
-            <Text style={styles.roleHint}>B2B ლოგისტიკა</Text>
-          </Pressable>
-        </View>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable
-          onPress={onSaveRole}
-          disabled={submitting || !role}
-          style={({ pressed }) => [
-            styles.button,
-            SHADOWS.gold,
-            (submitting || !role) && styles.buttonDisabled,
-            pressed && styles.buttonPressed,
-          ]}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#000000" />
-          ) : (
-            <Text style={styles.buttonText}>შენახვა და გაგრძელება</Text>
-          )}
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
-}
-
-function splitName(full: string): { firstName: string; lastName: string } {
-  const t = full.trim();
-  const i = t.indexOf(' ');
-  if (i === -1) return { firstName: t || 'User', lastName: '' };
-  return {
-    firstName: t.slice(0, i).trim(),
-    lastName: t.slice(i + 1).trim(),
-  };
-}
-
-function postAuthDestination(r: Role): '/(driver)/dashboard' | '/(app)/dashboard' {
-  return r === 'driver' ? '/(driver)/dashboard' : '/(app)/dashboard';
-}
-
-function safeStringifyRegistrationError(err: unknown): string {
-  try {
-    if (typeof err === 'object' && err !== null && 'errors' in err) {
-      return JSON.stringify(err);
-    }
-    if (err instanceof Error) {
-      return JSON.stringify({ message: err.message, name: err.name });
-    }
-    return JSON.stringify(err);
-  } catch {
-    return String(err);
+  if (lower.includes('password should be at least 6 characters')) {
+    return 'პაროლი უნდა იყოს მინიმუმ 6 სიმბოლო';
   }
-}
-
-function clerkFirstError(e: unknown): { code: string; message: string } {
-  if (typeof e === 'object' && e !== null && 'errors' in e) {
-    const first = (e as { errors?: { code?: string; message?: string }[] }).errors?.[0];
-    return { code: String(first?.code ?? ''), message: String(first?.message ?? '') };
+  if (lower.includes('unable to validate email address')) {
+    return 'ელფოსტის ფორმატი არასწორია';
   }
-  if (e instanceof Error) return { code: '', message: e.message };
-  return { code: '', message: '' };
-}
-
-/** User-visible Georgian text for common Clerk sign-up API errors (mobile-friendly). */
-function mapSignUpErrorForUser(code: string, rawMessage: string): string {
-  switch (code) {
-    case 'form_password_pwned':
-      return 'ეს პაროლი საჯარო მონაცემთა გაჟონვის ბაზაშია ნაპოვნი. უსაფრთხოებისთვის აირჩიეთ სხვა, ძლიერი პაროლი (უნიკალური კომბინაცია).';
-    case 'form_identifier_exists':
-      return 'ეს ელფოსტა უკვე რეგისტრირებულია — გადადით „შესვლაზე“ ან გამოიყენეთ სხვა ელფოსტა.';
-    case 'form_password_length_too_short':
-      return 'პაროლი ძალიან მოკლეა. გაზარდეთ სიგრძე ან დაამატეთ სიმბოლოები/ციფრები.';
-    case 'form_password_not_strong_enough':
-      return 'პაროლი საკმარისად ძლიერი არ არის. დაამატეთ სიმბოლოები, ციფრები ან სიგრძე.';
-    default:
-      break;
+  if (lower.includes('network request failed')) {
+    return 'ინტერნეტთან კავშირი ვერ მოხერხდა';
   }
-  const m = rawMessage.trim();
-  if (m) return m;
+  if (msg.trim()) return msg;
   return 'რეგისტრაცია ვერ მოხერხდა';
 }
 
 export default function SignUpScreen() {
-  const { userId, isLoaded: authLoaded } = useAuth();
-  const { user, isLoaded: userLoaded } = useUser();
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { user, profile, loading: authLoading, signUp } = useAuth();
+  const existingRole = getUserRole(profile);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [role, setRole] = useState<Role | null>(null);
@@ -199,15 +63,14 @@ export default function SignUpScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const existingRole = getUserRole(user);
-  const showRoleOnly =
-    authLoaded && userLoaded && !!userId && !!user && !existingRole;
+  useEffect(() => {
+    if (authLoading) return;
+    if (user && existingRole) {
+      router.replace('/');
+    }
+  }, [authLoading, user, existingRole, router]);
 
-  if (showRoleOnly && user) {
-    return <CompleteRoleForSignedInUser user={user} />;
-  }
-
-  if (authLoaded && userId && !userLoaded) {
+  if (authLoading || (user && existingRole)) {
     return (
       <View style={[styles.flex, styles.centerSpinner]}>
         <ActivityIndicator color={COLORS.gold} size="large" />
@@ -216,37 +79,19 @@ export default function SignUpScreen() {
   }
 
   async function onRegister() {
-    if (!isLoaded || !signUp || !role) return;
+    if (!role || !fullName.trim() || !email.trim() || !password) return;
     if (isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     try {
-      const { firstName, lastName } = splitName(fullName);
-      await signUp.create({
-        emailAddress: email.trim(),
-        password,
-        firstName,
-        ...(lastName ? { lastName } : {}),
-        unsafeMetadata: { role },
-      });
-
-      if (signUp.status === 'complete') {
-        if (!signUp.createdSessionId) {
-          setError('სესია ვერ შეიქმნა. სცადეთ თავიდან.');
-          return;
-        }
-        await setActive({ session: signUp.createdSessionId });
-        router.replace(postAuthDestination(role));
+      const { error: signUpError } = await signUp(email.trim(), password, fullName.trim(), role);
+      if (signUpError) {
+        setError(mapSignUpErrorForUser(signUpError));
         return;
       }
-
-      setError(
-        `რეგისტრაცია ვერ დასრულდა (სტატუსი: ${String(signUp.status)}). შეამოწმეთ Clerk → Email → Verify at sign-up გამორთულია.`,
-      );
+      router.replace('/');
     } catch (e: unknown) {
-      console.log('registration error:', safeStringifyRegistrationError(e));
-      const { code, message } = clerkFirstError(e);
-      setError(mapSignUpErrorForUser(code, message));
+      setError(mapSignUpErrorForUser(e));
     } finally {
       setIsSubmitting(false);
     }

@@ -1,7 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useClerk, useUser } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,29 +15,30 @@ import { MOCK_COMPANY_LEGAL_ID, MOCK_COMPANY_SUBSCRIPTION } from '../../constant
 import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject } from '../../lib/mediaUpload';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
+import { useAuth, type Profile } from '../../contexts/AuthContext';
+import type { User } from '@supabase/supabase-js';
 
-function companyDisplayName(user: ReturnType<typeof useUser>['user']) {
-  const raw = user?.unsafeMetadata;
-  const m = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  const cn = m.companyName;
+function companyDisplayName(profile: Profile | null, user: User | null) {
+  const meta = user?.user_metadata as Record<string, unknown> | undefined;
+  const cn = meta?.companyName;
   if (typeof cn === 'string' && cn.trim()) return cn.trim();
-  return user?.firstName || 'კომპანია';
+  const fn = profile?.full_name?.trim();
+  if (fn) return fn;
+  return user?.email ?? 'კომპანია';
 }
 
 export default function CompanyProfileScreen() {
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
-  const router = useRouter();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
   const insets = useSafeAreaInsets();
-  const name = companyDisplayName(user);
-  const email = user?.primaryEmailAddress?.emailAddress ?? '—';
+  const name = companyDisplayName(profile, user);
+  const email = profile?.email ?? user?.email ?? '—';
   const phone =
-    user?.primaryPhoneNumber?.phoneNumber ??
-    (typeof user?.unsafeMetadata === 'object' &&
-    user?.unsafeMetadata &&
-    'phone' in user.unsafeMetadata &&
-    typeof (user.unsafeMetadata as { phone?: unknown }).phone === 'string'
-      ? (user.unsafeMetadata as { phone: string }).phone
+    profile?.phone ??
+    (typeof user?.user_metadata === 'object' &&
+    user?.user_metadata &&
+    'phone' in user.user_metadata &&
+    typeof (user.user_metadata as { phone?: unknown }).phone === 'string'
+      ? (user.user_metadata as { phone: string }).phone
       : '+995 555 00 00 00');
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -48,18 +47,18 @@ export default function CompanyProfileScreen() {
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   const loadAvatar = useCallback(async () => {
-    if (!isLoaded) return;
+    if (authLoading) return;
     if (!user?.id) {
-      setPhotoUri(user?.imageUrl ?? null);
+      setPhotoUri(null);
       setPhotoLoading(false);
       return;
     }
     setPhotoLoading(true);
     setPhotoError(null);
     const fromDb = await fetchUserAvatarUrl(user.id);
-    setPhotoUri(fromDb ?? user?.imageUrl ?? null);
+    setPhotoUri(fromDb);
     setPhotoLoading(false);
-  }, [isLoaded, user?.id, user?.imageUrl]);
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
     void loadAvatar();
@@ -100,7 +99,6 @@ export default function CompanyProfileScreen() {
 
   async function onSignOut() {
     await signOut();
-    router.replace('/sign-in');
   }
 
   return (
@@ -122,7 +120,7 @@ export default function CompanyProfileScreen() {
           disabled={photoUploading}
           style={({ pressed }) => [styles.photoRing, pressed && !photoUploading && styles.photoRingPressed]}
         >
-          {!isLoaded || photoLoading ? (
+          {authLoading || photoLoading ? (
             <ActivityIndicator color={COLORS.gold} />
           ) : photoUri ? (
             <Image source={{ uri: photoUri }} style={styles.photo} />
@@ -133,14 +131,14 @@ export default function CompanyProfileScreen() {
             <View style={styles.uploadingOverlay}>
               <ActivityIndicator color={COLORS.gold} size="large" />
             </View>
-          ) : !photoLoading && isLoaded ? (
+          ) : !photoLoading && !authLoading ? (
             <View style={styles.photoEdit}>
               <Ionicons name="camera" size={18} color="#000000" />
             </View>
           ) : null}
         </Pressable>
         <Text style={styles.photoHint}>
-          შეეხეთ ლოგოს შესაცვლელად (Supabase: bucket media → avatars/[clerk_id].jpg)
+          შეეხეთ ლოგოს შესაცვლელად (Supabase: bucket media → avatars/[user_id].jpg)
         </Text>
         {photoError ? <Text style={styles.photoError}>{photoError}</Text> : null}
       </View>
@@ -153,7 +151,7 @@ export default function CompanyProfileScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>იდენტიფიკაცია</Text>
         <Row label="საიდენტიფიკაციო ნომერი" value={MOCK_COMPANY_LEGAL_ID} />
-        <Row label="Clerk ID" value={user?.id ? `${user.id.slice(0, 12)}…` : '—'} />
+        <Row label="User ID" value={user?.id ? `${user.id.slice(0, 12)}…` : '—'} />
       </View>
 
       <View style={styles.card}>

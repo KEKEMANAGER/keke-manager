@@ -1,4 +1,3 @@
-import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -22,6 +21,7 @@ import {
   unsubscribeChannel,
 } from '../../lib/bookings';
 import { shareVoucherPDF } from '../../lib/voucher';
+import { useAuth } from '../../contexts/AuthContext';
 
 type FilterKey = 'ყველა' | 'მიმდინარე' | 'დადასტურებული' | 'დასრულებული' | 'გაუქმებული';
 
@@ -65,8 +65,8 @@ function matchesFilter(row: BookingRow, filter: FilterKey): boolean {
 export default function CompanyHistoryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useUser();
-  const clerkId = user?.id;
+  const { user } = useAuth();
+  const userId = user?.id;
 
   const [filter, setFilter] = useState<FilterKey>('ყველა');
   const [rows, setRows] = useState<BookingRow[]>([]);
@@ -74,14 +74,14 @@ export default function CompanyHistoryScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!clerkId) {
+    if (!userId) {
       setRows([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchBookingsByCompanyId(clerkId);
+    const { data, error: err } = await fetchBookingsByCompanyId(userId);
     setLoading(false);
     if (err) {
       setError(err.message);
@@ -89,19 +89,19 @@ export default function CompanyHistoryScreen() {
     } else {
       setRows(data);
     }
-  }, [clerkId]);
+  }, [userId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    if (!clerkId) return;
+    if (!userId) return;
     const ch = subscribeBookingsChanges((_payload) => {
       void load();
     });
     return () => unsubscribeChannel(ch);
-  }, [clerkId, load]);
+  }, [userId, load]);
 
   const filtered = useMemo(() => rows.filter((r) => matchesFilter(r, filter)), [rows, filter]);
 
