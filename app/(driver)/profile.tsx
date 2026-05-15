@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StarRow } from '../../components/StarRow';
 import { MOCK_RATING_BREAKDOWN } from '../../constants/driverMocks';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject } from '../../lib/mediaUpload';
 import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
@@ -249,7 +249,7 @@ export default function DriverProfileScreen() {
 
       <Pressable
         onPress={onSignOut}
-        style={({ pressed }) => [styles.signOut, SHADOWS.gold, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.signOut, SHADOWS.button, pressed && styles.pressed]}
       >
         <Text style={styles.signOutText}>გასვლა</Text>
       </Pressable>
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 24,
     fontWeight: '800',
     marginBottom: SPACING.md,
@@ -314,8 +314,9 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
+    ...SHADOWS.card,
   },
   photo: {
     width: '100%',
@@ -347,17 +348,18 @@ const styles = StyleSheet.create({
   },
   photoBusy: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,15,15,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
+    ...SHADOWS.card,
   },
   cardTitle: {
     color: COLORS.gold,
@@ -377,13 +379,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   input: {
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 12,
+    borderRadius: RADIUS.input,
     paddingHorizontal: SPACING.md,
     paddingVertical: 12,
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 15,
   },
   inputMulti: {
@@ -397,7 +399,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   overallLabel: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -430,7 +432,7 @@ const styles = StyleSheet.create({
   },
   signOut: {
     backgroundColor: COLORS.gold,
-    borderRadius: 14,
+    borderRadius: RADIUS.button,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: SPACING.lg,
@@ -446,7 +448,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     marginTop: SPACING.md,
     backgroundColor: COLORS.gold,
-    borderRadius: 14,
+    borderRadius: RADIUS.button,
     paddingVertical: 14,
     alignItems: 'center',
   },

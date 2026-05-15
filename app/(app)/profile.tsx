@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MOCK_COMPANY_LEGAL_ID, MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject } from '../../lib/mediaUpload';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
@@ -111,7 +111,6 @@ export default function CompanyProfileScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.logo}>KEKE.MANAGER</Text>
       <Text style={styles.screenTitle}>კომპანიის პროფილი</Text>
 
       <View style={styles.photoSection}>
@@ -179,7 +178,7 @@ export default function CompanyProfileScreen() {
 
       <Pressable
         onPress={onSignOut}
-        style={({ pressed }) => [styles.signOut, SHADOWS.gold, pressed && styles.signOutPressed]}
+        style={({ pressed }) => [styles.signOut, SHADOWS.button, pressed && styles.signOutPressed]}
       >
         <Text style={styles.signOutText}>გასვლა</Text>
       </Pressable>
@@ -205,16 +204,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     flexGrow: 1,
   },
-  logo: {
-    color: COLORS.gold,
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 2,
-    textAlign: 'center',
-    marginBottom: SPACING.sm,
-  },
   screenTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
@@ -232,8 +223,9 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     overflow: 'hidden',
+    ...SHADOWS.card,
   },
   photoRingPressed: {
     opacity: 0.92,
@@ -255,7 +247,7 @@ const styles = StyleSheet.create({
   },
   uploadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,15,15,0.65)',
+    backgroundColor: 'rgba(255,255,255,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -278,7 +270,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   name: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '700',
   },
@@ -288,15 +280,16 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
+    ...SHADOWS.card,
   },
   cardTitle: {
-    color: COLORS.goldLight,
+    color: COLORS.gold,
     fontSize: 14,
     fontWeight: '700',
     marginBottom: SPACING.md,
@@ -310,7 +303,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   rowValue: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -343,7 +336,7 @@ const styles = StyleSheet.create({
   },
   signOut: {
     backgroundColor: COLORS.gold,
-    borderRadius: 14,
+    borderRadius: RADIUS.button,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: SPACING.md,
