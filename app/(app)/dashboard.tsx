@@ -24,8 +24,9 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
+import { AppLogo } from '../../components/AppLogo';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
 import { shareVoucherPDF } from '../../lib/voucher';
@@ -58,7 +59,7 @@ function bookingCardStatusBorder(status: BookingStatus) {
     case 'confirmed':
       return { borderLeftWidth: 3, borderLeftColor: '#1D9E75' as const };
     case 'completed':
-      return { borderLeftWidth: 3, borderLeftColor: '#555566' as const };
+      return { borderLeftWidth: 3, borderLeftColor: '#3B82F6' as const };
     case 'rejected':
     case 'cancelled':
       return { borderLeftWidth: 3, borderLeftColor: '#E24B4A' as const };
@@ -182,6 +183,7 @@ export default function CompanyDashboardScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.headerRow}>
+        <AppLogo size="header" />
         <View style={styles.headerText}>
           <Text style={styles.greeting}>გამარჯობა,</Text>
           <Text style={styles.name}>{name}</Text>
@@ -222,21 +224,21 @@ export default function CompanyDashboardScreen() {
       <View style={styles.quickRow}>
         <Pressable
           onPress={() => openWizard('transfer')}
-          style={({ pressed }) => [styles.quickCard, SHADOWS.gold, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
         >
           <Text style={styles.quickEmoji}>🚗</Text>
           <Text style={styles.quickTitle}>ტრანსფერი</Text>
         </Pressable>
         <Pressable
           onPress={() => openWizard('tour')}
-          style={({ pressed }) => [styles.quickCard, SHADOWS.gold, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
         >
           <Text style={styles.quickEmoji}>🗺️</Text>
           <Text style={styles.quickTitle}>ტური</Text>
         </Pressable>
         <Pressable
           onPress={() => openWizard('dayTour')}
-          style={({ pressed }) => [styles.quickCard, SHADOWS.gold, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
         >
           <Text style={styles.quickEmoji}>📅</Text>
           <Text style={styles.quickTitle}>ერთდღიანი</Text>
@@ -445,9 +447,12 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: SPACING.lg,
     gap: SPACING.md,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   headerText: {
     flex: 1,
@@ -488,20 +493,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   greeting: {
-    color: COLORS.grayLight,
+    color: COLORS.textSecondary,
     fontSize: 15,
   },
   name: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '700',
     marginTop: 4,
   },
   subBadge: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
-    borderColor: COLORS.gold,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     minWidth: 120,
@@ -547,7 +553,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   sectionTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: SPACING.md,
@@ -566,10 +572,11 @@ const styles = StyleSheet.create({
   },
   topStatCard: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
+    ...SHADOWS.card,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.sm,
     alignItems: 'center',
@@ -600,8 +607,8 @@ const styles = StyleSheet.create({
   },
   quickCard: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingVertical: SPACING.md,
@@ -612,7 +619,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   quickTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -634,12 +641,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   bookingCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    ...SHADOWS.card,
   },
   bookingTop: {
     flexDirection: 'row',
@@ -658,24 +666,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   badgeLive: {
-    backgroundColor: 'rgba(245,166,35,0.2)',
+    backgroundColor: '#FEF3C7',
   },
   badgeOk: {
-    backgroundColor: 'rgba(76,175,80,0.2)',
+    backgroundColor: '#D1FAE5',
   },
   badgeBad: {
-    backgroundColor: 'rgba(244,67,54,0.2)',
+    backgroundColor: '#FEE2E2',
   },
   badgeMuted: {
-    backgroundColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
   },
   statusText: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 11,
     fontWeight: '700',
   },
   route: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
@@ -697,7 +705,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   driverName: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -799,7 +807,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   vehicleTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
@@ -844,7 +852,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   driverNameModal: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 17,
     fontWeight: '700',
   },

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { COLORS, SPACING } from '../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 
 type Variant = 'driver' | 'company';
 
@@ -96,11 +96,12 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
+    ...SHADOWS.card,
   },
   bar: {
     borderRadius: 8,
@@ -117,11 +118,12 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   companyCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
+    ...SHADOWS.card,
   },
   companyTop: {
     flexDirection: 'row',

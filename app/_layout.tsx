@@ -34,8 +34,8 @@ function WebRootStyles() {
     const el = document.createElement('style');
     el.id = id;
     el.textContent = [
-      'html,body{height:100%;margin:0;background:#0f0f0f;}',
-      '#root{height:100%;min-height:100%;display:flex;flex:1;background:#0f0f0f;}',
+      'html,body{height:100%;margin:0;background:#FFFFFF;}',
+      '#root{height:100%;min-height:100%;display:flex;flex:1;background:#FFFFFF;}',
     ].join('');
     document.head.appendChild(el);
   }, []);

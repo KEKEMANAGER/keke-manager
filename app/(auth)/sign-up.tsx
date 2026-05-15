@@ -11,8 +11,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../constants/theme';
 import { useAuth, type KekeRole } from '../../contexts/AuthContext';
 import { getUserRole } from '../../lib/role';
 
@@ -110,7 +111,7 @@ export default function SignUpScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.logo}>KEKE.MANAGER</Text>
+        <AppLogo size="auth" />
         <Text style={styles.stepTitle}>რეგისტრაცია</Text>
 
         <Text style={styles.sectionLabel}>აირჩიეთ როლი</Text>
@@ -171,7 +172,7 @@ export default function SignUpScreen() {
             }
             style={({ pressed }) => [
               styles.button,
-              SHADOWS.gold,
+              SHADOWS.button,
               (isSubmitting || !role || !fullName.trim() || !email.trim() || !password) &&
                 styles.buttonDisabled,
               pressed && styles.buttonPressed,
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   roleHelp: {
-    color: COLORS.grayLight,
+    color: COLORS.textSecondary,
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
@@ -219,25 +220,16 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
   },
-  logo: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: COLORS.gold,
-    letterSpacing: 3,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
-  },
   stepTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.white,
+    color: COLORS.text,
     textAlign: 'center',
+    marginTop: SPACING.md,
     marginBottom: SPACING.lg,
   },
   sectionLabel: {
-    color: COLORS.grayLight,
-    fontSize: 14,
-    fontWeight: '600',
+    ...TYPOGRAPHY.label,
     marginBottom: SPACING.sm,
   },
   roleRow: {
@@ -247,8 +239,8 @@ const styles = StyleSheet.create({
   },
   roleCard: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 2,
     borderColor: COLORS.border,
     paddingVertical: SPACING.lg,
@@ -257,7 +249,7 @@ const styles = StyleSheet.create({
   },
   roleCardActive: {
     borderColor: COLORS.gold,
-    backgroundColor: 'rgba(245, 166, 35, 0.08)',
+    backgroundColor: 'rgba(245, 166, 35, 0.06)',
   },
   roleCardPressed: {
     opacity: 0.92,
@@ -269,23 +261,24 @@ const styles = StyleSheet.create({
   roleTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.white,
+    color: COLORS.text,
     marginBottom: 4,
   },
   roleTitleActive: {
-    color: COLORS.goldLight,
+    color: COLORS.goldDark,
   },
   roleHint: {
     fontSize: 12,
-    color: COLORS.gray,
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   card: {
-    backgroundColor: 'rgba(26, 26, 46, 0.55)',
-    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.lg,
+    ...SHADOWS.card,
   },
   error: {
     color: COLORS.error,
@@ -295,7 +288,7 @@ const styles = StyleSheet.create({
   button: {
     marginTop: SPACING.sm,
     backgroundColor: COLORS.gold,
-    borderRadius: 14,
+    borderRadius: RADIUS.button,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -305,9 +298,10 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.9,
+    backgroundColor: COLORS.goldDark,
   },
   buttonText: {
-    color: '#000000',
+    color: COLORS.black,
     fontSize: 17,
     fontWeight: '800',
   },
@@ -318,11 +312,11 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
   },
   footerMuted: {
-    color: COLORS.gray,
+    color: COLORS.textSecondary,
     fontSize: 15,
   },
   link: {
-    color: COLORS.goldLight,
+    color: COLORS.gold,
     fontSize: 15,
     fontWeight: '700',
   },

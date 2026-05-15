@@ -2,7 +2,8 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { AppLogo } from '../../components/AppLogo';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRow } from '../../lib/bookings';
 import {
   aggregateDriverStats,
@@ -169,6 +170,7 @@ export default function DriverDashboardScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.headerRow}>
+        <AppLogo size="header" />
         <View style={styles.headerText}>
           <Text style={styles.greeting}>გამარჯობა,</Text>
           <Text style={styles.name}>{firstName}</Text>
@@ -223,7 +225,7 @@ export default function DriverDashboardScreen() {
           <ActivityIndicator color={COLORS.gold} size="large" />
         </View>
       ) : hasActive && activeBooking ? (
-        <View style={[styles.activeCard, SHADOWS.gold]}>
+        <View style={[styles.activeCard, SHADOWS.card]}>
           <View style={styles.activeBadge}>
             <Animated.View style={[styles.activeBadgeDot, { opacity: activeDotOpacity }]} />
             <Text style={styles.activeBadgeText}>დადასტურებული</Text>
@@ -274,8 +276,11 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: SPACING.md,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   headerText: {
     flex: 1,
@@ -286,7 +291,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   name: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 26,
     fontWeight: '800',
     marginTop: 4,
@@ -298,10 +303,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   balancePill: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
-    borderColor: COLORS.gold,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     alignItems: 'flex-end',
@@ -314,7 +320,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   balanceValue: {
-    color: COLORS.goldLight,
+    color: COLORS.gold,
     fontSize: 17,
     fontWeight: '800',
     marginTop: 2,
@@ -325,12 +331,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.md,
-    backgroundColor: 'rgba(26, 26, 46, 0.6)',
-    borderRadius: 14,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.gold,
+    ...SHADOWS.card,
   },
   pendingBannerPressed: {
     opacity: 0.88,
@@ -391,7 +398,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   sectionTitle: {
-    color: COLORS.gold,
+    color: COLORS.textSecondary,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 1,
@@ -399,10 +406,12 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   activeCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: COLORS.gold,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.gold,
     padding: SPACING.lg,
     marginBottom: SPACING.xl,
   },
@@ -411,7 +420,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(245, 166, 35, 0.2)',
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: SPACING.sm,
     paddingVertical: 6,
     borderRadius: 8,
@@ -424,12 +433,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.gold,
   },
   activeBadgeText: {
-    color: COLORS.goldLight,
+    color: COLORS.goldDark,
     fontSize: 12,
     fontWeight: '700',
   },
   company: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: SPACING.xs,
@@ -479,13 +488,14 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
     minHeight: 120,
     justifyContent: 'flex-start',
+    ...SHADOWS.card,
   },
   statIconPill: {
     alignSelf: 'flex-start',
@@ -499,7 +509,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   statValue: {
-    color: COLORS.goldLight,
+    color: COLORS.gold,
     fontSize: 16,
     fontWeight: '800',
     marginBottom: SPACING.xs,

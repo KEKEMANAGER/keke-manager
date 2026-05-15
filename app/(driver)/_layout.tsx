@@ -15,7 +15,7 @@ export default function DriverTabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: COLORS.surface,
+            backgroundColor: COLORS.white,
             borderTopColor: COLORS.border,
             borderTopWidth: 1,
             paddingTop: SPACING.xs,
@@ -26,7 +26,7 @@ export default function DriverTabsLayout() {
               : {}),
           },
           tabBarActiveTintColor: COLORS.gold,
-          tabBarInactiveTintColor: COLORS.gray,
+          tabBarInactiveTintColor: COLORS.textMuted,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
         }}

@@ -11,8 +11,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 
 function mapSupabaseSignInError(err: unknown): string {
@@ -76,7 +77,7 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.logo}>KEKE.MANAGER</Text>
+        <AppLogo size="auth" />
         <Text style={styles.tagline}>B2B სატრანსპორტო პლატფორმა</Text>
 
         <View style={styles.card}>
@@ -105,13 +106,13 @@ export default function SignInScreen() {
             disabled={loading || !emailAddress.trim() || !password}
             style={({ pressed }) => [
               styles.button,
-              SHADOWS.gold,
+              SHADOWS.button,
               (loading || !emailAddress.trim() || !password) && styles.buttonDisabled,
               pressed && styles.buttonPressed,
             ]}
           >
             {loading ? (
-              <ActivityIndicator color="#000000" />
+              <ActivityIndicator color={COLORS.black} />
             ) : (
               <Text style={styles.buttonText}>შესვლა</Text>
             )}
@@ -140,31 +141,25 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
   },
-  logo: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.gold,
-    letterSpacing: 3,
-    textAlign: 'center',
-  },
   tagline: {
     marginTop: SPACING.sm,
     fontSize: 14,
-    color: COLORS.gray,
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: SPACING.xl,
   },
   card: {
-    backgroundColor: 'rgba(26, 26, 46, 0.55)',
-    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.lg,
+    ...SHADOWS.card,
   },
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.white,
+    color: COLORS.text,
     marginBottom: SPACING.lg,
   },
   error: {
@@ -175,7 +170,7 @@ const styles = StyleSheet.create({
   button: {
     marginTop: SPACING.sm,
     backgroundColor: COLORS.gold,
-    borderRadius: 14,
+    borderRadius: RADIUS.button,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -185,9 +180,10 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.9,
+    backgroundColor: COLORS.goldDark,
   },
   buttonText: {
-    color: '#000000',
+    color: COLORS.black,
     fontSize: 17,
     fontWeight: '800',
   },
@@ -198,11 +194,11 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
   },
   footerMuted: {
-    color: COLORS.gray,
+    color: COLORS.textSecondary,
     fontSize: 15,
   },
   link: {
-    color: COLORS.goldLight,
+    color: COLORS.gold,
     fontSize: 15,
     fontWeight: '700',
   },
