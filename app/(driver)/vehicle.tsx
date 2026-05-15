@@ -11,13 +11,20 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EditModeButtons } from '../../components/EditModeButtons';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
-import { uploadMediaObject, vehiclePhotoObjectPath } from '../../lib/mediaUpload';
-import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
-import { fetchVehicleByDriver, saveVehicleInfo, saveVehiclePhotoUrl } from '../../lib/vehicles';
+import { uploadMediaObject, vehiclePhotoObjectPath, withCacheBust } from '../../lib/mediaUpload';
+import type { VehiclePhotoKey } from '../../lib/vehicles';
+import {
+  fetchVehicleByDriver,
+  rowToUrlsWithCacheBust,
+  saveVehicleDetails,
+  saveVehiclePhotoUrl,
+} from '../../lib/vehicles';
 import { useAuth } from '../../contexts/AuthContext';
 
 const VEHICLE_TYPES = [
@@ -56,25 +63,6 @@ const SLOTS: {
   { angle: 'rear', label: 'უკანა', column: 'photo_rear' },
 ];
 
-function rowToUrls(row: VehicleRow | null): Record<VehiclePhotoKey, string | null> {
-  if (!row) {
-    return {
-      photo_front: null,
-      photo_left: null,
-      photo_right: null,
-      photo_interior: null,
-      photo_rear: null,
-    };
-  }
-  return {
-    photo_front: row.photo_front,
-    photo_left: row.photo_left,
-    photo_right: row.photo_right,
-    photo_interior: row.photo_interior,
-    photo_rear: row.photo_rear,
-  };
-}
-
 function hasPhotoUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -93,12 +81,21 @@ export default function DriverVehiclePhotosScreen() {
   const insets = useSafeAreaInsets();
   const userId = user?.id;
 
-  const [urls, setUrls] = useState<Record<VehiclePhotoKey, string | null>>(() => rowToUrls(null));
+  const [urls, setUrls] = useState<Record<VehiclePhotoKey, string | null>>(() =>
+    rowToUrlsWithCacheBust(null),
+  );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [uploadingKey, setUploadingKey] = useState<VehiclePhotoKey | null>(null);
   const [vehicleType, setVehicleType] = useState<string>(VEHICLE_TYPES[0]);
   const [vehicleClass, setVehicleClass] = useState<string>(VEHICLE_CLASSES[0]);
+  const [model, setModel] = useState('');
+  const [color, setColor] = useState('');
+  const [year, setYear] = useState('');
+  const [plate, setPlate] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const urlsRef = useRef(urls);
   urlsRef.current = urls;
@@ -106,15 +103,13 @@ export default function DriverVehiclePhotosScreen() {
   userIdRef.current = userId;
   const vehicleTypeRef = useRef(vehicleType);
   vehicleTypeRef.current = vehicleType;
-  const chipSavePrev = useRef<{ t: string; c: string } | null>(null);
-
   /** One real `<input type="file">` per slot on web (reliable file picker + label hit target). */
   const webFileInputRefs = useRef<Record<VehiclePhotoKey, HTMLInputElement | null>>(emptyWebFileRefs());
 
   const load = useCallback(async () => {
     if (authLoading) return;
     if (!userId) {
-      setUrls(rowToUrls(null));
+      setUrls(rowToUrlsWithCacheBust(null));
       setLoading(false);
       return;
     }
@@ -124,18 +119,24 @@ export default function DriverVehiclePhotosScreen() {
     setLoading(false);
     if (error) {
       setLoadError(error.message);
-      setUrls(rowToUrls(null));
+      setUrls(rowToUrlsWithCacheBust(null));
       return;
     }
-    setUrls(rowToUrls(data));
+    setUrls(rowToUrlsWithCacheBust(data));
     if (data) {
       setVehicleType(normalizeVehicleType(data.type));
       setVehicleClass(normalizeVehicleClass(data.class));
-      chipSavePrev.current = null;
+      setModel(data.model?.trim() ?? '');
+      setColor(data.color?.trim() ?? '');
+      setYear(data.year != null && !Number.isNaN(Number(data.year)) ? String(data.year) : '');
+      setPlate(data.plate?.trim() ?? '');
     } else {
       setVehicleType(VEHICLE_TYPES[0]);
       setVehicleClass(VEHICLE_CLASSES[0]);
-      chipSavePrev.current = null;
+      setModel('');
+      setColor('');
+      setYear('');
+      setPlate('');
     }
   }, [userId, authLoading]);
 
@@ -143,23 +144,38 @@ export default function DriverVehiclePhotosScreen() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!userId || loading) return;
-    if (!chipSavePrev.current) {
-      chipSavePrev.current = { t: vehicleType, c: vehicleClass };
+  function onStartEdit() {
+    setIsEditing(true);
+    setSaveError(null);
+  }
+
+  function onCancelEdit() {
+    setIsEditing(false);
+    setSaveError(null);
+    void load();
+  }
+
+  async function onSaveVehicle() {
+    if (!userId) return;
+    setSaveBusy(true);
+    setSaveError(null);
+    const yearNum = parseInt(year.trim(), 10);
+    const { error } = await saveVehicleDetails(userId, {
+      type: vehicleType,
+      class: vehicleClass,
+      model: model.trim() || null,
+      color: color.trim() || null,
+      year: Number.isFinite(yearNum) && yearNum > 1900 ? yearNum : null,
+      plate: plate.trim() || null,
+    });
+    setSaveBusy(false);
+    if (error) {
+      setSaveError(error.message);
       return;
     }
-    if (chipSavePrev.current.t === vehicleType && chipSavePrev.current.c === vehicleClass) return;
-    chipSavePrev.current = { t: vehicleType, c: vehicleClass };
-    const id = setTimeout(() => {
-      void saveVehicleInfo(userId, vehicleType, vehicleClass).then(({ error: err }) => {
-        if (err && __DEV__) {
-          console.warn('[vehicle] saveVehicleInfo', err.message);
-        }
-      });
-    }, 500);
-    return () => clearTimeout(id);
-  }, [vehicleType, vehicleClass, userId, loading]);
+    setIsEditing(false);
+    void load();
+  }
 
   const hasAtLeastOnePhoto = useMemo(
     () => SLOTS.some((s) => hasPhotoUrl(urls[s.column])),
@@ -213,10 +229,11 @@ export default function DriverVehiclePhotosScreen() {
         if (error) {
           throw error;
         }
-        setUrls((prev) => ({ ...prev, [column]: publicUrl }));
+        const busted = withCacheBust(publicUrl) ?? publicUrl;
+        setUrls((prev) => ({ ...prev, [column]: busted }));
         const { data: fresh } = await fetchVehicleByDriver(cid);
         if (fresh) {
-          setUrls(rowToUrls(fresh));
+          setUrls(rowToUrlsWithCacheBust(fresh));
         }
         if (opts?.revokeObjectUrl) {
           const blob = opts.revokeObjectUrl;
@@ -324,30 +341,57 @@ export default function DriverVehiclePhotosScreen() {
         {Platform.OS === 'web' ? ' · ვებზე: თითო ღილაკი უკავშირდება ფაილის არჩევას.' : ''}
       </Text>
 
-      <Text style={styles.sectionLabel}>ტიპი</Text>
-      <View style={styles.chipRow}>
-        {VEHICLE_TYPES.map((t) => (
-          <Pressable
-            key={t}
-            onPress={() => setVehicleType(t)}
-            style={[styles.chip, vehicleType === t && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, vehicleType === t && styles.chipTextActive]}>{t}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={styles.sectionLabel}>კლასი</Text>
-      <View style={styles.chipRow}>
-        {VEHICLE_CLASSES.map((c) => (
-          <Pressable
-            key={c}
-            onPress={() => setVehicleClass(c)}
-            style={[styles.chip, vehicleClass === c && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>{c}</Text>
-          </Pressable>
-        ))}
+      <View style={styles.metaCard}>
+        <Text style={styles.metaCardTitle}>ავტომობილის მონაცემები</Text>
+        <EditModeButtons
+          isEditing={isEditing}
+          onEdit={onStartEdit}
+          onSave={() => void onSaveVehicle()}
+          onCancel={onCancelEdit}
+          saveBusy={saveBusy}
+        />
+        {isEditing ? (
+          <>
+            <Text style={styles.sectionLabel}>ტიპი</Text>
+            <View style={styles.chipRow}>
+              {VEHICLE_TYPES.map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setVehicleType(t)}
+                  style={[styles.chip, vehicleType === t && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, vehicleType === t && styles.chipTextActive]}>{t}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.sectionLabel}>კლასი</Text>
+            <View style={styles.chipRow}>
+              {VEHICLE_CLASSES.map((c) => (
+                <Pressable
+                  key={c}
+                  onPress={() => setVehicleClass(c)}
+                  style={[styles.chip, vehicleClass === c && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <VehicleField label="მოდელი" value={model} onChangeText={setModel} />
+            <VehicleField label="ფერი" value={color} onChangeText={setColor} />
+            <VehicleField label="წელი" value={year} onChangeText={setYear} keyboardType="number-pad" />
+            <VehicleField label="სანომრე ნიშანი" value={plate} onChangeText={setPlate} />
+          </>
+        ) : (
+          <>
+            <MetaRow label="ტიპი" value={vehicleType} />
+            <MetaRow label="კლასი" value={vehicleClass} />
+            <MetaRow label="მოდელი" value={model || '—'} />
+            <MetaRow label="ფერი" value={color || '—'} />
+            <MetaRow label="წელი" value={year || '—'} />
+            <MetaRow label="სანომრე ნიშანი" value={plate || '—'} />
+          </>
+        )}
+        {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
       </View>
 
       {loadError ? (
@@ -484,6 +528,40 @@ export default function DriverVehiclePhotosScreen() {
   );
 }
 
+function MetaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metaRow}>
+      <Text style={styles.metaLabel}>{label}</Text>
+      <Text style={styles.metaValue}>{value}</Text>
+    </View>
+  );
+}
+
+function VehicleField({
+  label,
+  value,
+  onChangeText,
+  keyboardType,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (t: string) => void;
+  keyboardType?: 'default' | 'number-pad';
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        placeholderTextColor={COLORS.gray}
+        style={styles.input}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -503,6 +581,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: SPACING.md,
+  },
+  metaCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.card,
+  },
+  metaCardTitle: {
+    color: COLORS.gold,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: SPACING.sm,
+    textTransform: 'uppercase',
+  },
+  metaRow: {
+    marginBottom: SPACING.md,
+  },
+  metaLabel: {
+    color: COLORS.grayLight,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  metaValue: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  field: {
+    marginBottom: SPACING.md,
+  },
+  fieldLabel: {
+    color: COLORS.grayLight,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  input: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.input,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    color: COLORS.text,
+    fontSize: 15,
+  },
+  saveError: {
+    color: COLORS.error,
+    fontSize: 13,
+    marginTop: SPACING.sm,
   },
   sectionLabel: {
     color: COLORS.goldLight,

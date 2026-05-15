@@ -1,3 +1,4 @@
+import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
 
 export async function fetchUserAvatarUrl(userId: string): Promise<string | null> {
@@ -8,9 +9,10 @@ export async function fetchUserAvatarUrl(userId: string): Promise<string | null>
 }
 
 export async function saveUserAvatarUrl(userId: string, publicUrl: string) {
+  const cleanUrl = storagePublicUrlBase(publicUrl);
   const { data, error } = await supabase
     .from('users')
-    .update({ avatar_url: publicUrl })
+    .update({ avatar_url: cleanUrl })
     .eq('id', userId)
     .select('id');
 
@@ -22,7 +24,7 @@ export async function saveUserAvatarUrl(userId: string, publicUrl: string) {
 
   const ins = await supabase.from('users').insert({
     id: userId,
-    avatar_url: publicUrl,
+    avatar_url: cleanUrl,
     role: null,
     full_name: null,
     email: null,

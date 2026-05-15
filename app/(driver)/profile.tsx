@@ -12,10 +12,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EditModeButtons } from '../../components/EditModeButtons';
 import { StarRow } from '../../components/StarRow';
 import { MOCK_RATING_BREAKDOWN } from '../../constants/driverMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
-import { avatarObjectPath, uploadMediaObject } from '../../lib/mediaUpload';
+import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
 import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import { useAuth } from '../../contexts/AuthContext';
@@ -53,7 +54,7 @@ export default function DriverProfileScreen() {
     setPhotoLoading(true);
     setPhotoError(null);
     const fromDb = await fetchUserAvatarUrl(user.id);
-    setPhotoUri(fromDb);
+    setPhotoUri(withCacheBust(fromDb) ?? fromDb);
     setPhotoLoading(false);
   }, [authLoading, user?.id]);
 
@@ -65,9 +66,10 @@ export default function DriverProfileScreen() {
   const [bio, setBio] = useState('');
   const [languages, setLanguages] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
-  const [vehicleModel, setVehicleModel] = useState('Mercedes Sprinter 316');
-  const [vehiclePlate, setVehiclePlate] = useState('AA-123-BB');
+  const vehicleModel = 'Mercedes Sprinter 316';
+  const vehiclePlate = 'AA-123-BB';
   const [profileLoading, setProfileLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -129,7 +131,7 @@ export default function DriverProfileScreen() {
       if (error) {
         throw new Error(error.message);
       }
-      setPhotoUri(publicUrl);
+      setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
     } catch (e: unknown) {
       setPhotoError(e instanceof Error ? e.message : 'ატვირთვა ვერ მოხერხდა');
     } finally {
@@ -141,6 +143,17 @@ export default function DriverProfileScreen() {
     await signOut();
   }
 
+  function onStartEdit() {
+    setIsEditing(true);
+    setSaveError(null);
+  }
+
+  function onCancelEdit() {
+    setIsEditing(false);
+    setSaveError(null);
+    void loadProfileFields();
+  }
+
   async function onSaveProfile() {
     if (!user?.id) return;
     setSaveBusy(true);
@@ -149,6 +162,7 @@ export default function DriverProfileScreen() {
     const { error } = await supabase
       .from('users')
       .update({
+        full_name: name.trim() || null,
         bio: bio.trim() || null,
         languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
         experience_years: Number.isFinite(years) && years > 0 ? years : null,
@@ -159,6 +173,7 @@ export default function DriverProfileScreen() {
       setSaveError(error.message);
       return;
     }
+    setIsEditing(false);
     void loadProfileFields();
   }
 
@@ -198,41 +213,48 @@ export default function DriverProfileScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>პირადი ინფორმაცია</Text>
+        <EditModeButtons
+          isEditing={isEditing}
+          onEdit={onStartEdit}
+          onSave={() => void onSaveProfile()}
+          onCancel={onCancelEdit}
+          saveBusy={saveBusy}
+        />
         {profileLoading ? (
           <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.md }} />
         ) : null}
-        <Field label="სახელი გვარი" value={name} onChangeText={setName} />
-        <Field label="ბიო" value={bio} onChangeText={setBio} multiline />
-        <Field
-          label="ენები"
-          value={languages}
-          onChangeText={setLanguages}
-          placeholder="ქართული, ინგლისური"
-        />
-        <Field
-          label="გამოცდილება (წლები)"
-          value={experienceYears}
-          onChangeText={setExperienceYears}
-          keyboardType="number-pad"
-        />
+        {isEditing ? (
+          <>
+            <Field label="სახელი გვარი" value={name} onChangeText={setName} />
+            <Field label="ბიო" value={bio} onChangeText={setBio} multiline />
+            <Field
+              label="ენები"
+              value={languages}
+              onChangeText={setLanguages}
+              placeholder="ქართული, ინგლისური"
+            />
+            <Field
+              label="გამოცდილება (წლები)"
+              value={experienceYears}
+              onChangeText={setExperienceYears}
+              keyboardType="number-pad"
+            />
+          </>
+        ) : (
+          <>
+            <ViewField label="სახელი გვარი" value={name || '—'} />
+            <ViewField label="ბიო" value={bio || '—'} />
+            <ViewField label="ენები" value={languages || '—'} />
+            <ViewField label="გამოცდილება (წლები)" value={experienceYears || '—'} />
+          </>
+        )}
         {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
-        <Pressable
-          onPress={() => void onSaveProfile()}
-          disabled={saveBusy}
-          style={({ pressed }) => [styles.saveBtn, (pressed || saveBusy) && styles.pressed]}
-        >
-          {saveBusy ? (
-            <ActivityIndicator color="#000000" />
-          ) : (
-            <Text style={styles.saveBtnText}>შენახვა</Text>
-          )}
-        </Pressable>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>ავტომობილი</Text>
-        <Field label="მოდელი" value={vehicleModel} onChangeText={setVehicleModel} />
-        <Field label="სანომრე ნიშანი" value={vehiclePlate} onChangeText={setVehiclePlate} />
+        <ViewField label="მოდელი" value={vehicleModel} />
+        <ViewField label="სანომრე ნიშანი" value={vehiclePlate} />
       </View>
 
       <View style={styles.card}>
@@ -254,6 +276,15 @@ export default function DriverProfileScreen() {
         <Text style={styles.signOutText}>გასვლა</Text>
       </Pressable>
     </ScrollView>
+  );
+}
+
+function ViewField({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.viewValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -445,17 +476,10 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.9,
   },
-  saveBtn: {
-    marginTop: SPACING.md,
-    backgroundColor: COLORS.gold,
-    borderRadius: RADIUS.button,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  saveBtnText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '800',
+  viewValue: {
+    color: COLORS.text,
+    fontSize: 15,
+    lineHeight: 22,
   },
   saveError: {
     color: COLORS.error,

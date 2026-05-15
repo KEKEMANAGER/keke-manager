@@ -16,12 +16,14 @@ export function AppLogo({ size = 'auth', style }: Props) {
 
 const styles = StyleSheet.create({
   auth: {
-    width: 120,
-    height: 48,
+    width: 150,
+    height: 150,
     alignSelf: 'center',
+    marginBottom: 8,
   },
   header: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
+    marginRight: 12,
   },
 });

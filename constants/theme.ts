@@ -22,6 +22,9 @@ export const COLORS = {
   surfaceHigh: '#F0F1F3',
   /** @deprecated Use border */
   borderLight: '#E5E7EB',
+  goldTint: '#FFFBF0',
+  blue: '#3B82F6',
+  blueTint: '#EFF6FF',
 };
 
 export const FONTS = {
@@ -73,6 +76,13 @@ export const SHADOWS = {
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
+  },
+  cardStrong: {
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   button: {
     shadowColor: '#F5A623',

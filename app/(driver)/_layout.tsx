@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TabBarIcon } from '../../components/TabBarIcon';
 import { COLORS, SPACING } from '../../constants/theme';
 
 export default function DriverTabsLayout() {
@@ -20,13 +20,13 @@ export default function DriverTabsLayout() {
             borderTopWidth: 1,
             paddingTop: SPACING.xs,
             paddingBottom: bottomPad,
-            minHeight: Platform.OS === 'web' ? 64 + bottomPad : 56 + bottomPad,
+            minHeight: Platform.OS === 'web' ? 72 + bottomPad : 64 + bottomPad,
             ...(Platform.OS === 'web'
               ? { position: 'relative' as const, zIndex: 20, width: '100%' as const }
               : {}),
           },
           tabBarActiveTintColor: COLORS.gold,
-          tabBarInactiveTintColor: COLORS.textMuted,
+          tabBarInactiveTintColor: COLORS.textSecondary,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
         }}
@@ -36,8 +36,8 @@ export default function DriverTabsLayout() {
         name="dashboard"
         options={{
           title: 'დაშბორდი',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="home-outline" color={color} focused={focused} />
           ),
         }}
       />
@@ -45,8 +45,8 @@ export default function DriverTabsLayout() {
         name="bookings"
         options={{
           title: 'ჯავშანები',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="calendar-outline" color={color} focused={focused} />
           ),
         }}
       />
@@ -54,8 +54,8 @@ export default function DriverTabsLayout() {
         name="vehicle"
         options={{
           title: 'ავტო',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="car-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="car-outline" color={color} focused={focused} />
           ),
         }}
       />
@@ -63,8 +63,8 @@ export default function DriverTabsLayout() {
         name="verification"
         options={{
           title: 'ვერიფიკაცია',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="shield-checkmark-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="shield-checkmark-outline" color={color} focused={focused} />
           ),
         }}
       />
@@ -72,8 +72,8 @@ export default function DriverTabsLayout() {
         name="profile"
         options={{
           title: 'პროფილი',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="person-outline" color={color} focused={focused} />
           ),
         }}
       />
@@ -81,8 +81,8 @@ export default function DriverTabsLayout() {
         name="gps"
         options={{
           title: 'GPS',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="navigate-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="navigate-outline" color={color} focused={focused} />
           ),
         }}
       />
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { minHeight: '100%' as const } : {}),
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   tabItem: {

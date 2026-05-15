@@ -12,7 +12,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
-import { uploadMediaObject, verificationPhotoObjectPath } from '../../lib/mediaUpload';
+import {
+  storagePublicUrlBase,
+  uploadMediaObject,
+  verificationPhotoObjectPath,
+  withCacheBust,
+} from '../../lib/mediaUpload';
 import {
   fetchVerificationStatus,
   submitVerification,
@@ -75,9 +80,13 @@ export default function DriverVerificationScreen() {
     setVerificationStatus(st);
     setIsVerified(!!row?.is_verified);
     setRejectionReason(row?.rejection_reason?.trim() || null);
-    setLicensePhoto(row?.license_photo?.trim() || null);
-    setIdPhoto(row?.id_photo?.trim() || null);
-    setVehicleRegPhoto(row?.vehicle_registration_photo?.trim() || null);
+    const bust = (u: string | null | undefined) => {
+      const t = u?.trim() || null;
+      return t && isRemoteUrl(t) ? withCacheBust(t) ?? t : t;
+    };
+    setLicensePhoto(bust(row?.license_photo));
+    setIdPhoto(bust(row?.id_photo));
+    setVehicleRegPhoto(bust(row?.vehicle_registration_photo));
     setStep(0);
   }, [userId, authLoading]);
 
@@ -121,7 +130,7 @@ export default function DriverVerificationScreen() {
     try {
       const resolveUrl = async (uri: string | null, slot: 'license' | 'id' | 'registration') => {
         if (!uri) throw new Error('ფოტო აკლია');
-        if (isRemoteUrl(uri)) return uri.trim();
+        if (isRemoteUrl(uri)) return storagePublicUrlBase(uri.trim());
         const mime = 'image/jpeg';
         const path = verificationPhotoObjectPath(userId, slot);
         return uploadMediaObject(path, uri, { contentType: mime });

@@ -1,3 +1,4 @@
+import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
 
 export type VehiclePhotoKey =
@@ -68,10 +69,12 @@ export async function saveVehiclePhotoUrl(
     return { error: new Error(selErr.message) };
   }
 
+  const cleanUrl = storagePublicUrlBase(publicUrl);
+
   if (existing?.driver_id) {
     const { error } = await supabase
       .from('vehicles')
-      .update({ [column]: publicUrl, updated_at: now })
+      .update({ [column]: cleanUrl, updated_at: now })
       .eq('driver_id', driverId);
 
     return { error: error ? new Error(error.message) : null };
@@ -84,7 +87,7 @@ export async function saveVehiclePhotoUrl(
     photo_interior: null,
     photo_rear: null,
   };
-  photos[column] = publicUrl;
+  photos[column] = cleanUrl;
 
   const { error } = await supabase.from('vehicles').insert({
     driver_id: driverId,
@@ -108,15 +111,51 @@ export async function saveVehicleInfo(
   type: string | null,
   vehicleClass: string | null,
 ): Promise<{ error: Error | null }> {
+  return saveVehicleDetails(driverId, { type, class: vehicleClass });
+}
+
+/** Updates vehicle metadata (type, class, model, color, year, plate). */
+export async function saveVehicleDetails(
+  driverId: string,
+  fields: {
+    type?: string | null;
+    class?: string | null;
+    model?: string | null;
+    color?: string | null;
+    year?: number | null;
+    plate?: string | null;
+  },
+): Promise<{ error: Error | null }> {
   const now = new Date().toISOString();
   const { error } = await supabase.from('vehicles').upsert(
     {
       driver_id: driverId,
-      type,
-      class: vehicleClass,
+      ...fields,
       updated_at: now,
     },
     { onConflict: 'driver_id' },
   );
   return { error: error ? new Error(error.message) : null };
 }
+
+function rowToUrlsWithCacheBust(row: VehicleRow | null): Record<VehiclePhotoKey, string | null> {
+  if (!row) {
+    return {
+      photo_front: null,
+      photo_left: null,
+      photo_right: null,
+      photo_interior: null,
+      photo_rear: null,
+    };
+  }
+  const bust = (u: string | null) => (u && u.startsWith('http') ? `${storagePublicUrlBase(u)}?t=${Date.now()}` : u);
+  return {
+    photo_front: bust(row.photo_front),
+    photo_left: bust(row.photo_left),
+    photo_right: bust(row.photo_right),
+    photo_interior: bust(row.photo_interior),
+    photo_rear: bust(row.photo_rear),
+  };
+}
+
+export { rowToUrlsWithCacheBust };

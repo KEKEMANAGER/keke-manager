@@ -8,12 +8,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EditModeButtons } from '../../components/EditModeButtons';
 import { MOCK_COMPANY_LEGAL_ID, MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
-import { avatarObjectPath, uploadMediaObject } from '../../lib/mediaUpload';
+import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
+import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
@@ -30,16 +33,48 @@ function companyDisplayName(profile: Profile | null, user: User | null) {
 export default function CompanyProfileScreen() {
   const { user, profile, loading: authLoading, signOut } = useAuth();
   const insets = useSafeAreaInsets();
-  const name = companyDisplayName(profile, user);
-  const email = profile?.email ?? user?.email ?? '—';
-  const phone =
-    profile?.phone ??
-    (typeof user?.user_metadata === 'object' &&
-    user?.user_metadata &&
-    'phone' in user.user_metadata &&
-    typeof (user.user_metadata as { phone?: unknown }).phone === 'string'
-      ? (user.user_metadata as { phone: string }).phone
-      : '+995 555 00 00 00');
+
+  const [companyName, setCompanyName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const displayName = companyName.trim() || companyDisplayName(profile, user);
+
+  const loadProfileFields = useCallback(async () => {
+    if (!user?.id) return;
+    setProfileLoading(true);
+    setSaveError(null);
+    const { data, error } = await supabase
+      .from('users')
+      .select('full_name, email, phone')
+      .eq('id', user.id)
+      .maybeSingle();
+    setProfileLoading(false);
+    if (error || !data) {
+      const fallbackName = companyDisplayName(profile, user);
+      setCompanyName(fallbackName === 'კომპანია' ? '' : fallbackName);
+      setEmail(profile?.email ?? user?.email ?? '');
+      setPhone(profile?.phone ?? '');
+      return;
+    }
+    const row = data as { full_name?: string | null; email?: string | null; phone?: string | null };
+    if (typeof row.full_name === 'string' && row.full_name.trim()) {
+      setCompanyName(row.full_name.trim());
+    } else {
+      const fallbackName = companyDisplayName(profile, user);
+      setCompanyName(fallbackName === 'კომპანია' ? '' : fallbackName);
+    }
+    setEmail(row.email?.trim() ?? profile?.email ?? user?.email ?? '');
+    setPhone(row.phone?.trim() ?? profile?.phone ?? '');
+  }, [user?.id, profile, user]);
+
+  useEffect(() => {
+    void loadProfileFields();
+  }, [loadProfileFields]);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -56,7 +91,7 @@ export default function CompanyProfileScreen() {
     setPhotoLoading(true);
     setPhotoError(null);
     const fromDb = await fetchUserAvatarUrl(user.id);
-    setPhotoUri(fromDb);
+    setPhotoUri(withCacheBust(fromDb) ?? fromDb);
     setPhotoLoading(false);
   }, [authLoading, user?.id]);
 
@@ -89,12 +124,44 @@ export default function CompanyProfileScreen() {
       if (error) {
         throw new Error(error.message);
       }
-      setPhotoUri(publicUrl);
+      setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
     } catch (e: unknown) {
       setPhotoError(e instanceof Error ? e.message : 'ატვირთვა ვერ მოხერხდა');
     } finally {
       setPhotoUploading(false);
     }
+  }
+
+  function onStartEdit() {
+    setIsEditing(true);
+    setSaveError(null);
+  }
+
+  function onCancelEdit() {
+    setIsEditing(false);
+    setSaveError(null);
+    void loadProfileFields();
+  }
+
+  async function onSaveProfile() {
+    if (!user?.id) return;
+    setSaveBusy(true);
+    setSaveError(null);
+    const { error } = await supabase
+      .from('users')
+      .update({
+        full_name: companyName.trim() || null,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+      })
+      .eq('id', user.id);
+    setSaveBusy(false);
+    if (error) {
+      setSaveError(error.message);
+      return;
+    }
+    setIsEditing(false);
+    void loadProfileFields();
   }
 
   async function onSignOut() {
@@ -143,8 +210,8 @@ export default function CompanyProfileScreen() {
       </View>
 
       <View style={styles.nameBlock}>
-        <Text style={styles.name}>{name}</Text>
-        <Text style={styles.email}>{email}</Text>
+        <Text style={styles.name}>{displayName}</Text>
+        <Text style={styles.email}>{email.trim() || '—'}</Text>
       </View>
 
       <View style={styles.card}>
@@ -155,8 +222,36 @@ export default function CompanyProfileScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>კონტაქტი</Text>
-        <Row label="ტელეფონი" value={phone} />
-        <Row label="ელფოსტა" value={email} />
+        <EditModeButtons
+          isEditing={isEditing}
+          onEdit={onStartEdit}
+          onSave={() => void onSaveProfile()}
+          onCancel={onCancelEdit}
+          saveBusy={saveBusy}
+        />
+        {profileLoading ? (
+          <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.md }} />
+        ) : null}
+        {isEditing ? (
+          <>
+            <EditField label="კომპანიის სახელი" value={companyName} onChangeText={setCompanyName} />
+            <EditField label="ტელეფონი" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            <EditField
+              label="ელფოსტა"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </>
+        ) : (
+          <>
+            <Row label="კომპანიის სახელი" value={displayName} />
+            <Row label="ტელეფონი" value={phone.trim() || '—'} />
+            <Row label="ელფოსტა" value={email.trim() || '—'} />
+          </>
+        )}
+        {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
       </View>
 
       <View style={styles.card}>
@@ -183,6 +278,34 @@ export default function CompanyProfileScreen() {
         <Text style={styles.signOutText}>გასვლა</Text>
       </Pressable>
     </ScrollView>
+  );
+}
+
+function EditField({
+  label,
+  value,
+  onChangeText,
+  keyboardType,
+  autoCapitalize,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (t: string) => void;
+  keyboardType?: 'default' | 'phone-pad' | 'email-address';
+  autoCapitalize?: 'none' | 'sentences';
+}) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        placeholderTextColor={COLORS.gray}
+        style={styles.input}
+      />
+    </View>
   );
 }
 
@@ -306,6 +429,21 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 16,
     fontWeight: '600',
+  },
+  input: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.input,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    color: COLORS.text,
+    fontSize: 15,
+  },
+  saveError: {
+    color: COLORS.error,
+    fontSize: 13,
+    marginTop: SPACING.sm,
   },
   subRow: {
     flexDirection: 'row',

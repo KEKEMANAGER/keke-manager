@@ -1,6 +1,16 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppLogo } from '../../components/AppLogo';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -21,6 +31,22 @@ import { useAuth } from '../../contexts/AuthContext';
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
+}
+
+function StatIcon({
+  name,
+  backgroundColor,
+  iconColor,
+}: {
+  name: ComponentProps<typeof Ionicons>['name'];
+  backgroundColor: string;
+  iconColor: string;
+}) {
+  return (
+    <View style={[styles.statIconCircle, { backgroundColor }]}>
+      <Ionicons name={name} size={20} color={iconColor} />
+    </View>
+  );
 }
 
 export default function DriverDashboardScreen() {
@@ -165,7 +191,7 @@ export default function DriverDashboardScreen() {
       style={styles.screen}
       contentContainerStyle={[
         styles.scroll,
-        { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + SPACING.xl + 72 },
+        { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + 100 },
       ]}
       showsVerticalScrollIndicator={false}
     >
@@ -174,12 +200,15 @@ export default function DriverDashboardScreen() {
         <View style={styles.headerText}>
           <Text style={styles.greeting}>გამარჯობა,</Text>
           <Text style={styles.name}>{firstName}</Text>
-          <Text style={styles.ratingLine}>
-            ⭐{' '}
-            {ratingCount > 0 ? ratingAvg.toFixed(1) : '—'} ({ratingCount} შეფასება)
-          </Text>
+          <View style={styles.ratingRow}>
+            <Ionicons name="star" size={14} color={COLORS.gold} />
+            <Text style={styles.ratingLine}>
+              {ratingCount > 0 ? ratingAvg.toFixed(1) : '—'} ({ratingCount} შეფასება)
+            </Text>
+          </View>
         </View>
         <View style={styles.balancePill}>
+          <View style={styles.balanceGradient} />
           <Text style={styles.balanceLabel}>მოგება</Text>
           <Text style={styles.balanceValue}>{formatGel(earnings)}</Text>
         </View>
@@ -207,7 +236,7 @@ export default function DriverDashboardScreen() {
         ) : (
           <Text style={styles.pendingValue}>{openCount}</Text>
         )}
-        <Text style={styles.pendingArrow}>→</Text>
+        <Ionicons name="chevron-forward" size={22} color={COLORS.gold} />
       </Pressable>
 
       {error ? (
@@ -219,6 +248,7 @@ export default function DriverDashboardScreen() {
         </View>
       ) : null}
 
+      <View style={styles.sectionDivider} />
       <Text style={styles.sectionTitle}>აქტიური ჯავშანი</Text>
       {loading ? (
         <View style={styles.loadingBox}>
@@ -239,24 +269,23 @@ export default function DriverDashboardScreen() {
         </View>
       ) : (
         <View style={styles.emptyActive}>
-          <Text style={styles.emptyActiveEmoji}>🚗</Text>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="car-outline" size={28} color={COLORS.textMuted} />
+          </View>
           <Text style={styles.emptyActiveText}>აქტიური ჯავშანი არ არის</Text>
         </View>
       )}
 
+      <View style={styles.sectionDivider} />
       <Text style={styles.sectionTitle}>სტატისტიკა</Text>
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <View style={styles.statIconPill}>
-            <Text style={styles.statIconEmoji}>🚗</Text>
-          </View>
+        <View style={[styles.statCard, styles.statCardTrips]}>
+          <StatIcon name="car-outline" backgroundColor={COLORS.blueTint} iconColor={COLORS.blue} />
           <Text style={styles.statValue}>{completedTrips}</Text>
           <Text style={styles.statLabel}>დასრულებული რეისი</Text>
         </View>
-        <View style={styles.statCard}>
-          <View style={styles.statIconPill}>
-            <Text style={styles.statIconEmoji}>💰</Text>
-          </View>
+        <View style={[styles.statCard, styles.statCardRevenue]}>
+          <StatIcon name="wallet-outline" backgroundColor="#FEF3C7" iconColor={COLORS.goldDark} />
           <Text style={styles.statValue}>{formatGel(earnings)}</Text>
           <Text style={styles.statLabel}>მოგება (დასრულებული)</Text>
         </View>
@@ -284,11 +313,10 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
-    paddingRight: SPACING.md,
   },
   greeting: {
-    color: COLORS.grayLight,
-    fontSize: 15,
+    color: COLORS.textMuted,
+    fontSize: 14,
   },
   name: {
     color: COLORS.text,
@@ -296,46 +324,56 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 4,
   },
-  ratingLine: {
-    color: COLORS.grayLight,
-    fontSize: 14,
-    fontWeight: '600',
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginTop: 6,
   },
+  ratingLine: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   balancePill: {
-    backgroundColor: COLORS.white,
     borderRadius: RADIUS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.card,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    borderColor: COLORS.goldLight,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
     alignItems: 'flex-end',
+    overflow: 'hidden',
+    minWidth: 108,
+    ...SHADOWS.card,
+  },
+  balanceGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFF4DC',
   },
   balanceLabel: {
-    color: COLORS.gray,
+    color: COLORS.textSecondary,
     fontSize: 11,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   balanceValue: {
-    color: COLORS.gold,
-    fontSize: 17,
+    color: COLORS.goldDark,
+    fontSize: 18,
     fontWeight: '800',
-    marginTop: 2,
+    marginTop: 4,
   },
   pendingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.md,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.goldTint,
     borderRadius: RADIUS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderLeftWidth: 3,
+    borderColor: '#FDE68A',
+    borderLeftWidth: 4,
     borderLeftColor: COLORS.gold,
     ...SHADOWS.card,
   },
@@ -348,25 +386,22 @@ const styles = StyleSheet.create({
     paddingRight: SPACING.sm,
   },
   pendingLabel: {
-    color: COLORS.grayLight,
+    color: COLORS.text,
     fontSize: 14,
     fontWeight: '600',
   },
   pendingSubtitle: {
-    color: COLORS.gray,
+    color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 4,
   },
   pendingValue: {
-    color: COLORS.gold,
-    fontSize: 22,
+    color: COLORS.goldDark,
+    fontSize: 32,
     fontWeight: '800',
     marginRight: SPACING.sm,
-  },
-  pendingArrow: {
-    color: COLORS.goldLight,
-    fontSize: 22,
-    fontWeight: '700',
+    minWidth: 28,
+    textAlign: 'right',
   },
   errorBanner: {
     backgroundColor: 'rgba(244,67,54,0.12)',
@@ -397,12 +432,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: COLORS.surfaceAlt,
+    marginVertical: SPACING.md,
+  },
   sectionTitle: {
-    color: COLORS.textSecondary,
-    fontSize: 13,
+    color: COLORS.text,
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: SPACING.sm,
   },
   activeCard: {
@@ -410,10 +449,10 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: COLORS.gold,
     padding: SPACING.lg,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.md,
   },
   activeBadge: {
     alignSelf: 'flex-start',
@@ -444,7 +483,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   route: {
-    color: COLORS.grayLight,
+    color: COLORS.textSecondary,
     fontSize: 15,
     lineHeight: 22,
     marginBottom: SPACING.md,
@@ -455,7 +494,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   meta: {
-    color: COLORS.gray,
+    color: COLORS.textMuted,
     fontSize: 14,
   },
   price: {
@@ -464,21 +503,26 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   emptyActive: {
-    borderRadius: 16,
+    borderRadius: RADIUS.card,
     borderWidth: 2,
     borderColor: COLORS.border,
     borderStyle: 'dashed',
     padding: 32,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.md,
     alignItems: 'center',
     backgroundColor: COLORS.surface,
   },
-  emptyActiveEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
+  emptyIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
   },
   emptyActiveText: {
-    color: COLORS.gray,
+    color: COLORS.textSecondary,
     fontSize: 15,
   },
   statsRow: {
@@ -493,31 +537,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
-    minHeight: 120,
+    minHeight: 130,
     justifyContent: 'flex-start',
-    ...SHADOWS.card,
+    ...SHADOWS.cardStrong,
   },
-  statIconPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(245,166,35,0.12)',
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    marginBottom: 8,
+  statCardTrips: {
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.blue,
   },
-  statIconEmoji: {
-    fontSize: 18,
+  statCardRevenue: {
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.gold,
+  },
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
   },
   statValue: {
-    color: COLORS.gold,
-    fontSize: 16,
+    color: COLORS.text,
+    fontSize: 28,
     fontWeight: '800',
     marginBottom: SPACING.xs,
   },
   statLabel: {
-    color: COLORS.gray,
-    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontSize: 13,
     fontWeight: '600',
-    lineHeight: 14,
+    lineHeight: 18,
   },
 });

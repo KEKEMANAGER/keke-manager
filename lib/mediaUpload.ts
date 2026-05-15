@@ -61,7 +61,18 @@ export async function uploadMediaObject(
     throw new Error(error.message);
   }
   const { data } = bucket.getPublicUrl(objectPath);
-  return data.publicUrl;
+  return storagePublicUrlBase(data.publicUrl);
+}
+
+/** Strip cache-busting query string before persisting URLs in the database. */
+export function storagePublicUrlBase(url: string): string {
+  return url.split('?')[0];
+}
+
+/** Append a cache-busting query param so replaced Storage objects refresh in `<Image>`. */
+export function withCacheBust(url: string | null | undefined): string | null {
+  if (!url || !url.startsWith('http')) return null;
+  return `${storagePublicUrlBase(url)}?t=${Date.now()}`;
 }
 
 /** `verification/[user_id]/[slot].jpg` — slot: license | id | registration */

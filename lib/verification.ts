@@ -1,3 +1,4 @@
+import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
 
 export type VerificationStatus = 'pending' | 'submitted' | 'approved' | 'rejected';
@@ -24,9 +25,9 @@ export async function submitVerification(
   const { error } = await supabase
     .from('users')
     .update({
-      license_photo: photos.license_photo,
-      id_photo: photos.id_photo,
-      vehicle_registration_photo: photos.vehicle_registration_photo,
+      license_photo: storagePublicUrlBase(photos.license_photo),
+      id_photo: storagePublicUrlBase(photos.id_photo),
+      vehicle_registration_photo: storagePublicUrlBase(photos.vehicle_registration_photo),
       verification_status: 'submitted',
       rejection_reason: null,
     })

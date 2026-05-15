@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import type { User } from '@supabase/supabase-js';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -178,7 +179,7 @@ export default function CompanyDashboardScreen() {
       style={styles.screen}
       contentContainerStyle={[
         styles.scroll,
-        { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + SPACING.xl + 72 },
+        { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + 100 },
       ]}
       showsVerticalScrollIndicator={false}
     >
@@ -226,25 +227,32 @@ export default function CompanyDashboardScreen() {
           onPress={() => openWizard('transfer')}
           style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
         >
-          <Text style={styles.quickEmoji}>🚗</Text>
+          <View style={[styles.quickIconCircle, { backgroundColor: COLORS.blueTint }]}>
+            <Ionicons name="car-outline" size={22} color={COLORS.blue} />
+          </View>
           <Text style={styles.quickTitle}>ტრანსფერი</Text>
         </Pressable>
         <Pressable
           onPress={() => openWizard('tour')}
           style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
         >
-          <Text style={styles.quickEmoji}>🗺️</Text>
+          <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
+            <Ionicons name="map-outline" size={22} color={COLORS.goldDark} />
+          </View>
           <Text style={styles.quickTitle}>ტური</Text>
         </Pressable>
         <Pressable
           onPress={() => openWizard('dayTour')}
           style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
         >
-          <Text style={styles.quickEmoji}>📅</Text>
+          <View style={[styles.quickIconCircle, { backgroundColor: COLORS.surfaceAlt }]}>
+            <Ionicons name="calendar-outline" size={22} color={COLORS.textSecondary} />
+          </View>
           <Text style={styles.quickTitle}>ერთდღიანი</Text>
         </Pressable>
       </View>
 
+      <View style={styles.sectionDivider} />
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>აქტიური ჯავშნები</Text>
         <Pressable onPress={() => router.push('/(app)/new-booking')}>
@@ -253,16 +261,18 @@ export default function CompanyDashboardScreen() {
       </View>
 
       <View style={styles.topStatsRow}>
-        <View style={styles.topStatCard}>
+        <View style={[styles.topStatCard, styles.topStatCardBlue]}>
           <Text style={styles.topStatValue}>{totalCount}</Text>
           <Text style={styles.topStatLabel}>ჯავშნები სულ</Text>
         </View>
-        <View style={styles.topStatCard}>
+        <View style={[styles.topStatCard, styles.topStatCardGold]}>
           <Text style={styles.topStatValue}>{pendingCount}</Text>
           <Text style={styles.topStatLabel}>მოლოდინში</Text>
         </View>
-        <View style={styles.topStatCard}>
-          <Text style={styles.topStatValue}>{formatGel(spentThisMonth)}</Text>
+        <View style={[styles.topStatCard, styles.topStatCardGreen]}>
+          <Text style={[styles.topStatValue, styles.topStatValueSmall]}>
+            {formatGel(spentThisMonth)}
+          </Text>
           <Text style={styles.topStatLabel}>დახარჯული (თვე)</Text>
         </View>
       </View>
@@ -493,23 +503,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   greeting: {
-    color: COLORS.textSecondary,
-    fontSize: 15,
+    color: COLORS.textMuted,
+    fontSize: 14,
   },
   name: {
     color: COLORS.text,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     marginTop: 4,
   },
   subBadge: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FFF4DC',
     borderRadius: RADIUS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.goldLight,
     ...SHADOWS.card,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
     minWidth: 120,
   },
   subBadgeLabel: {
@@ -552,17 +562,22 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontWeight: '700',
   },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: COLORS.surfaceAlt,
+    marginVertical: SPACING.md,
+  },
   sectionTitle: {
     color: COLORS.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
+    letterSpacing: 0.5,
     marginBottom: SPACING.md,
   },
   sectionHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: SPACING.lg,
     marginBottom: SPACING.sm,
   },
   topStatsRow: {
@@ -576,24 +591,37 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.card,
+    ...SHADOWS.cardStrong,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.sm,
     alignItems: 'center',
+    borderLeftWidth: 4,
+  },
+  topStatCardBlue: {
+    borderLeftColor: COLORS.blue,
+  },
+  topStatCardGold: {
+    borderLeftColor: COLORS.gold,
+  },
+  topStatCardGreen: {
+    borderLeftColor: COLORS.success,
   },
   topStatValue: {
-    color: COLORS.gold,
-    fontSize: 17,
+    color: COLORS.text,
+    fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,
     textAlign: 'center',
   },
+  topStatValueSmall: {
+    fontSize: 20,
+  },
   topStatLabel: {
-    color: COLORS.gray,
-    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 13,
+    lineHeight: 16,
   },
   link: {
     color: COLORS.gold,
@@ -614,9 +642,13 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     alignItems: 'center',
   },
-  quickEmoji: {
-    fontSize: 26,
-    marginBottom: 6,
+  quickIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
   },
   quickTitle: {
     color: COLORS.text,
@@ -647,7 +679,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: SPACING.md,
     marginBottom: SPACING.md,
-    ...SHADOWS.card,
+    ...SHADOWS.cardStrong,
   },
   bookingTop: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TabBarIcon } from '../../components/TabBarIcon';
 import { COLORS, SPACING } from '../../constants/theme';
 
 export default function CompanyTabsLayout() {
@@ -20,13 +20,13 @@ export default function CompanyTabsLayout() {
             borderTopWidth: 1,
             paddingTop: SPACING.xs,
             paddingBottom: bottomPad,
-            minHeight: Platform.OS === 'web' ? 64 + bottomPad : 56 + bottomPad,
+            minHeight: Platform.OS === 'web' ? 72 + bottomPad : 64 + bottomPad,
             ...(Platform.OS === 'web'
               ? { position: 'relative' as const, zIndex: 20, width: '100%' as const }
               : {}),
           },
           tabBarActiveTintColor: COLORS.gold,
-          tabBarInactiveTintColor: COLORS.textMuted,
+          tabBarInactiveTintColor: COLORS.textSecondary,
           tabBarLabelStyle: styles.tabLabel,
           tabBarItemStyle: styles.tabItem,
         }}
@@ -36,8 +36,8 @@ export default function CompanyTabsLayout() {
           name="dashboard"
           options={{
             title: 'დაშბორდი',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="grid-outline" size={size} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="grid-outline" color={color} focused={focused} />
             ),
           }}
         />
@@ -45,8 +45,8 @@ export default function CompanyTabsLayout() {
           name="new-booking"
           options={{
             title: 'ჯავშანი',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="add-circle-outline" size={size} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="add-circle-outline" color={color} focused={focused} />
             ),
           }}
         />
@@ -54,8 +54,8 @@ export default function CompanyTabsLayout() {
           name="history"
           options={{
             title: 'ისტორია',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="time-outline" size={size} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="time-outline" color={color} focused={focused} />
             ),
           }}
         />
@@ -65,8 +65,8 @@ export default function CompanyTabsLayout() {
           name="profile"
           options={{
             title: 'პროფილი',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="business-outline" size={size} color={color} />
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="business-outline" color={color} focused={focused} />
             ),
           }}
         />
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { minHeight: '100%' as const } : {}),
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   tabItem: {

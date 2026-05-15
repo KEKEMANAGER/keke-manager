@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: COLORS.white,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E5E7EB',
     borderRadius: RADIUS.input,
     paddingHorizontal: SPACING.md,
     paddingVertical: 14,
