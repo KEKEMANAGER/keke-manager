@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Platform,
   Pressable,
@@ -12,20 +13,25 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
-import type { BookingRow } from '../../lib/bookings';
+import type { BookingRealtimeRecord, BookingRow } from '../../lib/bookings';
 import {
   aggregateDriverStats,
+  bookingStatusLabel,
   fetchBookingsForDriver,
-  fetchOpenPendingBookings,
+  fetchOpenPendingBookingsForDriver,
   formatBookingDate,
   isNewOpenPendingBookingInsert,
   routeSummary,
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
-import { notifyNewOpenBooking } from '../../lib/localNotifications';
+import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
+import { sendExpoPushNotification } from '../../lib/expoPush';
+import { getTestNotificationContent } from '../../lib/notifications';
+import { registerForPushNotificationsAsync } from '../../lib/pushRegistration';
 import { fetchDriverAverageRating } from '../../lib/ratings';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -50,13 +56,14 @@ function StatIcon({
 }
 
 export default function DriverDashboardScreen() {
+  const { t } = useTranslation();
   const { user, profile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const firstName =
     profile?.full_name?.trim()?.split(/\s+/)[0] ??
     user?.email?.split('@')[0] ??
-    'მძღოლი';
+    t('driver.defaultName');
   const userId = user?.id;
 
   const pendingPulse = useRef(new Animated.Value(1)).current;
@@ -70,6 +77,8 @@ export default function DriverDashboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [ratingAvg, setRatingAvg] = useState<number>(0);
   const [ratingCount, setRatingCount] = useState(0);
+  const [pushToken, setPushToken] = useState<string | null>(null);
+  const [testPushSending, setTestPushSending] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) {
@@ -84,12 +93,16 @@ export default function DriverDashboardScreen() {
     }
     setError(null);
     setLoading(true);
-    const [mine, open, stats, ratingRes] = await Promise.all([
+    const results = await Promise.all([
       fetchBookingsForDriver(userId),
-      fetchOpenPendingBookings(),
+      fetchOpenPendingBookingsForDriver(userId),
       aggregateDriverStats(userId),
       fetchDriverAverageRating(userId),
     ]);
+    const mine = results[0]!;
+    const open = results[1]!;
+    const stats = results[2]!;
+    const ratingRes = results[3]!;
     setLoading(false);
     if (mine.error) {
       setError(mine.error.message);
@@ -123,11 +136,42 @@ export default function DriverDashboardScreen() {
   }, [load]);
 
   useEffect(() => {
+    if (Platform.OS === 'web' || !userId) return;
+    void registerForPushNotificationsAsync(userId).then(setPushToken);
+  }, [userId]);
+
+  const handleSendTestPush = useCallback(async () => {
+    if (!userId) return;
+    setTestPushSending(true);
+    let token = pushToken;
+    if (!token) {
+      token = await registerForPushNotificationsAsync(userId);
+      setPushToken(token);
+    }
+    setTestPushSending(false);
+    if (!token) {
+      Alert.alert(t('notifications.testTitle'), t('notifications.noToken'));
+      return;
+    }
+    const { title, body } = getTestNotificationContent();
+    const result = await sendExpoPushNotification(token, title, body, { type: 'test' });
+    Alert.alert(
+      t('notifications.testTitle'),
+      result.ok ? t('notifications.testSent') : `${t('notifications.testFailed')}: ${result.error}`,
+    );
+  }, [userId, pushToken, t]);
+
+  useEffect(() => {
     if (!userId) return;
     const ch = subscribeBookingsChanges((payload) => {
       void load();
-      if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload)) {
-        void notifyNewOpenBooking();
+      if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload) && userId) {
+        const row = payload.new as BookingRealtimeRecord | undefined;
+        void notifyNewOpenBookingIfMatchesDriver(
+          userId,
+          row?.vehicle_type ?? '',
+          row?.vehicle_class ?? '',
+        );
       }
     });
     return () => unsubscribeChannel(ch);
@@ -158,7 +202,7 @@ export default function DriverDashboardScreen() {
 
   const activeBooking =
     assigned
-      .filter((b) => b.status === 'confirmed')
+      .filter((b) => b.status === 'accepted' || b.status === 'in_progress')
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] ?? null;
 
   const hasActive = !!activeBooking;
@@ -198,18 +242,18 @@ export default function DriverDashboardScreen() {
       <View style={styles.headerRow}>
         <AppLogo size="header" />
         <View style={styles.headerText}>
-          <Text style={styles.greeting}>გამარჯობა,</Text>
+          <Text style={styles.greeting}>{t('driver.greeting')}</Text>
           <Text style={styles.name}>{firstName}</Text>
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={14} color={COLORS.gold} />
             <Text style={styles.ratingLine}>
-              {ratingCount > 0 ? ratingAvg.toFixed(1) : '—'} ({ratingCount} შეფასება)
+              {ratingCount > 0 ? ratingAvg.toFixed(1) : '—'} ({ratingCount} {t('driver.ratingCount')})
             </Text>
           </View>
         </View>
         <View style={styles.balancePill}>
           <View style={styles.balanceGradient} />
-          <Text style={styles.balanceLabel}>მოგება</Text>
+          <Text style={styles.balanceLabel}>{t('driver.earnings')}</Text>
           <Text style={styles.balanceValue}>{formatGel(earnings)}</Text>
         </View>
       </View>
@@ -221,12 +265,12 @@ export default function DriverDashboardScreen() {
           pressed && styles.pendingBannerPressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel="ახალი შეკვეთები, გახსენით ჯავშნების სია"
+        accessibilityLabel={t('driver.a11yNewOrders')}
       >
         <View style={styles.pendingLeft}>
-          <Text style={styles.pendingLabel}>ახალი შეკვეთები (მოლოდინში)</Text>
+          <Text style={styles.pendingLabel}>{t('driver.newOrdersPending')}</Text>
           <Text style={styles.pendingSubtitle}>
-            {openCount > 0 ? '• დააჭირე სანახავად' : 'ახალი შეკვეთა არ არის'}
+            {openCount > 0 ? t('driver.tapToView') : t('driver.noNewOrders')}
           </Text>
         </View>
         {openCount > 0 ? (
@@ -243,13 +287,13 @@ export default function DriverDashboardScreen() {
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable onPress={() => void load()} style={styles.retryBtn}>
-            <Text style={styles.retryText}>ხელახლა</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </Pressable>
         </View>
       ) : null}
 
       <View style={styles.sectionDivider} />
-      <Text style={styles.sectionTitle}>აქტიური ჯავშანი</Text>
+      <Text style={styles.sectionTitle}>{t('driver.activeBooking')}</Text>
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator color={COLORS.gold} size="large" />
@@ -258,9 +302,11 @@ export default function DriverDashboardScreen() {
         <View style={[styles.activeCard, SHADOWS.card]}>
           <View style={styles.activeBadge}>
             <Animated.View style={[styles.activeBadgeDot, { opacity: activeDotOpacity }]} />
-            <Text style={styles.activeBadgeText}>დადასტურებული</Text>
+            <Text style={styles.activeBadgeText}>
+              {activeBooking ? bookingStatusLabel(activeBooking.status) : t('driver.confirmed')}
+            </Text>
           </View>
-          <Text style={styles.company}>{activeBooking.company_name || 'კომპანია'}</Text>
+          <Text style={styles.company}>{activeBooking.company_name || t('common.company')}</Text>
           <Text style={styles.route}>{routeSummary(activeBooking)}</Text>
           <View style={styles.activeMeta}>
             <Text style={styles.meta}>{formatBookingDate(activeBooking)}</Text>
@@ -272,22 +318,36 @@ export default function DriverDashboardScreen() {
           <View style={styles.emptyIconCircle}>
             <Ionicons name="car-outline" size={28} color={COLORS.textMuted} />
           </View>
-          <Text style={styles.emptyActiveText}>აქტიური ჯავშანი არ არის</Text>
+          <Text style={styles.emptyActiveText}>{t('driver.noActiveBooking')}</Text>
         </View>
       )}
 
+      {__DEV__ && Platform.OS !== 'web' ? (
+        <Pressable
+          onPress={() => void handleSendTestPush()}
+          disabled={testPushSending}
+          style={({ pressed }) => [styles.devTestBtn, pressed && styles.devTestBtnPressed]}
+        >
+          {testPushSending ? (
+            <ActivityIndicator color={COLORS.gold} size="small" />
+          ) : (
+            <Text style={styles.devTestBtnText}>{t('notifications.sendTest')}</Text>
+          )}
+        </Pressable>
+      ) : null}
+
       <View style={styles.sectionDivider} />
-      <Text style={styles.sectionTitle}>სტატისტიკა</Text>
+      <Text style={styles.sectionTitle}>{t('driver.stats')}</Text>
       <View style={styles.statsRow}>
         <View style={[styles.statCard, styles.statCardTrips]}>
           <StatIcon name="car-outline" backgroundColor={COLORS.blueTint} iconColor={COLORS.blue} />
           <Text style={styles.statValue}>{completedTrips}</Text>
-          <Text style={styles.statLabel}>დასრულებული რეისი</Text>
+          <Text style={styles.statLabel}>{t('driver.completedTrips')}</Text>
         </View>
         <View style={[styles.statCard, styles.statCardRevenue]}>
           <StatIcon name="wallet-outline" backgroundColor="#FEF3C7" iconColor={COLORS.goldDark} />
           <Text style={styles.statValue}>{formatGel(earnings)}</Text>
-          <Text style={styles.statLabel}>მოგება (დასრულებული)</Text>
+          <Text style={styles.statLabel}>{t('driver.earningsCompleted')}</Text>
         </View>
       </View>
     </ScrollView>
@@ -524,6 +584,26 @@ const styles = StyleSheet.create({
   emptyActiveText: {
     color: COLORS.textSecondary,
     fontSize: 15,
+  },
+  devTestBtn: {
+    marginBottom: SPACING.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  devTestBtnPressed: {
+    opacity: 0.85,
+  },
+  devTestBtnText: {
+    color: COLORS.goldDark,
+    fontSize: 14,
+    fontWeight: '700',
   },
   statsRow: {
     flexDirection: 'row',

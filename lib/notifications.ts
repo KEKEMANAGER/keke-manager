@@ -128,29 +128,6 @@ export async function fetchMatchingDriverPushTokens(
     };
   }
 
-  console.log('Filtering by:', vehicleType, vehicleClass);
-
-  const { data: allWithToken, error: debugError } = await supabase
-    .from('profiles')
-    .select('id, push_token, vehicle_type, vehicle_class')
-    .not('push_token', 'is', null);
-
-  if (debugError) {
-    console.warn('[notify] debug profiles list failed:', debugError.message);
-  } else {
-    console.log(
-      `[notify] profiles with any push_token: ${allWithToken?.length ?? 0}`,
-      (allWithToken ?? []).map((row) => {
-        const r = row as ProfilePushRow;
-        return {
-          id: r.id?.slice(0, 8),
-          vehicle_type: r.vehicle_type,
-          vehicle_class: r.vehicle_class,
-        };
-      }),
-    );
-  }
-
   const { data, error } = await supabase
     .from('profiles')
     .select('push_token, vehicle_type, vehicle_class, id')
@@ -159,19 +136,11 @@ export async function fetchMatchingDriverPushTokens(
     .not('push_token', 'is', null);
 
   if (error) {
-    console.warn('[notify] profiles filter query failed:', error.message);
+    if (__DEV__) console.warn('[notify] profiles filter query failed:', error.message);
     return { tokens: [], error: new Error(error.message), vehicleType, vehicleClass };
   }
 
   const matchedRows = (data ?? []).map((row) => row as ProfilePushRow);
-  console.log(
-    `[notify] SQL filter matched ${matchedRows.length} profile(s) for type=${vehicleType} class=${vehicleClass}`,
-    matchedRows.map((r) => ({
-      id: r.id?.slice(0, 8),
-      vehicle_type: r.vehicle_type,
-      vehicle_class: r.vehicle_class,
-    })),
-  );
 
   const tokens = matchedRows
     .filter((row) => {
@@ -183,10 +152,6 @@ export async function fetchMatchingDriverPushTokens(
     .filter((token) => token.length > 0);
 
   const uniqueTokens = [...new Set(tokens)];
-
-  console.log(
-    `Sending notification to ${uniqueTokens.length} driver(s) with type: ${vehicleType}, class: ${vehicleClass}`,
-  );
 
   return { tokens: uniqueTokens, error: null, vehicleType, vehicleClass };
 }
@@ -216,10 +181,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
 
   if (!vehicleType || !vehicleClass) {
     const message = 'ჯავშნის ავტომობილის ტიპი/კლასი ვერ განიშლა';
-    console.warn('[notifyMatchingDrivers]', message, {
-      rawType: params.vehicleType,
-      rawClass: params.vehicleClass,
-    });
+    if (__DEV__) console.warn('[notifyMatchingDrivers]', message);
     if (params.showAlertIfEmpty) {
       Alert.alert('შეტყობინება', message);
     }
@@ -229,7 +191,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   const { tokens, error } = await fetchMatchingDriverPushTokens(vehicleType, vehicleClass);
 
   if (error) {
-    console.warn('[notifyMatchingDrivers] fetch error:', error.message);
+    if (__DEV__) console.warn('[notifyMatchingDrivers] fetch error:', error.message);
     if (params.showAlertIfEmpty) {
       Alert.alert('შეცდომა', error.message);
     }
@@ -238,7 +200,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
 
   if (tokens.length === 0) {
     const message = `შესაბამისი მძღოლი ვერ მოიძებნა (${vehicleTypeLabel(vehicleType)}, ${vehicleClassLabel(vehicleClass)}).`;
-    console.warn('[notifyMatchingDrivers]', message);
+    if (__DEV__) console.warn('[notifyMatchingDrivers]', message);
     if (params.showAlertIfEmpty) {
       Alert.alert('შეტყობინება', message);
     }
@@ -256,14 +218,6 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   }
 
   const batch = await sendExpoPushToMany(tokens, title, body, data);
-
-  console.log('[notifyMatchingDrivers] push result', {
-    vehicleType,
-    vehicleClass,
-    tokenCount: tokens.length,
-    sentCount: batch.sentCount,
-    failedCount: batch.failedCount,
-  });
 
   return {
     tokenCount: tokens.length,

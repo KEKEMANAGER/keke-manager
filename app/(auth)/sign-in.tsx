@@ -133,7 +133,7 @@ export default function SignInScreen() {
             ]}
           >
             {loading ? (
-              <ActivityIndicator color={COLORS.black} />
+              <ActivityIndicator color={COLORS.white} size="small" />
             ) : (
               <Text style={styles.buttonText}>{t('common.signIn')}</Text>
             )}

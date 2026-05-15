@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabBarIcon } from '../../components/TabBarIcon';
 import { COLORS, SPACING } from '../../constants/theme';
 
 export default function DriverTabsLayout() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, SPACING.sm);
 
@@ -35,7 +37,7 @@ export default function DriverTabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'დაშბორდი',
+          title: t('tabs.dashboard'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="home-outline" color={color} focused={focused} />
           ),
@@ -44,7 +46,7 @@ export default function DriverTabsLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: 'ჯავშანები',
+          title: t('tabs.bookings'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="calendar-outline" color={color} focused={focused} />
           ),
@@ -53,7 +55,7 @@ export default function DriverTabsLayout() {
       <Tabs.Screen
         name="vehicle"
         options={{
-          title: 'ავტო',
+          title: t('tabs.vehicle'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="car-outline" color={color} focused={focused} />
           ),
@@ -62,7 +64,7 @@ export default function DriverTabsLayout() {
       <Tabs.Screen
         name="verification"
         options={{
-          title: 'ვერიფიკაცია',
+          title: t('tabs.verification'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="shield-checkmark-outline" color={color} focused={focused} />
           ),
@@ -71,7 +73,7 @@ export default function DriverTabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'პროფილი',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="person-outline" color={color} focused={focused} />
           ),
@@ -80,7 +82,7 @@ export default function DriverTabsLayout() {
       <Tabs.Screen
         name="gps"
         options={{
-          title: 'GPS',
+          title: t('tabs.gps'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="navigate-outline" color={color} focused={focused} />
           ),

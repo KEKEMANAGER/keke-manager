@@ -1,4 +1,8 @@
-/** Web: `expo-notifications` is not loaded (see `pushRegistration.ts` for native). */
+/** Web: push tokens are not supported. */
+export async function registerForPushNotificationsAsync(_userId: string): Promise<string | null> {
+  return null;
+}
+
 export async function registerForPushNotifications(_userId: string): Promise<void> {
-  return;
+  await registerForPushNotificationsAsync(_userId);
 }

@@ -4,21 +4,26 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Modal,
+  Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import type { BookingRow, BookingStatus } from '../../lib/bookings';
 import {
   aggregateCompanyStats,
   bookingStatusLabel,
   bookingTypeLabel,
+  cancelBookingByCompany,
   fetchBookingsByCompanyId,
   formatBookingDate,
   routeSummary,
@@ -26,7 +31,7 @@ import {
   unsubscribeChannel,
 } from '../../lib/bookings';
 import { AppLogo } from '../../components/AppLogo';
-import { BookingListSkeleton } from '../../components/BookingListSkeleton';
+import { EmptyState } from '../../components/EmptyState';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
@@ -37,30 +42,47 @@ function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
 }
 
-function companyDisplayName(profile: Profile | null, user: User | null) {
+function companyDisplayName(
+  profile: Profile | null,
+  user: User | null,
+  fallbackCompany: string,
+) {
   const meta = user?.user_metadata as Record<string, unknown> | undefined;
   const cn = meta?.companyName;
   if (typeof cn === 'string' && cn.trim()) return cn.trim();
   const fn = profile?.full_name?.trim();
   if (fn) return fn;
-  return user?.email ?? 'კომპანია';
+  return user?.email ?? fallbackCompany;
 }
 
 function statusStyle(status: BookingStatus) {
-  if (status === 'pending') return styles.badgeLive;
-  if (status === 'confirmed') return styles.badgeOk;
-  if (status === 'rejected' || status === 'cancelled') return styles.badgeBad;
-  return styles.badgeMuted;
+  switch (status) {
+    case 'pending':
+      return styles.badgePending;
+    case 'accepted':
+      return styles.badgeAccepted;
+    case 'in_progress':
+      return styles.badgeInProgress;
+    case 'completed':
+      return styles.badgeCompleted;
+    case 'cancelled':
+    case 'rejected':
+      return styles.badgeBad;
+    default:
+      return styles.badgeMuted;
+  }
 }
 
 function bookingCardStatusBorder(status: BookingStatus) {
   switch (status) {
     case 'pending':
-      return { borderLeftWidth: 3, borderLeftColor: '#F5A623' as const };
-    case 'confirmed':
-      return { borderLeftWidth: 3, borderLeftColor: '#1D9E75' as const };
-    case 'completed':
+      return { borderLeftWidth: 3, borderLeftColor: '#9CA3AF' as const };
+    case 'accepted':
       return { borderLeftWidth: 3, borderLeftColor: '#3B82F6' as const };
+    case 'in_progress':
+      return { borderLeftWidth: 3, borderLeftColor: '#F5A623' as const };
+    case 'completed':
+      return { borderLeftWidth: 3, borderLeftColor: '#10B981' as const };
     case 'rejected':
     case 'cancelled':
       return { borderLeftWidth: 3, borderLeftColor: '#E24B4A' as const };
@@ -69,11 +91,30 @@ function bookingCardStatusBorder(status: BookingStatus) {
   }
 }
 
+function statusLabelColor(status: BookingStatus): { color: string } {
+  switch (status) {
+    case 'pending':
+      return { color: COLORS.textSecondary };
+    case 'accepted':
+      return { color: '#1D4ED8' };
+    case 'in_progress':
+      return { color: COLORS.goldDark };
+    case 'completed':
+      return { color: '#047857' };
+    case 'cancelled':
+    case 'rejected':
+      return { color: '#B91C1C' };
+    default:
+      return { color: COLORS.text };
+  }
+}
+
 export default function CompanyDashboardScreen() {
-  const { user, profile, signOut } = useAuth();
+  const { t } = useTranslation();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const name = companyDisplayName(profile, user);
+  const name = companyDisplayName(profile, user, t('common.company'));
   const userId = user?.id;
   const isAdmin = profile?.role === 'admin';
 
@@ -81,24 +122,38 @@ export default function CompanyDashboardScreen() {
   const [totalCount, setTotalCount] = useState(0);
   const [spent, setSpent] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [driverModal, setDriverModal] = useState<BookingRow | null>(null);
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [driverLoading, setDriverLoading] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
       setBookings([]);
-      setLoading(false);
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
       return;
     }
     setError(null);
-    setLoading(true);
+    if (mode === 'initial') {
+      setLoading(true);
+    } else if (mode === 'refresh') {
+      setRefreshing(true);
+    }
+
     const [bRes, sRes] = await Promise.all([
       fetchBookingsByCompanyId(userId),
       aggregateCompanyStats(userId),
     ]);
-    setLoading(false);
+
+    if (mode === 'initial') {
+      setLoading(false);
+    } else if (mode === 'refresh') {
+      setRefreshing(false);
+    }
+
     if (bRes.error) {
       setError(bRes.error.message);
       setBookings([]);
@@ -115,13 +170,13 @@ export default function CompanyDashboardScreen() {
   }, [userId]);
 
   useEffect(() => {
-    void load();
+    void load('initial');
   }, [load]);
 
   useEffect(() => {
     if (!userId) return;
     const ch = subscribeBookingsChanges((_payload) => {
-      void load();
+      void load('silent');
     });
     return () => unsubscribeChannel(ch);
   }, [userId, load]);
@@ -133,7 +188,9 @@ export default function CompanyDashboardScreen() {
     });
   }
 
-  const activeBookings = bookings.filter((b) => b.status === 'pending' || b.status === 'confirmed');
+  const activeBookings = bookings.filter((b) =>
+    b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress',
+  );
 
   const pendingCount = useMemo(
     () => bookings.filter((b) => b.status === 'pending').length,
@@ -153,8 +210,31 @@ export default function CompanyDashboardScreen() {
       .reduce((sum, b) => sum + Number(b.price_gel || 0), 0);
   }, [bookings]);
 
-  async function onSignOut() {
-    await signOut();
+  async function handleCancelBooking(b: BookingRow) {
+    if (!userId || b.status !== 'pending') return;
+    const run = async () => {
+      setCancellingId(b.id);
+      const res = await cancelBookingByCompany(b.id, userId);
+      setCancellingId(null);
+      if (!res.ok) {
+        const msg = res.error?.message ?? 'გაუქმება ვერ მოხერხდა';
+        if (Platform.OS === 'web') {
+          window.alert(msg);
+        } else {
+          Alert.alert('შეცდომა', msg);
+        }
+        return;
+      }
+      void load('silent');
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm('ნამდვილად გსურთ ჯავშნის გაუქმება?')) void run();
+    } else {
+      Alert.alert('გაუქმება', 'ნამდვილად გსურთ ჯავშნის გაუქმება?', [
+        { text: 'არა', style: 'cancel' },
+        { text: 'გაუქმება', style: 'destructive', onPress: () => void run() },
+      ]);
+    }
   }
 
   async function openDriverModal(booking: BookingRow) {
@@ -182,11 +262,19 @@ export default function CompanyDashboardScreen() {
         { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + 100 },
       ]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load('refresh')}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <View style={styles.headerRow}>
         <AppLogo size="header" />
         <View style={styles.headerText}>
-          <Text style={styles.greeting}>გამარჯობა,</Text>
+          <Text style={styles.greeting}>{t('company.greeting')}</Text>
           <Text style={styles.name}>{name}</Text>
         </View>
         <View style={styles.headerRight}>
@@ -195,19 +283,17 @@ export default function CompanyDashboardScreen() {
               onPress={() => router.push('/(app)/admin-verify')}
               style={({ pressed }) => [styles.adminBtn, pressed && styles.adminBtnPressed]}
             >
-              <Text style={styles.adminBtnText}>ადმინი</Text>
+              <Text style={styles.adminBtnText}>{t('common.admin')}</Text>
             </Pressable>
           ) : null}
-          <Pressable
-            onPress={() => void onSignOut()}
-            style={({ pressed }) => [styles.signOutBtn, pressed && styles.signOutPressed]}
-          >
-            <Text style={styles.signOutText}>გამოსვლა</Text>
-          </Pressable>
           <View style={styles.subBadge}>
-            <Text style={styles.subBadgeLabel}>ჯავშნები</Text>
-            <Text style={styles.subBadgeTier}>{totalCount} სულ</Text>
-            <Text style={styles.subBadgeUntil}>დასრულებული: {formatGel(spent)}</Text>
+            <Text style={styles.subBadgeLabel}>{t('company.bookingsBadge')}</Text>
+            <Text style={styles.subBadgeTier}>
+              {t('company.bookingsTotal', { count: totalCount })}
+            </Text>
+            <Text style={styles.subBadgeUntil}>
+              {t('company.completedSpent', { amount: formatGel(spent) })}
+            </Text>
           </View>
         </View>
       </View>
@@ -215,13 +301,13 @@ export default function CompanyDashboardScreen() {
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable onPress={() => void load()} style={styles.retryBtn}>
-            <Text style={styles.retryText}>ხელახლა</Text>
+          <Pressable onPress={() => void load('initial')} style={styles.retryBtn}>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </Pressable>
         </View>
       ) : null}
 
-      <Text style={styles.sectionTitle}>სწრაფი ჯავშანი</Text>
+      <Text style={styles.sectionTitle}>{t('company.quickBooking')}</Text>
       <View style={styles.quickRow}>
         <Pressable
           onPress={() => openWizard('transfer')}
@@ -230,7 +316,7 @@ export default function CompanyDashboardScreen() {
           <View style={[styles.quickIconCircle, { backgroundColor: COLORS.blueTint }]}>
             <Ionicons name="car-outline" size={22} color={COLORS.blue} />
           </View>
-          <Text style={styles.quickTitle}>ტრანსფერი</Text>
+          <Text style={styles.quickTitle}>{t('common.transfer')}</Text>
         </Pressable>
         <Pressable
           onPress={() => openWizard('tour')}
@@ -239,7 +325,7 @@ export default function CompanyDashboardScreen() {
           <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
             <Ionicons name="map-outline" size={22} color={COLORS.goldDark} />
           </View>
-          <Text style={styles.quickTitle}>ტური</Text>
+          <Text style={styles.quickTitle}>{t('common.tour')}</Text>
         </Pressable>
         <Pressable
           onPress={() => openWizard('dayTour')}
@@ -248,54 +334,62 @@ export default function CompanyDashboardScreen() {
           <View style={[styles.quickIconCircle, { backgroundColor: COLORS.surfaceAlt }]}>
             <Ionicons name="calendar-outline" size={22} color={COLORS.textSecondary} />
           </View>
-          <Text style={styles.quickTitle}>ერთდღიანი</Text>
+          <Text style={styles.quickTitle}>{t('common.dayTour')}</Text>
         </Pressable>
       </View>
 
       <View style={styles.sectionDivider} />
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>აქტიური ჯავშნები</Text>
+        <Text style={styles.sectionTitle}>{t('company.activeBookings')}</Text>
         <Pressable onPress={() => router.push('/(app)/new-booking')}>
-          <Text style={styles.link}>+ ახალი</Text>
+          <Text style={styles.link}>{t('company.newBookingLink')}</Text>
         </Pressable>
       </View>
 
       <View style={styles.topStatsRow}>
         <View style={[styles.topStatCard, styles.topStatCardBlue]}>
           <Text style={styles.topStatValue}>{totalCount}</Text>
-          <Text style={styles.topStatLabel}>ჯავშნები სულ</Text>
+          <Text style={styles.topStatLabel}>{t('company.bookingsTotalStat')}</Text>
         </View>
         <View style={[styles.topStatCard, styles.topStatCardGold]}>
           <Text style={styles.topStatValue}>{pendingCount}</Text>
-          <Text style={styles.topStatLabel}>მოლოდინში</Text>
+          <Text style={styles.topStatLabel}>{t('company.pendingStat')}</Text>
         </View>
         <View style={[styles.topStatCard, styles.topStatCardGreen]}>
           <Text style={[styles.topStatValue, styles.topStatValueSmall]}>
             {formatGel(spentThisMonth)}
           </Text>
-          <Text style={styles.topStatLabel}>დახარჯული (თვე)</Text>
+          <Text style={styles.topStatLabel}>{t('company.spentMonthStat')}</Text>
         </View>
       </View>
 
       {loading ? (
-        <BookingListSkeleton variant="company" />
-      ) : activeBookings.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>აქტიური ჯავშანი არ არის</Text>
+        <View style={styles.listLoading}>
+          <ActivityIndicator color={COLORS.gold} size="large" />
         </View>
+      ) : activeBookings.length === 0 ? (
+        <EmptyState
+          icon="calendar"
+          title={t('company.noActiveBookings')}
+          subtitle={
+            'როცა ახალი შეკვეთა გამოჩნდება ან დადასტურდება, აქ გამოჩნდება ჯავშნები.'
+          }
+        />
       ) : (
         activeBookings.map((b) => (
           <View key={b.id} style={[styles.bookingCard, bookingCardStatusBorder(b.status)]}>
             <View style={styles.bookingTop}>
               <Text style={styles.bookingType}>{bookingTypeLabel(b.kind)}</Text>
               <View style={[styles.statusPill, statusStyle(b.status)]}>
-                <Text style={styles.statusText}>{bookingStatusLabel(b.status)}</Text>
+                <Text style={[styles.statusText, statusLabelColor(b.status)]}>
+                  {bookingStatusLabel(b.status)}
+                </Text>
               </View>
             </View>
             <Text style={styles.route}>{routeSummary(b)}</Text>
             <Text style={styles.date}>{formatBookingDate(b)}</Text>
             <View style={styles.driverBlock}>
-              <Text style={styles.driverLabel}>მძღოლი</Text>
+              <Text style={styles.driverLabel}>{t('company.driverLabel')}</Text>
               {b.driver_display_name ? (
                 <>
                   <Text style={styles.driverName}>{b.driver_display_name}</Text>
@@ -304,31 +398,48 @@ export default function CompanyDashboardScreen() {
                   </Text>
                 </>
               ) : (
-                <Text style={styles.driverPending}>ირჩევა მძღოლი…</Text>
+                <Text style={styles.driverPending}>{t('common.selectingDriver')}</Text>
               )}
-              {b.status === 'confirmed' && b.driver_id ? (
+              {(b.status === 'accepted' || b.status === 'in_progress') && b.driver_id ? (
                 <Pressable onPress={() => void openDriverModal(b)} style={styles.driverBtn}>
-                  <Text style={styles.driverBtnText}>👤 მძღოლი</Text>
+                  <Text style={styles.driverBtnText}>👤 {t('common.viewDriver')}</Text>
                 </Pressable>
               ) : null}
             </View>
             <Text style={styles.price}>{formatGel(Number(b.price_gel))}</Text>
+            {b.status === 'pending' ? (
+              <Pressable
+                onPress={() => void handleCancelBooking(b)}
+                disabled={cancellingId === b.id}
+                style={({ pressed }) => [
+                  styles.cancelBookingBtn,
+                  (pressed || cancellingId === b.id) && styles.pressed,
+                  cancellingId === b.id && styles.cancelBookingBtnDisabled,
+                ]}
+              >
+                {cancellingId === b.id ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <Text style={styles.cancelBookingBtnText}>გაუქმება</Text>
+                )}
+              </Pressable>
+            ) : null}
             <Pressable onPress={() => void shareVoucherPDF(b)} style={styles.voucherBtn}>
-              <Text style={styles.voucherBtnText}>📄 ვაუჩერი</Text>
+              <Text style={styles.voucherBtnText}>📄 {t('common.voucher')}</Text>
             </Pressable>
           </View>
         ))
       )}
 
-      <Text style={styles.sectionTitle}>სტატისტიკა</Text>
+      <Text style={styles.sectionTitle}>{t('common.stats')}</Text>
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{totalCount}</Text>
-          <Text style={styles.statLabel}>ჯავშნები სულ</Text>
+          <Text style={styles.statLabel}>{t('company.bookingsTotalStat')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{formatGel(spent)}</Text>
-          <Text style={styles.statLabel}>დახარჯული (დასრულებული)</Text>
+          <Text style={styles.statLabel}>{t('common.spentCompleted')}</Text>
         </View>
       </View>
     </ScrollView>
@@ -397,19 +508,27 @@ export default function CompanyDashboardScreen() {
                   )}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.driverNameModal}>
-                      {driverProfile.full_name || driverModal?.driver_display_name || 'მძღოლი'}
+                      {driverProfile.full_name ||
+                        driverModal?.driver_display_name ||
+                        t('company.driverDefault')}
                     </Text>
                     <Text style={styles.ratingText}>
                       ⭐{' '}
                       {driverProfile.rating.count > 0
-                        ? `${driverProfile.rating.average.toFixed(1)} (${driverProfile.rating.count} შეფასება)`
-                        : '— (შეფასება არ არის)'}
+                        ? t('company.ratingFormat', {
+                            avg: driverProfile.rating.average.toFixed(1),
+                            count: driverProfile.rating.count,
+                          })
+                        : t('company.noRatings')}
                     </Text>
                   </View>
                 </View>
 
                 {driverProfile.experience_years != null && driverProfile.experience_years > 0 ? (
-                  <Text style={styles.infoText}>🕐 {driverProfile.experience_years} წლის გამოცდილება</Text>
+                  <Text style={styles.infoText}>
+                    🕐{' '}
+                    {t('company.experienceYears', { years: driverProfile.experience_years })}
+                  </Text>
                 ) : null}
 
                 {driverProfile.languages && driverProfile.languages.length > 0 ? (
@@ -425,7 +544,7 @@ export default function CompanyDashboardScreen() {
                 {driverProfile.bio ? <Text style={styles.bioText}>{driverProfile.bio}</Text> : null}
               </>
             ) : (
-              <Text style={styles.modalEmptyText}>მძღოლის ინფო ვერ მოიძებნა</Text>
+              <Text style={styles.modalEmptyText}>{t('company.driverInfoNotFound')}</Text>
             )}
           </ScrollView>
 
@@ -436,7 +555,7 @@ export default function CompanyDashboardScreen() {
             }}
             style={styles.closeBtn}
           >
-            <Text style={styles.closeBtnText}>დახურვა</Text>
+            <Text style={styles.closeBtnText}>{t('common.close')}</Text>
           </Pressable>
         </View>
       </View>
@@ -659,18 +778,11 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.88,
   },
-  emptyBox: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.xl,
-    marginBottom: SPACING.md,
+  listLoading: {
+    paddingVertical: SPACING.xxl * 2,
     alignItems: 'center',
-  },
-  emptyText: {
-    color: COLORS.gray,
-    fontSize: 15,
+    justifyContent: 'center',
+    minHeight: 120,
   },
   bookingCard: {
     backgroundColor: COLORS.white,
@@ -696,6 +808,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
+  },
+  badgePending: {
+    backgroundColor: '#F3F4F6',
+  },
+  badgeAccepted: {
+    backgroundColor: '#DBEAFE',
+  },
+  badgeInProgress: {
+    backgroundColor: '#FFEDD5',
+  },
+  badgeCompleted: {
+    backgroundColor: '#D1FAE5',
   },
   badgeLive: {
     backgroundColor: '#FEF3C7',
@@ -763,6 +887,25 @@ const styles = StyleSheet.create({
   driverBtnText: {
     color: COLORS.grayLight,
     fontSize: 13,
+  },
+  cancelBookingBtn: {
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.error,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.sm,
+    minHeight: 40,
+  },
+  cancelBookingBtnDisabled: {
+    opacity: 0.7,
+  },
+  cancelBookingBtnText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '800',
   },
   voucherBtn: {
     borderWidth: 1,

@@ -292,14 +292,7 @@ export default function DriverVehiclePhotosScreen() {
   }
 
   function onSubmitPress() {
-    console.log('[vehicle] დასრულება pressed', {
-      hasAtLeastOnePhoto,
-      userId: !!userId,
-      missing: missingPhotoLabels,
-    });
-
     if (!hasAtLeastOnePhoto) {
-      console.log('[vehicle] დასრულება: early return (no photos in state)');
       return;
     }
 

@@ -3,11 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { EmptyState } from '../../components/EmptyState';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRow, BookingStatus } from '../../lib/bookings';
@@ -40,11 +42,13 @@ function formatGel(n: number) {
 function statusColor(status: BookingStatus) {
   switch (status) {
     case 'pending':
-      return COLORS.gold;
-    case 'confirmed':
-      return COLORS.success;
-    case 'completed':
+      return '#9CA3AF';
+    case 'accepted':
       return '#3B82F6';
+    case 'in_progress':
+      return COLORS.gold;
+    case 'completed':
+      return COLORS.success;
     case 'rejected':
     case 'cancelled':
       return COLORS.error;
@@ -56,7 +60,7 @@ function statusColor(status: BookingStatus) {
 function matchesFilter(row: BookingRow, filter: FilterKey): boolean {
   if (filter === 'ყველა') return true;
   if (filter === 'მიმდინარე') return row.status === 'pending';
-  if (filter === 'დადასტურებული') return row.status === 'confirmed';
+  if (filter === 'დადასტურებული') return row.status === 'accepted' || row.status === 'in_progress';
   if (filter === 'დასრულებული') return row.status === 'completed';
   if (filter === 'გაუქმებული') return row.status === 'rejected' || row.status === 'cancelled';
   return true;
@@ -71,18 +75,25 @@ export default function CompanyHistoryScreen() {
   const [filter, setFilter] = useState<FilterKey>('ყველა');
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
       setRows([]);
-      setLoading(false);
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
       return;
     }
-    setLoading(true);
     setError(null);
+    if (mode === 'initial') setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+
     const { data, error: err } = await fetchBookingsByCompanyId(userId);
-    setLoading(false);
+
+    if (mode === 'initial') setLoading(false);
+    if (mode === 'refresh') setRefreshing(false);
+
     if (err) {
       setError(err.message);
       setRows([]);
@@ -92,18 +103,55 @@ export default function CompanyHistoryScreen() {
   }, [userId]);
 
   useEffect(() => {
-    void load();
+    void load('initial');
   }, [load]);
 
   useEffect(() => {
     if (!userId) return;
     const ch = subscribeBookingsChanges((_payload) => {
-      void load();
+      void load('silent');
     });
     return () => unsubscribeChannel(ch);
   }, [userId, load]);
 
   const filtered = useMemo(() => rows.filter((r) => matchesFilter(r, filter)), [rows, filter]);
+
+  function historyEmptyMessages(f: FilterKey): { icon: 'calendar' | 'archive' | 'clock'; title: string; subtitle: string } {
+    switch (f) {
+      case 'მიმდინარე':
+        return {
+          icon: 'clock',
+          title: 'მოლოდინში ჯავშნები არ გაქვთ',
+          subtitle: 'როცა შეკვეთას მოძებნით მძღოლს, იგი აქ გამოჩნდება.',
+        };
+      case 'დადასტურებული':
+        return {
+          icon: 'calendar',
+          title: 'დადასტურებული ჯავშნები არაა',
+          subtitle: 'დადასტურების შემდეგ ჩანაწერები აქ გამოჩნდება.',
+        };
+      case 'დასრულებული':
+        return {
+          icon: 'archive',
+          title: 'დასრულებული ჯავშნები არაა',
+          subtitle: 'დასრულებული რეისები აქ დაიგროვება.',
+        };
+      case 'გაუქმებული':
+        return {
+          icon: 'archive',
+          title: 'გაუქმებული ჩანაწერები არაა',
+          subtitle: 'გაუქმებული ან უარყოფილი ჯავშნები აქ გამოჩნდება.',
+        };
+      default:
+        return {
+          icon: 'calendar',
+          title: 'ჯავშნები ჯერ არ გაქვთ',
+          subtitle: 'როცა ახალი შეკვეთა გამოჩნდება, აქ გამოჩნდება ყველა ჩანაწერი.',
+        };
+    }
+  }
+
+  const emptyMeta = historyEmptyMessages(filter);
 
   return (
     <View style={styles.screen}>
@@ -137,12 +185,20 @@ export default function CompanyHistoryScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void load('refresh')}
+            tintColor={COLORS.gold}
+            colors={[COLORS.gold]}
+          />
+        }
       >
         <Text style={styles.title}>ჯავშნების ისტორია</Text>
         {error ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable onPress={() => void load()} style={styles.retryBtn}>
+            <Pressable onPress={() => void load('initial')} style={styles.retryBtn}>
               <Text style={styles.retryText}>ხელახლა</Text>
             </Pressable>
           </View>
@@ -158,9 +214,11 @@ export default function CompanyHistoryScreen() {
             <ActivityIndicator color={COLORS.gold} size="large" />
           </View>
         ) : filtered.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>ჩანაწერები არ მოიძებნა</Text>
-          </View>
+          <EmptyState
+            icon={emptyMeta.icon}
+            title={emptyMeta.title}
+            subtitle={emptyMeta.subtitle}
+          />
         ) : (
           filtered.map((r) => (
             <View key={r.id} style={styles.card}>
@@ -257,14 +315,6 @@ const styles = StyleSheet.create({
   loading: {
     paddingVertical: SPACING.xl * 2,
     alignItems: 'center',
-  },
-  empty: {
-    paddingVertical: SPACING.xl * 2,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: COLORS.gray,
-    fontSize: 16,
   },
   errorBox: {
     marginBottom: SPACING.md,

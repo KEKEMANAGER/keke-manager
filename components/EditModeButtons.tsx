@@ -26,10 +26,14 @@ export function EditModeButtons({ isEditing, onEdit, onSave, onCancel, saveBusy 
       <Pressable
         onPress={onSave}
         disabled={saveBusy}
-        style={({ pressed }) => [styles.saveBtn, (pressed || saveBusy) && styles.pressed]}
+        style={({ pressed }) => [
+          styles.saveBtn,
+          (pressed || saveBusy) && styles.pressed,
+          saveBusy && styles.saveBtnDisabled,
+        ]}
       >
         {saveBusy ? (
-          <ActivityIndicator color={COLORS.white} />
+          <ActivityIndicator color={COLORS.white} size="small" />
         ) : (
           <Text style={styles.saveBtnText}>შენახვა</Text>
         )}
@@ -72,6 +76,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  saveBtnDisabled: {
+    opacity: 0.85,
   },
   saveBtnText: {
     color: COLORS.white,

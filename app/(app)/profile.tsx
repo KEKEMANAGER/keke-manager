@@ -26,7 +26,6 @@ import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   addCompanyMember,
-  COMPANY_MEMBERS_TABLE,
   deleteCompanyMember,
   fetchCompanyMembers,
   formatSupabaseError,
@@ -110,19 +109,13 @@ export default function CompanyProfileScreen() {
     }
     setMembersLoading(true);
     setMemberError(null);
-    console.log('[company_members] loadMembers start', {
-      table: COMPANY_MEMBERS_TABLE,
-      company_id: user.id,
-    });
     const { data, error } = await fetchCompanyMembers(user.id);
     setMembersLoading(false);
     if (error) {
-      console.log('[company_members] loadMembers error:', error);
       setMemberError(formatSupabaseError(error));
       setMembers([]);
       return;
     }
-    console.log('[company_members] loadMembers ok, rows:', data.length);
     setMembers(data);
   }, [user?.id]);
 
@@ -267,7 +260,6 @@ export default function CompanyProfileScreen() {
     const { data, error } = await addCompanyMember(user.id, newMemberName);
     setMemberBusy(false);
     if (error) {
-      console.log('[company_members] onAddMember error:', error);
       const message = mapSupabaseError(error);
       setMemberError(message);
       showErrorAlert(message);
@@ -288,7 +280,6 @@ export default function CompanyProfileScreen() {
     const { error } = await deleteCompanyMember(member.id, user.id);
     setMemberBusy(false);
     if (error) {
-      console.log('[company_members] onRemoveMember error:', error);
       setMemberError(formatSupabaseError(error));
       return;
     }
@@ -444,7 +435,7 @@ export default function CompanyProfileScreen() {
             ]}
           >
             {memberBusy ? (
-              <ActivityIndicator color="#000000" size="small" />
+              <ActivityIndicator color={COLORS.white} size="small" />
             ) : (
               <Text style={styles.addMemberBtnText}>დამატება</Text>
             )}
@@ -742,7 +733,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   addMemberBtnText: {
-    color: '#000000',
+    color: COLORS.white,
     fontSize: 14,
     fontWeight: '800',
   },

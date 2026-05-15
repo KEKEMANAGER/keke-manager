@@ -1,11 +1,18 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import i18n from '../src/lib/i18n';
+import { formatDisplayDateTime, parseStoredDateTime } from './dateTime';
 import { notifyBookingConfirmed } from './localNotifications';
+import { notifyMatchingDriversOfNewBooking } from './notifications';
+import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
+import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 
 /** Minimal booking row shape from Realtime `postgres_changes` payloads. */
 export type BookingRealtimeRecord = {
   status?: string;
   driver_id?: string | null;
+  vehicle_type?: string | null;
+  vehicle_class?: string | null;
 };
 
 export function isNewOpenPendingBookingInsert(
@@ -18,13 +25,57 @@ export function isNewOpenPendingBookingInsert(
   return row.status === 'pending' && open;
 }
 
-export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'completed' | 'cancelled';
+export type BookingStatus =
+  | 'pending'
+  | 'accepted'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected';
 
-export type BookingType = 'transfer' | 'tour' | 'day_tour';
+export type BookingType =
+  | 'transfer'
+  | 'transfer_arrival'
+  | 'transfer_departure'
+  | 'tour'
+  | 'day_tour';
+
+export function isTransferKind(kind: string): boolean {
+  return kind === 'transfer' || kind === 'transfer_arrival' || kind === 'transfer_departure';
+}
+
+/** Canonical `kind` for DB NOT NULL: transfer | tour | day_tour */
+export function normalizeBookingKind(kind: BookingType | string): BookingType {
+  const k = String(kind).trim();
+  if (k === 'transfer' || k === 'transfer_arrival' || k === 'transfer_departure') return 'transfer';
+  if (k === 'tour') return 'tour';
+  if (k === 'day_tour' || k === 'dayTour') return 'day_tour';
+  return 'transfer';
+}
+
+function hydrateBookingRow(raw: Record<string, unknown>): BookingRow {
+  const kind = (raw.kind ?? raw.booking_type ?? 'transfer') as BookingType;
+  const rawStatus = String(raw.status ?? 'pending');
+  const status: BookingStatus =
+    rawStatus === 'confirmed' ? 'accepted' : (rawStatus as BookingStatus);
+  return { ...raw, kind, status } as BookingRow;
+}
+
+function hydrateBookingRows(rows: unknown[]): BookingRow[] {
+  return rows.map((r) => hydrateBookingRow(r as Record<string, unknown>));
+}
 
 export type FlightDirection = 'arrival' | 'departure';
 
-/** One day in a tour itinerary (stored in `tour_days` jsonb). */
+/** One day in a tour itinerary (stored in `itinerary` jsonb). */
+export type ItineraryDay = {
+  day: number;
+  from: string;
+  to: string;
+  stops: string;
+};
+
+/** @deprecated Legacy shape in `tour_days`; prefer `itinerary`. */
 export type TourDayPersisted = {
   id: string;
   date: string;
@@ -54,6 +105,7 @@ export type BookingRow = {
   route: string | null;
   date_display: string | null;
   passengers: number;
+  vehicle_type: string | null;
   vehicle_class: string;
   flight_number: string | null;
   meet_greet: boolean | null;
@@ -65,6 +117,7 @@ export type BookingRow = {
   client_price: number | null;
   commission: number | null;
   tour_days: TourDayPersisted[] | null;
+  itinerary: ItineraryDay[] | null;
   transfer_in: TourTransferLeg | null;
   transfer_out: TourTransferLeg | null;
   comment: string | null;
@@ -76,6 +129,8 @@ export type BookingRow = {
   driver_plate: string | null;
   /** Set on insert; optional when row predates column. */
   voucher_code?: string | null;
+  /** Tour operator / staff name who created the booking. */
+  created_by_name?: string | null;
 };
 
 export type InsertBookingInput = {
@@ -88,6 +143,7 @@ export type InsertBookingInput = {
   route: string | null;
   date_display: string | null;
   passengers: number;
+  vehicle_type: string | null;
   vehicle_class: string;
   flight_number: string | null;
   meet_greet: boolean;
@@ -99,52 +155,38 @@ export type InsertBookingInput = {
   client_price: number | null;
   commission: number | null;
   tour_days: TourDayPersisted[] | null;
+  itinerary: ItineraryDay[] | null;
   transfer_in: TourTransferLeg | null;
   transfer_out: TourTransferLeg | null;
   comment: string | null;
   payment_method: string | null;
   price_gel: number;
+  created_by_name?: string | null;
 };
 
-/** Georgian label for company/driver UI */
+/** Localized booking status label */
 export function bookingStatusLabel(status: BookingStatus): string {
-  switch (status) {
-    case 'pending':
-      return 'მოლოდინში';
-    case 'confirmed':
-      return 'დადასტურებული';
-    case 'rejected':
-      return 'უარყოფილი';
-    case 'completed':
-      return 'დასრულებული';
-    case 'cancelled':
-      return 'გაუქმებული';
-    default:
-      return status;
-  }
+  const key = `booking.status.${status}`;
+  if (i18n.exists(key)) return i18n.t(key);
+  return status;
 }
 
 export function bookingTypeLabel(type: string): string {
-  switch (type) {
-    case 'transfer':
-      return 'ტრანსფერი';
-    case 'tour':
-      return 'ტური';
-    case 'day_tour':
-      return 'ერთდღიანი ტური';
-    default:
-      return type;
-  }
+  const key = `booking.type.${type}`;
+  if (i18n.exists(key)) return i18n.t(key);
+  return type;
 }
 
 export function routeSummary(row: BookingRow): string {
-  if (row.kind === 'transfer' && row.from_location && row.to_location) {
+  if (isTransferKind(row.kind) && row.from_location && row.to_location) {
     return `${row.from_location} → ${row.to_location}`;
   }
   return row.route?.trim() || '—';
 }
 
 export function formatBookingDate(row: BookingRow): string {
+  const parsed = parseStoredDateTime(row.date_display);
+  if (parsed) return formatDisplayDateTime(parsed);
   if (row.date_display?.trim()) return row.date_display.trim();
   try {
     return new Date(row.created_at).toLocaleString('ka-GE', {
@@ -182,7 +224,7 @@ export async function fetchBookingsByCompanyId(companyClerkId: string) {
     .select('*')
     .eq('company_id', id)
     .order('created_at', { ascending: false });
-  return { data: (data ?? []) as BookingRow[], error };
+  return { data: hydrateBookingRows(data ?? []), error };
 }
 
 /** Rows assigned to this driver. Filters `driver_id` (text) = Clerk driver user id. */
@@ -196,10 +238,10 @@ export async function fetchBookingsForDriver(driverClerkId: string) {
     .select('*')
     .eq('driver_id', id)
     .order('updated_at', { ascending: false });
-  return { data: (data ?? []) as BookingRow[], error };
+  return { data: hydrateBookingRows(data ?? []), error };
 }
 
-/** Open jobs: waiting for a driver */
+/** Open jobs: waiting for a driver (unfiltered — prefer `fetchOpenPendingBookingsForDriver`). */
 export async function fetchOpenPendingBookings() {
   const { data, error } = await supabase
     .from('bookings')
@@ -207,7 +249,38 @@ export async function fetchOpenPendingBookings() {
     .eq('status', 'pending')
     .is('driver_id', null)
     .order('created_at', { ascending: false });
-  return { data: (data ?? []) as BookingRow[], error };
+  return { data: hydrateBookingRows(data ?? []), error };
+}
+
+/** Pending jobs matching this driver's `profiles.vehicle_type` / `vehicle_class`. */
+export async function fetchOpenPendingBookingsForDriver(driverUserId: string) {
+  const id = String(driverUserId ?? '').trim();
+  if (!id) {
+    return { data: [] as BookingRow[], error: null };
+  }
+
+  const { data: profile, error: profileError } = await fetchDriverProfile(id);
+  if (profileError) {
+    return { data: [] as BookingRow[], error: profileError };
+  }
+  if (!profile?.vehicle_type || !profile?.vehicle_class) {
+    if (__DEV__) {
+      console.warn('[fetchOpenPendingBookingsForDriver] profile missing vehicle_type/class', id);
+    }
+    return { data: [] as BookingRow[], error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('status', 'pending')
+    .is('driver_id', null)
+    .eq('vehicle_type', profile.vehicle_type)
+    .eq('vehicle_class', profile.vehicle_class)
+    .order('created_at', { ascending: false });
+
+
+
 }
 
 export async function insertBooking(row: InsertBookingInput) {
@@ -215,6 +288,17 @@ export async function insertBooking(row: InsertBookingInput) {
   if (!companyClerkId) {
     return { id: undefined, error: new Error('company_id (Clerk) არ არის მითითებული') };
   }
+
+  const kind = normalizeBookingKind(row.kind);
+  const vehicleType = normalizeVehicleType(row.vehicle_type);
+  const vehicleClass = normalizeVehicleClass(row.vehicle_class);
+  if (!vehicleType) {
+    return { id: undefined, error: new Error('vehicle_type სავალდებულოა') };
+  }
+  if (!vehicleClass) {
+    return { id: undefined, error: new Error('vehicle_class სავალდებულოა') };
+  }
+
   const voucherCode = `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`;
   const { data, error } = await supabase
     .from('bookings')
@@ -222,13 +306,15 @@ export async function insertBooking(row: InsertBookingInput) {
       company_id: companyClerkId,
       voucher_code: voucherCode,
       company_name: row.company_name,
-      kind: row.kind,
+      kind,
+      booking_type: kind,
       from_location: row.from_location,
       to_location: row.to_location,
       route: row.route,
       date_display: row.date_display,
       passengers: row.passengers,
-      vehicle_class: row.vehicle_class,
+      vehicle_type: vehicleType,
+      vehicle_class: vehicleClass,
       flight_number: row.flight_number,
       meet_greet: row.meet_greet,
       sign_text: row.sign_text,
@@ -239,17 +325,34 @@ export async function insertBooking(row: InsertBookingInput) {
       client_price: row.client_price,
       commission: row.commission,
       tour_days: row.tour_days,
+      itinerary: row.itinerary,
       transfer_in: row.transfer_in,
       transfer_out: row.transfer_out,
       comment: row.comment,
       payment_method: row.payment_method,
       price_gel: row.price_gel,
+      created_by_name: row.created_by_name?.trim() || null,
       status: 'pending',
       driver_id: null,
     })
     .select('id')
     .maybeSingle();
-  return { id: data?.id as string | undefined, error };
+
+  if (error) {
+    return { id: undefined, error };
+  }
+
+  const bookingId = data?.id as string | undefined;
+  if (bookingId) {
+    void notifyMatchingDriversOfNewBooking({
+      vehicleType,
+      vehicleClass,
+      bookingId,
+      showAlertIfEmpty: true,
+    });
+  }
+
+  return { id: bookingId, error: null };
 }
 
 export async function acceptBooking(
@@ -273,16 +376,14 @@ export async function acceptBooking(
   if (!driverClerkId) {
     return { ok: false as const, error: new Error('მძღოლის Clerk id არ არის') };
   }
-  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('bookings')
     .update({
       driver_id: driverClerkId,
-      status: 'confirmed',
+      status: 'accepted',
       driver_display_name: driver.displayName,
       driver_phone: driver.phone || null,
       driver_plate: driver.plate || null,
-      updated_at: now,
     })
     .eq('id', rowId)
     .eq('status', 'pending')
@@ -309,40 +410,108 @@ export async function rejectBooking(
       error: new Error('booking id უნდა იყოს ჯავშნის uuid, არა Clerk id'),
     };
   }
-  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('bookings')
     .update({
       status: 'rejected',
-      updated_at: now,
+      driver_id: null,
+      driver_display_name: null,
+      driver_phone: null,
+      driver_plate: null,
     })
     .eq('id', rowId)
-    .eq('status', 'pending')
-    .is('driver_id', null)
     .select('id')
     .maybeSingle();
 
-  if (error) return { ok: false as const, error };
+  if (error) {
+    if (__DEV__) {
+      console.warn('[rejectBooking]', error.message, { rowId });
+    }
+    return { ok: false as const, error };
+  }
   if (!data) {
     return { ok: false as const, error: new Error('ჯავშანი ვერ განახლდა') };
   }
   return { ok: true as const, error: null };
 }
 
-export async function completeBooking(bookingRowId: string) {
+export async function completeBooking(bookingRowId: string, driverClerkId: string) {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
     return { ok: false as const, error: new Error('invalid booking id') };
   }
+  const drv = clerkId(driverClerkId);
+  if (!drv) {
+    return { ok: false as const, error: new Error('მძღოლის id არ არის') };
+  }
   const { data, error } = await supabase
     .from('bookings')
-    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .update({ status: 'completed' })
     .eq('id', rowId)
-    .eq('status', 'confirmed')
+    .eq('status', 'in_progress')
+    .eq('driver_id', drv)
     .select('id')
     .maybeSingle();
   if (error) return { ok: false as const, error };
-  if (!data) return { ok: false as const, error: new Error('ჯავშანი ვერ დასრულდა') };
+  if (!data) {
+    return { ok: false as const, error: new Error('ჯავშანის დასრულება ხელმისაწვდომია მხოლოდ „გზაში“ სტატუსში') };
+  }
+  return { ok: true as const, error: null };
+}
+
+/** Driver starts trip after accepting (accepted → in_progress). */
+export async function startBookingTrip(bookingRowId: string, driverClerkId: string) {
+  const rowId = String(bookingRowId).trim();
+  if (!isBookingRowUuid(rowId)) {
+    return { ok: false as const, error: new Error('invalid booking id') };
+  }
+  const drv = clerkId(driverClerkId);
+  if (!drv) {
+    return { ok: false as const, error: new Error('მძღოლის id არ არის') };
+  }
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'in_progress' })
+    .eq('id', rowId)
+    .eq('status', 'accepted')
+    .eq('driver_id', drv)
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false as const, error };
+  if (!data) {
+    return {
+      ok: false as const,
+      error: new Error('დაწყება ვერ მოხერხდა — ჯავშანი სხვა მდგომარეობაშია ან სხვა მძღოლისაა'),
+    };
+  }
+  return { ok: true as const, error: null };
+}
+
+/** Company cancels only while still pending (no driver assigned). */
+export async function cancelBookingByCompany(bookingRowId: string, companyClerkId: string) {
+  const rowId = String(bookingRowId).trim();
+  if (!isBookingRowUuid(rowId)) {
+    return { ok: false as const, error: new Error('invalid booking id') };
+  }
+  const companyId = clerkId(companyClerkId);
+  if (!companyId) {
+    return { ok: false as const, error: new Error('company id არ არის') };
+  }
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('id', rowId)
+    .eq('company_id', companyId)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false as const, error };
+  if (!data) {
+    return {
+      ok: false as const,
+      error: new Error('გაუქმება შესაძლებელია მხოლოდ „მოლოდინში“ ჯავშნისთვის'),
+    };
+  }
   return { ok: true as const, error: null };
 }
 

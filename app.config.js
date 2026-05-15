@@ -74,7 +74,19 @@ module.exports = {
         backgroundColor: '#FFFFFF',
       },
     },
-    plugins: [...(appJson.expo.plugins ?? []), 'expo-router'],
+    plugins: [
+      ...(appJson.expo.plugins ?? []).filter(
+        (p) => p !== 'expo-notifications' && !(Array.isArray(p) && p[0] === 'expo-notifications'),
+      ),
+      [
+        'expo-notifications',
+        {
+          defaultChannel: 'bookings',
+          enableBackgroundRemoteNotifications: true,
+        },
+      ],
+      'expo-router',
+    ],
     extra: {
       ...(appJson.expo.extra ?? {}),
       eas: {

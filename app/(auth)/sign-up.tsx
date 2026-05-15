@@ -168,7 +168,7 @@ export default function SignUpScreen() {
             ]}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#000000" />
+              <ActivityIndicator color={COLORS.white} size="small" />
             ) : (
               <Text style={styles.buttonText}>რეგისტრაცია</Text>
             )}

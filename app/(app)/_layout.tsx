@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabBarIcon } from '../../components/TabBarIcon';
 import { COLORS, SPACING } from '../../constants/theme';
 
 export default function CompanyTabsLayout() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, SPACING.sm);
 
@@ -35,7 +37,7 @@ export default function CompanyTabsLayout() {
         <Tabs.Screen
           name="dashboard"
           options={{
-            title: 'დაშბორდი',
+            title: t('tabs.dashboard'),
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="grid-outline" color={color} focused={focused} />
             ),
@@ -44,7 +46,7 @@ export default function CompanyTabsLayout() {
         <Tabs.Screen
           name="new-booking"
           options={{
-            title: 'ჯავშანი',
+            title: t('tabs.booking'),
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="add-circle-outline" color={color} focused={focused} />
             ),
@@ -53,18 +55,18 @@ export default function CompanyTabsLayout() {
         <Tabs.Screen
           name="history"
           options={{
-            title: 'ისტორია',
+            title: t('tabs.history'),
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="time-outline" color={color} focused={focused} />
             ),
           }}
         />
-        <Tabs.Screen name="rate-booking" options={{ href: null, title: 'შეფასება' }} />
-        <Tabs.Screen name="admin-verify" options={{ href: null, title: 'ადმინი' }} />
+        <Tabs.Screen name="rate-booking" options={{ href: null, title: t('common.rating') }} />
+        <Tabs.Screen name="admin-verify" options={{ href: null, title: t('common.admin') }} />
         <Tabs.Screen
           name="profile"
           options={{
-            title: 'პროფილი',
+            title: t('tabs.profile'),
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="business-outline" color={color} focused={focused} />
             ),

@@ -523,12 +523,6 @@ export default function NewBookingScreen() {
     }
 
     const dbKind = normalizeBookingKind(mapBookingType(bookingType));
-    const notifyVehicleType = normalizeVehicleType(selectedVehicleType.trim());
-    const notifyVehicleClass = normalizeVehicleClass(vehicleClass.trim());
-    console.log('[confirmAndSaveBooking] Filtering by:', notifyVehicleType, notifyVehicleClass, {
-      rawType: selectedVehicleType,
-      rawClass: vehicleClass,
-    });
 
     setSubmitting(true);
     setSubmitError(null);
@@ -1204,7 +1198,7 @@ export default function NewBookingScreen() {
               ]}
             >
               {submitting ? (
-                <ActivityIndicator color="#000000" />
+                <ActivityIndicator color={COLORS.white} size="small" />
               ) : (
                 <Text style={styles.btnPrimaryText}>ჯავშნის შენახვა</Text>
               )}
@@ -1700,7 +1694,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   btnPrimaryText: {
-    color: '#000000',
+    color: COLORS.white,
     fontWeight: '800',
     fontSize: 16,
   },

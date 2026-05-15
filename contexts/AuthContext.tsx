@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session, User } from '@supabase/supabase-js';
 import {
   createContext,
@@ -9,7 +10,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Alert, Platform } from 'react-native';
+import { clearProfilePushToken } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
+
+/** Marker: user had a stored session — used to show expiry message vs first-time anonymous open (native only). */
+const HAD_SESSION_KEY = '@keke/had_logged_session';
+
+const SESSION_EXPIRED_MESSAGE = 'სესია ამოიწურა, გთხოვთ გაიაროთ ავტორიზაცია';
 
 export type KekeRole = 'driver' | 'company' | 'admin';
 
@@ -73,6 +81,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const initialHydrateDone = useRef(false);
   const profileUserIdRef = useRef<string | null>(null);
+  const userInitiatedSignOutRef = useRef(false);
+
+  const markHadSessionNative = useCallback(async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await AsyncStorage.setItem(HAD_SESSION_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const clearHadSessionMarkerNative = useCallback(async () => {
+    if (Platform.OS === 'web') return;
+    try {
+      await AsyncStorage.removeItem(HAD_SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const alertSessionExpiredOnce = useCallback(async () => {
+    Alert.alert('სესია', SESSION_EXPIRED_MESSAGE);
+    await clearHadSessionMarkerNative();
+  }, [clearHadSessionMarkerNative]);
+
+  const maybeWarnSessionExpiryOnColdStart = useCallback(async () => {
+    if (Platform.OS === 'web' || userInitiatedSignOutRef.current) return;
+    try {
+      const marker = await AsyncStorage.getItem(HAD_SESSION_KEY);
+      if (marker === '1') {
+        await alertSessionExpiredOnce();
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [alertSessionExpiredOnce]);
 
   const applySession = useCallback(async (next: Session | null) => {
     setSession(next);
@@ -86,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const userChanged = profileUserIdRef.current !== nextUser.id;
     profileUserIdRef.current = nextUser.id;
+    void markHadSessionNative();
     if (userChanged) {
       setProfileLoading(true);
     }
@@ -97,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileLoading(false);
       }
     }
-  }, []);
+  }, [markHadSessionNative]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,15 +156,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
+      if (!data.session) {
+        await maybeWarnSessionExpiryOnColdStart();
+      }
       await applySession(data.session ?? null);
       finishHydrate();
     })();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       void (async () => {
         if (cancelled) return;
+
+        const signedOutMidSession = event === 'SIGNED_OUT' && !nextSession;
+
+        if (signedOutMidSession && Platform.OS !== 'web' && !userInitiatedSignOutRef.current) {
+          try {
+            const marker = await AsyncStorage.getItem(HAD_SESSION_KEY);
+            if (marker === '1') {
+              await alertSessionExpiredOnce();
+            }
+          } catch {
+            /* ignore */
+          }
+          await clearHadSessionMarkerNative();
+        }
+
         await applySession(nextSession);
         finishHydrate();
       })();
@@ -129,7 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [applySession]);
+  }, [applySession, alertSessionExpiredOnce, clearHadSessionMarkerNative, maybeWarnSessionExpiryOnColdStart]);
 
   const loading = !sessionHydrated || (!!user && profileLoading);
 
@@ -158,14 +221,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(row);
         setUser(result.data.user);
         setSession(result.data.session ?? null);
+        void markHadSessionNative();
       }
     }
     return result;
-  }, []);
+  }, [markHadSessionNative]);
 
   const signOut = useCallback(async () => {
-    return supabase.auth.signOut();
-  }, []);
+    const uid = user?.id ?? session?.user?.id;
+    userInitiatedSignOutRef.current = true;
+    await clearHadSessionMarkerNative();
+    if (uid) {
+      const cleared = await clearProfilePushToken(uid);
+      if (!cleared.ok && __DEV__) {
+        console.warn('[AuthContext] clearProfilePushToken:', cleared.error?.message);
+      }
+    }
+    try {
+      return await supabase.auth.signOut();
+    } finally {
+      setTimeout(() => {
+        userInitiatedSignOutRef.current = false;
+      }, 800);
+    }
+  }, [clearHadSessionMarkerNative, session?.user?.id, user?.id]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

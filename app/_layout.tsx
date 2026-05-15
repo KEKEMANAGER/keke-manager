@@ -1,6 +1,6 @@
 import { Slot, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -46,15 +46,59 @@ function PushNotificationRegistration() {
   return null;
 }
 
+type BookingPushTapPayload = {
+  type?: string;
+  booking_id?: string;
+};
+
+function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | undefined): boolean {
+  const payloadType = data?.type;
+  return (
+    payloadType === 'new_booking' ||
+    payloadType === 'booking_confirmed' ||
+    payloadType === 'test'
+  );
+}
+
 function PushNotificationListeners() {
+  if (Platform.OS === 'web') return null;
+  return <PushNotificationListenersNative />;
+}
+
+/** Native only — `useLastNotificationResponse` throws on web if mounted there. */
+function PushNotificationListenersNative() {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
   const router = useRouter();
   const role = getUserRole(profile);
+  const handledOpenRef = useRef<string | null>(null);
+
+  const navigateDriverBookingFromTap = useCallback(
+    (response: Notifications.NotificationResponse) => {
+      if (role !== 'driver') return;
+      const data = response.notification.request.content.data as BookingPushTapPayload | undefined;
+      if (!driverOpensBookingsNotificationTypes(data)) return;
+      const id = response.notification.request.identifier;
+      if (handledOpenRef.current === id) return;
+      handledOpenRef.current = id;
+      const bid = typeof data?.booking_id === 'string' ? data.booking_id.trim() : '';
+      if (bid) {
+        router.push({ pathname: '/(driver)/bookings', params: { bookingId: bid } });
+      } else {
+        router.push('/(driver)/bookings');
+      }
+    },
+    [role, router],
+  );
+
+  const lastOpenedFromNotification = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    if (!lastOpenedFromNotification || role !== 'driver') return;
+    navigateDriverBookingFromTap(lastOpenedFromNotification);
+  }, [lastOpenedFromNotification, role, navigateDriverBookingFromTap]);
 
+  useEffect(() => {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
       void (async () => {
         const { title, body } = notificationContentFromRequest(notification);
@@ -89,7 +133,14 @@ function PushNotificationListeners() {
         if (role === 'driver') {
           buttons.push({
             text: t('notifications.viewBookings'),
-            onPress: () => router.push('/(driver)/bookings'),
+            onPress: () => {
+              const bid = typeof data?.booking_id === 'string' ? data.booking_id.trim() : '';
+              if (bid) {
+                router.push({ pathname: '/(driver)/bookings', params: { bookingId: bid } });
+              } else {
+                router.push('/(driver)/bookings');
+              }
+            },
           });
         }
 
@@ -98,17 +149,14 @@ function PushNotificationListeners() {
     });
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as { type?: string } | undefined;
-      if (role === 'driver' && (data?.type === 'new_booking' || data?.type === 'test')) {
-        router.push('/(driver)/bookings');
-      }
+      navigateDriverBookingFromTap(response);
     });
 
     return () => {
       receivedSub.remove();
       responseSub.remove();
     };
-  }, [role, router, t, user?.id]);
+  }, [navigateDriverBookingFromTap, role, router, t, user?.id]);
 
   return null;
 }

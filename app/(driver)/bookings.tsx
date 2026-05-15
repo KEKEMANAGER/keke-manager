@@ -1,33 +1,37 @@
 import type { User } from '@supabase/supabase-js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BookingListSkeleton } from '../../components/BookingListSkeleton';
+import { EmptyState } from '../../components/EmptyState';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
-import type { BookingRow } from '../../lib/bookings';
+import type { BookingRealtimeRecord, BookingRow, BookingStatus } from '../../lib/bookings';
 import {
   acceptBooking,
+  bookingStatusLabel,
   completeBooking,
   fetchBookingsForDriver,
-  fetchOpenPendingBookings,
+  fetchOpenPendingBookingsForDriver,
   formatBookingDate,
   isNewOpenPendingBookingInsert,
   rejectBooking,
   routeSummary,
+  startBookingTrip,
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
-import { notifyNewOpenBooking } from '../../lib/localNotifications';
+import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
 
 function crossAlert(title: string, message: string, onConfirm: () => void, confirmText = 'დიახ') {
   if (Platform.OS === 'web') {
@@ -50,11 +54,11 @@ function crossInfoAlert(title: string, message: string) {
   }
 }
 
-type BookingTabKey = 'pending' | 'confirmed' | 'completed';
+type BookingTabKey = 'open' | 'active' | 'completed';
 
 const TABS: { key: BookingTabKey; label: string }[] = [
-  { key: 'pending', label: 'მოლოდინში' },
-  { key: 'confirmed', label: 'დადასტურებული' },
+  { key: 'open', label: 'მოლოდინში' },
+  { key: 'active', label: 'მიმდინარე' },
   { key: 'completed', label: 'დასრულებული' },
 ];
 
@@ -78,32 +82,84 @@ function driverPlateFromMeta(user: User | null) {
   return typeof p === 'string' ? p : '';
 }
 
+function statusPillWrap(status: BookingStatus) {
+  switch (status) {
+    case 'pending':
+      return { backgroundColor: '#F3F4F6' };
+    case 'accepted':
+      return { backgroundColor: '#DBEAFE' };
+    case 'in_progress':
+      return { backgroundColor: '#FFEDD5' };
+    case 'completed':
+      return { backgroundColor: '#D1FAE5' };
+    case 'cancelled':
+    case 'rejected':
+      return { backgroundColor: '#FEE2E2' };
+    default:
+      return { backgroundColor: COLORS.surfaceAlt };
+  }
+}
+
+function statusPillTextColor(status: BookingStatus): { color: string } {
+  switch (status) {
+    case 'pending':
+      return { color: COLORS.textSecondary };
+    case 'accepted':
+      return { color: '#1D4ED8' };
+    case 'in_progress':
+      return { color: COLORS.goldDark };
+    case 'completed':
+      return { color: '#047857' };
+    case 'cancelled':
+    case 'rejected':
+      return { color: '#B91C1C' };
+    default:
+      return { color: COLORS.text };
+  }
+}
+
 export default function DriverBookingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
   const userId = user?.id;
+  const params = useLocalSearchParams<{ bookingId?: string | string[] }>();
+  const highlightBookingId = useMemo(() => {
+    const raw = params.bookingId;
+    const single = Array.isArray(raw) ? raw[0] : raw;
+    return typeof single === 'string' ? single.trim() : '';
+  }, [params.bookingId]);
+  const listRef = useRef<FlatList<BookingRow>>(null);
 
-  const [tab, setTab] = useState<BookingTabKey>('pending');
+  const [tab, setTab] = useState<BookingTabKey>('open');
   const [openJobs, setOpenJobs] = useState<BookingRow[]>([]);
   const [assigned, setAssigned] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
       setOpenJobs([]);
       setAssigned([]);
-      setLoading(false);
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
       return;
     }
     setError(null);
-    setLoading(true);
-    const [openRes, mineRes] = await Promise.all([
-      fetchOpenPendingBookings(),
+    if (mode === 'initial') setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+
+    const results = await Promise.all([
+      fetchOpenPendingBookingsForDriver(userId),
       fetchBookingsForDriver(userId),
     ]);
-    setLoading(false);
+    const openRes = results[0]!;
+    const mineRes = results[1]!;
+
+    if (mode === 'initial') setLoading(false);
+    if (mode === 'refresh') setRefreshing(false);
+
     if (openRes.error) {
       setError(openRes.error.message);
       setOpenJobs([]);
@@ -119,25 +175,59 @@ export default function DriverBookingsScreen() {
   }, [userId]);
 
   useEffect(() => {
-    void load();
+    void load('initial');
   }, [load]);
 
   useEffect(() => {
     if (!userId) return;
     const ch = subscribeBookingsChanges((payload) => {
-      void load();
-      if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload)) {
-        void notifyNewOpenBooking();
+      void load('silent');
+      if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload) && userId) {
+        const row = payload.new as BookingRealtimeRecord | undefined;
+        void notifyNewOpenBookingIfMatchesDriver(
+          userId,
+          row?.vehicle_type ?? '',
+          row?.vehicle_class ?? '',
+        );
       }
     });
     return () => unsubscribeChannel(ch);
   }, [userId, load]);
 
   const data = useMemo(() => {
-    if (tab === 'pending') return openJobs;
-    if (tab === 'confirmed') return assigned.filter((b) => b.status === 'confirmed');
+    if (tab === 'open') return openJobs;
+    if (tab === 'active') {
+      return assigned.filter((b) => b.status === 'accepted' || b.status === 'in_progress');
+    }
     return assigned.filter((b) => b.status === 'completed');
   }, [tab, openJobs, assigned]);
+
+  useEffect(() => {
+    if (!highlightBookingId || loading) return;
+    if (openJobs.some((b) => b.id === highlightBookingId)) {
+      setTab('open');
+      return;
+    }
+    const mine = assigned.find((b) => b.id === highlightBookingId);
+    if (!mine) return;
+    if (mine.status === 'completed') setTab('completed');
+    else if (mine.status === 'accepted' || mine.status === 'in_progress') setTab('active');
+    else setTab('open');
+  }, [highlightBookingId, loading, openJobs, assigned]);
+
+  useEffect(() => {
+    if (!highlightBookingId || loading) return;
+    const index = data.findIndex((b) => b.id === highlightBookingId);
+    if (index < 0 || !listRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      try {
+        listRef.current?.scrollToIndex({ index, viewPosition: 0.12, animated: true });
+      } catch {
+        /* list not laid out */
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [highlightBookingId, loading, data, tab]);
 
   async function onAccept(item: BookingRow) {
     if (!user) return;
@@ -151,35 +241,79 @@ export default function DriverBookingsScreen() {
     setActingId(null);
     if (!res.ok) {
       crossInfoAlert('შეცდომა', res.error?.message || 'დადასტურება ვერ მოხერხდა');
-      void load();
+      void load('silent');
       return;
     }
-    void load();
-    setTab('confirmed');
+    void load('silent');
+    setTab('active');
   }
 
-  async function onReject(item: BookingRow) {
+  async function handleReject(item: BookingRow) {
     setActingId(item.id);
     const res = await rejectBooking(item.id);
     setActingId(null);
     if (!res.ok) {
       crossInfoAlert('შეცდომა', res.error?.message || 'უარყოფა ვერ მოხერხდა');
+      void load('silent');
+      return;
     }
-    void load();
+    setOpenJobs((prev) => prev.filter((b) => b.id !== item.id));
+    setAssigned((prev) => prev.filter((b) => b.id !== item.id));
+    void load('silent');
   }
 
   async function onComplete(item: BookingRow) {
+    if (!user?.id) return;
     setActingId(item.id);
-    const res = await completeBooking(item.id);
+    const res = await completeBooking(item.id, user.id);
     setActingId(null);
     if (!res.ok) {
       crossInfoAlert('შეცდომა', res.error?.message || 'დასრულება ვერ მოხერხდა');
-      void load();
+      void load('silent');
       return;
     }
-    void load();
+    void load('silent');
     setTab('completed');
   }
+
+  async function onStartTrip(item: BookingRow) {
+    if (!user?.id) return;
+    setActingId(item.id);
+    const res = await startBookingTrip(item.id, user.id);
+    setActingId(null);
+    if (!res.ok) {
+      crossInfoAlert('შეცდომა', res.error?.message || 'დაწყება ვერ მოხერხდა');
+      void load('silent');
+      return;
+    }
+    void load('silent');
+  }
+
+  const emptyForTab = useMemo(() => {
+    switch (tab) {
+      case 'open':
+        return {
+          icon: 'calendar' as const,
+          title: 'ჯავშნები ჯერ არ გაქვთ',
+          subtitle:
+            'როცა კომპანიები ახალ შეკვეთას გამოგიგზავნით, აქ გამოჩნდება — ჩამოწიეთ ეკრანი განახლებისთვის.',
+        };
+      case 'active':
+        return {
+          icon: 'calendar' as const,
+          title: 'მიმდინარე ჯავშანი არაა',
+          subtitle:
+            'ჯავშნის მიღების შემდეგ აქ გამოჩნდება რეისები — ჯერ დააჭირეთ „დავიწყე შესრულება", შემდეგ „დასრულება".',
+        };
+      default:
+        return {
+          icon: 'archive' as const,
+          title: 'დასრულებული რეისები არ გაქვთ',
+          subtitle:
+            'დასრულებული ჯავშნები აქ შეინახება ისტორიისთვის.',
+        };
+    }
+  }, [tab]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + SPACING.md }]}>
@@ -188,7 +322,7 @@ export default function DriverBookingsScreen() {
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable onPress={() => void load()} style={styles.retryBtn}>
+          <Pressable onPress={() => void load('initial')} style={styles.retryBtn}>
             <Text style={styles.retryText}>ხელახლა</Text>
           </Pressable>
         </View>
@@ -208,36 +342,89 @@ export default function DriverBookingsScreen() {
 
       {loading ? (
         <View style={styles.centerLoad}>
-          <BookingListSkeleton variant="driver" />
+          <ActivityIndicator color={COLORS.gold} size="large" />
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={data}
           keyExtractor={(item) => item.id}
+          onScrollToIndexFailed={({ index }) => {
+            setTimeout(() => {
+              try {
+                listRef.current?.scrollToIndex({ index, viewPosition: 0.12, animated: true });
+              } catch {
+                /* ignore */
+              }
+            }, 120);
+          }}
           contentContainerStyle={[
             styles.list,
+            data.length === 0 && styles.listEmpty,
             { paddingBottom: insets.bottom + SPACING.xl + 72 },
           ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void load('refresh')}
+              tintColor={COLORS.gold}
+              colors={[COLORS.gold]}
+            />
+          }
           ListEmptyComponent={
-            <Text style={styles.empty}>ამ სტატუსში ჯავშანი არ არის</Text>
+            <EmptyState
+              icon={emptyForTab.icon}
+              title={emptyForTab.title}
+              subtitle={emptyForTab.subtitle}
+            />
           }
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <View
+              style={[styles.card, highlightBookingId === item.id && styles.cardHighlight]}
+            >
+              <View style={styles.cardHead}>
+                <View style={[styles.statusPill, statusPillWrap(item.status)]}>
+                  <Text style={[styles.statusPillText, statusPillTextColor(item.status)]}>
+                    {bookingStatusLabel(item.status)}
+                  </Text>
+                </View>
+              </View>
               <Text style={styles.company}>{item.company_name || 'კომპანია'}</Text>
+              {item.created_by_name?.trim() ? (
+                <Text style={styles.operator}>
+                  ოპერატორი: {item.created_by_name.trim()}
+                </Text>
+              ) : null}
               <Text style={styles.date}>{formatBookingDate(item)}</Text>
               <Text style={styles.route}>{routeSummary(item)}</Text>
               <View style={styles.footer}>
                 <Text style={styles.price}>{Number(item.price_gel).toLocaleString('ka-GE')} ₾</Text>
-                {tab === 'pending' ? (
+                {tab === 'open' ? (
                   <View style={styles.actions}>
                     <Pressable
-                      onPress={() =>
-                        crossAlert('უარყოფა', `უარყოთ ჯავშანი?`, () => void onReject(item), 'უარყოფა')
-                      }
+                      onPress={() => {
+                        if (Platform.OS === 'web') {
+                          crossAlert(
+                            'შეკვეთის გაუქმება',
+                            'ნამდვილად გსურთ შეკვეთის გაუქმება?',
+                            () => void handleReject(item),
+                            'უარყოფა',
+                          );
+                          return;
+                        }
+                        Alert.alert('შეკვეთის გაუქმება', 'ნამდვილად გსურთ შეკვეთის გაუქმება?', [
+                          { text: 'არა', style: 'cancel' },
+                          { text: 'უარყოფა', style: 'destructive', onPress: () => void handleReject(item) },
+                        ]);
+                      }}
                       disabled={actingId === item.id}
                       style={({ pressed }) => [styles.btnGhost, pressed && styles.pressed]}
                     >
-                      <Text style={styles.btnGhostText}>უარყოფა</Text>
+                      {actingId === item.id ? (
+                        <ActivityIndicator color={COLORS.grayLight} size="small" />
+                      ) : (
+                        <Text style={styles.btnGhostText}>უარყოფა</Text>
+                      )}
                     </Pressable>
                     <Pressable
                       onPress={() =>
@@ -252,32 +439,46 @@ export default function DriverBookingsScreen() {
                       style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
                     >
                       {actingId === item.id ? (
-                        <ActivityIndicator color="#000000" size="small" />
+                        <ActivityIndicator color={COLORS.white} size="small" />
                       ) : (
                         <Text style={styles.btnGoldText}>მიღება</Text>
                       )}
                     </Pressable>
                   </View>
-                ) : tab === 'confirmed' ? (
+                ) : tab === 'active' ? (
                   <View style={styles.actions}>
-                    <Pressable
-                      onPress={() =>
-                        crossAlert(
-                          'დასრულება',
-                          'დაასრულოთ ჯავშანი?',
-                          () => void onComplete(item),
-                          'დასრულება',
-                        )
-                      }
-                      disabled={actingId === item.id}
-                      style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
-                    >
-                      {actingId === item.id ? (
-                        <ActivityIndicator color="#000000" size="small" />
-                      ) : (
-                        <Text style={styles.btnGoldText}>დასრულება</Text>
-                      )}
-                    </Pressable>
+                    {item.status === 'accepted' ? (
+                      <Pressable
+                        onPress={() => void onStartTrip(item)}
+                        disabled={actingId === item.id}
+                        style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
+                      >
+                        {actingId === item.id ? (
+                          <ActivityIndicator color={COLORS.white} size="small" />
+                        ) : (
+                          <Text style={styles.btnGoldText}>დავიწყე შესრულება</Text>
+                        )}
+                      </Pressable>
+                    ) : item.status === 'in_progress' ? (
+                      <Pressable
+                        onPress={() =>
+                          crossAlert(
+                            'დასრულება',
+                            'დაასრულოთ ჯავშანი?',
+                            () => void onComplete(item),
+                            'დასრულება',
+                          )
+                        }
+                        disabled={actingId === item.id}
+                        style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
+                      >
+                        {actingId === item.id ? (
+                          <ActivityIndicator color={COLORS.white} size="small" />
+                        ) : (
+                          <Text style={styles.btnGoldText}>დასრულება</Text>
+                        )}
+                      </Pressable>
+                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -361,11 +562,9 @@ const styles = StyleSheet.create({
   list: {
     paddingTop: SPACING.sm,
   },
-  empty: {
-    color: COLORS.gray,
-    textAlign: 'center',
-    marginTop: SPACING.xl,
-    fontSize: 15,
+  listEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   card: {
     backgroundColor: COLORS.white,
@@ -378,10 +577,35 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     ...SHADOWS.card,
   },
+  cardHighlight: {
+    borderColor: COLORS.gold,
+    borderLeftColor: COLORS.gold,
+    backgroundColor: 'rgba(245, 166, 35, 0.08)',
+  },
+  cardHead: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: SPACING.xs,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   company: {
     color: COLORS.text,
     fontSize: 17,
     fontWeight: '700',
+    marginBottom: 4,
+  },
+  operator: {
+    color: COLORS.gray,
+    fontSize: 12,
+    fontWeight: '500',
     marginBottom: 4,
   },
   date: {
@@ -434,7 +658,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnGoldText: {
-    color: '#000000',
+    color: COLORS.white,
     fontWeight: '800',
     fontSize: 14,
   },
