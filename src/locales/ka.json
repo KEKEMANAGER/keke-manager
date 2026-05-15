@@ -86,7 +86,9 @@
     "sendTest": "ტესტ შეტყობინება",
     "testSent": "ტესტ push გაიგზავნა",
     "testFailed": "ტესტ push ვერ გაიგზავნა",
-    "noToken": "Push token არ არის — ჩართეთ შეტყობინებები ფიზიკურ მოწყობილობაზე"
+    "noToken": "Push token არ არის — ჩართეთ შეტყობინებები ფიზიკურ მოწყობილობაზე",
+    "matchingVehicleInvalid": "ჯავშნის ავტომობილის ტიპი/კლასი ვერ განიშლა",
+    "matchingNoDrivers": "შესაბამისი მძღოლი ვერ მოიძებნა ({{type}}, {{class}})."
   },
   "booking": {
     "status": {
@@ -105,6 +107,12 @@
       "tour": "ტური",
       "day_tour": "ერთდღიანი ტური"
     }
+  },
+  "system": {
+    "sessionExpiredTitle": "სესია",
+    "sessionExpiredMessage": "სესია ამოიწურა, გთხოვთ გაიაროთ ავტორიზაცია",
+    "errorTitle": "შეცდომა",
+    "noticeTitle": "შეტყობინება"
   },
   "tabs": {
     "dashboard": "დაშბორდი",

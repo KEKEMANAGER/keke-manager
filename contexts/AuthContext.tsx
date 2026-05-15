@@ -13,11 +13,10 @@ import {
 import { Alert, Platform } from 'react-native';
 import { clearProfilePushToken } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
+import i18n from '../src/lib/i18n';
 
 /** Marker: user had a stored session — used to show expiry message vs first-time anonymous open (native only). */
 const HAD_SESSION_KEY = '@keke/had_logged_session';
-
-const SESSION_EXPIRED_MESSAGE = 'სესია ამოიწურა, გთხოვთ გაიაროთ ავტორიზაცია';
 
 export type KekeRole = 'driver' | 'company' | 'admin';
 
@@ -102,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const alertSessionExpiredOnce = useCallback(async () => {
-    Alert.alert('სესია', SESSION_EXPIRED_MESSAGE);
+    Alert.alert(i18n.t('system.sessionExpiredTitle'), i18n.t('system.sessionExpiredMessage'));
     await clearHadSessionMarkerNative();
   }, [clearHadSessionMarkerNative]);
 

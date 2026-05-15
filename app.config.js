@@ -54,7 +54,6 @@ const appJson = require('./app.json');
 module.exports = {
   expo: {
     ...appJson.expo,
-    scheme: 'kekemanager',
     icon: './assets/logo.png',
     splash: {
       image: './assets/splash.png',
@@ -68,7 +67,6 @@ module.exports = {
     },
     android: {
       ...(appJson.expo.android ?? {}),
-      package: 'com.kekemanager.app',
       adaptiveIcon: {
         foregroundImage: './assets/logo.png',
         backgroundColor: '#FFFFFF',

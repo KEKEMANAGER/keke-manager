@@ -180,10 +180,10 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   });
 
   if (!vehicleType || !vehicleClass) {
-    const message = 'ჯავშნის ავტომობილის ტიპი/კლასი ვერ განიშლა';
+    const message = i18n.t('notifications.matchingVehicleInvalid');
     if (__DEV__) console.warn('[notifyMatchingDrivers]', message);
     if (params.showAlertIfEmpty) {
-      Alert.alert('შეტყობინება', message);
+      Alert.alert(i18n.t('system.noticeTitle'), message);
     }
     return emptyResult(message);
   }
@@ -193,16 +193,19 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   if (error) {
     if (__DEV__) console.warn('[notifyMatchingDrivers] fetch error:', error.message);
     if (params.showAlertIfEmpty) {
-      Alert.alert('შეცდომა', error.message);
+      Alert.alert(i18n.t('system.errorTitle'), error.message);
     }
     return emptyResult(error.message);
   }
 
   if (tokens.length === 0) {
-    const message = `შესაბამისი მძღოლი ვერ მოიძებნა (${vehicleTypeLabel(vehicleType)}, ${vehicleClassLabel(vehicleClass)}).`;
+    const message = i18n.t('notifications.matchingNoDrivers', {
+      type: vehicleTypeLabel(vehicleType),
+      class: vehicleClassLabel(vehicleClass),
+    });
     if (__DEV__) console.warn('[notifyMatchingDrivers]', message);
     if (params.showAlertIfEmpty) {
-      Alert.alert('შეტყობინება', message);
+      Alert.alert(i18n.t('system.noticeTitle'), message);
     }
     return emptyResult(message);
   }

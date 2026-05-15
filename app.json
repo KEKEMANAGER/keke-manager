@@ -3,6 +3,7 @@
     "name": "keke-manager-app",
     "slug": "keke-manager-app",
     "version": "1.0.0",
+    "scheme": "kekemanager",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,9 +14,13 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.akuna.kekemanager",
+      "buildNumber": "1"
     },
     "android": {
+      "package": "com.akuna.kekemanager",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

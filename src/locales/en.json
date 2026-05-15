@@ -86,7 +86,9 @@
     "sendTest": "Send Test Notification",
     "testSent": "Test push sent",
     "testFailed": "Could not send test push",
-    "noToken": "No push token — allow notifications and use a physical device"
+    "noToken": "No push token — allow notifications and use a physical device",
+    "matchingVehicleInvalid": "Could not resolve the booking vehicle type or class.",
+    "matchingNoDrivers": "No matching drivers ({{type}}, {{class}})."
   },
   "booking": {
     "status": {
@@ -105,6 +107,12 @@
       "tour": "Tour",
       "day_tour": "Day tour"
     }
+  },
+  "system": {
+    "sessionExpiredTitle": "Session",
+    "sessionExpiredMessage": "Your session has expired. Please sign in again.",
+    "errorTitle": "Error",
+    "noticeTitle": "Notice"
   },
   "tabs": {
     "dashboard": "Dashboard",
