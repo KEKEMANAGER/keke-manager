@@ -68,6 +68,7 @@ module.exports = {
     },
     android: {
       ...(appJson.expo.android ?? {}),
+      package: 'com.kekemanager.app',
       adaptiveIcon: {
         foregroundImage: './assets/logo.png',
         backgroundColor: '#FFFFFF',
@@ -76,6 +77,10 @@ module.exports = {
     plugins: [...(appJson.expo.plugins ?? []), 'expo-router'],
     extra: {
       ...(appJson.expo.extra ?? {}),
+      eas: {
+        ...(appJson.expo.extra?.eas ?? {}),
+        projectId: '42888595-a62e-427b-9446-680bf289be23',
+      },
     },
   },
 };
