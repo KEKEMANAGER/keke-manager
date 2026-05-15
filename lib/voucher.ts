@@ -1,6 +1,18 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { BookingRow } from './bookings';
+import { isTransferKind, type BookingRow } from './bookings';
+import { formatStoredDateForDisplay } from './dateTime';
+import { vehicleClassLabel, vehicleTypeLabel } from './vehicleCatalog';
+
+function bookingKindLabel(kind: BookingRow['kind']): string {
+  if (isTransferKind(kind)) {
+    if (kind === 'transfer_arrival') return 'ტრანსფერი — ჩამოსვლა';
+    if (kind === 'transfer_departure') return 'ტრანსფერი — გამგზავრება';
+    return 'ტრანსფერი';
+  }
+  if (kind === 'tour') return 'ტური';
+  return 'ერთდღიანი ტური';
+}
 
 function generateVoucherHTML(booking: BookingRow, voucherCode: string): string {
   return `<!DOCTYPE html>
@@ -33,16 +45,19 @@ function generateVoucherHTML(booking: BookingRow, voucherCode: string): string {
     <div style="margin-bottom:8px"><span class="status">ვაუჩერი</span></div>
     <div class="voucher-id">${voucherCode}</div>
     <div class="divider"></div>
+    ${booking.company_name ? `<div class="row"><span class="label">კომპანია</span><span class="value">${booking.company_name}</span></div>` : ''}
+    ${booking.created_by_name ? `<div class="row"><span class="label">ოპერატორი</span><span class="value">${booking.created_by_name}</span></div>` : ''}
     <div class="row">
       <span class="label">ტიპი</span>
-      <span class="value">${booking.kind === 'transfer' ? 'ტრანსფერი' : booking.kind === 'tour' ? 'ტური' : 'ერთდღიანი ტური'}</span>
+      <span class="value">${bookingKindLabel(booking.kind)}</span>
     </div>
+    ${booking.vehicle_type ? `<div class="row"><span class="label">ტრანსპორტი</span><span class="value">${vehicleTypeLabel(booking.vehicle_type)}</span></div>` : ''}
+    <div class="row"><span class="label">კლასი</span><span class="value">${vehicleClassLabel(booking.vehicle_class)}</span></div>
     ${booking.from_location ? `<div class="row"><span class="label">საიდან</span><span class="value">${booking.from_location}</span></div>` : ''}
     ${booking.to_location ? `<div class="row"><span class="label">სად</span><span class="value">${booking.to_location}</span></div>` : ''}
     ${booking.route ? `<div class="row"><span class="label">მარშრუტი</span><span class="value">${booking.route}</span></div>` : ''}
-    <div class="row"><span class="label">თარიღი</span><span class="value">${booking.date_display || '—'}</span></div>
+    <div class="row"><span class="label">თარიღი</span><span class="value">${formatStoredDateForDisplay(booking.date_display)}</span></div>
     <div class="row"><span class="label">მგზავრები</span><span class="value">${booking.passengers}</span></div>
-    <div class="row"><span class="label">კლასი</span><span class="value">${booking.vehicle_class}</span></div>
     ${booking.passenger_name ? `<div class="row"><span class="label">მგზავრი</span><span class="value">${booking.passenger_name}</span></div>` : ''}
     ${booking.flight_number ? `<div class="row"><span class="label">ფრენა</span><span class="value">${booking.flight_number}</span></div>` : ''}
     ${booking.driver_display_name ? `
@@ -75,3 +90,5 @@ export async function shareVoucherPDF(booking: BookingRow): Promise<void> {
     });
   }
 }
+
+

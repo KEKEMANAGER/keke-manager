@@ -1,33 +1,59 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthInput } from '../../components/AuthInput';
+import { DateTimeField } from '../../components/DateTimeField';
+import {
+  formatDisplayDateTime,
+  toIsoString,
+} from '../../lib/dateTime';
 import { AppLogo } from '../../components/AppLogo';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   insertBooking,
+  normalizeBookingKind,
   type BookingType as DbBookingType,
   type FlightDirection,
-  type TourDayPersisted,
+  type ItineraryDay,
   type TourTransferLeg,
 } from '../../lib/bookings';
+import { normalizeVehicleClass, normalizeVehicleType } from '../../lib/vehicleCatalog';
+import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
 
 type BookingType = 'transfer' | 'tour' | 'dayTour';
+type TransferTab = 'arrival' | 'departure';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 type VehicleClass = 'ეკონომი' | 'კომფორტი' | 'ბიზნეს';
 type PaymentWhen = 'ახლა' | 'შემდეგ' | 'კლიენტის ბარათით';
 type CommissionMode = 'gel' | 'percent';
+
+const VEHICLE_TYPES = [
+  'სედანი',
+  'მინივენი',
+  'SUV',
+  'მიკროავტობუსი',
+  'ავტობუსი',
+  'სპეც. ტრანსპორტი',
+] as const;
+type VehicleType = (typeof VEHICLE_TYPES)[number];
 
 const TYPE_LABELS: Record<BookingType, string> = {
   transfer: 'ტრანსფერი',
@@ -43,6 +69,11 @@ function mapBookingType(t: BookingType): DbBookingType {
   if (t === 'transfer') return 'transfer';
   if (t === 'tour') return 'tour';
   return 'day_tour';
+}
+
+function switchTransferTab(setTab: (t: TransferTab) => void, tab: TransferTab) {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  setTab(tab);
 }
 
 function companyDisplayName(profile: Profile | null, user: User | null) {
@@ -87,47 +118,49 @@ function commissionGelAmount(
   return Math.round(clientGel * (pct / 100) * 100) / 100;
 }
 
-function initialTourDay(): TourDayPersisted {
-  return { id: '1', date: '', fromPlace: '', toPlace: '', stops: [], overnight: false };
+function initialItineraryDay(day = 1): ItineraryDay {
+  return { day, from: '', to: '', stops: '' };
 }
 
 function emptyTransferLeg(): TourTransferLeg {
   return { date: '', flight: '', passengerName: '' };
 }
 
-function newTourDayId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function persistTourDaysForDb(days: TourDayPersisted[]): TourDayPersisted[] {
-  return days.map((d) => ({
-    ...d,
-    stops: d.stops.map((s) => s.trim()).filter((s) => s.length > 0),
+function persistItineraryForDb(days: ItineraryDay[]): ItineraryDay[] {
+  return days.map((d, idx) => ({
+    day: idx + 1,
+    from: d.from.trim(),
+    to: d.to.trim(),
+    stops: d.stops.trim(),
   }));
 }
 
-function buildTourRouteDescription(days: TourDayPersisted[]): string | null {
+function buildTourRouteDescription(days: ItineraryDay[]): string | null {
   const parts = days
-    .map((d, idx) => {
-      const f = d.fromPlace.trim();
-      const t = d.toPlace.trim();
+    .map((d) => {
+      const f = d.from.trim();
+      const t = d.to.trim();
       if (!f && !t) return null;
-      return `დღე ${idx + 1}: ${f || '—'} → ${t || '—'}`;
+      return `დღე ${d.day}: ${f || '—'} → ${t || '—'}`;
     })
     .filter((x): x is string => !!x);
   return parts.length ? parts.join(' | ') : null;
 }
 
-function tourBookingDateDisplay(
-  days: TourDayPersisted[],
-  tin: TourTransferLeg,
-  tout: TourTransferLeg,
-): string {
-  const dayDate = days.find((d) => d.date.trim())?.date.trim();
-  if (dayDate) return dayDate;
-  if (tin.date.trim()) return tin.date.trim();
-  if (tout.date.trim()) return tout.date.trim();
-  return days[0]?.date?.trim() ?? '';
+function tourEndpoints(days: ItineraryDay[]): { from: string | null; to: string | null } {
+  if (!days.length) return { from: null, to: null };
+  const firstFrom = days[0].from.trim();
+  const lastTo = days[days.length - 1].to.trim();
+  return {
+    from: firstFrom || null,
+    to: lastTo || null,
+  };
+}
+
+function tourBookingDateIso(tinAt: Date | null, toutAt: Date | null): string | null {
+  if (tinAt) return toIsoString(tinAt);
+  if (toutAt) return toIsoString(toutAt);
+  return null;
 }
 
 function transferLegOrNull(leg: TourTransferLeg): TourTransferLeg | null {
@@ -137,6 +170,118 @@ function transferLegOrNull(leg: TourTransferLeg): TourTransferLeg | null {
     flight: leg.flight.trim(),
     passengerName: leg.passengerName.trim(),
   };
+}
+
+function TransferSegmented({
+  tab,
+  onChange,
+}: {
+  tab: TransferTab;
+  onChange: (t: TransferTab) => void;
+}) {
+  return (
+    <View style={styles.segmentTrack}>
+      {(
+        [
+          { id: 'arrival' as const, label: 'ჩამოსვლა' },
+          { id: 'departure' as const, label: 'გამგზავრება' },
+        ] as const
+      ).map((item) => {
+        const active = tab === item.id;
+        return (
+          <Pressable
+            key={item.id}
+            onPress={() => switchTransferTab(onChange, item.id)}
+            style={[styles.segmentItem, active && styles.segmentItemActive]}
+          >
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{item.label}</Text>
+            {active ? <View style={styles.segmentUnderline} /> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function OperatorPicker({
+  members,
+  loading,
+  selectedName,
+  onSelect,
+}: {
+  members: CompanyMember[];
+  loading: boolean;
+  selectedName: string | null;
+  onSelect: (name: string) => void;
+}) {
+  return (
+    <View style={[styles.block, styles.operatorBlock]}>
+      <Text style={styles.fieldLabel}>ოპერატორი</Text>
+      {loading ? (
+        <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.sm }} />
+      ) : members.length === 0 ? (
+        <Text style={styles.operatorHint}>
+          პროფილში დაამატეთ ტურ ოპერატორები (მაგ. მონიკა), რომ აქ აირჩიოთ.
+        </Text>
+      ) : (
+        <View style={styles.chips}>
+          {members.map((m) => (
+            <Pressable
+              key={m.id}
+              onPress={() => onSelect(m.name)}
+              style={[styles.chip, selectedName === m.name && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, selectedName === m.name && styles.chipTextActive]}>
+                {m.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function VehiclePicker({
+  selectedVehicleType,
+  onVehicleTypeChange,
+  vehicleClass,
+  onVehicleClassChange,
+}: {
+  selectedVehicleType: VehicleType;
+  onVehicleTypeChange: (type: VehicleType) => void;
+  vehicleClass: VehicleClass;
+  onVehicleClassChange: (cls: VehicleClass) => void;
+}) {
+  return (
+    <>
+      <Text style={styles.sectionHeader}>ავტომობილი</Text>
+      <Text style={styles.fieldLabel}>ტიპი</Text>
+      <View style={styles.chips}>
+        {VEHICLE_TYPES.map((t) => (
+          <Pressable
+            key={t}
+            onPress={() => onVehicleTypeChange(t)}
+            style={[styles.chip, selectedVehicleType === t && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, selectedVehicleType === t && styles.chipTextActive]}>{t}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.fieldLabel}>კლასი</Text>
+      <View style={styles.chips}>
+        {(['ეკონომი', 'კომფორტი', 'ბიზნეს'] as VehicleClass[]).map((c) => (
+          <Pressable
+            key={c}
+            onPress={() => onVehicleClassChange(c)}
+            style={[styles.chip, vehicleClass === c && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>{c}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </>
+  );
 }
 
 export default function NewBookingScreen() {
@@ -150,28 +295,68 @@ export default function NewBookingScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [bookingType, setBookingType] = useState<BookingType>('transfer');
 
-  const [fromPlace, setFromPlace] = useState('');
-  const [toPlace, setToPlace] = useState('');
-  const [dateStr, setDateStr] = useState('');
+  const [transferTab, setTransferTab] = useState<TransferTab>('arrival');
+  const [arrivalAirport, setArrivalAirport] = useState('');
+  const [arrivalDestination, setArrivalDestination] = useState('');
+  const [arrivalFlightNo, setArrivalFlightNo] = useState('');
+  const [arrivalDateTime, setArrivalDateTime] = useState<Date | null>(null);
+  const [departureAddress, setDepartureAddress] = useState('');
+  const [departureAirport, setDepartureAirport] = useState('');
+  const [departureDateTime, setDepartureDateTime] = useState<Date | null>(null);
+
+  const [bookingDateTime, setBookingDateTime] = useState<Date | null>(null);
   const [passengers, setPassengers] = useState('2');
   const [vehicleClass, setVehicleClass] = useState<VehicleClass>('კომფორტი');
-  const [flightNo, setFlightNo] = useState('');
+  const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType>(VEHICLE_TYPES[0]);
   const [meetGreet, setMeetGreet] = useState(false);
   const [signText, setSignText] = useState('');
   const [passengerName, setPassengerName] = useState('');
   const [passengerPhone, setPassengerPhone] = useState('');
-  const [flightDirection, setFlightDirection] = useState<FlightDirection>('arrival');
-  const [pickupTime, setPickupTime] = useState('');
   const [clientPriceStr, setClientPriceStr] = useState('');
   const [commissionStr, setCommissionStr] = useState('');
   const [commissionMode, setCommissionMode] = useState<CommissionMode>('gel');
   const [comment, setComment] = useState('');
 
-  const [tourDays, setTourDays] = useState<TourDayPersisted[]>(() => [initialTourDay()]);
+  const [days, setDays] = useState<ItineraryDay[]>(() => [initialItineraryDay(1)]);
   const [transferIn, setTransferIn] = useState<TourTransferLeg>(() => emptyTransferLeg());
   const [transferOut, setTransferOut] = useState<TourTransferLeg>(() => emptyTransferLeg());
+  const [transferInDateTime, setTransferInDateTime] = useState<Date | null>(null);
+  const [transferOutDateTime, setTransferOutDateTime] = useState<Date | null>(null);
 
   const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('ახლა');
+  const [operators, setOperators] = useState<CompanyMember[]>([]);
+  const [operatorsLoading, setOperatorsLoading] = useState(false);
+  const [selectedOperatorName, setSelectedOperatorName] = useState<string | null>(null);
+
+  const loadOperators = useCallback(async () => {
+    if (!user?.id) {
+      setOperators([]);
+      setSelectedOperatorName(null);
+      return;
+    }
+    setOperatorsLoading(true);
+    const { data, error } = await fetchCompanyMembers(user.id);
+    setOperatorsLoading(false);
+    if (error) {
+      setOperators([]);
+      return;
+    }
+    setOperators(data);
+    setSelectedOperatorName((prev) => {
+      if (prev && data.some((m) => m.name === prev)) return prev;
+      return data[0]?.name ?? null;
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadOperators();
+  }, [loadOperators]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadOperators();
+    }, [loadOperators]),
+  );
 
   useEffect(() => {
     if (preset === 'transfer' || preset === 'tour' || preset === 'dayTour') {
@@ -179,6 +364,12 @@ export default function NewBookingScreen() {
       setStep(2);
     }
   }, [preset]);
+
+  useEffect(() => {
+    if (bookingType === 'dayTour' && days.length > 1) {
+      setDays([initialItineraryDay(1)]);
+    }
+  }, [bookingType, days.length]);
 
   const pax = Math.max(1, parseInt(passengers, 10) || 1);
   const price = useMemo(
@@ -206,61 +397,39 @@ export default function NewBookingScreen() {
     () => `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`,
     [],
   );
+  const companyName = useMemo(
+    () => companyDisplayName(profile, user) ?? 'კომპანია',
+    [profile, user],
+  );
 
-  function patchTourDay(index: number, patch: Partial<TourDayPersisted>) {
-    setTourDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  function patchDay(index: number, patch: Partial<ItineraryDay>) {
+    setDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   }
 
-  function addTourDay() {
-    setTourDays((prev) => [
-      ...prev,
-      {
-        id: newTourDayId(),
-        date: '',
-        fromPlace: '',
-        toPlace: '',
-        stops: [],
-        overnight: false,
-      },
-    ]);
+  function addDay() {
+    if (bookingType === 'dayTour') return;
+    setDays((prev) => [...prev, initialItineraryDay(prev.length + 1)]);
   }
 
-  function removeTourDay(index: number) {
-    setTourDays((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
-  }
-
-  function addStop(dayIndex: number) {
-    setTourDays((prev) =>
-      prev.map((d, i) => (i === dayIndex ? { ...d, stops: [...d.stops, ''] } : d)),
-    );
-  }
-
-  function patchStop(dayIndex: number, stopIndex: number, text: string) {
-    setTourDays((prev) =>
-      prev.map((d, i) => {
-        if (i !== dayIndex) return d;
-        const next = [...d.stops];
-        next[stopIndex] = text;
-        return { ...d, stops: next };
-      }),
-    );
-  }
-
-  function removeStop(dayIndex: number, stopIndex: number) {
-    setTourDays((prev) =>
-      prev.map((d, i) => {
-        if (i !== dayIndex) return d;
-        return { ...d, stops: d.stops.filter((_, si) => si !== stopIndex) };
-      }),
+  function removeDay(index: number) {
+    if (index === 0) return;
+    setDays((prev) =>
+      prev.filter((_, i) => i !== index).map((d, i) => ({ ...d, day: i + 1 })),
     );
   }
 
   function canAdvanceFrom2(): boolean {
     if (bookingType === 'transfer') {
-      return !!(fromPlace.trim() && toPlace.trim() && dateStr.trim());
+      if (transferTab === 'arrival') {
+        return !!(arrivalAirport.trim() && arrivalDestination.trim() && arrivalDateTime);
+      }
+      return !!(departureAddress.trim() && departureAirport.trim() && departureDateTime);
     }
-    if (bookingType === 'tour' || bookingType === 'dayTour') {
-      return tourDays.some((d) => d.fromPlace.trim().length > 0);
+    if (bookingType === 'dayTour') {
+      return !!(bookingDateTime && days[0]?.from.trim());
+    }
+    if (bookingType === 'tour') {
+      return days.some((d) => d.from.trim().length > 0);
     }
     return false;
   }
@@ -268,27 +437,82 @@ export default function NewBookingScreen() {
   function resetWizard() {
     setStep(1);
     setBookingType('transfer');
-    setFromPlace('');
-    setToPlace('');
-    setDateStr('');
+    setTransferTab('arrival');
+    setArrivalAirport('');
+    setArrivalDestination('');
+    setArrivalFlightNo('');
+    setArrivalDateTime(null);
+    setDepartureAddress('');
+    setDepartureAirport('');
+    setDepartureDateTime(null);
+    setBookingDateTime(null);
     setPassengers('2');
     setVehicleClass('კომფორტი');
-    setFlightNo('');
+    setSelectedVehicleType(VEHICLE_TYPES[0]);
     setMeetGreet(false);
     setSignText('');
     setPassengerName('');
     setPassengerPhone('');
-    setFlightDirection('arrival');
-    setPickupTime('');
     setClientPriceStr('');
     setCommissionStr('');
     setCommissionMode('gel');
     setComment('');
-    setTourDays([initialTourDay()]);
+    setDays([initialItineraryDay(1)]);
     setTransferIn(emptyTransferLeg());
     setTransferOut(emptyTransferLeg());
+    setTransferInDateTime(null);
+    setTransferOutDateTime(null);
     setPaymentWhen('ახლა');
+    setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
+  }
+
+  function validateBeforeSave(): string | null {
+    if (!selectedVehicleType?.trim()) {
+      return 'აირჩიეთ ავტომობილის ტიპი (სედანი, მინივენი და სხვა).';
+    }
+    if (!vehicleClass?.trim()) {
+      return 'აირჩიეთ ავტომობილის კლასი.';
+    }
+    if (!passengers.trim() || pax < 1) {
+      return 'შეიყვანეთ მგზავრების რაოდენობა.';
+    }
+
+    if (bookingType === 'transfer') {
+      if (transferTab === 'arrival') {
+        if (!arrivalAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
+        if (!arrivalDestination.trim()) return 'შეიყვანეთ დანიშნულების ადგილი.';
+        if (!arrivalDateTime) return 'აირჩიეთ თარიღი და დრო.';
+        return null;
+      }
+      if (!departureAddress.trim()) return 'შეიყვანეთ სასტუმრო / მისამართი.';
+      if (!departureAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
+      if (!departureDateTime) return 'შეიყვანეთ გამგზავრების თარიღი და დრო.';
+      return null;
+    }
+
+    if (bookingType === 'dayTour') {
+      if (!bookingDateTime) return 'აირჩიეთ თარიღი და დრო.';
+      if (!days[0]?.from.trim()) return 'შეიყვანეთ „საიდან“.';
+      return null;
+    }
+
+    if (bookingType === 'tour') {
+      if (!days.some((d) => d.from.trim())) {
+        return 'შეიყვანეთ მარშრუტი მინიმუმ ერთი დღისთვის.';
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+  function showValidationAlert(message: string) {
+    if (Platform.OS === 'web') {
+      window.alert(message);
+    } else {
+      Alert.alert('შევსება არ არის სრული', message);
+    }
   }
 
   async function confirmAndSaveBooking() {
@@ -296,6 +520,26 @@ export default function NewBookingScreen() {
       setSubmitError('სესია არ არის ნაპოვნი. გთხოვთ თავიდან შეხვიდეთ.');
       return;
     }
+    const operatorName = selectedOperatorName?.trim() || null;
+    if (operators.length > 0 && !operatorName) {
+      setSubmitError('აირჩიეთ ოპერატორი.');
+      return;
+    }
+
+    const validationMessage = validateBeforeSave();
+    if (validationMessage) {
+      showValidationAlert(validationMessage);
+      return;
+    }
+
+    const dbKind = normalizeBookingKind(mapBookingType(bookingType));
+    const notifyVehicleType = normalizeVehicleType(selectedVehicleType.trim());
+    const notifyVehicleClass = normalizeVehicleClass(vehicleClass.trim());
+    console.log('[confirmAndSaveBooking] Filtering by:', notifyVehicleType, notifyVehicleClass, {
+      rawType: selectedVehicleType,
+      rawClass: vehicleClass,
+    });
+
     setSubmitting(true);
     setSubmitError(null);
     const clientGel = bookingType === 'transfer' ? parseAmountGeorgian(clientPriceStr) : 0;
@@ -303,41 +547,84 @@ export default function NewBookingScreen() {
       bookingType === 'transfer' && commissionStr.trim()
         ? commissionGelAmount(clientGel, commissionStr, commissionMode)
         : null;
-    const isTour = bookingType === 'tour' || bookingType === 'dayTour';
-    const tourDaysDb = isTour ? persistTourDaysForDb(tourDays) : null;
-    const transferInDb: TourTransferLeg | null = isTour ? transferLegOrNull(transferIn) : null;
-    const transferOutDb: TourTransferLeg | null = isTour ? transferLegOrNull(transferOut) : null;
+    const isMultiDayTour = bookingType === 'tour';
+    const isDayTour = bookingType === 'dayTour';
+    const isTour = isMultiDayTour || isDayTour;
+    const itineraryDb = isTour ? persistItineraryForDb(days) : null;
+    const tourEnds = isTour ? tourEndpoints(itineraryDb ?? []) : { from: null, to: null };
+    const transferInDb: TourTransferLeg | null = isMultiDayTour
+      ? transferLegOrNull({
+          ...transferIn,
+          date: transferInDateTime ? toIsoString(transferInDateTime) : '',
+        })
+      : null;
+    const transferOutDb: TourTransferLeg | null = isMultiDayTour
+      ? transferLegOrNull({
+          ...transferOut,
+          date: transferOutDateTime ? toIsoString(transferOutDateTime) : '',
+        })
+      : null;
     const { error } = await insertBooking({
       company_id: user.id,
       company_name: companyDisplayName(profile, user) ?? 'კომპანია',
-      kind: mapBookingType(bookingType),
-      from_location: bookingType === 'transfer' ? fromPlace.trim() : null,
-      to_location: bookingType === 'transfer' ? toPlace.trim() : null,
-      route: isTour ? buildTourRouteDescription(tourDays) : null,
-      date_display: isTour
-        ? tourBookingDateDisplay(tourDays, transferIn, transferOut).trim() || null
-        : dateStr.trim() || null,
+      kind: dbKind,
+      from_location:
+        bookingType === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalAirport.trim() || null
+            : departureAddress.trim() || null
+          : tourEnds.from,
+      to_location:
+        bookingType === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalDestination.trim() || null
+            : departureAirport.trim() || null
+          : tourEnds.to,
+      route: isTour ? buildTourRouteDescription(days) : null,
+      date_display: isDayTour
+        ? bookingDateTime
+          ? toIsoString(bookingDateTime)
+          : null
+        : isMultiDayTour
+          ? tourBookingDateIso(transferInDateTime, transferOutDateTime)
+          : bookingType === 'transfer'
+            ? transferTab === 'arrival'
+              ? arrivalDateTime
+                ? toIsoString(arrivalDateTime)
+                : null
+              : departureDateTime
+                ? toIsoString(departureDateTime)
+                : null
+            : bookingDateTime
+              ? toIsoString(bookingDateTime)
+              : null,
       passengers: pax,
-      vehicle_class: vehicleClass,
-      flight_number: bookingType === 'transfer' ? flightNo.trim() || null : null,
+      vehicle_type: selectedVehicleType.trim(),
+      vehicle_class: vehicleClass.trim(),
+      flight_number:
+        bookingType === 'transfer' && transferTab === 'arrival'
+          ? arrivalFlightNo.trim() || null
+          : null,
       meet_greet: bookingType === 'transfer' ? meetGreet : false,
       sign_text:
         bookingType === 'transfer' && meetGreet && signText.trim() ? signText.trim() : null,
       passenger_name: bookingType === 'transfer' ? passengerName.trim() || null : null,
       passenger_phone: bookingType === 'transfer' ? passengerPhone.trim() || null : null,
-      flight_direction: bookingType === 'transfer' ? flightDirection : null,
-      pickup_time: bookingType === 'transfer' ? pickupTime.trim() || null : null,
+      flight_direction: bookingType === 'transfer' ? transferTab : null,
+      pickup_time: null,
       client_price: bookingType === 'transfer' && clientGel > 0 ? clientGel : null,
       commission:
         bookingType === 'transfer' && commissionGelDb !== null && commissionGelDb > 0
           ? commissionGelDb
           : null,
-      tour_days: tourDaysDb,
+      tour_days: null,
+      itinerary: itineraryDb,
       transfer_in: transferInDb,
       transfer_out: transferOutDb,
       comment: comment.trim() || null,
       payment_method: paymentWhen,
       price_gel: price,
+      created_by_name: operatorName,
     });
     setSubmitting(false);
     if (error) {
@@ -377,6 +664,15 @@ export default function NewBookingScreen() {
           {step === 3 && 'შეჯამება და გადახდა'}
         </Text>
 
+        {step >= 2 ? (
+          <OperatorPicker
+            members={operators}
+            loading={operatorsLoading}
+            selectedName={selectedOperatorName}
+            onSelect={setSelectedOperatorName}
+          />
+        ) : null}
+
         {step === 1 && (
           <View style={styles.block}>
             <Text style={styles.sectionLabel}>აირჩიეთ სერვისის ტიპი</Text>
@@ -400,37 +696,95 @@ export default function NewBookingScreen() {
 
         {step === 2 && bookingType === 'transfer' && (
           <View style={styles.block}>
-            <Text style={[styles.sectionHeader, styles.sectionHeaderFirst]}>მარშრუტი</Text>
-            <AuthInput label="საიდან" value={fromPlace} onChangeText={setFromPlace} />
-            <AuthInput label="სად" value={toPlace} onChangeText={setToPlace} />
-            <AuthInput
-              label="თარიღი და დრო"
-              value={dateStr}
-              onChangeText={setDateStr}
-              placeholder="მაგ: 20 მაი 2026, 10:00"
-            />
+            <TransferSegmented tab={transferTab} onChange={setTransferTab} />
 
-            <Text style={styles.sectionHeader}>ავტომობილი</Text>
-            <Text style={styles.fieldLabel}>კლასი</Text>
-            <View style={styles.chips}>
-              {(['ეკონომი', 'კომფორტი', 'ბიზნეს'] as VehicleClass[]).map((c) => (
-                <Pressable
-                  key={c}
-                  onPress={() => setVehicleClass(c)}
-                  style={[styles.chip, vehicleClass === c && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>
-                    {c}
-                  </Text>
-                </Pressable>
-              ))}
+            <View style={styles.accordionPanel}>
+              {transferTab === 'arrival' ? (
+                <>
+                  <AuthInput
+                    label="აეროპორტი"
+                    value={arrivalAirport}
+                    onChangeText={setArrivalAirport}
+                    placeholder="მაგ: თბილისის აეროპორტი"
+                  />
+                  <AuthInput
+                    label="რეისის ნომერი"
+                    value={arrivalFlightNo}
+                    onChangeText={setArrivalFlightNo}
+                    autoCapitalize="characters"
+                    placeholder="მაგ: A9-1234"
+                  />
+                  <DateTimeField
+                    label="თარიღი და დრო"
+                    value={arrivalDateTime}
+                    onChange={setArrivalDateTime}
+                    placeholder="აირჩიეთ თარიღი და დრო"
+                    minimumDate={new Date()}
+                  />
+                  <AuthInput
+                    label="დანიშნულების ადგილი"
+                    value={arrivalDestination}
+                    onChangeText={setArrivalDestination}
+                    placeholder="მაგ: სასტუმრო / ქალაქის ცენტრი"
+                  />
+                </>
+              ) : (
+                <>
+                  <AuthInput
+                    label="სასტუმრო / მისამართი"
+                    value={departureAddress}
+                    onChangeText={setDepartureAddress}
+                    placeholder="აღების ადგილი"
+                  />
+                  <DateTimeField
+                    label="გამგზავრების თარიღი და დრო"
+                    value={departureDateTime}
+                    onChange={setDepartureDateTime}
+                    placeholder="აირჩიეთ თარიღი და დრო"
+                    minimumDate={new Date()}
+                  />
+                  <AuthInput
+                    label="აეროპორტი"
+                    value={departureAirport}
+                    onChangeText={setDepartureAirport}
+                    placeholder="მაგ: თბილისის აეროპორტი"
+                  />
+                </>
+              )}
             </View>
 
-            <Text style={styles.sectionHeader}>მგზავრი</Text>
+            <View style={styles.compactDivider} />
+
+            <AuthInput
+              label="მგზავრები"
+              value={passengers}
+              onChangeText={setPassengers}
+              keyboardType="number-pad"
+            />
+            <VehiclePicker
+              selectedVehicleType={selectedVehicleType}
+              onVehicleTypeChange={setSelectedVehicleType}
+              vehicleClass={vehicleClass}
+              onVehicleClassChange={setVehicleClass}
+            />
+
+            <View style={styles.compactRow}>
+              <AuthInput
+                label="მგზავრის სახელი"
+                value={passengerName}
+                onChangeText={setPassengerName}
+              />
+              <AuthInput
+                label="ტელეფონი"
+                value={passengerPhone}
+                onChangeText={setPassengerPhone}
+                keyboardType="phone-pad"
+              />
+            </View>
             <Pressable
               onPress={() => setMeetGreet((v) => !v)}
               style={({ pressed }) => [
-                styles.meetToggle,
+                styles.meetToggleCompact,
                 meetGreet ? styles.meetToggleOn : styles.meetToggleOff,
                 pressed && styles.pressed,
               ]}
@@ -441,62 +795,12 @@ export default function NewBookingScreen() {
             </Pressable>
             {meetGreet ? (
               <AuthInput
-                label="პლაკატზე რა დაიწეროს"
+                label="პლაკატის ტექსტი"
                 value={signText}
                 onChangeText={setSignText}
-                placeholder="სახელი / კომპანია"
+                placeholder="სახელი"
               />
             ) : null}
-            <AuthInput
-              label="მგზავრის სახელი გვარი"
-              value={passengerName}
-              onChangeText={setPassengerName}
-            />
-            <AuthInput
-              label="მგზავრის ნომერი"
-              value={passengerPhone}
-              onChangeText={setPassengerPhone}
-              keyboardType="phone-pad"
-            />
-            <AuthInput
-              label="მგზავრები"
-              value={passengers}
-              onChangeText={setPassengers}
-              keyboardType="number-pad"
-            />
-
-            <Text style={styles.sectionHeader}>ფრენა</Text>
-            <AuthInput
-              label="ფრენის ნომერი (არასავალდებულო)"
-              value={flightNo}
-              onChangeText={setFlightNo}
-              autoCapitalize="characters"
-            />
-            <Text style={styles.fieldLabel}>მიმართულება</Text>
-            <View style={styles.chips}>
-              {(
-                [
-                  { id: 'arrival' as const, label: 'ჩამოსვლა' },
-                  { id: 'departure' as const, label: 'გამგზავრება' },
-                ] as const
-              ).map((d) => (
-                <Pressable
-                  key={d.id}
-                  onPress={() => setFlightDirection(d.id)}
-                  style={[styles.chip, flightDirection === d.id && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, flightDirection === d.id && styles.chipTextActive]}>
-                    {d.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <AuthInput
-              label="აყვანის დრო"
-              value={pickupTime}
-              onChangeText={setPickupTime}
-              placeholder="მაგ: 14:30"
-            />
 
             <Text style={styles.sectionHeader}>ფასები</Text>
             <AuthInput
@@ -559,14 +863,72 @@ export default function NewBookingScreen() {
           </View>
         )}
 
-        {step === 2 && bookingType !== 'transfer' && (
+        {step === 2 && bookingType === 'dayTour' && (
+          <View style={styles.block}>
+            <Text style={styles.dayTourTitle}>ერთდღიანი ტურის დეტალები</Text>
+
+            <DateTimeField
+              label="თარიღი და დრო"
+              value={bookingDateTime}
+              onChange={setBookingDateTime}
+              placeholder="აირჩიეთ თარიღი და დრო"
+              minimumDate={new Date()}
+            />
+            <AuthInput
+              label="მგზავრები"
+              value={passengers}
+              onChangeText={setPassengers}
+              keyboardType="number-pad"
+            />
+
+            <View style={styles.dayTourCard}>
+              <AuthInput
+                label="საიდან"
+                value={days[0]?.from ?? ''}
+                onChangeText={(t) => patchDay(0, { from: t })}
+              />
+              <AuthInput
+                label="სად"
+                value={days[0]?.to ?? ''}
+                onChangeText={(t) => patchDay(0, { to: t })}
+              />
+              <AuthInput
+                label="გაჩერებები"
+                value={days[0]?.stops ?? ''}
+                onChangeText={(t) => patchDay(0, { stops: t })}
+                placeholder="მაგ: ბათუმი, ქუთაისი"
+                multiline
+                style={styles.textArea}
+              />
+            </View>
+
+            <VehiclePicker
+              selectedVehicleType={selectedVehicleType}
+              onVehicleTypeChange={setSelectedVehicleType}
+              vehicleClass={vehicleClass}
+              onVehicleClassChange={setVehicleClass}
+            />
+
+            <Text style={styles.sectionHeader}>შენიშვნა</Text>
+            <AuthInput
+              label="კომენტარი"
+              value={comment}
+              onChangeText={setComment}
+              multiline
+              style={styles.textArea}
+            />
+          </View>
+        )}
+
+        {step === 2 && bookingType === 'tour' && (
           <View style={styles.block}>
             <Text style={[styles.sectionHeader, styles.sectionHeaderFirst]}>ტრანსფერი — ჩამოსვლა</Text>
-            <AuthInput
+            <DateTimeField
               label="თარიღი და დრო"
-              value={transferIn.date}
-              onChangeText={(t) => setTransferIn((p) => ({ ...p, date: t }))}
-              placeholder="მაგ: 20 მაი 2026, 10:00"
+              value={transferInDateTime}
+              onChange={setTransferInDateTime}
+              placeholder="აირჩიეთ თარიღი და დრო"
+              minimumDate={new Date()}
             />
             <AuthInput
               label="ფრენის ნომერი"
@@ -581,88 +943,57 @@ export default function NewBookingScreen() {
             />
 
             <Text style={styles.sectionHeader}>მარშრუტი დღეების მიხედვით</Text>
-            {tourDays.map((day, dayIndex) => (
-              <View key={day.id} style={styles.tourDayBlock}>
+            {days.map((day, dayIndex) => (
+              <View key={`day-${day.day}-${dayIndex}`} style={styles.tourDayBlock}>
                 <View style={styles.tourDayHeaderRow}>
-                  <Text style={styles.tourDayTitle}>დღე {dayIndex + 1}</Text>
-                  {tourDays.length > 1 ? (
+                  <Text style={styles.tourDayTitle}>დღე {day.day}</Text>
+                  {dayIndex > 0 ? (
                     <Pressable
-                      onPress={() => removeTourDay(dayIndex)}
+                      onPress={() => removeDay(dayIndex)}
                       hitSlop={10}
+                      accessibilityLabel="დღის წაშლა"
                       style={({ pressed }) => [styles.tourDayRemoveBtn, pressed && styles.pressed]}
                     >
-                      <Text style={styles.tourDayRemoveText}>✕</Text>
+                      <Text style={styles.tourDayRemoveText}>წაშლა</Text>
                     </Pressable>
                   ) : null}
                 </View>
                 <AuthInput
                   label="საიდან"
-                  value={day.fromPlace}
-                  onChangeText={(t) => patchTourDay(dayIndex, { fromPlace: t })}
+                  value={day.from}
+                  onChangeText={(t) => patchDay(dayIndex, { from: t })}
                 />
                 <AuthInput
                   label="სად"
-                  value={day.toPlace}
-                  onChangeText={(t) => patchTourDay(dayIndex, { toPlace: t })}
+                  value={day.to}
+                  onChangeText={(t) => patchDay(dayIndex, { to: t })}
                 />
-                <Text style={styles.fieldLabel}>გაჩერებები</Text>
-                {day.stops.map((stop, si) => (
-                  <View key={`${day.id}-stop-${si}`} style={styles.stopRow}>
-                    <View style={styles.stopInputWrap}>
-                      <AuthInput
-                        label={`გაჩერება ${si + 1}`}
-                        value={stop}
-                        onChangeText={(t) => patchStop(dayIndex, si, t)}
-                      />
-                    </View>
-                    <Pressable
-                      onPress={() => removeStop(dayIndex, si)}
-                      hitSlop={8}
-                      style={({ pressed }) => [styles.stopRemoveBtn, pressed && styles.pressed]}
-                    >
-                      <Text style={styles.stopRemoveText}>✕</Text>
-                    </Pressable>
-                  </View>
-                ))}
-                <Pressable
-                  onPress={() => addStop(dayIndex)}
-                  style={({ pressed }) => [styles.addStopBtn, pressed && styles.pressed]}
-                >
-                  <Text style={styles.addStopBtnText}>გაჩერების დამატება +</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => patchTourDay(dayIndex, { overnight: !day.overnight })}
-                  style={({ pressed }) => [
-                    styles.overnightChip,
-                    day.overnight && styles.overnightChipOn,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={day.overnight ? styles.overnightChipTextOn : styles.overnightChipTextOff}>
-                    ღამისთევა {day.overnight ? '✓' : '✗'}
-                  </Text>
-                </Pressable>
                 <AuthInput
-                  label="თარიღი"
-                  value={day.date}
-                  onChangeText={(t) => patchTourDay(dayIndex, { date: t })}
-                  placeholder="მაგ: 21 მაი 2026"
+                  label="გაჩერებები"
+                  value={day.stops}
+                  onChangeText={(t) => patchDay(dayIndex, { stops: t })}
+                  placeholder="მაგ: ბათუმი, ქუთაისი"
+                  multiline
+                  style={styles.textArea}
                 />
               </View>
             ))}
-            <Pressable
-              onPress={addTourDay}
-              style={({ pressed }) => [styles.addDayOutline, pressed && styles.pressed]}
-            >
-              <Text style={styles.addDayOutlineText}>დღის დამატება +</Text>
-            </Pressable>
+            {bookingType === 'tour' ? (
+              <Pressable
+                onPress={addDay}
+                style={({ pressed }) => [styles.addDayOutline, pressed && styles.pressed]}
+              >
+                <Text style={styles.addDayOutlineText}>+ დღის დამატება</Text>
+              </Pressable>
+            ) : null}
 
             <Text style={styles.sectionHeader}>ტრანსფერი — გამგზავრება</Text>
-            <AuthInput
+            <DateTimeField
               label="თარიღი და დრო"
-              value={transferOut.date}
-              onChangeText={(t) => setTransferOut((p) => ({ ...p, date: t }))}
-              placeholder="მაგ: 25 მაი 2026, 18:00"
+              value={transferOutDateTime}
+              onChange={setTransferOutDateTime}
+              placeholder="აირჩიეთ თარიღი და დრო"
+              minimumDate={new Date()}
             />
             <AuthInput
               label="ფრენის ნომერი"
@@ -676,27 +1007,18 @@ export default function NewBookingScreen() {
               onChangeText={(t) => setTransferOut((p) => ({ ...p, passengerName: t }))}
             />
 
-            <Text style={styles.sectionHeader}>ავტომობილი</Text>
             <AuthInput
               label="მგზავრები"
               value={passengers}
               onChangeText={setPassengers}
               keyboardType="number-pad"
             />
-            <Text style={styles.fieldLabel}>კლასი</Text>
-            <View style={styles.chips}>
-              {(['ეკონომი', 'კომფორტი', 'ბიზნეს'] as VehicleClass[]).map((c) => (
-                <Pressable
-                  key={c}
-                  onPress={() => setVehicleClass(c)}
-                  style={[styles.chip, vehicleClass === c && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>
-                    {c}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <VehiclePicker
+              selectedVehicleType={selectedVehicleType}
+              onVehicleTypeChange={setSelectedVehicleType}
+              vehicleClass={vehicleClass}
+              onVehicleClassChange={setVehicleClass}
+            />
 
             <Text style={styles.sectionHeader}>შენიშვნა</Text>
             <AuthInput label="კომენტარი" value={comment} onChangeText={setComment} multiline />
@@ -758,68 +1080,77 @@ export default function NewBookingScreen() {
               <Text style={styles.voucherTitle}>ვაუჩერი</Text>
               <Text style={styles.voucherId}>{previewVoucherId}</Text>
               <View style={styles.vDivider} />
+              <Text style={styles.vLine}>კომპანია: {companyName}</Text>
+              {selectedOperatorName?.trim() ? (
+                <Text style={styles.vLine}>ოპერატორი: {selectedOperatorName.trim()}</Text>
+              ) : null}
               <Text style={styles.vLine}>ტიპი: {TYPE_LABELS[bookingType]}</Text>
+              <Text style={styles.vLine}>ტრანსპორტი: {selectedVehicleType}</Text>
+              <Text style={styles.vLine}>კლასი: {vehicleClass}</Text>
               {bookingType === 'transfer' ? (
                 <>
                   <Text style={styles.vLine}>
-                    {fromPlace} → {toPlace}
+                    {transferTab === 'arrival' ? 'ჩამოსვლა' : 'გამგზავრება'}
                   </Text>
-                  <Text style={styles.vLine}>{dateStr}</Text>
+                  <Text style={styles.vLine}>
+                    {transferTab === 'arrival'
+                      ? `${arrivalAirport || '—'} → ${arrivalDestination || '—'}`
+                      : `${departureAddress || '—'} → ${departureAirport || '—'}`}
+                  </Text>
+                  {transferTab === 'arrival' && arrivalDateTime ? (
+                    <Text style={styles.vLine}>{formatDisplayDateTime(arrivalDateTime)}</Text>
+                  ) : null}
+                  {transferTab === 'departure' && departureDateTime ? (
+                    <Text style={styles.vLine}>{formatDisplayDateTime(departureDateTime)}</Text>
+                  ) : null}
+                  {transferTab === 'arrival' && arrivalFlightNo.trim() ? (
+                    <Text style={styles.vLineMuted}>რეისი: {arrivalFlightNo.trim()}</Text>
+                  ) : null}
                   {passengerName.trim() ? (
                     <Text style={styles.vLineMuted}>მგზავრი: {passengerName.trim()}</Text>
                   ) : null}
-                  {passengerPhone.trim() ? (
-                    <Text style={styles.vLineMuted}>ტელ: {passengerPhone.trim()}</Text>
+                </>
+              ) : bookingType === 'dayTour' ? (
+                <>
+                  <Text style={styles.vLine}>
+                    {days[0]?.from.trim() || '—'} → {days[0]?.to.trim() || '—'}
+                  </Text>
+                  {bookingDateTime ? (
+                    <Text style={styles.vLineMuted}>{formatDisplayDateTime(bookingDateTime)}</Text>
                   ) : null}
-                  {meetGreet ? (
-                    <Text style={styles.vLineMuted}>
-                      დასახვედრი პლაკატი: დიახ
-                      {signText.trim() ? ` — „${signText.trim()}“` : ''}
-                    </Text>
-                  ) : null}
-                  {flightNo.trim() || pickupTime.trim() ? (
-                    <Text style={styles.vLineMuted}>
-                      {flightNo.trim() ? `ფრენა ${flightNo.trim()}` : 'ფრენა —'} (
-                      {flightDirection === 'arrival' ? 'ჩამოსვლა' : 'გამგზავრება'})
-                      {pickupTime.trim() ? ` · აყვანა ${pickupTime.trim()}` : ''}
-                    </Text>
+                  {days[0]?.stops.trim() ? (
+                    <Text style={styles.vLineMuted}>გაჩერებები: {days[0].stops.trim()}</Text>
                   ) : null}
                 </>
               ) : (
                 <>
-                  {(transferIn.date.trim() ||
+                  {(transferInDateTime ||
                     transferIn.flight.trim() ||
                     transferIn.passengerName.trim()) && (
                     <Text style={styles.vLineMuted}>
-                      ჩამოსვლა: {transferIn.date.trim() || '—'} · ფრენა {transferIn.flight.trim() || '—'}{' '}
-                      · {transferIn.passengerName.trim() || '—'}
+                      ჩამოსვლა:{' '}
+                      {transferInDateTime ? formatDisplayDateTime(transferInDateTime) : '—'} · ფრენა{' '}
+                      {transferIn.flight.trim() || '—'} · {transferIn.passengerName.trim() || '—'}
                     </Text>
                   )}
-                  {tourDays.map((d, idx) => (
-                    <Text key={d.id} style={styles.vLineMuted}>
-                      დღე {idx + 1}: {d.fromPlace.trim() || '—'} → {d.toPlace.trim() || '—'}
-                      {d.date.trim() ? ` · ${d.date.trim()}` : ''}
-                      {d.stops.some((s) => s.trim())
-                        ? ` · გაჩერებები: ${d.stops
-                            .map((s) => s.trim())
-                            .filter(Boolean)
-                            .join(', ')}`
-                        : ''}
-                      {d.overnight ? ' · ღამისთევა' : ''}
+                  {days.map((d) => (
+                    <Text key={`preview-day-${d.day}`} style={styles.vLineMuted}>
+                      დღე {d.day}: {d.from.trim() || '—'} → {d.to.trim() || '—'}
+                      {d.stops.trim() ? ` · გაჩერებები: ${d.stops.trim()}` : ''}
                     </Text>
                   ))}
-                  {(transferOut.date.trim() ||
+                  {(transferOutDateTime ||
                     transferOut.flight.trim() ||
                     transferOut.passengerName.trim()) && (
                     <Text style={styles.vLineMuted}>
-                      გამგზავრება: {transferOut.date.trim() || '—'} · ფრენა{' '}
+                      გამგზავრება:{' '}
+                      {transferOutDateTime ? formatDisplayDateTime(transferOutDateTime) : '—'} · ფრენა{' '}
                       {transferOut.flight.trim() || '—'} · {transferOut.passengerName.trim() || '—'}
                     </Text>
                   )}
                 </>
               )}
               <Text style={styles.vLine}>მგზავრები: {pax}</Text>
-              <Text style={styles.vLine}>კლასი: {vehicleClass}</Text>
               <Text style={styles.vLine}>გადახდა: {paymentWhen}</Text>
               {bookingType === 'transfer' && clientGelParsed > 0 ? (
                 <>
@@ -949,6 +1280,80 @@ const styles = StyleSheet.create({
   sectionHeaderFirst: {
     marginTop: 0,
   },
+  operatorBlock: {
+    marginBottom: SPACING.md,
+    marginTop: 0,
+  },
+  operatorHint: {
+    color: COLORS.gray,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: SPACING.sm,
+  },
+  segmentTrack: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: RADIUS.button,
+    padding: 4,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  segmentItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: RADIUS.input,
+    position: 'relative',
+  },
+  segmentItemActive: {
+    backgroundColor: COLORS.white,
+    ...SHADOWS.card,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  segmentTextActive: {
+    color: COLORS.text,
+    fontWeight: '800',
+  },
+  segmentUnderline: {
+    position: 'absolute',
+    bottom: 2,
+    left: '20%',
+    right: '20%',
+    height: 2,
+    backgroundColor: COLORS.gold,
+    borderRadius: 1,
+  },
+  accordionPanel: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  compactDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: SPACING.sm,
+  },
+  compactRow: {
+    gap: 0,
+  },
+  meetToggleCompact: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
   meetToggle: {
     borderRadius: 14,
     paddingVertical: 14,
@@ -1011,13 +1416,29 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginBottom: SPACING.xs,
   },
-  tourDayBlock: {
-    backgroundColor: COLORS.surface,
+  dayTourTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: SPACING.lg,
+  },
+  dayTourCard: {
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 14,
+    borderRadius: RADIUS.card,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.card,
+  },
+  tourDayBlock: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.card,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    ...SHADOWS.card,
   },
   tourDayHeaderRow: {
     flexDirection: 'row',
@@ -1036,65 +1457,13 @@ const styles = StyleSheet.create({
   },
   tourDayRemoveText: {
     color: COLORS.error,
-    fontSize: 18,
+    fontSize: 13,
     fontWeight: '700',
-  },
-  stopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: SPACING.sm,
-  },
-  stopInputWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  stopRemoveBtn: {
-    paddingBottom: 14,
-    paddingHorizontal: SPACING.xs,
-  },
-  stopRemoveText: {
-    color: COLORS.error,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  addStopBtn: {
-    alignSelf: 'flex-start',
-    marginBottom: SPACING.md,
-    paddingVertical: SPACING.xs,
-  },
-  addStopBtnText: {
-    color: COLORS.goldLight,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  overnightChip: {
-    alignSelf: 'flex-start',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceHigh,
-    marginBottom: SPACING.md,
-  },
-  overnightChipOn: {
-    borderColor: COLORS.gold,
-    backgroundColor: 'rgba(245,166,35,0.15)',
-  },
-  overnightChipTextOff: {
-    color: COLORS.grayLight,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  overnightChipTextOn: {
-    color: COLORS.gold,
-    fontWeight: '800',
-    fontSize: 14,
   },
   addDayOutline: {
     borderWidth: 2,
     borderColor: COLORS.gold,
-    borderRadius: 14,
+    borderRadius: RADIUS.button,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1104,7 +1473,7 @@ const styles = StyleSheet.create({
   addDayOutlineText: {
     color: COLORS.gold,
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   priceSplit: {
     flexDirection: 'row',

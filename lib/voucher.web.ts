@@ -1,6 +1,19 @@
-import type { BookingRow } from './bookings';
+import { isTransferKind, type BookingRow } from './bookings';
+import { formatStoredDateForDisplay } from './dateTime';
+import { vehicleClassLabel, vehicleTypeLabel } from './vehicleCatalog';
+
+function bookingKindLabel(kind: BookingRow['kind']): string {
+  if (isTransferKind(kind)) {
+    if (kind === 'transfer_arrival') return 'ტრანსფერი — ჩამოსვლა';
+    if (kind === 'transfer_departure') return 'ტრანსფერი — გამგზავრება';
+    return 'ტრანსფერი';
+  }
+  if (kind === 'tour') return 'ტური';
+  return 'ერთდღიანი ტური';
+}
 
 function generateVoucherHTML(booking: BookingRow, voucherCode: string): string {
+  const tag = 'div';
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -16,30 +29,37 @@ function generateVoucherHTML(booking: BookingRow, voucherCode: string): string {
     .label { color: #888; font-size: 13px; }
     .value { font-size: 13px; font-weight: 600; }
     .price { font-size: 28px; font-weight: 900; color: #F5A623; text-align: right; margin-top: 12px; }
+    .status { display: inline-block; background: #F5A623; color: #000;
+      padding: 4px 16px; border-radius: 20px; font-weight: 700; font-size: 13px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
-  <div class="logo">KEKE.MANAGER</div>
-  <div class="subtitle">B2B სატრანსპორტო პლატფორმა</div>
-  <div class="voucher-box">
-    <div class="voucher-id">${voucherCode}</div>
-    <div class="divider"></div>
-    <div class="row"><span class="label">ტიპი</span><span class="value">${booking.kind === 'transfer' ? 'ტრანსფერი' : booking.kind === 'tour' ? 'ტური' : 'ერთდღიანი ტური'}</span></div>
-    ${booking.from_location ? `<div class="row"><span class="label">საიდან</span><span class="value">${booking.from_location}</span></div>` : ''}
-    ${booking.to_location ? `<div class="row"><span class="label">სად</span><span class="value">${booking.to_location}</span></div>` : ''}
-    ${booking.route ? `<div class="row"><span class="label">მარშრუტი</span><span class="value">${booking.route}</span></div>` : ''}
-    <div class="row"><span class="label">თარიღი</span><span class="value">${booking.date_display || '—'}</span></div>
-    <div class="row"><span class="label">მგზავრები</span><span class="value">${booking.passengers}</span></div>
-    <div class="row"><span class="label">კლასი</span><span class="value">${booking.vehicle_class}</span></div>
-    ${booking.passenger_name ? `<div class="row"><span class="label">მგზავრი</span><span class="value">${booking.passenger_name}</span></div>` : ''}
+  <${tag} class="logo">KEKE.MANAGER</${tag}>
+  <${tag} class="subtitle">B2B სატრანსპორტო პლატფორმა</${tag}>
+  <${tag} class="voucher-box">
+    <span class="status">ვაუჩერი</span>
+    <${tag} class="voucher-id">${voucherCode}</${tag}>
+    <${tag} class="divider"></${tag}>
+    ${booking.company_name ? `<${tag} class="row"><span class="label">კომპანია</span><span class="value">${booking.company_name}</span></${tag}>` : ''}
+    ${booking.created_by_name ? `<${tag} class="row"><span class="label">ოპერატორი</span><span class="value">${booking.created_by_name}</span></${tag}>` : ''}
+    <${tag} class="row"><span class="label">ტიპი</span><span class="value">${bookingKindLabel(booking.kind)}</span></${tag}>
+    ${booking.vehicle_type ? `<${tag} class="row"><span class="label">ტრანსპორტი</span><span class="value">${vehicleTypeLabel(booking.vehicle_type)}</span></${tag}>` : ''}
+    <${tag} class="row"><span class="label">კლასი</span><span class="value">${vehicleClassLabel(booking.vehicle_class)}</span></${tag}>
+    ${booking.from_location ? `<${tag} class="row"><span class="label">საიდან</span><span class="value">${booking.from_location}</span></${tag}>` : ''}
+    ${booking.to_location ? `<${tag} class="row"><span class="label">სად</span><span class="value">${booking.to_location}</span></${tag}>` : ''}
+    ${booking.route ? `<${tag} class="row"><span class="label">მარშრუტი</span><span class="value">${booking.route}</span></${tag}>` : ''}
+    <${tag} class="row"><span class="label">თარიღი</span><span class="value">${formatStoredDateForDisplay(booking.date_display)}</span></${tag}>
+    <${tag} class="row"><span class="label">მგზავრები</span><span class="value">${booking.passengers}</span></${tag}>
+    ${booking.passenger_name ? `<${tag} class="row"><span class="label">მგზავრი</span><span class="value">${booking.passenger_name}</span></${tag}>` : ''}
+    ${booking.flight_number ? `<${tag} class="row"><span class="label">ფრენა</span><span class="value">${booking.flight_number}</span></${tag}>` : ''}
     ${booking.driver_display_name ? `
-    <div class="divider"></div>
-    <div class="row"><span class="label">მძღოლი</span><span class="value">${booking.driver_display_name}</span></div>
-    <div class="row"><span class="label">ნომერი</span><span class="value">${booking.driver_phone || '—'}</span></div>` : ''}
-    <div class="divider"></div>
-    <div class="row"><span class="label">გადახდა</span><span class="value">${booking.payment_method || '—'}</span></div>
-    <div class="price">${Number(booking.price_gel).toLocaleString('ka-GE')} ₾</div>
-  </div>
+    <${tag} class="divider"></${tag}>
+    <${tag} class="row"><span class="label">მძღოლი</span><span class="value">${booking.driver_display_name}</span></${tag}>
+    <${tag} class="row"><span class="label">ნომერი</span><span class="value">${booking.driver_phone || '—'}</span></${tag}>` : ''}
+    <${tag} class="divider"></${tag}>
+    <${tag} class="row"><span class="label">გადახდა</span><span class="value">${booking.payment_method || '—'}</span></${tag}>
+    <${tag} class="price">${Number(booking.price_gel).toLocaleString('ka-GE')} ₾</${tag}>
+  </${tag}>
 </body>
 </html>`;
 }
