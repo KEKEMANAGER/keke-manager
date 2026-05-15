@@ -1,6 +1,6 @@
 import { Image, StyleSheet, type ImageStyle, type StyleProp } from 'react-native';
 
-const logoSource = require('../assets/logo.png.png');
+const logoSource = require('../assets/logo.png');
 
 type AppLogoSize = 'auth' | 'header';
 
