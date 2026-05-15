@@ -1,0 +1,118 @@
+﻿
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Expo Metro config:
+- Version: 54.0.15
+- Extensions: ts, tsx, mjs, js, jsx, json, cjs, scss, sass, css
+- React Native: D:\keke-manager-app\node_modules\react-native
+- Watch Folders: 
+- Node Module Paths: 
+- Sass: null
+- Reanimated: null
+- Worklets: null
+- Babel Runtime: null
+
+
+
+Starting Metro Bundler
+
+
+
+Web node_modules\expo-router\entry.js ΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæΓûæ  0.0% (0/1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+| (node:33472) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Web Bundling failed 2317ms node_modules\expo-router\entry.js (1012 modules)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
