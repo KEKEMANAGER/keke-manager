@@ -1,20 +1,37 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import {
+  mapSupabaseError,
+  showErrorAlert,
+  showValidationAlert,
+  validateCompanyProfileForm,
+  validateRequired,
+} from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EditModeButtons } from '../../components/EditModeButtons';
-import { MOCK_COMPANY_LEGAL_ID, MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
+import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import {
+  addCompanyMember,
+  COMPANY_MEMBERS_TABLE,
+  deleteCompanyMember,
+  fetchCompanyMembers,
+  formatSupabaseError,
+  type CompanyMember,
+} from '../../lib/companyMembers';
 import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
 import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
@@ -31,13 +48,20 @@ function companyDisplayName(profile: Profile | null, user: User | null) {
 }
 
 export default function CompanyProfileScreen() {
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [taxId, setTaxId] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
+  const [members, setMembers] = useState<CompanyMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -50,7 +74,7 @@ export default function CompanyProfileScreen() {
     setSaveError(null);
     const { data, error } = await supabase
       .from('users')
-      .select('full_name, email, phone')
+      .select('full_name, email, phone, tax_id')
       .eq('id', user.id)
       .maybeSingle();
     setProfileLoading(false);
@@ -59,9 +83,15 @@ export default function CompanyProfileScreen() {
       setCompanyName(fallbackName === 'კომპანია' ? '' : fallbackName);
       setEmail(profile?.email ?? user?.email ?? '');
       setPhone(profile?.phone ?? '');
+      setTaxId('');
       return;
     }
-    const row = data as { full_name?: string | null; email?: string | null; phone?: string | null };
+    const row = data as {
+      full_name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      tax_id?: string | null;
+    };
     if (typeof row.full_name === 'string' && row.full_name.trim()) {
       setCompanyName(row.full_name.trim());
     } else {
@@ -70,11 +100,50 @@ export default function CompanyProfileScreen() {
     }
     setEmail(row.email?.trim() ?? profile?.email ?? user?.email ?? '');
     setPhone(row.phone?.trim() ?? profile?.phone ?? '');
+    setTaxId(row.tax_id?.trim() ?? '');
   }, [user?.id, profile, user]);
 
-  useEffect(() => {
-    void loadProfileFields();
-  }, [loadProfileFields]);
+  const loadMembers = useCallback(async () => {
+    if (!user?.id) {
+      setMembers([]);
+      return;
+    }
+    setMembersLoading(true);
+    setMemberError(null);
+    console.log('[company_members] loadMembers start', {
+      table: COMPANY_MEMBERS_TABLE,
+      company_id: user.id,
+    });
+    const { data, error } = await fetchCompanyMembers(user.id);
+    setMembersLoading(false);
+    if (error) {
+      console.log('[company_members] loadMembers error:', error);
+      setMemberError(formatSupabaseError(error));
+      setMembers([]);
+      return;
+    }
+    console.log('[company_members] loadMembers ok, rows:', data.length);
+    setMembers(data);
+  }, [user?.id]);
+
+  const reloadAll = useCallback(async () => {
+    await Promise.all([loadProfileFields(), loadMembers()]);
+  }, [loadProfileFields, loadMembers]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await reloadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [reloadAll]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void reloadAll();
+    }, [reloadAll]),
+  );
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -103,7 +172,9 @@ export default function CompanyProfileScreen() {
     if (!user?.id || photoUploading) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setPhotoError('წვდომა ფოტოებზე უარყოფილია.');
+      const permMsg = 'წვდომა ფოტოებზე უარყოფილია.';
+      setPhotoError(permMsg);
+      showErrorAlert(permMsg, 'წვდომა');
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -126,7 +197,9 @@ export default function CompanyProfileScreen() {
       }
       setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
     } catch (e: unknown) {
-      setPhotoError(e instanceof Error ? e.message : 'ატვირთვა ვერ მოხერხდა');
+      const message = mapSupabaseError(e);
+      setPhotoError(message);
+      showErrorAlert(message);
     } finally {
       setPhotoUploading(false);
     }
@@ -145,6 +218,18 @@ export default function CompanyProfileScreen() {
 
   async function onSaveProfile() {
     if (!user?.id) return;
+
+    const validationError = validateCompanyProfileForm({
+      companyName,
+      email,
+      phone,
+    });
+    if (validationError) {
+      setSaveError(validationError);
+      showValidationAlert(validationError);
+      return;
+    }
+
     setSaveBusy(true);
     setSaveError(null);
     const { error } = await supabase
@@ -153,19 +238,61 @@ export default function CompanyProfileScreen() {
         full_name: companyName.trim() || null,
         email: email.trim() || null,
         phone: phone.trim() || null,
+        tax_id: taxId.trim() || null,
       })
       .eq('id', user.id);
     setSaveBusy(false);
     if (error) {
-      setSaveError(error.message);
+      const message = mapSupabaseError(error);
+      setSaveError(message);
+      showErrorAlert(message);
       return;
     }
     setIsEditing(false);
     void loadProfileFields();
   }
 
-  async function onSignOut() {
-    await signOut();
+  async function onAddMember() {
+    if (!user?.id || memberBusy) return;
+
+    const nameError = validateRequired(newMemberName, 'ოპერატორის სახელი');
+    if (nameError) {
+      setMemberError(nameError);
+      showValidationAlert(nameError);
+      return;
+    }
+
+    setMemberBusy(true);
+    setMemberError(null);
+    const { data, error } = await addCompanyMember(user.id, newMemberName);
+    setMemberBusy(false);
+    if (error) {
+      console.log('[company_members] onAddMember error:', error);
+      const message = mapSupabaseError(error);
+      setMemberError(message);
+      showErrorAlert(message);
+      return;
+    }
+    if (data) {
+      setMembers((prev) => [...prev, data]);
+      setNewMemberName('');
+    } else {
+      void loadMembers();
+    }
+  }
+
+  async function onRemoveMember(member: CompanyMember) {
+    if (!user?.id || memberBusy) return;
+    setMemberBusy(true);
+    setMemberError(null);
+    const { error } = await deleteCompanyMember(member.id, user.id);
+    setMemberBusy(false);
+    if (error) {
+      console.log('[company_members] onRemoveMember error:', error);
+      setMemberError(formatSupabaseError(error));
+      return;
+    }
+    setMembers((prev) => prev.filter((m) => m.id !== member.id));
   }
 
   return (
@@ -177,6 +304,14 @@ export default function CompanyProfileScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void onRefresh()}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <Text style={styles.screenTitle}>კომპანიის პროფილი</Text>
 
@@ -216,7 +351,6 @@ export default function CompanyProfileScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>იდენტიფიკაცია</Text>
-        <Row label="საიდენტიფიკაციო ნომერი" value={MOCK_COMPANY_LEGAL_ID} />
         <Row label="User ID" value={user?.id ? `${user.id.slice(0, 12)}…` : '—'} />
       </View>
 
@@ -243,15 +377,80 @@ export default function CompanyProfileScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
             />
+            <EditField label="საიდენტიფიკაციო კოდი" value={taxId} onChangeText={setTaxId} />
           </>
         ) : (
           <>
             <Row label="კომპანიის სახელი" value={displayName} />
             <Row label="ტელეფონი" value={phone.trim() || '—'} />
             <Row label="ელფოსტა" value={email.trim() || '—'} />
+            <Row label="საიდენტიფიკაციო კოდი" value={taxId.trim() || '—'} />
           </>
         )}
         {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardTitle}>ტურ ოპერატორები</Text>
+          <Pressable
+            onPress={() => void loadMembers()}
+            disabled={membersLoading || memberBusy}
+            hitSlop={8}
+            style={({ pressed }) => [styles.reloadBtn, pressed && styles.reloadBtnPressed]}
+          >
+            <Ionicons name="refresh-outline" size={20} color={COLORS.gold} />
+          </Pressable>
+        </View>
+        {membersLoading ? (
+          <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.sm }} />
+        ) : members.length === 0 ? (
+          <Text style={styles.membersHint}>დაამატეთ ოპერატორის სახელი ჯავშნისას არჩევისთვის.</Text>
+        ) : (
+          <View style={styles.memberList}>
+            {members.map((m) => (
+              <View key={m.id} style={styles.memberRow}>
+                <Text style={styles.memberName}>{m.name}</Text>
+                <Pressable
+                  onPress={() => void onRemoveMember(m)}
+                  disabled={memberBusy}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${m.name} წაშლა`}
+                  style={({ pressed }) => [styles.memberDeleteBtn, pressed && styles.memberDeletePressed]}
+                >
+                  <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={styles.addMemberRow}>
+          <TextInput
+            value={newMemberName}
+            onChangeText={setNewMemberName}
+            placeholder="მაგ: ანი, მონიკა"
+            placeholderTextColor={COLORS.gray}
+            style={styles.addMemberInput}
+            editable={!memberBusy}
+          />
+          <Pressable
+            onPress={() => void onAddMember()}
+            disabled={memberBusy || !newMemberName.trim()}
+            style={({ pressed }) => [
+              styles.addMemberBtn,
+              (!newMemberName.trim() || memberBusy) && styles.addMemberBtnDisabled,
+              pressed && !!newMemberName.trim() && !memberBusy && styles.addMemberBtnPressed,
+            ]}
+          >
+            {memberBusy ? (
+              <ActivityIndicator color="#000000" size="small" />
+            ) : (
+              <Text style={styles.addMemberBtnText}>დამატება</Text>
+            )}
+          </Pressable>
+        </View>
+        {memberError ? <Text style={styles.saveError}>{memberError}</Text> : null}
       </View>
 
       <View style={styles.card}>
@@ -271,12 +470,6 @@ export default function CompanyProfileScreen() {
         </View>
       </View>
 
-      <Pressable
-        onPress={onSignOut}
-        style={({ pressed }) => [styles.signOut, SHADOWS.button, pressed && styles.signOutPressed]}
-      >
-        <Text style={styles.signOutText}>გასვლა</Text>
-      </Pressable>
     </ScrollView>
   );
 }
@@ -415,7 +608,18 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 14,
     fontWeight: '700',
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: SPACING.md,
+  },
+  reloadBtn: {
+    padding: 4,
+  },
+  reloadBtnPressed: {
+    opacity: 0.7,
   },
   row: {
     marginBottom: SPACING.md,
@@ -472,19 +676,74 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  signOut: {
+  membersHint: {
+    color: COLORS.grayLight,
+    fontSize: 14,
+    marginBottom: SPACING.md,
+    lineHeight: 20,
+  },
+  memberList: {
+    marginBottom: SPACING.md,
+    gap: SPACING.xs,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: RADIUS.input,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  memberName: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  memberDeleteBtn: {
+    padding: 6,
+    marginLeft: SPACING.sm,
+  },
+  memberDeletePressed: {
+    opacity: 0.7,
+  },
+  addMemberRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    alignItems: 'center',
+  },
+  addMemberInput: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.input,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    color: COLORS.text,
+    fontSize: 15,
+  },
+  addMemberBtn: {
     backgroundColor: COLORS.gold,
     borderRadius: RADIUS.button,
-    paddingVertical: 16,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    minWidth: 100,
     alignItems: 'center',
-    marginTop: SPACING.md,
+    justifyContent: 'center',
   },
-  signOutPressed: {
-    opacity: 0.92,
+  addMemberBtnDisabled: {
+    opacity: 0.5,
   },
-  signOutText: {
+  addMemberBtnPressed: {
+    opacity: 0.9,
+  },
+  addMemberBtnText: {
     color: '#000000',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
 });

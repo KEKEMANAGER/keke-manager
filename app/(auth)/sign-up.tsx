@@ -10,6 +10,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import {
+  mapSupabaseError,
+  showErrorAlert,
+  showValidationAlert,
+  validateSignUpForm,
+} from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
@@ -18,39 +24,6 @@ import { useAuth, type KekeRole } from '../../contexts/AuthContext';
 import { getUserRole } from '../../lib/role';
 
 type Role = KekeRole;
-
-function mapSignUpErrorForUser(err: unknown): string {
-  const msg =
-    typeof err === 'object' && err !== null && 'message' in err
-      ? String((err as { message?: string }).message)
-      : err instanceof Error
-        ? err.message
-        : '';
-  const code =
-    typeof err === 'object' && err !== null && 'code' in err
-      ? String((err as { code?: string }).code ?? '')
-      : '';
-  const lower = msg.toLowerCase();
-
-  if (
-    code === 'user_already_exists' ||
-    lower.includes('user already registered') ||
-    lower.includes('already registered')
-  ) {
-    return 'ეს ელფოსტა უკვე რეგისტრირებულია — გადადით „შესვლაზე".';
-  }
-  if (lower.includes('password should be at least 6 characters')) {
-    return 'პაროლი უნდა იყოს მინიმუმ 6 სიმბოლო';
-  }
-  if (lower.includes('unable to validate email address')) {
-    return 'ელფოსტის ფორმატი არასწორია';
-  }
-  if (lower.includes('network request failed')) {
-    return 'ინტერნეტთან კავშირი ვერ მოხერხდა';
-  }
-  if (msg.trim()) return msg;
-  return 'რეგისტრაცია ვერ მოხერხდა';
-}
 
 export default function SignUpScreen() {
   const { user, profile, loading: authLoading, signUp } = useAuth();
@@ -80,19 +53,35 @@ export default function SignUpScreen() {
   }
 
   async function onRegister() {
-    if (!role || !fullName.trim() || !email.trim() || !password) return;
     if (isSubmitting) return;
+
+    const validationError = validateSignUpForm({
+      role,
+      fullName,
+      email,
+      password,
+    });
+    if (validationError) {
+      setError(validationError);
+      showValidationAlert(validationError);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
     try {
-      const { error: signUpError } = await signUp(email.trim(), password, fullName.trim(), role);
+      const { error: signUpError } = await signUp(email.trim(), password, fullName.trim(), role!);
       if (signUpError) {
-        setError(mapSignUpErrorForUser(signUpError));
+        const message = mapSupabaseError(signUpError);
+        setError(message);
+        showErrorAlert(message);
         return;
       }
       router.replace('/');
     } catch (e: unknown) {
-      setError(mapSignUpErrorForUser(e));
+      const message = mapSupabaseError(e);
+      setError(message);
+      showErrorAlert(message);
     } finally {
       setIsSubmitting(false);
     }

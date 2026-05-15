@@ -2,7 +2,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   LayoutAnimation,
   Platform,
@@ -31,6 +30,11 @@ import {
   type TourTransferLeg,
 } from '../../lib/bookings';
 import { normalizeVehicleClass, normalizeVehicleType } from '../../lib/vehicleCatalog';
+import {
+  mapSupabaseError,
+  showErrorAlert,
+  showValidationAlert,
+} from '../../lib/validation';
 import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
@@ -418,20 +422,35 @@ export default function NewBookingScreen() {
     );
   }
 
-  function canAdvanceFrom2(): boolean {
+  function validateStep2(): string | null {
     if (bookingType === 'transfer') {
       if (transferTab === 'arrival') {
-        return !!(arrivalAirport.trim() && arrivalDestination.trim() && arrivalDateTime);
+        if (!arrivalAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
+        if (!arrivalDestination.trim()) return 'შეიყვანეთ დანიშნულების ადგილი.';
+        if (!arrivalDateTime) return 'აირჩიეთ თარიღი და დრო.';
+        return null;
       }
-      return !!(departureAddress.trim() && departureAirport.trim() && departureDateTime);
+      if (!departureAddress.trim()) return 'შეიყვანეთ სასტუმრო / მისამართი.';
+      if (!departureAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
+      if (!departureDateTime) return 'აირჩიეთ გამგზავრების თარიღი და დრო.';
+      return null;
     }
     if (bookingType === 'dayTour') {
-      return !!(bookingDateTime && days[0]?.from.trim());
+      if (!bookingDateTime) return 'აირჩიეთ თარიღი და დრო.';
+      if (!days[0]?.from.trim()) return 'შეიყვანეთ „საიდან“.';
+      return null;
     }
     if (bookingType === 'tour') {
-      return days.some((d) => d.from.trim().length > 0);
+      if (!days.some((d) => d.from.trim())) {
+        return 'შეიყვანეთ მარშრუტი მინიმუმ ერთი დღისთვის.';
+      }
+      return null;
     }
-    return false;
+    return 'აირჩიეთ ჯავშნის ტიპი.';
+  }
+
+  function canAdvanceFrom2(): boolean {
+    return validateStep2() === null;
   }
 
   function resetWizard() {
@@ -478,56 +497,27 @@ export default function NewBookingScreen() {
       return 'შეიყვანეთ მგზავრების რაოდენობა.';
     }
 
-    if (bookingType === 'transfer') {
-      if (transferTab === 'arrival') {
-        if (!arrivalAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
-        if (!arrivalDestination.trim()) return 'შეიყვანეთ დანიშნულების ადგილი.';
-        if (!arrivalDateTime) return 'აირჩიეთ თარიღი და დრო.';
-        return null;
-      }
-      if (!departureAddress.trim()) return 'შეიყვანეთ სასტუმრო / მისამართი.';
-      if (!departureAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
-      if (!departureDateTime) return 'შეიყვანეთ გამგზავრების თარიღი და დრო.';
-      return null;
-    }
-
-    if (bookingType === 'dayTour') {
-      if (!bookingDateTime) return 'აირჩიეთ თარიღი და დრო.';
-      if (!days[0]?.from.trim()) return 'შეიყვანეთ „საიდან“.';
-      return null;
-    }
-
-    if (bookingType === 'tour') {
-      if (!days.some((d) => d.from.trim())) {
-        return 'შეიყვანეთ მარშრუტი მინიმუმ ერთი დღისთვის.';
-      }
-      return null;
-    }
-
-    return null;
-  }
-
-  function showValidationAlert(message: string) {
-    if (Platform.OS === 'web') {
-      window.alert(message);
-    } else {
-      Alert.alert('შევსება არ არის სრული', message);
-    }
+    return validateStep2();
   }
 
   async function confirmAndSaveBooking() {
     if (!user?.id) {
-      setSubmitError('სესია არ არის ნაპოვნი. გთხოვთ თავიდან შეხვიდეთ.');
+      const sessionMsg = 'სესია არ არის ნაპოვნი. გთხოვთ თავიდან შეხვიდეთ.';
+      setSubmitError(sessionMsg);
+      showErrorAlert(sessionMsg, 'სესია');
       return;
     }
     const operatorName = selectedOperatorName?.trim() || null;
     if (operators.length > 0 && !operatorName) {
-      setSubmitError('აირჩიეთ ოპერატორი.');
+      const operatorMsg = 'აირჩიეთ ოპერატორი.';
+      setSubmitError(operatorMsg);
+      showValidationAlert(operatorMsg);
       return;
     }
 
     const validationMessage = validateBeforeSave();
     if (validationMessage) {
+      setSubmitError(validationMessage);
       showValidationAlert(validationMessage);
       return;
     }
@@ -628,7 +618,9 @@ export default function NewBookingScreen() {
     });
     setSubmitting(false);
     if (error) {
-      setSubmitError(error.message);
+      const message = mapSupabaseError(error);
+      setSubmitError(message);
+      showErrorAlert(message);
       return;
     }
     router.replace('/(app)/dashboard');
@@ -1182,7 +1174,13 @@ export default function NewBookingScreen() {
           {step < 3 && (
             <Pressable
               onPress={() => {
-                if (step === 2 && !canAdvanceFrom2()) return;
+                if (step === 2) {
+                  const step2Error = validateStep2();
+                  if (step2Error) {
+                    showValidationAlert(step2Error);
+                    return;
+                  }
+                }
                 setStep((s) => Math.min(3, s + 1));
               }}
               style={({ pressed }) => [

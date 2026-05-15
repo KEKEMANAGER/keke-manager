@@ -11,33 +11,41 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  isNetworkError,
+  mapSupabaseError,
+  showErrorAlert,
+  showValidationAlert,
+  validateSignInForm,
+} from '../../lib/validation';
 
-function mapSupabaseSignInError(err: unknown): string {
-  const msg =
-    typeof err === 'object' && err !== null && 'message' in err
-      ? String((err as { message?: string }).message)
-      : err instanceof Error
-        ? err.message
-        : '';
-  const lower = msg.toLowerCase();
-  if (lower.includes('invalid login credentials')) {
-    return 'ელფოსტა ან პაროლი არასწორია';
+function mapSupabaseSignInError(
+  err: unknown,
+  t: (key: string) => string,
+): string {
+  if (isNetworkError(err)) {
+    return t('auth.errorNetwork');
   }
-  if (lower.includes('email not confirmed')) {
-    return 'ელფოსტა არ არის დადასტურებული';
+  const mapped = mapSupabaseError(err);
+  if (mapped.includes('ელფოსტა ან პაროლი')) {
+    return t('auth.errorInvalidCredentials');
   }
-  if (lower.includes('network request failed')) {
-    return 'ინტერნეტთან კავშირი ვერ მოხერხდა';
+  if (mapped.includes('დადასტურებული')) {
+    return t('auth.errorEmailNotConfirmed');
   }
-  if (msg.trim()) return msg;
-  return 'შესვლა ვერ მოხერხდა';
+  if (mapped === 'მონაცემები არასწორია ან მოთხოვნა ვერ შესრულდა.') {
+    return t('auth.errorSignInFailed');
+  }
+  return mapped;
 }
 
 export default function SignInScreen() {
+  const { t } = useTranslation();
   const { signIn } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -47,18 +55,31 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleSignIn() {
-    if (!emailAddress.trim() || !password) return;
+    const validationError = validateSignInForm({
+      email: emailAddress,
+      password,
+    });
+    if (validationError) {
+      setError(validationError);
+      showValidationAlert(validationError);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const { error: signInError } = await signIn(emailAddress.trim(), password);
       if (signInError) {
-        setError(mapSupabaseSignInError(signInError));
+        const message = mapSupabaseSignInError(signInError, t);
+        setError(message);
+        showErrorAlert(message);
         return;
       }
       router.replace('/');
     } catch (err: unknown) {
-      setError(mapSupabaseSignInError(err));
+      const message = mapSupabaseSignInError(err, t);
+      setError(message);
+      showErrorAlert(message);
     } finally {
       setLoading(false);
     }
@@ -78,13 +99,13 @@ export default function SignInScreen() {
         showsVerticalScrollIndicator={false}
       >
         <AppLogo size="auth" />
-        <Text style={styles.tagline}>B2B სატრანსპორტო პლატფორმა</Text>
+        <Text style={styles.tagline}>{t('auth.tagline')}</Text>
 
         <View style={styles.card}>
-          <Text style={styles.title}>შესვლა</Text>
+          <Text style={styles.title}>{t('common.signIn')}</Text>
 
           <AuthInput
-            label="ელფოსტა"
+            label={t('auth.email')}
             autoCapitalize="none"
             autoComplete="email"
             keyboardType="email-address"
@@ -92,7 +113,7 @@ export default function SignInScreen() {
             onChangeText={setEmailAddress}
           />
           <AuthInput
-            label="პაროლი"
+            label={t('auth.password')}
             secureTextEntry
             autoCapitalize="none"
             value={password}
@@ -114,15 +135,15 @@ export default function SignInScreen() {
             {loading ? (
               <ActivityIndicator color={COLORS.black} />
             ) : (
-              <Text style={styles.buttonText}>შესვლა</Text>
+              <Text style={styles.buttonText}>{t('common.signIn')}</Text>
             )}
           </Pressable>
 
           <View style={styles.footerRow}>
-            <Text style={styles.footerMuted}>ანგარიში არ გაქვთ? </Text>
+            <Text style={styles.footerMuted}>{t('auth.noAccount')} </Text>
             <Link href="/sign-up" asChild>
               <Pressable hitSlop={8}>
-                <Text style={styles.link}>რეგისტრაცია</Text>
+                <Text style={styles.link}>{t('common.signUp')}</Text>
               </Pressable>
             </Link>
           </View>

@@ -11,15 +11,45 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {
+  mapSupabaseError,
+  showErrorAlert,
+  showValidationAlert,
+  validateDriverProfileForm,
+} from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EditModeButtons } from '../../components/EditModeButtons';
+import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
 import { MOCK_RATING_BREAKDOWN } from '../../constants/driverMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
+import {
+  fetchDriverProfile,
+  saveDriverVehiclePreferences,
+  type DriverVehiclePreferences,
+} from '../../lib/profiles';
 import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
+import {
+  VEHICLE_CLASSES,
+  VEHICLE_TYPES,
+  vehicleClassLabel,
+  vehicleTypeLabel,
+  type VehicleClassCode,
+  type VehicleTypeCode,
+} from '../../lib/vehicleCatalog';
 import { useAuth } from '../../contexts/AuthContext';
+
+const VEHICLE_TYPE_OPTIONS = VEHICLE_TYPES.map((value) => ({
+  value,
+  label: vehicleTypeLabel(value),
+}));
+
+const VEHICLE_CLASS_OPTIONS = VEHICLE_CLASSES.map((value) => ({
+  value,
+  label: vehicleClassLabel(value),
+}));
 
 function RatingBar({ label, value }: { label: string; value: number }) {
   const pct = (value / 5) * 100;
@@ -37,7 +67,7 @@ function RatingBar({ label, value }: { label: string; value: number }) {
 }
 
 export default function DriverProfileScreen() {
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -68,6 +98,8 @@ export default function DriverProfileScreen() {
   const [experienceYears, setExperienceYears] = useState('');
   const vehicleModel = 'Mercedes Sprinter 316';
   const vehiclePlate = 'AA-123-BB';
+  const [vehicleType, setVehicleType] = useState<VehicleTypeCode | null>(null);
+  const [vehicleClass, setVehicleClass] = useState<VehicleClassCode | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -106,11 +138,27 @@ export default function DriverProfileScreen() {
     void loadProfileFields();
   }, [loadProfileFields]);
 
+  const loadVehiclePreferences = useCallback(async () => {
+    if (!user?.id) return;
+    const { data, error } = await fetchDriverProfile(user.id);
+    if (error && __DEV__) {
+      console.warn('[DriverProfile] fetchDriverProfile', error.message);
+    }
+    if (data?.vehicle_type) setVehicleType(data.vehicle_type);
+    if (data?.vehicle_class) setVehicleClass(data.vehicle_class);
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadVehiclePreferences();
+  }, [loadVehiclePreferences]);
+
   async function pickPhoto() {
     if (!user?.id) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setPhotoError('ფოტოებზე წვდომა უარყოფილია.');
+      const permMsg = 'ფოტოებზე წვდომა უარყოფილია.';
+      setPhotoError(permMsg);
+      showErrorAlert(permMsg, 'წვდომა');
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -133,48 +181,80 @@ export default function DriverProfileScreen() {
       }
       setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
     } catch (e: unknown) {
-      setPhotoError(e instanceof Error ? e.message : 'ატვირთვა ვერ მოხერხდა');
+      const message = mapSupabaseError(e);
+      setPhotoError(message);
+      showErrorAlert(message);
     } finally {
       setPhotoUploading(false);
     }
   }
 
-  async function onSignOut() {
-    await signOut();
-  }
-
   function onStartEdit() {
     setIsEditing(true);
     setSaveError(null);
+    if (!vehicleType) setVehicleType('sedan');
+    if (!vehicleClass) setVehicleClass('comfort');
   }
 
   function onCancelEdit() {
     setIsEditing(false);
     setSaveError(null);
     void loadProfileFields();
+    void loadVehiclePreferences();
   }
 
   async function onSaveProfile() {
     if (!user?.id) return;
+
+    const validationError = validateDriverProfileForm({
+      name,
+      vehicleType,
+      vehicleClass,
+      experienceYears,
+    });
+    if (validationError) {
+      setSaveError(validationError);
+      showValidationAlert(validationError);
+      return;
+    }
+
     setSaveBusy(true);
     setSaveError(null);
     const years = parseInt(experienceYears.trim(), 10);
-    const { error } = await supabase
-      .from('users')
-      .update({
-        full_name: name.trim() || null,
-        bio: bio.trim() || null,
-        languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
-        experience_years: Number.isFinite(years) && years > 0 ? years : null,
-      })
-      .eq('id', user.id);
+    const prefs: DriverVehiclePreferences = {
+      vehicle_type: vehicleType!,
+      vehicle_class: vehicleClass!,
+    };
+    const [usersRes, profilesRes] = await Promise.all([
+      supabase
+        .from('users')
+        .update({
+          full_name: name.trim() || null,
+          bio: bio.trim() || null,
+          languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
+          experience_years: Number.isFinite(years) && years > 0 ? years : null,
+        })
+        .eq('id', user.id),
+      saveDriverVehiclePreferences(user.id, prefs),
+    ]);
     setSaveBusy(false);
-    if (error) {
-      setSaveError(error.message);
+    if (usersRes.error) {
+      const message = mapSupabaseError(usersRes.error);
+      setSaveError(message);
+      showErrorAlert(message);
+      return;
+    }
+    if (!profilesRes.ok) {
+      const message = mapSupabaseError(
+        profilesRes.error ?? new Error('ავტომობილის პარამეტრები ვერ შეინახა'),
+      );
+      setSaveError(message);
+      showErrorAlert(message);
       return;
     }
     setIsEditing(false);
     void loadProfileFields();
+    void loadVehiclePreferences();
   }
 
   return (
@@ -239,6 +319,20 @@ export default function DriverProfileScreen() {
               onChangeText={setExperienceYears}
               keyboardType="number-pad"
             />
+            <OptionChips
+              label="ავტომობილის ტიპი"
+              options={VEHICLE_TYPE_OPTIONS}
+              value={vehicleType}
+              onChange={setVehicleType}
+              disabled={saveBusy}
+            />
+            <OptionChips
+              label="ავტომობილის კლასი"
+              options={VEHICLE_CLASS_OPTIONS}
+              value={vehicleClass}
+              onChange={setVehicleClass}
+              disabled={saveBusy}
+            />
           </>
         ) : (
           <>
@@ -246,6 +340,14 @@ export default function DriverProfileScreen() {
             <ViewField label="ბიო" value={bio || '—'} />
             <ViewField label="ენები" value={languages || '—'} />
             <ViewField label="გამოცდილება (წლები)" value={experienceYears || '—'} />
+            <ViewField
+              label="ავტომობილის ტიპი"
+              value={vehicleType ? vehicleTypeLabel(vehicleType) : '—'}
+            />
+            <ViewField
+              label="ავტომობილის კლასი"
+              value={vehicleClass ? vehicleClassLabel(vehicleClass) : '—'}
+            />
           </>
         )}
         {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
@@ -269,12 +371,6 @@ export default function DriverProfileScreen() {
         <RatingBar label="ძალისმიერი მართვა" value={MOCK_RATING_BREAKDOWN.driving} />
       </View>
 
-      <Pressable
-        onPress={onSignOut}
-        style={({ pressed }) => [styles.signOut, SHADOWS.button, pressed && styles.pressed]}
-      >
-        <Text style={styles.signOutText}>გასვლა</Text>
-      </Pressable>
     </ScrollView>
   );
 }
