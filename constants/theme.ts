@@ -1,40 +1,92 @@
 export const COLORS = {
-  background: '#0d0d16',
-  surface: '#161628',
-  surfaceHigh: '#1e1e35',
+  background: '#FFFFFF',
+  surface: '#F8F9FA',
+  surfaceAlt: '#F0F1F3',
+  text: '#1A1A2E',
+  textSecondary: '#6B7280',
+  textMuted: '#9CA3AF',
   gold: '#F5A623',
-  goldLight: '#FFD166',
-  goldDark: '#C47D0E',
+  goldLight: '#FBBF24',
+  goldDark: '#D4920B',
+  border: '#E5E7EB',
+  borderFocus: '#F5A623',
+  error: '#EF4444',
+  success: '#10B981',
   white: '#FFFFFF',
-  gray: '#888899',
-  grayLight: '#BBBBCC',
-  border: '#2a2a4a',
-  borderLight: '#333355',
-  error: '#E24B4A',
-  success: '#1D9E75',
+  black: '#1A1A2E',
+  /** @deprecated Use textMuted */
+  gray: '#9CA3AF',
+  /** @deprecated Use textSecondary */
+  grayLight: '#6B7280',
+  /** @deprecated Use surfaceAlt */
+  surfaceHigh: '#F0F1F3',
+  /** @deprecated Use border */
+  borderLight: '#E5E7EB',
 };
 
 export const FONTS = {
   regular: { fontFamily: 'System', fontWeight: '400' as const },
   medium: { fontFamily: 'System', fontWeight: '500' as const },
+  semibold: { fontFamily: 'System', fontWeight: '600' as const },
   bold: { fontFamily: 'System', fontWeight: '700' as const },
   black: { fontFamily: 'System', fontWeight: '800' as const },
+};
+
+export const TYPOGRAPHY = {
+  label: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  heading: {
+    fontWeight: '700' as const,
+    color: COLORS.text,
+  },
+  body: {
+    fontWeight: '400' as const,
+    color: COLORS.text,
+  },
 };
 
 export const SPACING = {
   xs: 4,
   sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+};
+
+export const RADIUS = {
+  sm: 6,
+  input: 8,
+  button: 10,
+  card: 12,
 };
 
 export const SHADOWS = {
-  gold: {
-    shadowColor: COLORS.gold,
-    shadowOffset: { width: 0, height: 2 },
+  card: {
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  button: {
+    shadowColor: '#F5A623',
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  /** @deprecated Use SHADOWS.button */
+  gold: {
+    shadowColor: '#F5A623',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
 };
