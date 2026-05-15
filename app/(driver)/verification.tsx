@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   screenTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '800',
     marginBottom: SPACING.xs,
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   rejectBody: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 14,
     lineHeight: 20,
   },

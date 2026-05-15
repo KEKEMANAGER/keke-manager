@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   webTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '800',
     marginBottom: SPACING.sm,
@@ -207,6 +207,6 @@ const styles = StyleSheet.create({
     color: '#0f0f0f',
   },
   toggleTextOnRed: {
-    color: COLORS.white,
+    color: COLORS.text,
   },
 });

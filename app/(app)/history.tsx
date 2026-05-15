@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRow, BookingStatus } from '../../lib/bookings';
 import {
   bookingStatusLabel,
@@ -44,7 +44,7 @@ function statusColor(status: BookingStatus) {
     case 'confirmed':
       return COLORS.success;
     case 'completed':
-      return COLORS.grayLight;
+      return '#3B82F6';
     case 'rejected':
     case 'cancelled':
       return COLORS.error;
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
   },
   filterChipActive: {
     borderColor: COLORS.gold,
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '700',
     marginBottom: 4,
@@ -291,12 +291,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.gold,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    ...SHADOWS.card,
   },
   cardTop: {
     flexDirection: 'row',
@@ -313,7 +316,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   route: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '600',
     marginBottom: SPACING.md,

@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 24,
     fontWeight: '800',
     marginBottom: SPACING.sm,
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 12,
     padding: SPACING.md,
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 15,
     marginBottom: SPACING.lg,
     backgroundColor: COLORS.surface,

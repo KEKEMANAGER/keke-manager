@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthInput } from '../../components/AuthInput';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { AppLogo } from '../../components/AppLogo';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   insertBooking,
   type BookingType as DbBookingType,
@@ -362,7 +363,7 @@ export default function NewBookingScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.logo}>KEKE.MANAGER</Text>
+        <AppLogo size="auth" style={styles.logoImage} />
         <Text style={styles.title}>ახალი ჯავშანი</Text>
         <View style={styles.stepDots}>
           {[1, 2, 3].map((s) => (
@@ -895,16 +896,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     flexGrow: 1,
   },
-  logo: {
-    color: COLORS.gold,
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 2,
-    textAlign: 'center',
+  logoImage: {
+    alignSelf: 'center',
     marginBottom: SPACING.sm,
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
@@ -1120,7 +1117,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   priceSubValue: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -1153,7 +1150,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245,166,35,0.08)',
   },
   typeTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -1239,7 +1236,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245,166,35,0.1)',
   },
   payText: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1275,7 +1272,7 @@ const styles = StyleSheet.create({
     marginVertical: SPACING.md,
   },
   vLine: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 15,
     marginBottom: 6,
   },
@@ -1321,7 +1318,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   btnSecondaryText: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontWeight: '700',
     fontSize: 16,
   },

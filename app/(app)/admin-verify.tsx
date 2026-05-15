@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 20,
     fontWeight: '800',
   },
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   name: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '700',
     marginBottom: SPACING.md,
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   modalTitle: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: SPACING.md,
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 10,
     padding: SPACING.md,
-    color: COLORS.white,
+    color: COLORS.text,
     minHeight: 88,
     textAlignVertical: 'top',
     marginBottom: SPACING.md,

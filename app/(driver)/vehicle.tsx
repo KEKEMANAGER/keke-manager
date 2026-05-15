@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { uploadMediaObject, vehiclePhotoObjectPath } from '../../lib/mediaUpload';
 import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
 import { fetchVehicleByDriver, saveVehicleInfo, saveVehiclePhotoUrl } from '../../lib/vehicles';
@@ -446,7 +446,7 @@ export default function DriverVehiclePhotosScreen() {
                     disabled={busy || !userId}
                     style={({ pressed }) => [
                       styles.uploadBtn,
-                      SHADOWS.gold,
+                      SHADOWS.button,
                       pressed && styles.pressed,
                       busy && styles.btnDisabled,
                     ]}
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 22,
     fontWeight: '800',
     marginBottom: SPACING.sm,
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
   },
   chipActive: {
     borderColor: COLORS.gold,
@@ -566,11 +566,12 @@ const styles = StyleSheet.create({
   },
   slot: {
     marginBottom: SPACING.lg,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
+    ...SHADOWS.card,
   },
   slotLabel: {
     color: COLORS.goldLight,
@@ -586,10 +587,11 @@ const styles = StyleSheet.create({
   preview: {
     width: 100,
     height: 100,
-    borderRadius: 12,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.surface,
+    borderWidth: 2,
     borderColor: COLORS.border,
+    borderStyle: 'dashed',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',

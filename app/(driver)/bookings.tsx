@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
-import { COLORS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { BookingRow } from '../../lib/bookings';
 import {
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   title: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 24,
     fontWeight: '800',
     marginBottom: SPACING.md,
@@ -368,15 +368,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.gold,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    ...SHADOWS.card,
   },
   company: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 4,
