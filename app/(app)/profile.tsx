@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -54,9 +54,11 @@ function companyDisplayName(
 
 export default function CompanyProfileScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
   const defaultCompany = t('companyProfile.defaultCompany');
+  const isAdmin = profile?.role === 'admin';
 
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
@@ -452,6 +454,17 @@ export default function CompanyProfileScreen() {
         {memberError ? <Text style={styles.saveError}>{memberError}</Text> : null}
       </View>
 
+      {isAdmin ? (
+        <Pressable
+          onPress={() => router.push('/(app)/admin-verify')}
+          style={({ pressed }) => [styles.adminPanelBtn, pressed && styles.adminPanelBtnPressed]}
+        >
+          <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.goldDark} />
+          <Text style={styles.adminPanelBtnText}>{t('adminVerify.panelEntry')}</Text>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+        </Pressable>
+      ) : null}
+
       <ProfileFeedbackEntry />
 
       <View style={styles.card}>
@@ -750,5 +763,27 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 14,
     fontWeight: '800',
+  },
+  adminPanelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.card,
+  },
+  adminPanelBtnPressed: {
+    opacity: 0.92,
+  },
+  adminPanelBtnText: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

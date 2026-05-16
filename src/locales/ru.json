@@ -617,7 +617,19 @@
     "rejectAction": "Отклонить ❌",
     "modalTitle": "Причина отклонения",
     "modalPlaceholder": "Причина…",
-    "confirmYes": "Да"
+    "confirmYes": "Да",
+    "panelEntry": "Админ-панель — Верификация",
+    "subtitle": "Проверьте документы водителей и одобрите или отклоните.",
+    "role": "Роль",
+    "status": "Статус",
+    "statusPending": "Ожидание",
+    "statusSubmitted": "Отправлено",
+    "documentsSection": "Документы",
+    "vehiclePhotos": "Фото автомобиля",
+    "viewDocument": "Открыть",
+    "noDocument": "Нет",
+    "approveSuccess": "Верификация одобрена",
+    "rejectSuccess": "Верификация отклонена"
   },
   "dateTimeField": {
     "pickDate": "Выберите дату",

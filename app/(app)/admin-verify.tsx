@@ -1,9 +1,8 @@
 /**
  * Admin: review driver verification documents.
- *
- * Admin access: `public.users.role` = `admin` (set in Supabase).
+ * Access: `public.users.role` = `admin`.
  */
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,22 +19,35 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { COLORS, SPACING } from '../../constants/theme';
-import { supabase } from '../../lib/supabase';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
-
+import {
+  approveUserVerification,
+  documentUrlFor,
+  fetchAdminVerificationQueue,
+  rejectUserVerification,
+  type AdminDocumentKey,
+  type AdminVerificationUser,
+} from '../../lib/adminVerification';
 function isAdminUser(role: string | null | undefined): boolean {
   return role === 'admin';
 }
 
-type SubmittedUser = {
-  id: string;
-  full_name: string | null;
-  license_photo: string | null;
-  id_photo: string | null;
-  vehicle_registration_photo: string | null;
-  verification_status: string | null;
-};
+type DocSlot = { key: AdminDocumentKey; labelKey: string };
+
+const ID_DOC_SLOTS: DocSlot[] = [
+  { key: 'license', labelKey: 'adminVerify.license' },
+  { key: 'id', labelKey: 'adminVerify.id' },
+  { key: 'vehicle_reg', labelKey: 'adminVerify.vehicleReg' },
+];
+
+const VEHICLE_PHOTO_SLOTS: DocSlot[] = [
+  { key: 'vehicle_front', labelKey: 'vehicleScreen.photoFront' },
+  { key: 'vehicle_left', labelKey: 'vehicleScreen.photoLeft' },
+  { key: 'vehicle_right', labelKey: 'vehicleScreen.photoRight' },
+  { key: 'vehicle_interior', labelKey: 'vehicleScreen.photoInterior' },
+  { key: 'vehicle_rear', labelKey: 'vehicleScreen.photoRear' },
+];
 
 export default function AdminVerifyScreen() {
   const { t } = useTranslation();
@@ -44,37 +56,43 @@ export default function AdminVerifyScreen() {
   const insets = useSafeAreaInsets();
   const admin = isAdminUser(profile?.role ?? null);
 
-  const [rows, setRows] = useState<SubmittedUser[]>([]);
+  const [rows, setRows] = useState<AdminVerificationUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
 
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const rejectResolveRef = useRef<((value: string | null) => void) | null>(null);
 
+  useEffect(() => {
+    if (authLoading) return;
+    if (!admin) {
+      router.replace('/(app)/profile');
+    }
+  }, [authLoading, admin, router]);
+
   const load = useCallback(async () => {
     if (!admin) return;
     setLoading(true);
     setError(null);
-    const { data, error: err } = await supabase
-      .from('users')
-      .select('id, full_name, license_photo, id_photo, vehicle_registration_photo, verification_status')
-      .eq('verification_status', 'submitted');
+    const { data, error: err } = await fetchAdminVerificationQueue();
     setLoading(false);
     if (err) {
       setError(err.message);
       setRows([]);
       return;
     }
-    setRows((data ?? []) as SubmittedUser[]);
+    setRows(data);
   }, [admin]);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!admin) return;
-    void load();
-  }, [authLoading, admin, load]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!admin || authLoading) return;
+      void load();
+    }, [admin, authLoading, load]),
+  );
 
   function promptRejectReason(): Promise<string | null> {
     if (Platform.OS === 'web') {
@@ -126,18 +144,13 @@ export default function AdminVerifyScreen() {
 
   async function onApprove(targetUserId: string) {
     setActingId(targetUserId);
-    const { error: err } = await supabase
-      .from('users')
-      .update({
-        is_verified: true,
-        verification_status: 'approved',
-      })
-      .eq('id', targetUserId);
+    const { error: err } = await approveUserVerification(targetUserId);
     setActingId(null);
     if (err) {
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
+    Alert.alert(t('common.success'), t('adminVerify.approveSuccess'));
     await load();
   }
 
@@ -145,19 +158,50 @@ export default function AdminVerifyScreen() {
     const reason = await promptRejectReason();
     if (reason == null) return;
     setActingId(targetUserId);
-    const { error: err } = await supabase
-      .from('users')
-      .update({
-        verification_status: 'rejected',
-        rejection_reason: reason,
-      })
-      .eq('id', targetUserId);
+    const { error: err } = await rejectUserVerification(targetUserId, reason);
     setActingId(null);
     if (err) {
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
+    Alert.alert(t('common.success'), t('adminVerify.rejectSuccess'));
     await load();
+  }
+
+  function roleLabel(role: string | null): string {
+    if (role === 'driver') return t('authScreen.roleDriver');
+    if (role === 'company') return t('authScreen.roleCompany');
+    if (role === 'admin') return t('common.admin');
+    return role ?? '—';
+  }
+
+  function statusLabel(status: string | null): string {
+    if (status === 'pending') return t('adminVerify.statusPending');
+    if (status === 'submitted') return t('adminVerify.statusSubmitted');
+    return status ?? '—';
+  }
+
+  function renderDocButton(user: AdminVerificationUser, slot: DocSlot) {
+    const url = documentUrlFor(user, slot.key);
+    return (
+      <Pressable
+        key={slot.key}
+        disabled={!url}
+        onPress={() => url && setPreview({ url, title: t(slot.labelKey) })}
+        style={({ pressed }) => [
+          styles.docBtn,
+          !url && styles.docBtnDisabled,
+          pressed && url && styles.docBtnPressed,
+        ]}
+      >
+        <Text style={[styles.docBtnText, !url && styles.docBtnTextDisabled]} numberOfLines={1}>
+          {t(slot.labelKey)}
+        </Text>
+        <Text style={[styles.docBtnHint, !url && styles.docBtnTextDisabled]}>
+          {url ? t('adminVerify.viewDocument') : t('adminVerify.noDocument')}
+        </Text>
+      </Pressable>
+    );
   }
 
   if (authLoading) {
@@ -198,6 +242,7 @@ export default function AdminVerifyScreen() {
             <Text style={styles.backLinkText}>← {t('common.back')}</Text>
           </Pressable>
           <Text style={styles.title}>{t('adminVerify.screenTitle')}</Text>
+          <Text style={styles.subtitle}>{t('adminVerify.subtitle')}</Text>
         </View>
 
         {error ? (
@@ -216,31 +261,45 @@ export default function AdminVerifyScreen() {
         ) : (
           rows.map((u) => (
             <View key={u.id} style={styles.card}>
-              <Text style={styles.name}>
-                {u.full_name?.trim() || '—'}{' '}
-                <Text style={styles.mono}>({u.id.length > 14 ? `${u.id.slice(0, 14)}…` : u.id})</Text>
-              </Text>
-              <View style={styles.imgRow}>
-                {u.license_photo ? (
-                  <Image source={{ uri: u.license_photo }} style={styles.thumb} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.thumb, styles.thumbPh]} />
-                )}
-                {u.id_photo ? (
-                  <Image source={{ uri: u.id_photo }} style={styles.thumb} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.thumb, styles.thumbPh]} />
-                )}
-                {u.vehicle_registration_photo ? (
-                  <Image
-                    source={{ uri: u.vehicle_registration_photo }}
-                    style={styles.thumb}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={[styles.thumb, styles.thumbPh]} />
-                )}
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderText}>
+                  <Text style={styles.name}>{u.full_name?.trim() || u.email || '—'}</Text>
+                  <Text style={styles.meta}>
+                    {t('adminVerify.role')}: {roleLabel(u.role)}
+                  </Text>
+                  <Text style={styles.meta}>
+                    {t('adminVerify.status')}: {statusLabel(u.verification_status)}
+                  </Text>
+                </View>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{statusLabel(u.verification_status)}</Text>
+                </View>
               </View>
+
+              <Text style={styles.sectionLabel}>{t('adminVerify.documentsSection')}</Text>
+              <View style={styles.docGrid}>{ID_DOC_SLOTS.map((slot) => renderDocButton(u, slot))}</View>
+
+              {u.role === 'driver' ? (
+                <>
+                  <Text style={styles.sectionLabel}>{t('adminVerify.vehiclePhotos')}</Text>
+                  <View style={styles.docGrid}>
+                    {VEHICLE_PHOTO_SLOTS.map((slot) => renderDocButton(u, slot))}
+                  </View>
+                  <View style={styles.thumbRow}>
+                    {VEHICLE_PHOTO_SLOTS.map((slot) => {
+                      const url = documentUrlFor(u, slot.key);
+                      return url ? (
+                        <Pressable key={slot.key} onPress={() => setPreview({ url, title: t(slot.labelKey) })}>
+                          <Image source={{ uri: url }} style={styles.thumb} resizeMode="cover" />
+                        </Pressable>
+                      ) : (
+                        <View key={slot.key} style={[styles.thumb, styles.thumbPh]} />
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
+
               <View style={styles.btnRow}>
                 <Pressable
                   onPress={() => void onApprove(u.id)}
@@ -271,6 +330,20 @@ export default function AdminVerifyScreen() {
           ))
         )}
       </ScrollView>
+
+      <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
+        <Pressable style={styles.previewOverlay} onPress={() => setPreview(null)}>
+          <View style={styles.previewCard}>
+            <Text style={styles.previewTitle}>{preview?.title}</Text>
+            {preview?.url ? (
+              <Image source={{ uri: preview.url }} style={styles.previewImage} resizeMode="contain" />
+            ) : null}
+            <Pressable onPress={() => setPreview(null)} style={styles.previewClose}>
+              <Text style={styles.previewCloseText}>{t('common.close')}</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal visible={rejectModalOpen} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -324,7 +397,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: RADIUS.button,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -346,12 +419,18 @@ const styles = StyleSheet.create({
   },
   title: {
     color: COLORS.text,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
+    marginBottom: SPACING.xs,
+  },
+  subtitle: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
   },
   errBox: {
     padding: SPACING.md,
-    borderRadius: 12,
+    borderRadius: RADIUS.card,
     backgroundColor: 'rgba(244, 67, 54, 0.12)',
     borderWidth: 1,
     borderColor: COLORS.error,
@@ -373,34 +452,101 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    ...SHADOWS.card,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  cardHeaderText: {
+    flex: 1,
   },
   name: {
     color: COLORS.text,
-    fontSize: 16,
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  meta: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  statusBadge: {
+    backgroundColor: COLORS.goldTint,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  statusBadgeText: {
+    color: COLORS.goldDark,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  sectionLabel: {
+    color: COLORS.text,
+    fontSize: 13,
     fontWeight: '700',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.xs,
   },
-  mono: {
-    color: COLORS.gray,
-    fontWeight: '500',
-    fontSize: 12,
-  },
-  imgRow: {
+  docGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  docBtn: {
+    minWidth: '30%',
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.surface,
+  },
+  docBtnDisabled: {
+    opacity: 0.5,
+  },
+  docBtnPressed: {
+    opacity: 0.88,
+    borderColor: COLORS.gold,
+  },
+  docBtnText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  docBtnHint: {
+    color: COLORS.gold,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  docBtnTextDisabled: {
+    color: COLORS.textMuted,
+  },
+  thumbRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: SPACING.md,
   },
   thumb: {
-    width: 100,
-    height: 70,
+    width: 56,
+    height: 42,
     borderRadius: 8,
-    backgroundColor: COLORS.surfaceHigh,
+    backgroundColor: COLORS.surfaceAlt,
   },
   thumbPh: {
     borderWidth: 1,
@@ -410,13 +556,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.sm,
     flexWrap: 'wrap',
+    marginTop: SPACING.sm,
   },
   approve: {
     flex: 1,
     minWidth: 140,
     backgroundColor: COLORS.gold,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: RADIUS.button,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   approvePressed: { opacity: 0.88 },
@@ -430,8 +577,8 @@ const styles = StyleSheet.create({
     minWidth: 140,
     borderWidth: 1,
     borderColor: COLORS.error,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: RADIUS.button,
+    paddingVertical: 14,
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
@@ -441,6 +588,43 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 14,
   },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  previewCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    padding: SPACING.md,
+    maxHeight: '90%',
+  },
+  previewTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  previewImage: {
+    width: '100%',
+    height: 360,
+    borderRadius: 8,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  previewClose: {
+    marginTop: SPACING.md,
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: COLORS.gold,
+    borderRadius: RADIUS.button,
+  },
+  previewCloseText: {
+    color: '#0f0f0f',
+    fontWeight: '800',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -448,8 +632,8 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
   modalCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
     padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,

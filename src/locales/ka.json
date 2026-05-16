@@ -617,7 +617,19 @@
     "rejectAction": "უარყოფა ❌",
     "modalTitle": "უარყოფის მიზეზი",
     "modalPlaceholder": "მიზეზი…",
-    "confirmYes": "კი"
+    "confirmYes": "კი",
+    "panelEntry": "ადმინ პანელი — ვერიფიკაციები",
+    "subtitle": "განიხილეთ მძღოლების დოკუმენტები და დაადასტურეთ ან უარყოთ.",
+    "role": "როლი",
+    "status": "სტატუსი",
+    "statusPending": "მოლოდინში",
+    "statusSubmitted": "გაგზავნილი",
+    "documentsSection": "დოკუმენტები",
+    "vehiclePhotos": "ავტომობილის ფოტოები",
+    "viewDocument": "ნახვა",
+    "noDocument": "არ არის",
+    "approveSuccess": "ვერიფიკაცია დადასტურდა",
+    "rejectSuccess": "ვერიფიკაცია უარყოფილია"
   },
   "dateTimeField": {
     "pickDate": "აირჩიეთ თარიღი",

@@ -617,7 +617,19 @@
     "rejectAction": "Reject ❌",
     "modalTitle": "Rejection reason",
     "modalPlaceholder": "Reason…",
-    "confirmYes": "Yes"
+    "confirmYes": "Yes",
+    "panelEntry": "Admin panel — Verifications",
+    "subtitle": "Review driver documents and approve or reject.",
+    "role": "Role",
+    "status": "Status",
+    "statusPending": "Pending",
+    "statusSubmitted": "Submitted",
+    "documentsSection": "Documents",
+    "vehiclePhotos": "Vehicle photos",
+    "viewDocument": "View",
+    "noDocument": "Missing",
+    "approveSuccess": "Verification approved",
+    "rejectSuccess": "Verification rejected"
   },
   "dateTimeField": {
     "pickDate": "Select date",

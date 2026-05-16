@@ -319,7 +319,7 @@ export default function CompanyDashboardScreen() {
               onPress={() => router.push('/(app)/admin-verify')}
               style={({ pressed }) => [styles.adminBtn, pressed && styles.adminBtnPressed]}
             >
-              <Text style={styles.adminBtnText}>{t('common.admin')}</Text>
+              <Text style={styles.adminBtnText}>{t('adminVerify.panelEntry')}</Text>
             </Pressable>
           ) : null}
           <View style={styles.subBadge}>
