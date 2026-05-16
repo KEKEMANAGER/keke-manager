@@ -79,6 +79,12 @@
   "notifications": {
     "newBookingTitle": "KEKE",
     "newBookingBody": "New booking! 🚗",
+    "newBookingTitleTransfer": "New transfer!",
+    "newBookingBodyTransfer": "New transfer request — open the app. 🚗",
+    "newBookingTitleTour": "New tour!",
+    "newBookingBodyTour": "New tour request — open the app. 🗺️",
+    "newBookingTitleDayTour": "New day tour!",
+    "newBookingBodyDayTour": "New day tour — open the app. ☀️",
     "bookingConfirmedBody": "Booking confirmed ✅",
     "testTitle": "KEKE Test",
     "testBody": "Push notifications are working!",
@@ -87,7 +93,8 @@
     "testSent": "Test push sent",
     "testFailed": "Could not send test push",
     "noToken": "No push token — allow notifications and use a physical device",
-    "matchingVehicleInvalid": "Could not resolve the booking vehicle type or class.",
+    "matchingVehicleInvalid": "Could not resolve the booking vehicle type.",
+    "anyVehicleClass": "any class",
     "matchingNoDrivers": "No matching drivers ({{type}}, {{class}})."
   },
   "booking": {
@@ -108,11 +115,35 @@
       "day_tour": "Day tour"
     }
   },
+  "vehicle": {
+    "type": {
+      "sedan": "Sedan",
+      "minivan": "Minivan",
+      "suv": "SUV",
+      "minibus": "Minibus",
+      "bus": "Bus"
+    },
+    "class": {
+      "economy": "Economy",
+      "comfort": "Comfort",
+      "premium": "Premium"
+    }
+  },
   "system": {
     "sessionExpiredTitle": "Session",
     "sessionExpiredMessage": "Your session has expired. Please sign in again.",
     "errorTitle": "Error",
     "noticeTitle": "Notice"
+  },
+  "feedback": {
+    "button": "Feedback",
+    "title": "Send feedback",
+    "placeholder": "Your thoughts, suggestions, or technical issues…",
+    "send": "Send",
+    "cancel": "Cancel",
+    "emptyMessage": "Please enter a message.",
+    "submitFailed": "Could not send feedback. Try again later.",
+    "thankYouToast": "Thank you — your feedback matters to us!"
   },
   "tabs": {
     "dashboard": "Dashboard",

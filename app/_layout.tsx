@@ -33,15 +33,17 @@ if (Platform.OS !== 'web') {
 }
 
 function PushNotificationRegistration() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, session } = useAuth();
   const role = getUserRole(profile);
+  /** Re-run registration after login / token refresh (logout clears DB token). */
+  const sessionFingerprint = session?.access_token ?? '';
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
     if (loading || !user?.id) return;
     if (role !== 'driver') return;
     void registerForPushNotificationsAsync(user.id);
-  }, [loading, user?.id, role]);
+  }, [loading, user?.id, role, sessionFingerprint]);
 
   return null;
 }

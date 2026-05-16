@@ -137,11 +137,13 @@ export default function DriverBookingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [openListHint, setOpenListHint] = useState<'profile_vehicle_required' | null>(null);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
       setOpenJobs([]);
       setAssigned([]);
+      setOpenListHint(null);
       if (mode === 'initial') setLoading(false);
       if (mode === 'refresh') setRefreshing(false);
       return;
@@ -163,8 +165,10 @@ export default function DriverBookingsScreen() {
     if (openRes.error) {
       setError(openRes.error.message);
       setOpenJobs([]);
+      setOpenListHint(null);
     } else {
       setOpenJobs(openRes.data);
+      setOpenListHint(openRes.hint ?? null);
     }
     if (mineRes.error) {
       if (!openRes.error) setError(mineRes.error.message);
@@ -188,6 +192,7 @@ export default function DriverBookingsScreen() {
           userId,
           row?.vehicle_type ?? '',
           row?.vehicle_class ?? '',
+          row?.kind ?? row?.booking_type,
         );
       }
     });
@@ -292,11 +297,19 @@ export default function DriverBookingsScreen() {
   const emptyForTab = useMemo(() => {
     switch (tab) {
       case 'open':
+        if (openListHint === 'profile_vehicle_required') {
+          return {
+            icon: 'calendar' as const,
+            title: 'პროფილში მიუთითეთ ავტომობილი',
+            subtitle:
+              'პროფილში შეინახეთ მანქანის ტიპი და კლასი; სანამ ეს ცარიელია — არც შეკვეთები გამოჩნდება აქ და არც მოგივათ შესაბამისი შეტყობინებები.',
+          };
+        }
         return {
           icon: 'calendar' as const,
           title: 'ჯავშნები ჯერ არ გაქვთ',
           subtitle:
-            'როცა კომპანიები ახალ შეკვეთას გამოგიგზავნით, აქ გამოჩნდება — ჩამოწიეთ ეკრანი განახლებისთვის.',
+            'ახალი შეკვეთები ჩანს ტაბში „მოლოდინში“. თუ კომპანიამ გამოგიგზავნათ შეკვეთა, ჩამოწიეთ ეკრანი განახლებისთვის ან შეამოწმეთ რომ პროფილის ტიპი/კლასი ემთხვევა შეკვეთას.',
         };
       case 'active':
         return {
@@ -313,7 +326,7 @@ export default function DriverBookingsScreen() {
             'დასრულებული ჯავშნები აქ შეინახება ისტორიისთვის.',
         };
     }
-  }, [tab]);
+  }, [tab, openListHint]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + SPACING.md }]}>

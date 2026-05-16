@@ -5,6 +5,7 @@ import {
   BOOKINGS_CHANNEL_ID,
   getBookingConfirmedNotificationContent,
   getNewBookingNotificationContent,
+  normalizePushBookingKind,
 } from './notifications';
 
 const isWeb = Platform.OS === 'web';
@@ -30,30 +31,32 @@ export async function notifyBookingConfirmed(): Promise<void> {
 
 let lastNewOpenBookingNotifyAt = 0;
 
-export async function notifyNewOpenBooking(): Promise<void> {
+export async function notifyNewOpenBooking(kind?: string | null): Promise<void> {
   if (isWeb) return;
   const now = Date.now();
   if (now - lastNewOpenBookingNotifyAt < 4000) return;
   lastNewOpenBookingNotifyAt = now;
-  const { title, body } = getNewBookingNotificationContent();
+  const { title, body } = getNewBookingNotificationContent(kind);
+  const bookingKind = normalizePushBookingKind(kind);
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
       body,
       sound: 'default',
       priority: Notifications.AndroidNotificationPriority.MAX,
-      data: { type: 'new_booking' },
+      data: { type: 'new_booking', booking_kind: bookingKind },
       ...androidChannel(),
     },
     trigger: null,
   });
 }
 
-/** Local banner only when the driver's profile vehicle matches the new booking. */
+/** Local banner when the driver's profile matches the new booking vehicle (type + class rules). */
 export async function notifyNewOpenBookingIfMatchesDriver(
   driverUserId: string,
   bookingVehicleType: string,
-  bookingVehicleClass: string,
+  bookingVehicleClass: string | null | undefined,
+  bookingKind?: string | null,
 ): Promise<void> {
   if (isWeb || !driverUserId.trim()) return;
 
@@ -66,5 +69,5 @@ export async function notifyNewOpenBookingIfMatchesDriver(
     return;
   }
 
-  await notifyNewOpenBooking();
+  await notifyNewOpenBooking(bookingKind);
 }

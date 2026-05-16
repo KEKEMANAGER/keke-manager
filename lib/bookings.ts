@@ -13,6 +13,8 @@ export type BookingRealtimeRecord = {
   driver_id?: string | null;
   vehicle_type?: string | null;
   vehicle_class?: string | null;
+  kind?: string | null;
+  booking_type?: string | null;
 };
 
 export function isNewOpenPendingBookingInsert(
@@ -55,14 +57,56 @@ export function normalizeBookingKind(kind: BookingType | string): BookingType {
 
 function hydrateBookingRow(raw: Record<string, unknown>): BookingRow {
   const kind = (raw.kind ?? raw.booking_type ?? 'transfer') as BookingType;
-  const rawStatus = String(raw.status ?? 'pending');
+  const rawStatus = String(raw.status ?? 'pending').trim().toLowerCase();
   const status: BookingStatus =
     rawStatus === 'confirmed' ? 'accepted' : (rawStatus as BookingStatus);
-  return { ...raw, kind, status } as BookingRow;
+  const routeFromDb =
+    (typeof raw.route === 'string' && raw.route.trim() ? raw.route : null) ??
+    (typeof raw.route_description === 'string' && raw.route_description.trim()
+      ? raw.route_description
+      : null);
+  return { ...raw, kind, status, route: routeFromDb } as BookingRow;
 }
 
 function hydrateBookingRows(rows: unknown[]): BookingRow[] {
   return rows.map((r) => hydrateBookingRow(r as Record<string, unknown>));
+}
+
+/** Legacy DBs still use `confirmed` in `bookings_status_check`; new migrations use `accepted`. */
+function isBookingsStatusConstraintError(err: { message?: string } | null): boolean {
+  const m = String(err?.message ?? '').toLowerCase();
+  return m.includes('bookings_status_check') || (m.includes('check constraint') && m.includes('bookings'));
+}
+
+/** PostgREST: wrong `route` / `route_description` column for this DB. */
+function shouldRetryBookingInsertAlternateRouteColumn(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('schema cache') &&
+    m.includes('could not find') &&
+    (m.includes('route_description') || m.includes("'route'"))
+  );
+}
+
+function isTourServiceKind(kind: BookingType): boolean {
+  return kind === 'tour' || kind === 'day_tour';
+}
+
+/** DB/cache missing tour-specific columns → retry without JSON legs (detail stays in route). */
+function shouldRetryBookingInsertWithoutTourColumns(message: string): boolean {
+  const m = message.toLowerCase();
+  if (!m.includes('schema cache') || !m.includes('bookings')) return false;
+  return (
+    m.includes('itinerary') ||
+    m.includes('transfer_in') ||
+    m.includes('transfer_out') ||
+    m.includes('tour_days')
+  );
+}
+
+function shouldRetryBookingInsertWithoutKindColumn(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes('schema cache') && m.includes('bookings') && m.includes("'kind'");
 }
 
 export type FlightDirection = 'arrival' | 'departure';
@@ -106,7 +150,8 @@ export type BookingRow = {
   date_display: string | null;
   passengers: number;
   vehicle_type: string | null;
-  vehicle_class: string;
+  /** Null = any class (matches all drivers for that `vehicle_type`). */
+  vehicle_class: string | null;
   flight_number: string | null;
   meet_greet: boolean | null;
   sign_text: string | null;
@@ -144,7 +189,11 @@ export type InsertBookingInput = {
   date_display: string | null;
   passengers: number;
   vehicle_type: string | null;
-  vehicle_class: string;
+  /**
+   * Optional. When null/omitted, stored as null and notifications go to every driver
+   * with this `vehicle_type` (any class).
+   */
+  vehicle_class?: string | null;
   flight_number: string | null;
   meet_greet: boolean;
   sign_text: string | null;
@@ -252,22 +301,40 @@ export async function fetchOpenPendingBookings() {
   return { data: hydrateBookingRows(data ?? []), error };
 }
 
+/** Explains zero open-job rows when filtering by driver prefs is impossible. */
+export type DriverOpenJobsHint = 'profile_vehicle_required';
+
 /** Pending jobs matching this driver's `profiles.vehicle_type` / `vehicle_class`. */
-export async function fetchOpenPendingBookingsForDriver(driverUserId: string) {
+export async function fetchOpenPendingBookingsForDriver(driverUserId: string): Promise<{
+  data: BookingRow[];
+  error: Error | null;
+  hint?: DriverOpenJobsHint;
+}> {
   const id = String(driverUserId ?? '').trim();
   if (!id) {
     return { data: [] as BookingRow[], error: null };
   }
 
-  const { data: profile, error: profileError } = await fetchDriverProfile(id);
+  const { data: profileRow, error: profileError } = await fetchDriverProfile(id);
   if (profileError) {
     return { data: [] as BookingRow[], error: profileError };
   }
-  if (!profile?.vehicle_type || !profile?.vehicle_class) {
-    if (__DEV__) {
-      console.warn('[fetchOpenPendingBookingsForDriver] profile missing vehicle_type/class', id);
-    }
-    return { data: [] as BookingRow[], error: null };
+  if (!profileRow?.vehicle_type || !profileRow?.vehicle_class) {
+    return {
+      data: [] as BookingRow[],
+      error: null,
+      hint: 'profile_vehicle_required',
+    };
+  }
+
+  const profileType = normalizeVehicleType(profileRow.vehicle_type);
+  const profileClass = normalizeVehicleClass(profileRow.vehicle_class);
+  if (!profileType || !profileClass) {
+    return {
+      data: [] as BookingRow[],
+      error: null,
+      hint: 'profile_vehicle_required',
+    };
   }
 
   const { data, error } = await supabase
@@ -275,12 +342,21 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string) {
     .select('*')
     .eq('status', 'pending')
     .is('driver_id', null)
-    .eq('vehicle_type', profile.vehicle_type)
-    .eq('vehicle_class', profile.vehicle_class)
+    .eq('vehicle_type', profileType)
     .order('created_at', { ascending: false });
 
+  if (error) {
+    return { data: [] as BookingRow[], error: new Error(error.message) };
+  }
 
+  const rows = (data ?? []).filter((r) => {
+    const bookingClass = normalizeVehicleClass(
+      (r as { vehicle_class?: string | null }).vehicle_class ?? '',
+    );
+    return !bookingClass || bookingClass === profileClass;
+  });
 
+  return { data: hydrateBookingRows(rows), error: null };
 }
 
 export async function insertBooking(row: InsertBookingInput) {
@@ -295,22 +371,21 @@ export async function insertBooking(row: InsertBookingInput) {
   if (!vehicleType) {
     return { id: undefined, error: new Error('vehicle_type სავალდებულოა') };
   }
-  if (!vehicleClass) {
-    return { id: undefined, error: new Error('vehicle_class სავალდებულოა') };
-  }
 
   const voucherCode = `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`;
-  const { data, error } = await supabase
-    .from('bookings')
-    .insert({
+
+  function buildBookingInsertBody(
+    routeCol: 'route' | 'route_description',
+    bookingKindForDb: BookingType,
+    opts: { includeTourColumns: boolean; includeKindColumn: boolean },
+  ): Record<string, unknown> {
+    const body: Record<string, unknown> = {
       company_id: companyClerkId,
       voucher_code: voucherCode,
       company_name: row.company_name,
-      kind,
-      booking_type: kind,
+      booking_type: bookingKindForDb,
       from_location: row.from_location,
       to_location: row.to_location,
-      route: row.route,
       date_display: row.date_display,
       passengers: row.passengers,
       vehicle_type: vehicleType,
@@ -324,29 +399,108 @@ export async function insertBooking(row: InsertBookingInput) {
       pickup_time: row.pickup_time,
       client_price: row.client_price,
       commission: row.commission,
-      tour_days: row.tour_days,
-      itinerary: row.itinerary,
-      transfer_in: row.transfer_in,
-      transfer_out: row.transfer_out,
       comment: row.comment,
       payment_method: row.payment_method,
       price_gel: row.price_gel,
       created_by_name: row.created_by_name?.trim() || null,
       status: 'pending',
       driver_id: null,
-    })
-    .select('id')
-    .maybeSingle();
+    };
+
+    if (opts.includeKindColumn) {
+      body.kind = bookingKindForDb;
+    }
+
+    if (opts.includeTourColumns && isTourServiceKind(bookingKindForDb)) {
+      body.tour_days = row.tour_days;
+      body.itinerary = row.itinerary;
+      body.transfer_in = row.transfer_in;
+      body.transfer_out = row.transfer_out;
+    }
+
+    if (routeCol === 'route') {
+      body.route = row.route;
+    } else {
+      body.route_description = row.route;
+    }
+
+    return body;
+  }
+
+  async function tryInsertRouteVariants(
+    bookingKindForDb: BookingType,
+    includeTourColumns: boolean,
+    includeKindColumn: boolean,
+  ) {
+    for (let r = 0; r < 2; r++) {
+      const routeCol = r === 0 ? ('route' as const) : ('route_description' as const);
+      const payload = buildBookingInsertBody(routeCol, bookingKindForDb, {
+        includeTourColumns,
+        includeKindColumn,
+      });
+      const res = await supabase.from('bookings').insert(payload).select('id').maybeSingle();
+      if (!res.error) return res;
+      if (r === 0 && shouldRetryBookingInsertAlternateRouteColumn(res.error.message)) {
+        continue;
+      }
+      return res;
+    }
+    throw new Error('insertBooking: route column retry exhausted');
+  }
+
+  function isBookingsBookingTypeConstraintError(message: string): boolean {
+    const m = message.toLowerCase();
+    return (
+      m.includes('bookings_booking_type_check') ||
+      (m.includes('check constraint') && m.includes('booking_type'))
+    );
+  }
+
+  async function runWithStrippedTourAndKindOptions(
+    bookingKindForDb: BookingType,
+    initialTourCols: boolean,
+    initialKindCol: boolean,
+  ) {
+    let tourCols = initialTourCols;
+    let kindCol = initialKindCol;
+    let res = await tryInsertRouteVariants(bookingKindForDb, tourCols, kindCol);
+
+    if (res.error && tourCols && shouldRetryBookingInsertWithoutTourColumns(res.error.message)) {
+      tourCols = false;
+      res = await tryInsertRouteVariants(bookingKindForDb, tourCols, kindCol);
+    }
+    if (res.error && kindCol && shouldRetryBookingInsertWithoutKindColumn(res.error.message)) {
+      kindCol = false;
+      res = await tryInsertRouteVariants(bookingKindForDb, tourCols, kindCol);
+    }
+    return res;
+  }
+
+  let dbKind = kind;
+  let result = await runWithStrippedTourAndKindOptions(dbKind, isTourServiceKind(dbKind), true);
+
+  if (
+    result.error &&
+    kind === 'day_tour' &&
+    dbKind === 'day_tour' &&
+    isBookingsBookingTypeConstraintError(result.error.message)
+  ) {
+    dbKind = 'tour';
+    result = await runWithStrippedTourAndKindOptions(dbKind, isTourServiceKind(kind), true);
+  }
+
+  const { data, error } = result;
 
   if (error) {
-    return { id: undefined, error };
+    return { id: undefined, error: new Error(error.message) };
   }
 
   const bookingId = data?.id as string | undefined;
   if (bookingId) {
     void notifyMatchingDriversOfNewBooking({
+      kind,
       vehicleType,
-      vehicleClass,
+      vehicleClass: vehicleClass ?? undefined,
       bookingId,
       showAlertIfEmpty: true,
     });
@@ -376,20 +530,27 @@ export async function acceptBooking(
   if (!driverClerkId) {
     return { ok: false as const, error: new Error('მძღოლის Clerk id არ არის') };
   }
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({
-      driver_id: driverClerkId,
-      status: 'accepted',
-      driver_display_name: driver.displayName,
-      driver_phone: driver.phone || null,
-      driver_plate: driver.plate || null,
-    })
-    .eq('id', rowId)
-    .eq('status', 'pending')
-    .is('driver_id', null)
-    .select('id')
-    .maybeSingle();
+
+  const runAccept = (assignStatus: 'accepted' | 'confirmed') =>
+    supabase
+      .from('bookings')
+      .update({
+        driver_id: driverClerkId,
+        status: assignStatus,
+        driver_display_name: driver.displayName,
+        driver_phone: driver.phone || null,
+        driver_plate: driver.plate || null,
+      })
+      .eq('id', rowId)
+      .eq('status', 'pending')
+      .is('driver_id', null)
+      .select('id')
+      .maybeSingle();
+
+  let { data, error } = await runAccept('accepted');
+  if (error && isBookingsStatusConstraintError(error)) {
+    ({ data, error } = await runAccept('confirmed'));
+  }
 
   if (error) return { ok: false as const, error };
   if (!data) {
@@ -473,7 +634,7 @@ export async function startBookingTrip(bookingRowId: string, driverClerkId: stri
     .from('bookings')
     .update({ status: 'in_progress' })
     .eq('id', rowId)
-    .eq('status', 'accepted')
+    .or('status.eq.accepted,status.eq.confirmed')
     .eq('driver_id', drv)
     .select('id')
     .maybeSingle();

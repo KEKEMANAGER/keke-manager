@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Alert, Platform } from 'react-native';
 import i18n from '../src/lib/i18n';
+import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 import { sendExpoPushToMany } from './expoPush';
 import { supabase } from './supabase';
 import {
@@ -12,10 +13,21 @@ import {
   type VehicleTypeCode,
 } from './vehicleCatalog';
 
-/** Android channel for booking alerts — must match `channelId` in Expo push payloads. */
-export const BOOKINGS_CHANNEL_ID = 'bookings';
-
+export { BOOKINGS_CHANNEL_ID };
 let handlerConfigured = false;
+
+/** Safe copy for push titles/bodies when i18n is cold or a key is missing. */
+function notifyT(key: string, fallback: string): string {
+  try {
+    const exists = typeof i18n.exists === 'function' ? i18n.exists(key) : true;
+    if (!exists) return fallback;
+    const v = String(i18n.t(key)).trim();
+    if (!v || v === key) return fallback;
+    return v;
+  } catch {
+    return fallback;
+  }
+}
 
 export function configureNotificationHandler(): void {
   if (handlerConfigured || Platform.OS === 'web') return;
@@ -48,24 +60,47 @@ export async function ensureAndroidNotificationChannel(): Promise<void> {
   });
 }
 
-export function getNewBookingNotificationContent() {
+/** Normalized `bookings.kind` for push copy (transfer | tour | day_tour). */
+export function normalizePushBookingKind(
+  raw: string | null | undefined,
+): 'transfer' | 'tour' | 'day_tour' {
+  const k = String(raw ?? 'transfer').trim().toLowerCase();
+  if (k === 'tour') return 'tour';
+  if (k === 'day_tour' || k === 'daytour' || k === 'day tour') return 'day_tour';
+  return 'transfer';
+}
+
+export function getNewBookingNotificationContent(kind?: string | null) {
+  const k = normalizePushBookingKind(kind);
+  if (k === 'tour') {
+    return {
+      title: notifyT('notifications.newBookingTitleTour', 'KEKE · New tour!'),
+      body: notifyT('notifications.newBookingBodyTour', 'New tour request — open the app.'),
+    };
+  }
+  if (k === 'day_tour') {
+    return {
+      title: notifyT('notifications.newBookingTitleDayTour', 'KEKE · New day tour!'),
+      body: notifyT('notifications.newBookingBodyDayTour', 'New day tour — open the app.'),
+    };
+  }
   return {
-    title: i18n.t('notifications.newBookingTitle'),
-    body: i18n.t('notifications.newBookingBody'),
+    title: notifyT('notifications.newBookingTitleTransfer', 'KEKE · New transfer!'),
+    body: notifyT('notifications.newBookingBodyTransfer', 'New transfer — open the app.'),
   };
 }
 
 export function getBookingConfirmedNotificationContent() {
   return {
-    title: i18n.t('notifications.newBookingTitle'),
-    body: i18n.t('notifications.bookingConfirmedBody'),
+    title: notifyT('notifications.newBookingTitle', 'KEKE'),
+    body: notifyT('notifications.bookingConfirmedBody', 'Booking confirmed ✅'),
   };
 }
 
 export function getTestNotificationContent() {
   return {
-    title: i18n.t('notifications.testTitle'),
-    body: i18n.t('notifications.testBody'),
+    title: notifyT('notifications.testTitle', 'KEKE Test'),
+    body: notifyT('notifications.testBody', 'Push notifications are working.'),
   };
 }
 
@@ -73,7 +108,12 @@ export function notificationContentFromRequest(
   notification: Notifications.Notification,
 ): { title: string; body: string } {
   const content = notification.request.content;
-  const fallback = getNewBookingNotificationContent();
+  const data = content.data as Record<string, unknown> | undefined;
+  const kindRaw =
+    (typeof data?.booking_kind === 'string' && data.booking_kind) ||
+    (typeof data?.kind === 'string' && data.kind) ||
+    null;
+  const fallback = getNewBookingNotificationContent(kindRaw);
   return {
     title: content.title?.trim() || fallback.title,
     body: content.body?.trim() || fallback.body,
@@ -108,32 +148,39 @@ export function normalizeBookingVehicleFilters(
 }
 
 /**
- * Fetch Expo push tokens from `profiles` where vehicle fields match exactly (lowercase).
+ * Fetch Expo push tokens from `profiles`.
+ * Filters by `vehicle_type` always; adds `vehicle_class` only when the booking specifies a class.
+ * Booking `kind` is never used for recipient selection.
  */
 export async function fetchMatchingDriverPushTokens(
   bookingVehicleType: string,
-  bookingVehicleClass: string,
+  bookingVehicleClass: string | null | undefined,
 ): Promise<{ tokens: string[]; error: Error | null; vehicleType: VehicleTypeCode | null; vehicleClass: VehicleClassCode | null }> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     bookingVehicleType,
-    bookingVehicleClass,
+    bookingVehicleClass ?? '',
   );
 
-  if (!vehicleType || !vehicleClass) {
+  if (!vehicleType) {
     return {
       tokens: [],
-      error: new Error('ჯავშნის vehicle_type / vehicle_class არასწორია'),
-      vehicleType,
+      error: new Error('ჯავშნის vehicle_type არასწორია'),
+      vehicleType: null,
       vehicleClass,
     };
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('profiles')
     .select('push_token, vehicle_type, vehicle_class, id')
     .eq('vehicle_type', vehicleType)
-    .eq('vehicle_class', vehicleClass)
     .not('push_token', 'is', null);
+
+  if (vehicleClass) {
+    query = query.eq('vehicle_class', vehicleClass);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     if (__DEV__) console.warn('[notify] profiles filter query failed:', error.message);
@@ -145,8 +192,10 @@ export async function fetchMatchingDriverPushTokens(
   const tokens = matchedRows
     .filter((row) => {
       const rowType = normalizeVehicleType(row.vehicle_type);
+      if (rowType !== vehicleType) return false;
+      if (!vehicleClass) return true;
       const rowClass = normalizeVehicleClass(row.vehicle_class);
-      return rowType === vehicleType && rowClass === vehicleClass;
+      return rowClass === vehicleClass;
     })
     .map((row) => row.push_token?.trim() ?? '')
     .filter((token) => token.length > 0);
@@ -157,17 +206,19 @@ export async function fetchMatchingDriverPushTokens(
 }
 
 /**
- * Push to drivers whose `profiles.vehicle_type` / `vehicle_class` match the booking exactly.
+ * Push to drivers whose `profiles.vehicle_type` (and `vehicle_class` when set on the booking) match.
+ * Booking service `kind` does not affect which drivers are notified.
  */
 export async function notifyMatchingDriversOfNewBooking(params: {
+  kind: string;
   vehicleType: string;
-  vehicleClass: string;
+  vehicleClass?: string | null;
   bookingId?: string;
   showAlertIfEmpty?: boolean;
 }): Promise<NotifyMatchingDriversResult> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     params.vehicleType,
-    params.vehicleClass,
+    params.vehicleClass ?? '',
   );
 
   const emptyResult = (message: string): NotifyMatchingDriversResult => ({
@@ -179,13 +230,21 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     message,
   });
 
-  if (!vehicleType || !vehicleClass) {
+  if (!vehicleType) {
     const message = i18n.t('notifications.matchingVehicleInvalid');
     if (__DEV__) console.warn('[notifyMatchingDrivers]', message);
     if (params.showAlertIfEmpty) {
       Alert.alert(i18n.t('system.noticeTitle'), message);
     }
     return emptyResult(message);
+  }
+
+  const kindLog = String(params.kind ?? '').trim() || 'booking';
+  const classLog = vehicleClass ? String(vehicleClass) : 'any';
+  if (__DEV__) {
+    console.log(
+      `Sending ${kindLog} request to drivers with ${String(vehicleType)} ${classLog}`,
+    );
   }
 
   const { tokens, error } = await fetchMatchingDriverPushTokens(vehicleType, vehicleClass);
@@ -199,9 +258,12 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   }
 
   if (tokens.length === 0) {
+    const classLabel = vehicleClass
+      ? vehicleClassLabel(vehicleClass)
+      : i18n.t('notifications.anyVehicleClass');
     const message = i18n.t('notifications.matchingNoDrivers', {
       type: vehicleTypeLabel(vehicleType),
-      class: vehicleClassLabel(vehicleClass),
+      class: classLabel,
     });
     if (__DEV__) console.warn('[notifyMatchingDrivers]', message);
     if (params.showAlertIfEmpty) {
@@ -210,12 +272,16 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     return emptyResult(message);
   }
 
-  const { title, body } = getNewBookingNotificationContent();
+  const kindNorm = normalizePushBookingKind(params.kind);
+  const { title, body } = getNewBookingNotificationContent(kindNorm);
   const data: Record<string, string> = {
     type: 'new_booking',
+    booking_kind: kindNorm,
     vehicle_type: vehicleType,
-    vehicle_class: vehicleClass,
   };
+  if (vehicleClass) {
+    data.vehicle_class = vehicleClass;
+  }
   if (params.bookingId) {
     data.booking_id = params.bookingId;
   }

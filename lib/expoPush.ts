@@ -1,4 +1,25 @@
-import { BOOKINGS_CHANNEL_ID } from './notifications';
+import { BOOKINGS_CHANNEL_ID } from './pushChannels';
+
+/** Log push diagnostics in dev or when explicitly enabled (e.g. EXPO_PUBLIC_DEBUG_PUSH=1). */
+const DEBUG_PUSH = __DEV__ || process.env.EXPO_PUBLIC_DEBUG_PUSH === '1';
+
+function maskToken(token: string): string {
+  const t = token.trim();
+  if (t.length <= 28) return t;
+  return `${t.slice(0, 22)}…${t.slice(-10)}`;
+}
+
+/** Accept Expo Push API tokens — includes documented bracket forms and prefixed variants. */
+export function acceptableExpoPushToken(raw: string): boolean {
+  const t = raw.trim();
+  if (!t) return false;
+  return (
+    t.startsWith('ExponentPushToken[') ||
+    t.startsWith('ExpoPushToken[') ||
+    t.startsWith('ExponentPushToken') ||
+    t.startsWith('ExpoPushToken')
+  );
+}
 
 export type ExpoPushSendResult =
   | { ok: true; id?: string }
@@ -6,7 +27,6 @@ export type ExpoPushSendResult =
 
 /**
  * Sends a push via Expo Push API (https://docs.expo.dev/push-notifications/sending-notifications/).
- * Used for dev self-test; production should use a secure backend with the same payload shape.
  */
 export async function sendExpoPushNotification(
   expoPushToken: string,
@@ -15,11 +35,26 @@ export async function sendExpoPushNotification(
   data?: Record<string, string>,
 ): Promise<ExpoPushSendResult> {
   const token = expoPushToken.trim();
-  if (!token.startsWith('ExponentPushToken[') && !token.startsWith('ExpoPushToken[')) {
+  if (!acceptableExpoPushToken(token)) {
     return { ok: false, error: 'Invalid Expo push token format' };
   }
 
+  const payload = {
+    to: token,
+    title,
+    body,
+    sound: 'default',
+    priority: 'high',
+    channelId: BOOKINGS_CHANNEL_ID,
+    data: data ?? { type: 'new_booking' },
+  };
+
   try {
+    if (DEBUG_PUSH) {
+      console.log('[push] Attempting to send to token:', maskToken(token));
+      console.log('[push] Notification Payload:', JSON.stringify(payload));
+    }
+
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
@@ -27,15 +62,7 @@ export async function sendExpoPushNotification(
         'Accept-Encoding': 'gzip, deflate',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        to: token,
-        title,
-        body,
-        sound: 'default',
-        priority: 'high',
-        channelId: BOOKINGS_CHANNEL_ID,
-        data: data ?? { type: 'new_booking' },
-      }),
+      body: JSON.stringify(payload),
     });
 
     const json = (await res.json()) as {
@@ -43,9 +70,12 @@ export async function sendExpoPushNotification(
       errors?: { message?: string }[];
     };
 
+    if (DEBUG_PUSH) {
+      console.log('[push] Expo Server Response:', JSON.stringify(json));
+    }
+
     if (!res.ok) {
-      const msg =
-        json.errors?.[0]?.message ?? `HTTP ${res.status}`;
+      const msg = json.errors?.[0]?.message ?? `HTTP ${res.status}`;
       return { ok: false, error: msg };
     }
 
@@ -77,14 +107,19 @@ export async function sendExpoPushToMany(
   body: string,
   data?: Record<string, string>,
 ): Promise<ExpoPushBatchResult> {
-  const tokens = [...new Set(expoPushTokens.map((t) => t.trim()).filter(Boolean))].filter(
-    (t) => t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['),
-  );
+  const uniqueRaw = [...new Set(expoPushTokens.map((t) => t.trim()).filter(Boolean))];
+  const tokens = uniqueRaw.filter(acceptableExpoPushToken);
+  const dropped = uniqueRaw.filter((t) => !acceptableExpoPushToken(t));
+
+  if (DEBUG_PUSH && dropped.length > 0) {
+    console.warn('[push] Dropped non-Expo tokens:', dropped.map(maskToken));
+  }
 
   if (tokens.length === 0) {
     return { sentCount: 0, failedCount: 0, errors: [] };
   }
 
+  const sharedData = data ?? { type: 'new_booking' };
   const messages = tokens.map((to) => ({
     to,
     title,
@@ -92,8 +127,15 @@ export async function sendExpoPushToMany(
     sound: 'default' as const,
     priority: 'high' as const,
     channelId: BOOKINGS_CHANNEL_ID,
-    data: data ?? { type: 'new_booking' },
+    data: sharedData,
   }));
+
+  if (DEBUG_PUSH) {
+    for (const to of tokens) {
+      console.log('[push] Attempting to send to token:', maskToken(to));
+    }
+    console.log('[push] Notification Payload:', JSON.stringify(messages, null, 2));
+  }
 
   try {
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -110,6 +152,10 @@ export async function sendExpoPushToMany(
       data?: { status?: string; message?: string }[];
       errors?: { message?: string }[];
     };
+
+    if (DEBUG_PUSH) {
+      console.log('[push] Expo Server Response:', JSON.stringify(json));
+    }
 
     if (!res.ok) {
       const msg = json.errors?.[0]?.message ?? `HTTP ${res.status}`;

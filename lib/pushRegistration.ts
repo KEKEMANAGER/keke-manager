@@ -7,13 +7,26 @@ import {
 } from './notifications';
 import { saveDriverPushToken } from './profiles';
 
+function resolveEasProjectId(): string | undefined {
+  const env = process.env.EXPO_PUBLIC_EAS_PROJECT_ID?.trim();
+  if (env) return env;
+
+  const fromConfig =
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    (Constants as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+
+  const legacy = Constants.manifest as { extra?: { eas?: { projectId?: string } } } | null | undefined;
+  const fromLegacy = legacy?.extra?.eas?.projectId;
+
+  const pick = typeof fromConfig === 'string' && fromConfig.trim() ? fromConfig.trim() : fromLegacy?.trim();
+  return pick && pick.length > 0 ? pick : undefined;
+}
+
 /**
  * Requests notification permissions, obtains an Expo push token, and stores it on `public.profiles.push_token`.
  * @returns Expo push token string, or `null` if unavailable (web, denied, or misconfigured).
  */
-export async function registerForPushNotificationsAsync(
-  userId: string,
-): Promise<string | null> {
+export async function registerForPushNotificationsAsync(userId: string): Promise<string | null> {
   if (Platform.OS === 'web') return null;
 
   configureNotificationHandler();
@@ -22,7 +35,7 @@ export async function registerForPushNotificationsAsync(
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) {
-    if (__DEV__) console.warn('[push] Missing Supabase env');
+    console.warn('[push] Missing Supabase env');
     return null;
   }
 
@@ -39,21 +52,23 @@ export async function registerForPushNotificationsAsync(
     finalStatus = status;
   }
   if (finalStatus !== 'granted') {
-    if (__DEV__) console.warn('[push] Permission not granted:', finalStatus);
+    console.warn('[push] Permission not granted:', finalStatus);
     return null;
   }
 
-  const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ??
-    (Constants as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+  const projectId = resolveEasProjectId();
 
-  if (!projectId && __DEV__) {
-    console.warn('[push] EAS projectId missing — Expo push token may fail on device builds');
+  if (!projectId) {
+    console.warn(
+      '[push] EAS projectId missing — add extra.eas.projectId or EXPO_PUBLIC_EAS_PROJECT_ID; trying token without explicit project ID',
+    );
+  } else if (__DEV__) {
+    console.log('[push] Using EAS projectId:', projectId.slice(0, 10) + '…');
   }
 
   try {
     const tokenRes = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
+      projectId && projectId.length > 0 ? { projectId } : undefined,
     );
     const token = tokenRes.data;
 
@@ -64,7 +79,7 @@ export async function registerForPushNotificationsAsync(
 
     return token;
   } catch (e) {
-    if (__DEV__) console.warn('[push] getExpoPushTokenAsync', e);
+    console.warn('[push] getExpoPushTokenAsync', e);
     return null;
   }
 }

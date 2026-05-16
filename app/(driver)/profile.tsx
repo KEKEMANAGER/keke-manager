@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -11,14 +11,16 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   mapSupabaseError,
   showErrorAlert,
   showValidationAlert,
   validateDriverProfileForm,
 } from '../../lib/validation';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { EditModeButtons } from '../../components/EditModeButtons';
+import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
 import { MOCK_RATING_BREAKDOWN } from '../../constants/driverMocks';
@@ -32,24 +34,14 @@ import {
 import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import {
-  VEHICLE_CLASSES,
-  VEHICLE_TYPES,
   vehicleClassLabel,
+  vehicleClassUiOptions,
   vehicleTypeLabel,
+  vehicleTypeUiOptions,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
 import { useAuth } from '../../contexts/AuthContext';
-
-const VEHICLE_TYPE_OPTIONS = VEHICLE_TYPES.map((value) => ({
-  value,
-  label: vehicleTypeLabel(value),
-}));
-
-const VEHICLE_CLASS_OPTIONS = VEHICLE_CLASSES.map((value) => ({
-  value,
-  label: vehicleClassLabel(value),
-}));
 
 function RatingBar({ label, value }: { label: string; value: number }) {
   const pct = (value / 5) * 100;
@@ -67,6 +59,15 @@ function RatingBar({ label, value }: { label: string; value: number }) {
 }
 
 export default function DriverProfileScreen() {
+  const { i18n } = useTranslation();
+  const vehicleTypeOptions = useMemo(
+    () => vehicleTypeUiOptions(),
+    [i18n.language, i18n.resolvedLanguage],
+  );
+  const vehicleClassOptions = useMemo(
+    () => vehicleClassUiOptions(),
+    [i18n.language, i18n.resolvedLanguage],
+  );
   const { user, profile, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -321,14 +322,14 @@ export default function DriverProfileScreen() {
             />
             <OptionChips
               label="ავტომობილის ტიპი"
-              options={VEHICLE_TYPE_OPTIONS}
+              options={vehicleTypeOptions}
               value={vehicleType}
               onChange={setVehicleType}
               disabled={saveBusy}
             />
             <OptionChips
               label="ავტომობილის კლასი"
-              options={VEHICLE_CLASS_OPTIONS}
+              options={vehicleClassOptions}
               value={vehicleClass}
               onChange={setVehicleClass}
               disabled={saveBusy}
@@ -358,6 +359,8 @@ export default function DriverProfileScreen() {
         <ViewField label="მოდელი" value={vehicleModel} />
         <ViewField label="სანომრე ნიშანი" value={vehiclePlate} />
       </View>
+
+      <ProfileFeedbackEntry />
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>რეიტინგის დეტალები</Text>

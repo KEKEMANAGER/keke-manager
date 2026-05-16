@@ -79,6 +79,12 @@
   "notifications": {
     "newBookingTitle": "KEKE",
     "newBookingBody": "Новый заказ! 🚗",
+    "newBookingTitleTransfer": "Новый трансфер!",
+    "newBookingBodyTransfer": "Новый заказ на трансфер — откройте приложение. 🚗",
+    "newBookingTitleTour": "Новый тур!",
+    "newBookingBodyTour": "Новый тур — откройте приложение. 🗺️",
+    "newBookingTitleDayTour": "Новый однодневный тур!",
+    "newBookingBodyDayTour": "Новый однодневный тур — откройте приложение. ☀️",
     "bookingConfirmedBody": "Бронирование подтверждено ✅",
     "testTitle": "KEKE тест",
     "testBody": "Push-уведомления работают!",
@@ -87,7 +93,8 @@
     "testSent": "Тестовый push отправлен",
     "testFailed": "Не удалось отправить тест",
     "noToken": "Нет push-токена — разрешите уведомления на реальном устройстве",
-    "matchingVehicleInvalid": "Не удалось определить тип или класс авто для бронирования.",
+    "matchingVehicleInvalid": "Не удалось определить тип авто для бронирования.",
+    "anyVehicleClass": "любой класс",
     "matchingNoDrivers": "Подходящий водитель не найден ({{type}}, {{class}})."
   },
   "booking": {
@@ -108,11 +115,35 @@
       "day_tour": "Однодневный тур"
     }
   },
+  "vehicle": {
+    "type": {
+      "sedan": "Седан",
+      "minivan": "Минивэн",
+      "suv": "SUV",
+      "minibus": "Микроавтобус",
+      "bus": "Автобус"
+    },
+    "class": {
+      "economy": "Эконом",
+      "comfort": "Комфорт",
+      "premium": "Премиум"
+    }
+  },
   "system": {
     "sessionExpiredTitle": "Сессия",
     "sessionExpiredMessage": "Сессия истекла. Пожалуйста, войдите снова.",
     "errorTitle": "Ошибка",
     "noticeTitle": "Уведомление"
+  },
+  "feedback": {
+    "button": "Написать / Feedback",
+    "title": "Обратная связь",
+    "placeholder": "Ваши мысли, предложения или техническая проблема…",
+    "send": "Отправить",
+    "cancel": "Отмена",
+    "emptyMessage": "Введите текст сообщения.",
+    "submitFailed": "Не удалось отправить отзыв. Попробуйте позже.",
+    "thankYouToast": "Спасибо — ваше мнение для нас важно!"
   },
   "tabs": {
     "dashboard": "Панель",

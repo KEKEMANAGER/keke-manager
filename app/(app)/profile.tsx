@@ -22,6 +22,7 @@ import {
 } from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EditModeButtons } from '../../components/EditModeButtons';
+import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
@@ -443,6 +444,8 @@ export default function CompanyProfileScreen() {
         </View>
         {memberError ? <Text style={styles.saveError}>{memberError}</Text> : null}
       </View>
+
+      <ProfileFeedbackEntry />
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>გამოწერა</Text>

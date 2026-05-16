@@ -89,7 +89,10 @@ module.exports = {
       ...(appJson.expo.extra ?? {}),
       eas: {
         ...(appJson.expo.extra?.eas ?? {}),
-        projectId: '42888595-a62e-427b-9446-680bf289be23',
+        projectId:
+          process.env.EXPO_PUBLIC_EAS_PROJECT_ID?.trim() ||
+          appJson.expo.extra?.eas?.projectId ||
+          '42888595-a62e-427b-9446-680bf289be23',
       },
     },
   },

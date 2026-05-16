@@ -211,22 +211,52 @@ export default function CompanyDashboardScreen() {
   }, [bookings]);
 
   async function handleCancelBooking(b: BookingRow) {
-    if (!userId || b.status !== 'pending') return;
-    const run = async () => {
-      setCancellingId(b.id);
-      const res = await cancelBookingByCompany(b.id, userId);
-      setCancellingId(null);
-      if (!res.ok) {
-        const msg = res.error?.message ?? 'გაუქმება ვერ მოხერხდა';
-        if (Platform.OS === 'web') {
-          window.alert(msg);
-        } else {
-          Alert.alert('შეცდომა', msg);
-        }
-        return;
+    console.log('Cancelling booking ID:', b.id);
+
+    if (!userId) {
+      if (Platform.OS === 'web') {
+        window.alert('სესია არ არის გააქტიურებული.');
+      } else {
+        Alert.alert('შეცდომა', 'სესია არ არის გააქტიურებული.');
       }
-      void load('silent');
+      return;
+    }
+
+    if (b.status !== 'pending') {
+      if (Platform.OS === 'web') {
+        window.alert('გაუქმება შესაძლებელია მხოლოდ „მოლოდინში“ ჯავშნისთვის.');
+      } else {
+        Alert.alert('გაუქმება', 'გაუქმება შესაძლებელია მხოლოდ „მოლოდინში“ ჯავშნისთვის.');
+      }
+      return;
+    }
+
+    const run = async () => {
+      console.log('Cancelling booking ID (confirmed):', b.id);
+      setCancellingId(b.id);
+      try {
+        const res = await cancelBookingByCompany(b.id, userId);
+        if (!res.ok) {
+          const msg = res.error?.message ?? 'გაუქმება ვერ მოხერხდა';
+          if (Platform.OS === 'web') {
+            window.alert(msg);
+          } else {
+            Alert.alert('შეცდომა', msg);
+          }
+          return;
+        }
+        const successMsg = 'ჯავშანი წარმატებით გაუქმდა';
+        if (Platform.OS === 'web') {
+          window.alert(successMsg);
+        } else {
+          Alert.alert('გაუქმება', successMsg);
+        }
+        void load('silent');
+      } finally {
+        setCancellingId(null);
+      }
     };
+
     if (Platform.OS === 'web') {
       if (window.confirm('ნამდვილად გსურთ ჯავშნის გაუქმება?')) void run();
     } else {
@@ -270,6 +300,7 @@ export default function CompanyDashboardScreen() {
           colors={[COLORS.gold]}
         />
       }
+      keyboardShouldPersistTaps="handled"
     >
       <View style={styles.headerRow}>
         <AppLogo size="header" />
@@ -411,6 +442,7 @@ export default function CompanyDashboardScreen() {
               <Pressable
                 onPress={() => void handleCancelBooking(b)}
                 disabled={cancellingId === b.id}
+                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
                 style={({ pressed }) => [
                   styles.cancelBookingBtn,
                   (pressed || cancellingId === b.id) && styles.pressed,

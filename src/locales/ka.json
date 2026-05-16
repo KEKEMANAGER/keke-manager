@@ -79,6 +79,12 @@
   "notifications": {
     "newBookingTitle": "KEKE",
     "newBookingBody": "ახალი შეკვეთა! 🚗",
+    "newBookingTitleTransfer": "ახალი ტრანსფერი!",
+    "newBookingBodyTransfer": "ახალი ტრანსფერის შეკვეთა — გახსენით აპი. 🚗",
+    "newBookingTitleTour": "ახალი ტური!",
+    "newBookingBodyTour": "ახალი ტურის შეკვეთა — გახსენით აპი. 🗺️",
+    "newBookingTitleDayTour": "ახალი ერთდღიანი ტური!",
+    "newBookingBodyDayTour": "ახალი ერთდღიანი ტური — გახსენით აპი. ☀️",
     "bookingConfirmedBody": "ჯავშანი დადასტურდა ✅",
     "testTitle": "KEKE ტესტი",
     "testBody": "Push შეტყობინებები მუშაობს!",
@@ -87,7 +93,8 @@
     "testSent": "ტესტ push გაიგზავნა",
     "testFailed": "ტესტ push ვერ გაიგზავნა",
     "noToken": "Push token არ არის — ჩართეთ შეტყობინებები ფიზიკურ მოწყობილობაზე",
-    "matchingVehicleInvalid": "ჯავშნის ავტომობილის ტიპი/კლასი ვერ განიშლა",
+    "matchingVehicleInvalid": "ჯავშნის ავტომობილის ტიპი ვერ განიშლა.",
+    "anyVehicleClass": "ნებისმიერი კლასი",
     "matchingNoDrivers": "შესაბამისი მძღოლი ვერ მოიძებნა ({{type}}, {{class}})."
   },
   "booking": {
@@ -108,11 +115,35 @@
       "day_tour": "ერთდღიანი ტური"
     }
   },
+  "vehicle": {
+    "type": {
+      "sedan": "სედანი",
+      "minivan": "მინივენი",
+      "suv": "SUV",
+      "minibus": "მიკროავტობუსი",
+      "bus": "ავტობუსი"
+    },
+    "class": {
+      "economy": "ეკონომი",
+      "comfort": "კომფორტი",
+      "premium": "ბიზნესი"
+    }
+  },
   "system": {
     "sessionExpiredTitle": "სესია",
     "sessionExpiredMessage": "სესია ამოიწურა, გთხოვთ გაიაროთ ავტორიზაცია",
     "errorTitle": "შეცდომა",
     "noticeTitle": "შეტყობინება"
+  },
+  "feedback": {
+    "button": "მოგვწერეთ / Feedback",
+    "title": "უკუკავშირი",
+    "placeholder": "თქვენი აზრი, რჩევა ან ტექნიკური პრობლემა...",
+    "send": "გაგზავნა",
+    "cancel": "გაუქმება",
+    "emptyMessage": "შეიყვანეთ ტექსტი.",
+    "submitFailed": "გაგზავნა ვერ მოხერხდა. სცადეთ მოგვიანებით.",
+    "thankYouToast": "მადლობა, თქვენი აზრი ჩვენთვის მნიშვნელოვანია!"
   },
   "tabs": {
     "dashboard": "დაშბორდი",

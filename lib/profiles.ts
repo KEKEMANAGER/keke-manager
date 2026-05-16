@@ -82,7 +82,6 @@ export async function saveDriverVehiclePreferences(
       id,
       vehicle_type,
       vehicle_class,
-      updated_at: new Date().toISOString(),
     },
     { onConflict: 'id' },
   );
@@ -103,12 +102,10 @@ export async function saveDriverPushToken(
     return { ok: false, error: new Error('push token ან user id არ არის') };
   }
 
-  const updated_at = new Date().toISOString();
-
   // Update only push_token — never overwrite vehicle_type / vehicle_class via upsert.
   const { data: updated, error: updateError } = await supabase
     .from('profiles')
-    .update({ push_token: token, updated_at })
+    .update({ push_token: token })
     .eq('id', id)
     .select('id, vehicle_type, vehicle_class, push_token')
     .maybeSingle();
@@ -118,6 +115,9 @@ export async function saveDriverPushToken(
   }
 
   if (updated) {
+    if (__DEV__) {
+      console.log('[push] profiles.push_token updated for user', id.slice(0, 8));
+    }
     await supabase.from('users').update({ push_token: null }).eq('id', id);
     return { ok: true, error: null };
   }
@@ -125,13 +125,15 @@ export async function saveDriverPushToken(
   const { error: insertError } = await supabase.from('profiles').insert({
     id,
     push_token: token,
-    updated_at,
   });
 
   if (insertError) {
     return { ok: false, error: new Error(insertError.message) };
   }
 
+  if (__DEV__) {
+    console.log('[push] profiles.insert push_token-only row for user', id.slice(0, 8));
+  }
   await supabase.from('users').update({ push_token: null }).eq('id', id);
   return { ok: true, error: null };
 }
@@ -143,9 +145,7 @@ export async function clearProfilePushToken(userId: string): Promise<{ ok: boole
     return { ok: false, error: new Error('user id არ არის') };
   }
 
-  const updated_at = new Date().toISOString();
-
-  const { error } = await supabase.from('profiles').update({ push_token: null, updated_at }).eq('id', id);
+  const { error } = await supabase.from('profiles').update({ push_token: null }).eq('id', id);
 
   if (error) {
     return { ok: false, error: new Error(error.message) };
@@ -159,18 +159,29 @@ export async function clearProfilePushToken(userId: string): Promise<{ ok: boole
 export async function driverProfileMatchesBooking(
   userId: string,
   bookingVehicleType: string,
-  bookingVehicleClass: string,
+  bookingVehicleClass: string | null | undefined,
 ): Promise<boolean> {
   const bookingType = normalizeVehicleType(bookingVehicleType);
-  const bookingClass = normalizeVehicleClass(bookingVehicleClass);
-  if (!bookingType || !bookingClass) return false;
+  if (!bookingType) return false;
+
+  const rawCls = bookingVehicleClass;
+  const hasExplicitBookingClass =
+    rawCls != null && String(rawCls).trim() !== '';
+
+  const bookingClass = hasExplicitBookingClass ? normalizeVehicleClass(String(rawCls)) : null;
+  if (hasExplicitBookingClass && !bookingClass) {
+    return false;
+  }
 
   const { data: profile } = await fetchDriverProfile(userId);
   if (!profile?.vehicle_type || !profile?.vehicle_class) {
     return false;
   }
 
-  return (
-    profile.vehicle_type === bookingType && profile.vehicle_class === bookingClass
-  );
+  const profileType = normalizeVehicleType(profile.vehicle_type);
+  const profileClass = normalizeVehicleClass(profile.vehicle_class);
+  if (!profileType || !profileClass || profileType !== bookingType) return false;
+
+  if (!bookingClass) return true;
+  return profileClass === bookingClass;
 }

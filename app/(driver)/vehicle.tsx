@@ -25,31 +25,17 @@ import {
   saveVehicleDetails,
   saveVehiclePhotoUrl,
 } from '../../lib/vehicles';
+import {
+  normalizeVehicleClass as normalizeStoredVehicleClass,
+  normalizeVehicleType as normalizeStoredVehicleType,
+  VEHICLE_CLASSES,
+  VEHICLE_TYPES,
+  vehicleClassLabel,
+  vehicleTypeLabel,
+  type VehicleClassCode,
+  type VehicleTypeCode,
+} from '../../lib/vehicleCatalog';
 import { useAuth } from '../../contexts/AuthContext';
-
-const VEHICLE_TYPES = [
-  'სედანი',
-  'მინივენი',
-  'SUV',
-  'მიკროავტობუსი',
-  'ავტობუსი',
-  'სპეც. ტრანსპორტი',
-] as const;
-
-const VEHICLE_CLASSES = ['ეკონომი', 'კომფორტი', 'ბიზნეს', 'პრემიუმ', 'VIP'] as const;
-
-function normalizeVehicleType(raw: string | null | undefined): string {
-  if (!raw) return VEHICLE_TYPES[0];
-  if ((VEHICLE_TYPES as readonly string[]).includes(raw)) return raw;
-  if (raw === 'sedan') return 'სედანი';
-  return VEHICLE_TYPES[0];
-}
-
-function normalizeVehicleClass(raw: string | null | undefined): string {
-  if (!raw) return VEHICLE_CLASSES[0];
-  if ((VEHICLE_CLASSES as readonly string[]).includes(raw)) return raw;
-  return VEHICLE_CLASSES[0];
-}
 
 const SLOTS: {
   angle: 'front' | 'left' | 'right' | 'interior' | 'rear';
@@ -87,8 +73,8 @@ export default function DriverVehiclePhotosScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [uploadingKey, setUploadingKey] = useState<VehiclePhotoKey | null>(null);
-  const [vehicleType, setVehicleType] = useState<string>(VEHICLE_TYPES[0]);
-  const [vehicleClass, setVehicleClass] = useState<string>(VEHICLE_CLASSES[0]);
+  const [vehicleType, setVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
+  const [vehicleClass, setVehicleClass] = useState<VehicleClassCode>(VEHICLE_CLASSES[0]);
   const [model, setModel] = useState('');
   const [color, setColor] = useState('');
   const [year, setYear] = useState('');
@@ -124,8 +110,8 @@ export default function DriverVehiclePhotosScreen() {
     }
     setUrls(rowToUrlsWithCacheBust(data));
     if (data) {
-      setVehicleType(normalizeVehicleType(data.type));
-      setVehicleClass(normalizeVehicleClass(data.class));
+      setVehicleType(normalizeStoredVehicleType(data.type) ?? VEHICLE_TYPES[0]);
+      setVehicleClass(normalizeStoredVehicleClass(data.class) ?? VEHICLE_CLASSES[0]);
       setModel(data.model?.trim() ?? '');
       setColor(data.color?.trim() ?? '');
       setYear(data.year != null && !Number.isNaN(Number(data.year)) ? String(data.year) : '');
@@ -353,7 +339,9 @@ export default function DriverVehiclePhotosScreen() {
                   onPress={() => setVehicleType(t)}
                   style={[styles.chip, vehicleType === t && styles.chipActive]}
                 >
-                  <Text style={[styles.chipText, vehicleType === t && styles.chipTextActive]}>{t}</Text>
+                  <Text style={[styles.chipText, vehicleType === t && styles.chipTextActive]}>
+                    {vehicleTypeLabel(t)}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -365,7 +353,9 @@ export default function DriverVehiclePhotosScreen() {
                   onPress={() => setVehicleClass(c)}
                   style={[styles.chip, vehicleClass === c && styles.chipActive]}
                 >
-                  <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>{c}</Text>
+                  <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>
+                    {vehicleClassLabel(c)}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -376,8 +366,8 @@ export default function DriverVehiclePhotosScreen() {
           </>
         ) : (
           <>
-            <MetaRow label="ტიპი" value={vehicleType} />
-            <MetaRow label="კლასი" value={vehicleClass} />
+            <MetaRow label="ტიპი" value={vehicleTypeLabel(vehicleType)} />
+            <MetaRow label="კლასი" value={vehicleClassLabel(vehicleClass)} />
             <MetaRow label="მოდელი" value={model || '—'} />
             <MetaRow label="ფერი" value={color || '—'} />
             <MetaRow label="წელი" value={year || '—'} />
