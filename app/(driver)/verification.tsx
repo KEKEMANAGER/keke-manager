@@ -19,6 +19,7 @@ import {
   verificationPhotoObjectPath,
   withCacheBust,
 } from '../../lib/mediaUpload';
+import { supabase } from '../../lib/supabase';
 import {
   fetchVerificationStatus,
   submitVerification,
@@ -95,6 +96,30 @@ export default function DriverVerificationScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`verification-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userId}` },
+        (payload) => {
+          const row = payload.new as {
+            is_verified?: boolean | null;
+            verification_status?: string | null;
+            rejection_reason?: string | null;
+          };
+          setVerificationStatus((row.verification_status ?? 'pending') as VerificationStatus);
+          setIsVerified(!!row.is_verified);
+          setRejectionReason(row.rejection_reason?.trim() || null);
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   async function pickForStep(index: number) {
     if (!userId || picking) return;
