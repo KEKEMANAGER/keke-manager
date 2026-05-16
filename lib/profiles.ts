@@ -11,6 +11,7 @@ export type DriverProfileRow = {
   vehicle_type: VehicleTypeCode | null;
   vehicle_class: VehicleClassCode | null;
   push_token: string | null;
+  is_verified: boolean | null;
 };
 
 export type DriverVehiclePreferences = {
@@ -29,7 +30,7 @@ export async function fetchDriverProfile(userId: string): Promise<{
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, vehicle_type, vehicle_class, push_token')
+    .select('id, vehicle_type, vehicle_class, push_token, is_verified')
     .eq('id', id)
     .maybeSingle();
 
@@ -46,6 +47,7 @@ export async function fetchDriverProfile(userId: string): Promise<{
     vehicle_type?: string | null;
     vehicle_class?: string | null;
     push_token?: string | null;
+    is_verified?: boolean | null;
   };
 
   return {
@@ -54,6 +56,7 @@ export async function fetchDriverProfile(userId: string): Promise<{
       vehicle_type: normalizeVehicleType(row.vehicle_type),
       vehicle_class: normalizeVehicleClass(row.vehicle_class),
       push_token: row.push_token?.trim() || null,
+      is_verified: row.is_verified ?? null,
     },
     error: null,
   };

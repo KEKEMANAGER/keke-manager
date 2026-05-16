@@ -320,6 +320,9 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
   if (profileError) {
     return { data: [] as BookingRow[], error: profileError };
   }
+  if (!profileRow?.is_verified) {
+    return { data: [] as BookingRow[], error: null };
+  }
   if (!profileRow?.vehicle_type || !profileRow?.vehicle_class) {
     return {
       data: [] as BookingRow[],
