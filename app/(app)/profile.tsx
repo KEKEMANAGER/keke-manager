@@ -22,6 +22,7 @@ import {
 } from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
@@ -53,7 +54,7 @@ function companyDisplayName(
 }
 
 export default function CompanyProfileScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
@@ -468,6 +469,26 @@ export default function CompanyProfileScreen() {
       <ProfileFeedbackEntry />
 
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t('common.language')}</Text>
+        <View style={styles.langRow}>
+          {LANGUAGES.map((lang) => {
+            const active = i18n.language === lang.code;
+            return (
+              <Pressable
+                key={lang.code}
+                onPress={() => void persistLanguage(lang.code as AppLanguage)}
+                style={[styles.langPill, active && styles.langPillActive]}
+              >
+                <Text style={[styles.langPillText, active && styles.langPillTextActive]}>
+                  {lang.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('companyProfile.subscription')}</Text>
         <View style={styles.subRow}>
           <View>
@@ -763,6 +784,32 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 14,
     fontWeight: '800',
+  },
+  langRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  langPill: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  langPillActive: {
+    backgroundColor: COLORS.gold,
+    borderColor: COLORS.gold,
+  },
+  langPillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  langPillTextActive: {
+    color: '#0f0f0f',
   },
   adminPanelBtn: {
     flexDirection: 'row',

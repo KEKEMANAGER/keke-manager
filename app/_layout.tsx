@@ -11,10 +11,9 @@ import {
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { I18nextProvider, useTranslation } from 'react-i18next';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AnimatedSplash from '../components/AnimatedSplash';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { LogoutButton } from '../components/LogoutButton';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { COLORS, SPACING } from '../constants/theme';
@@ -222,7 +221,6 @@ function NavigationShell() {
 
   return (
     <View style={styles.shell}>
-      <GlobalLanguageBar />
       <LogoutButton />
       <Slot />
       {loading ? (
@@ -230,15 +228,6 @@ function NavigationShell() {
           <ActivityIndicator color={COLORS.gold} size="large" />
         </View>
       ) : null}
-    </View>
-  );
-}
-
-function GlobalLanguageBar() {
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.langBar, { top: insets.top + 4 }]} pointerEvents="box-none">
-      <LanguageSwitcher />
     </View>
   );
 }
@@ -296,13 +285,6 @@ const styles = StyleSheet.create({
       web: { minHeight: '100vh' as DimensionValue },
       default: {},
     }),
-  },
-  langBar: {
-    position: 'absolute',
-    right: SPACING.sm,
-    zIndex: 100,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
   },
   i18nBoot: {
     flex: 1,

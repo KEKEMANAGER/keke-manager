@@ -22,6 +22,7 @@ import {
   validateDriverProfileForm,
 } from '../../lib/validation';
 import { useTranslation } from 'react-i18next';
+import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { OptionChips } from '../../components/OptionChips';
@@ -35,6 +36,7 @@ import {
   type DriverVehiclePreferences,
 } from '../../lib/profiles';
 import { supabase } from '../../lib/supabase';
+import { fetchVehicleByDriver } from '../../lib/vehicles';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import {
   vehicleClassLabel,
@@ -101,8 +103,8 @@ export default function DriverProfileScreen() {
   const [bio, setBio] = useState('');
   const [languages, setLanguages] = useState('');
   const [experienceYears, setExperienceYears] = useState('');
-  const vehicleModel = 'Mercedes Sprinter 316';
-  const vehiclePlate = 'AA-123-BB';
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [vehiclePlate, setVehiclePlate] = useState('');
   const [vehicleType, setVehicleType] = useState<VehicleTypeCode | null>(null);
   const [vehicleClass, setVehicleClass] = useState<VehicleClassCode | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -145,12 +147,17 @@ export default function DriverProfileScreen() {
 
   const loadVehiclePreferences = useCallback(async () => {
     if (!user?.id) return;
-    const { data, error } = await fetchDriverProfile(user.id);
+    const [{ data, error }, { data: vehicleRow }] = await Promise.all([
+      fetchDriverProfile(user.id),
+      fetchVehicleByDriver(user.id),
+    ]);
     if (error && __DEV__) {
       console.warn('[DriverProfile] fetchDriverProfile', error.message);
     }
     if (data?.vehicle_type) setVehicleType(data.vehicle_type);
     if (data?.vehicle_class) setVehicleClass(data.vehicle_class);
+    setVehicleModel(vehicleRow?.model?.trim() ?? '');
+    setVehiclePlate(vehicleRow?.plate?.trim() ?? '');
   }, [user?.id]);
 
   useEffect(() => {
@@ -364,8 +371,8 @@ export default function DriverProfileScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('profilePage.vehicleCard')}</Text>
-        <ViewField label={t('vehicleScreen.model')} value={vehicleModel} />
-        <ViewField label={t('profilePage.plate')} value={vehiclePlate} />
+        <ViewField label={t('vehicleScreen.model')} value={vehicleModel || '—'} />
+        <ViewField label={t('profilePage.plate')} value={vehiclePlate || '—'} />
       </View>
 
       <ProfileFeedbackEntry />
@@ -391,6 +398,26 @@ export default function DriverProfileScreen() {
         <RatingBar label={t('profilePage.cleanliness')} value={MOCK_RATING_BREAKDOWN.cleanliness} />
         <RatingBar label={t('profilePage.communication')} value={MOCK_RATING_BREAKDOWN.communication} />
         <RatingBar label={t('profilePage.driving')} value={MOCK_RATING_BREAKDOWN.driving} />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t('common.language')}</Text>
+        <View style={styles.langRow}>
+          {LANGUAGES.map((lang) => {
+            const active = i18n.language === lang.code;
+            return (
+              <Pressable
+                key={lang.code}
+                onPress={() => void persistLanguage(lang.code as AppLanguage)}
+                style={[styles.langPill, active && styles.langPillActive]}
+              >
+                <Text style={[styles.langPillText, active && styles.langPillTextActive]}>
+                  {lang.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
     </ScrollView>
@@ -605,6 +632,32 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
     backgroundColor: COLORS.gold,
+  },
+  langRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  langPill: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  langPillActive: {
+    backgroundColor: COLORS.gold,
+    borderColor: COLORS.gold,
+  },
+  langPillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  langPillTextActive: {
+    color: '#0f0f0f',
   },
   signOut: {
     backgroundColor: COLORS.gold,
