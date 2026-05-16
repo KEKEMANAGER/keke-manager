@@ -411,7 +411,9 @@ export default function CompanyDashboardScreen() {
         activeBookings.map((b) => (
           <View key={b.id} style={[styles.bookingCard, bookingCardStatusBorder(b.status)]}>
             <View style={styles.bookingTop}>
-              <Text style={styles.bookingType}>{bookingTypeLabel(b.kind)}</Text>
+              <Text style={styles.bookingType}>
+                {bookingTypeLabel(b.kind, b.flight_direction)}
+              </Text>
               <View style={[styles.statusPill, statusStyle(b.status)]}>
                 <Text style={[styles.statusText, statusLabelColor(b.status)]}>
                   {bookingStatusLabel(b.status)}

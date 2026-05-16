@@ -1,16 +1,7 @@
-import { isTransferKind, type BookingRow } from './bookings';
+import type { BookingRow } from './bookings';
+import { bookingKindLabel } from './bookingLabels';
 import { formatStoredDateForDisplay } from './dateTime';
 import { vehicleClassLabel, vehicleTypeLabel } from './vehicleCatalog';
-
-function bookingKindLabel(kind: BookingRow['kind']): string {
-  if (isTransferKind(kind)) {
-    if (kind === 'transfer_arrival') return 'ტრანსფერი — ჩამოსვლა';
-    if (kind === 'transfer_departure') return 'ტრანსფერი — გამგზავრება';
-    return 'ტრანსფერი';
-  }
-  if (kind === 'tour') return 'ტური';
-  return 'ერთდღიანი ტური';
-}
 
 function generateVoucherHTML(booking: BookingRow, voucherCode: string): string {
   const tag = 'div';
@@ -42,7 +33,7 @@ function generateVoucherHTML(booking: BookingRow, voucherCode: string): string {
     <${tag} class="divider"></${tag}>
     ${booking.company_name ? `<${tag} class="row"><span class="label">კომპანია</span><span class="value">${booking.company_name}</span></${tag}>` : ''}
     ${booking.created_by_name ? `<${tag} class="row"><span class="label">ოპერატორი</span><span class="value">${booking.created_by_name}</span></${tag}>` : ''}
-    <${tag} class="row"><span class="label">ტიპი</span><span class="value">${bookingKindLabel(booking.kind)}</span></${tag}>
+    <${tag} class="row"><span class="label">ტიპი</span><span class="value">${bookingKindLabel(booking.kind, booking.flight_direction)}</span></${tag}>
     ${booking.vehicle_type ? `<${tag} class="row"><span class="label">ტრანსპორტი</span><span class="value">${vehicleTypeLabel(booking.vehicle_type)}</span></${tag}>` : ''}
     <${tag} class="row"><span class="label">კლასი</span><span class="value">${vehicleClassLabel(booking.vehicle_class)}</span></${tag}>
     ${booking.from_location ? `<${tag} class="row"><span class="label">საიდან</span><span class="value">${booking.from_location}</span></${tag}>` : ''}

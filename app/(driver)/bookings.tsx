@@ -21,6 +21,7 @@ import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
   acceptBooking,
   bookingStatusLabel,
+  bookingTypeLabel,
   completeBooking,
   fetchBookingsForDriver,
   fetchOpenPendingBookingsForDriver,
@@ -405,6 +406,7 @@ export default function DriverBookingsScreen() {
                   </Text>
                 </View>
               </View>
+              <Text style={styles.kind}>{bookingTypeLabel(item.kind, item.flight_direction)}</Text>
               <Text style={styles.company}>{item.company_name || 'კომპანია'}</Text>
               {item.created_by_name?.trim() ? (
                 <Text style={styles.operator}>
@@ -613,6 +615,12 @@ const styles = StyleSheet.create({
   statusPillText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  kind: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.goldDark,
+    marginBottom: 4,
   },
   company: {
     color: COLORS.text,

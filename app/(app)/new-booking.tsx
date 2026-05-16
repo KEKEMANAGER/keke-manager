@@ -48,6 +48,7 @@ import {
   showValidationAlert,
 } from '../../lib/validation';
 import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
+import { bookingKindLabel } from '../../lib/bookingLabels';
 import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
@@ -61,11 +62,17 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 type PaymentWhen = 'ახლა' | 'შემდეგ' | 'კლიენტის ბარათით';
 type CommissionMode = 'gel' | 'percent';
 
-const TYPE_LABELS: Record<BookingKindUi, string> = {
-  transfer: 'ტრანსფერი',
-  tour: 'ტური',
-  dayTour: 'ერთდღიანი ტური',
-};
+function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): string {
+  const code =
+    ui === 'transfer'
+      ? transferTab === 'departure'
+        ? 'transfer_departure'
+        : 'transfer_arrival'
+      : ui === 'tour'
+        ? 'tour'
+        : 'day_tour';
+  return bookingKindLabel(code);
+}
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -216,10 +223,10 @@ function ServiceKindSelector({
   value: BookingKindUi;
   onChange: (k: BookingKindUi) => void;
 }) {
-  const items = [
-    { id: 'transfer' as const, label: 'ტრანსფერი' },
-    { id: 'tour' as const, label: 'ტური' },
-    { id: 'dayTour' as const, label: 'ერთდღიანი ტური' },
+  const items: { id: BookingKindUi; label: string }[] = [
+    { id: 'transfer', label: bookingKindLabel('transfer') },
+    { id: 'tour', label: bookingKindLabel('tour') },
+    { id: 'dayTour', label: bookingKindLabel('day_tour') },
   ];
   return (
     <View style={styles.serviceKindWrap}>
@@ -1391,7 +1398,9 @@ export default function NewBookingScreen() {
               {selectedOperatorName?.trim() ? (
                 <Text style={styles.vLine}>ოპერატორი: {selectedOperatorName.trim()}</Text>
               ) : null}
-              <Text style={styles.vLine}>ტიპი: {TYPE_LABELS[booking_kind]}</Text>
+              <Text style={styles.vLine}>
+                ტიპი: {bookingKindUiLabel(booking_kind, transferTab)}
+              </Text>
               <Text style={styles.vLine}>ტრანსპორტი: {vehicleTypeLabel(selectedVehicleType)}</Text>
               <Text style={styles.vLine}>კლასი: {vehicleClassLabel(vehicleClass)}</Text>
               {(booking_kind === 'tour' || booking_kind === 'dayTour') &&

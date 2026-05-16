@@ -223,7 +223,7 @@ export default function CompanyHistoryScreen() {
           filtered.map((r) => (
             <View key={r.id} style={styles.card}>
               <View style={styles.cardTop}>
-                <Text style={styles.type}>{bookingTypeLabel(r.kind)}</Text>
+                <Text style={styles.type}>{bookingTypeLabel(r.kind, r.flight_direction)}</Text>
                 <Text style={[styles.status, { color: statusColor(r.status) }]}>
                   {bookingStatusLabel(r.status)}
                 </Text>

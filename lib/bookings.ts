@@ -225,11 +225,7 @@ export function bookingStatusLabel(status: BookingStatus): string {
   return status;
 }
 
-export function bookingTypeLabel(type: string): string {
-  const key = `booking.type.${type}`;
-  if (i18n.exists(key)) return i18n.t(key);
-  return type;
-}
+export { bookingKindLabel, bookingTypeLabel, resolveBookingKindLabelCode } from './bookingLabels';
 
 export function routeSummary(row: BookingRow): string {
   if (isTransferKind(row.kind) && row.from_location && row.to_location) {
