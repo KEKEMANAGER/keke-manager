@@ -107,7 +107,8 @@ export default function CompanyTabsLayout() {
         <Tabs.Screen name="chat"         options={{ href: null }} />
         <Tabs.Screen name="history"      options={{ href: null }} />
         <Tabs.Screen name="profile"      options={{ href: null }} />
-        <Tabs.Screen name="tracking"     options={{ href: null }} />
+        <Tabs.Screen name="tracking"       options={{ href: null }} />
+        <Tabs.Screen name="admin-tracking" options={{ href: null }} />
 
         <Tabs.Screen
           name="dashboard"
@@ -192,6 +193,13 @@ export default function CompanyTabsLayout() {
                 label={t('tabs.profile')}
                 onPress={() => navigate('/(app)/profile')}
               />
+              {profile?.role === 'admin' ? (
+                <DrawerItem
+                  icon="map-outline"
+                  label={t('adminTracking.drawerLabel')}
+                  onPress={() => navigate('/(app)/admin-tracking')}
+                />
+              ) : null}
             </View>
 
             <View style={{ flex: 1 }} />

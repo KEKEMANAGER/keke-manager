@@ -446,6 +446,7 @@ export default function CompanyDashboardScreen() {
                       router.push({
                         pathname: '/(app)/tracking',
                         params: {
+                          bookingId: b.id,
                           driverId: b.driver_id!,
                           driverName: b.driver_display_name ?? '',
                         },

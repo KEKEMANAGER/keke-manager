@@ -7,6 +7,16 @@ export type DriverLocationRow = {
   updated_at: string;
 };
 
+export type DriverLocationWithInfo = DriverLocationRow & {
+  full_name: string | null;
+  booking_id: string | null;
+  booking_status: string | null;
+  vehicle_type: string | null;
+  vehicle_class: string | null;
+};
+
+// ─── Driver: write own location ─────────────────────────────────────────────
+
 export async function upsertDriverLocation(
   driverId: string,
   latitude: number,
@@ -21,6 +31,8 @@ export async function upsertDriverLocation(
 export async function clearDriverLocation(driverId: string): Promise<void> {
   await supabase.from('driver_locations').delete().eq('driver_id', driverId);
 }
+
+// ─── Company: single driver ──────────────────────────────────────────────────
 
 export async function fetchDriverLocation(
   driverId: string,
@@ -49,5 +61,64 @@ export function subscribeToDriverLocation(
         }
       },
     )
+    .subscribe();
+}
+
+// ─── Admin: all active drivers ───────────────────────────────────────────────
+
+export async function fetchAllLocationsWithInfo(): Promise<{
+  data: DriverLocationWithInfo[];
+  error: Error | null;
+}> {
+  const { data: locs, error: locErr } = await supabase
+    .from('driver_locations')
+    .select('driver_id, latitude, longitude, updated_at');
+
+  if (locErr) return { data: [], error: new Error(locErr.message) };
+  if (!locs?.length) return { data: [], error: null };
+
+  const ids = locs.map((l) => (l as DriverLocationRow).driver_id);
+
+  const [{ data: users }, { data: bookings }] = await Promise.all([
+    supabase.from('users').select('id, full_name').in('id', ids),
+    supabase
+      .from('bookings')
+      .select('id, driver_id, status, vehicle_type, vehicle_class')
+      .in('driver_id', ids)
+      .in('status', ['accepted', 'in_progress']),
+  ]);
+
+  type UserRow = { id: string; full_name: string | null };
+  type BookingRow = { id: string; driver_id: string; status: string; vehicle_type: string | null; vehicle_class: string | null };
+
+  const userMap = new Map<string, string | null>(
+    (users as UserRow[] ?? []).map((u) => [u.id, u.full_name]),
+  );
+  const bookingMap = new Map<string, BookingRow>(
+    (bookings as BookingRow[] ?? []).map((b) => [b.driver_id, b]),
+  );
+
+  return {
+    data: (locs as DriverLocationRow[]).map((loc) => {
+      const b = bookingMap.get(loc.driver_id);
+      return {
+        ...loc,
+        full_name: userMap.get(loc.driver_id) ?? null,
+        booking_id: b?.id ?? null,
+        booking_status: b?.status ?? null,
+        vehicle_type: b?.vehicle_type ?? null,
+        vehicle_class: b?.vehicle_class ?? null,
+      };
+    }),
+    error: null,
+  };
+}
+
+export function subscribeToAllLocations(onChange: () => void) {
+  return supabase
+    .channel('all-driver-locs')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations' }, () => {
+      onChange();
+    })
     .subscribe();
 }

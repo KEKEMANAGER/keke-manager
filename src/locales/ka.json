@@ -612,7 +612,26 @@
     "lastUpdated": "განახლდა",
     "ago": "წინ",
     "driver": "მძღოლი",
+    "vehicle": "ავტო",
+    "statusAccepted": "მიღებულია",
+    "statusInProgress": "მიმდინარეობს",
+    "statusPending": "მოლოდინში",
     "webFallback": "GPS თვალყურება ხელმისაწვდომია მხოლოდ iOS და Android აპში."
+  },
+  "adminTracking": {
+    "title": "ყველა მძღოლი",
+    "drawerLabel": "ლაივ რუკა",
+    "activeDrivers": "{{count}} აქტიური",
+    "noActiveDrivers": "აქტიური მძღოლი არ არის",
+    "noActiveDriversHint": "GPS-ის ჩართვის შემდეგ მძღოლები გამოჩნდებიან.",
+    "noBooking": "ჯავშანი არ არის",
+    "stale": "მოძველებული",
+    "openTracking": "გახსენი თვალყურება",
+    "legendInProgress": "მიმდინარეობს",
+    "legendAccepted": "მიღებულია",
+    "legendStale": "მოძველებული / ჯავშანი არ არის",
+    "webDriverList": "აქტიური მძღოლები",
+    "webFallback": "სრული რუკა ხელმისაწვდომია iOS და Android აპში."
   },
   "adminVerify": {
     "title": "ვერიფიკაციის შემოწმება",

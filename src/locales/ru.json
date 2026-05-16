@@ -612,7 +612,26 @@
     "lastUpdated": "Обновлено",
     "ago": "назад",
     "driver": "Водитель",
+    "vehicle": "Авто",
+    "statusAccepted": "Принято",
+    "statusInProgress": "В пути",
+    "statusPending": "Ожидание",
     "webFallback": "GPS-отслеживание доступно только в приложении iOS и Android."
+  },
+  "adminTracking": {
+    "title": "Все водители",
+    "drawerLabel": "Живая карта",
+    "activeDrivers": "{{count}} активных",
+    "noActiveDrivers": "Нет активных водителей",
+    "noActiveDriversHint": "Когда водители включат GPS, они появятся здесь.",
+    "noBooking": "Нет активного заказа",
+    "stale": "Устаревшее",
+    "openTracking": "Открыть слежение",
+    "legendInProgress": "В пути",
+    "legendAccepted": "Принято",
+    "legendStale": "Устаревшее / нет заказа",
+    "webDriverList": "Активные водители",
+    "webFallback": "Полная карта доступна в приложении iOS и Android."
   },
   "adminVerify": {
     "title": "Проверка верификации",

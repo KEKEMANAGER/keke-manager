@@ -612,7 +612,26 @@
     "lastUpdated": "Updated",
     "ago": "ago",
     "driver": "Driver",
+    "vehicle": "Vehicle",
+    "statusAccepted": "Accepted",
+    "statusInProgress": "In progress",
+    "statusPending": "Pending",
     "webFallback": "GPS tracking is only available in the iOS and Android app."
+  },
+  "adminTracking": {
+    "title": "All Drivers",
+    "drawerLabel": "Live Map",
+    "activeDrivers": "{{count}} active",
+    "noActiveDrivers": "No active drivers",
+    "noActiveDriversHint": "When drivers start GPS, they appear here.",
+    "noBooking": "No active booking",
+    "stale": "Stale",
+    "openTracking": "Open tracking",
+    "legendInProgress": "In progress",
+    "legendAccepted": "Accepted",
+    "legendStale": "Stale / no booking",
+    "webDriverList": "Active drivers",
+    "webFallback": "The full map is available in the iOS and Android app."
   },
   "adminVerify": {
     "title": "Verification review",
