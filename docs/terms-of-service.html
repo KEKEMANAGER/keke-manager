@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms of Service — KEKE MANAGER</title>
+  <style>
+    :root {
+      --gold: #F59E0B;
+      --gold-dark: #B45309;
+      --bg: #F9FAFB;
+      --surface: #FFFFFF;
+      --text: #111827;
+      --text-secondary: #6B7280;
+      --border: #E5E7EB;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
+    .logo span { color: var(--gold); }
+    .lang-toggle {
+      display: flex;
+      gap: 6px;
+    }
+    .lang-btn {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .lang-btn.active {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: #000;
+    }
+    main {
+      max-width: 780px;
+      margin: 40px auto;
+      padding: 0 20px 80px;
+    }
+    .doc-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .doc-header h1 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .doc-header p {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 20px;
+    }
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gold-dark);
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    p { margin-bottom: 12px; color: var(--text); font-size: 15px; }
+    p:last-child { margin-bottom: 0; }
+    ul { padding-left: 20px; margin-bottom: 12px; }
+    li { margin-bottom: 6px; font-size: 15px; color: var(--text); }
+    a { color: var(--gold-dark); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .effective {
+      background: #FEF3C7;
+      border: 1px solid #FDE68A;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: var(--gold-dark);
+      font-weight: 600;
+      margin-bottom: 28px;
+      text-align: center;
+    }
+    footer {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-top: 48px;
+    }
+    [data-lang] { display: none; }
+    [data-lang].visible { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">KEKE <span>MANAGER</span></div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('ka')">GE</button>
+    <button class="lang-btn" onclick="setLang('en')">EN</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===== GEORGIAN ===== -->
+  <div data-lang="ka" class="visible">
+    <div class="doc-header">
+      <h1>მომსახურების პირობები</h1>
+      <p>KEKE MANAGER — სატრანსპორტო მართვის სისტემა</p>
+    </div>
+
+    <div class="effective">მოქმედების თარიღი: 16 მაისი, 2026</div>
+
+    <div class="card">
+      <h2>1. შესავალი და მიღება</h2>
+      <p>გთხოვთ, ყურადღებით წაიკითხოთ ეს მომსახურების პირობები ("პირობები") KEKE MANAGER-ის ("სერვისი", "პლატფორმა") გამოყენებამდე. KEKE MANAGER-ის მობილური აპლიკაციის ან ვებ-სერვისის გამოყენებით, თქვენ ადასტურებთ, რომ წაიკითხეთ, გაიგეთ და ეთანხმებით ამ პირობებს.</p>
+      <p>თუ არ ეთანხმებით ამ პირობებს, გთხოვთ, არ გამოიყენოთ სერვისი.</p>
+    </div>
+
+    <div class="card">
+      <h2>2. სერვისის აღწერა</h2>
+      <p>KEKE MANAGER არის სატრანსპორტო მართვის პლატფორმა, რომელიც:</p>
+      <ul>
+        <li>კომპანიებს საშუალებას აძლევს შექმნან, მართონ და კოორდინირება გაუწიონ ტრანსფერებს და ტურებს</li>
+        <li>მძღოლებს საშუალებას აძლევს მიიღონ და შეასრულონ ჯავშნები</li>
+        <li>უზრუნველყოფს კომუნიკაციას კომპანიასა და მძღოლს შორის</li>
+        <li>ახორციელებს GPS მონიტორინგს სამუშაო სესიების დროს</li>
+        <li>ახორციელებს მძღოლების ვერიფიკაციას ადმინისტრატორის მეშვეობით</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>3. მომხმარებლის ტიპები და მოთხოვნები</h2>
+      <p><strong>კომპანია:</strong></p>
+      <ul>
+        <li>უნდა იყოს 18 წელს გადაცილებული ან კანონიერად ფუნქციონირებადი ორგანიზაციის წარმომადგენელი</li>
+        <li>ვალდებულია მიაწოდოს სწორი კომპანიის ინფორმაცია</li>
+        <li>პასუხისმგებელია ჯავშნების სიზუსტეზე</li>
+        <li>ვალდებულია შეასრულოს საქართველოს კანონმდებლობა</li>
+      </ul>
+      <p><strong>მძღოლი:</strong></p>
+      <ul>
+        <li>უნდა ჰქონდეს მოქმედი სამძღოლო მოწმობა</li>
+        <li>ვალდებულია გაიაროს პლატფორმის ვერიფიკაციის პროცესი</li>
+        <li>უნდა ჰქონდეს სათანადო ტექნიკური მდგომარეობის მანქანა</li>
+        <li>ვალდებულია მიაწოდოს სწორი დოკუმენტაცია</li>
+        <li>პასუხისმგებელია ჯავშნების პუნქტუალურ შესრულებაზე</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>4. ანგარიშის შექმნა და უსაფრთხოება</h2>
+      <p>ანგარიშის შექმნისას, თქვენ ვალდებული ხართ:</p>
+      <ul>
+        <li>მიაწოდოთ ზუსტი და სრული ინფორმაცია</li>
+        <li>შეინახოთ პაროლი კონფიდენციალურად</li>
+        <li>დაუყოვნებლივ შეგვატყობინოთ ანგარიშის არაავტორიზებული გამოყენების შესახებ</li>
+        <li>არ გაუზიაროთ ანგარიში სხვა პირებს</li>
+      </ul>
+      <p>KEKE MANAGER-ი პასუხს არ აგებს ანგარიშის კომპრომეტაციით გამოწვეულ ზარალზე, თუ ეს მოხდა თქვენი გაუფრთხილებლობის გამო.</p>
+    </div>
+
+    <div class="card">
+      <h2>5. ვერიფიკაციის პროცესი</h2>
+      <p>მძღოლად რეგისტრაციისთვის სავალდებულოა ვერიფიკაციის გავლა:</p>
+      <ul>
+        <li>ადმინისტრატორი განიხილავს წარდგენილ დოკუმენტებს</li>
+        <li>ვერიფიკაციის გარეშე მძღოლი ვერ ნახავს ხელმისაწვდომ ჯავშნებს</li>
+        <li>KEKE MANAGER-ი იტოვებს უფლებას უარი თქვას ვერიფიკაციაზე ნებისმიერი მიზეზით</li>
+        <li>ყალბი დოკუმენტების წარდგენა იწვევს ანგარიშის დაუყოვნებლივ შეჩერებას</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>6. ჯავშნები და ვალდებულებები</h2>
+      <p><strong>კომპანია:</strong></p>
+      <ul>
+        <li>პასუხისმგებელია ჯავშნის სწორ ინფორმაციაზე (მარშრუტი, თარიღი, მგზავრი)</li>
+        <li>ვალდებულია გონივრული ვადით გააუქმოს ჯავშანი თუ ეს საჭიროა</li>
+        <li>არ შეიძლება გამოიყენოს სერვისი უკანონო ტრანსპორტირებისთვის</li>
+      </ul>
+      <p><strong>მძღოლი:</strong></p>
+      <ul>
+        <li>ვალდებულია დაადასტუროს ან უარყოს ჯავშანი გონივრულ ვადაში</li>
+        <li>პასუხისმგებელია ჯავშნის შესრულებაზე მიღების შემდეგ</li>
+        <li>ვალდებულია შეაჩეროს სამუშაო სესია ჯავშნის დასრულებისას</li>
+        <li>KEKE MANAGER-ი არ წარმოადგენს შუამავალს ჯავშნის ფასებში</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>7. დაუშვებელი ქმედებები</h2>
+      <p>პლატფორმის გამოყენებისას <strong>აკრძალულია:</strong></p>
+      <ul>
+        <li>ყალბი ინფორმაციის ან დოკუმენტების მიწოდება</li>
+        <li>სხვა მომხმარებლების შევიწროება ან მუქარა</li>
+        <li>სისტემის ან API-ების არაავტორიზებული გამოყენება</li>
+        <li>Spam-ის ან სარეკლამო შეტყობინებების გაგზავნა ჩათ-სისტემაში</li>
+        <li>სხვა მომხმარებლების მონაცემებზე არაავტორიზებული წვდომის მცდელობა</li>
+        <li>სერვისის გამოყენება უკანონო საქმიანობისთვის</li>
+        <li>ფიქტიური ჯავშნების შექმნა</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>8. Push-შეტყობინებები</h2>
+      <p>KEKE MANAGER-ი აგზავნის Push-შეტყობინებებს ახალი ჯავშნების, სტატუსის ცვლილებებისა და სერვისის განახლებების შესახებ. მძღოლებისთვის ეს შეტყობინებები კრიტიკულია სამუშაო პროცესისთვის. შეტყობინებების გამორთვა შეიძლება გავლენას ახდენდეს სერვისის ხარისხზე.</p>
+    </div>
+
+    <div class="card">
+      <h2>9. ინტელექტუალური საკუთრება</h2>
+      <p>KEKE MANAGER-ის პლატფორმა, ლოგო, დიზაინი და კოდი წარმოადგენს KEKE MANAGER-ის ინტელექტუალური საკუთრებას. თქვენ მიგენიჭებათ შეზღუდული, არაექსკლუზიური, გადაულახავი ლიცენზია სერვისის გამოყენებაზე.</p>
+      <p>კომპანიებისა და მძღოლების მიერ ატვირთული კონტენტი (ფოტოები, ინფორმაცია) რჩება მათ საკუთრებაში. KEKE MANAGER-ს ენიჭება ლიცენზია ამ კონტენტის გამოყენებაზე სერვისის მიწოდების მიზნებისთვის.</p>
+    </div>
+
+    <div class="card">
+      <h2>10. პასუხისმგებლობის შეზღუდვა</h2>
+      <p>KEKE MANAGER არ არის პასუხისმგებელი:</p>
+      <ul>
+        <li>კომპანიასა და მძღოლს შორის წარმოქმნილ დავებზე</li>
+        <li>ჯავშნების შეუსრულებლობით გამოწვეულ პირდაპირ ან არაპირდაპირ ზარალზე</li>
+        <li>ტექნიკური შეფერხებებით გამოწვეულ დანაკარგებზე (Force Majeure)</li>
+        <li>მესამე მხარის სერვისების (Supabase, Expo) გაუმართაობით გამოწვეულ პრობლემებზე</li>
+        <li>GPS მდებარეობის სიზუსტის ხარვეზებით გამოწვეულ შედეგებზე</li>
+      </ul>
+      <p>სერვისი მოწოდებულია "AS IS" — ჩვენ ვცდილობთ მაქსიმალურ სტაბილურობას, თუმცა ვერ ვგარანტირებთ 100%-იან უწყვეტობას.</p>
+    </div>
+
+    <div class="card">
+      <h2>11. ანგარიშის შეჩერება და გაუქმება</h2>
+      <p>KEKE MANAGER-ს უფლება აქვს:</p>
+      <ul>
+        <li>გააფრთხილოს მომხმარებელი პირობების დარღვევის შემთხვევაში</li>
+        <li>დროებით შეაჩეროს ანგარიში გამოძიების პერიოდში</li>
+        <li>სამუდამოდ დახუროს ანგარიში სერიოზული დარღვევის შემთხვევაში</li>
+      </ul>
+      <p>თქვენ შეგიძლიათ ნებისმიერ დროს გააუქმოთ ანგარიში, დაგვიკავშირდით: <a href="mailto:support@kekemanager.app">support@kekemanager.app</a></p>
+    </div>
+
+    <div class="card">
+      <h2>12. ცვლილებები პირობებში</h2>
+      <p>KEKE MANAGER-ს შეუძლია ნებისმიერ დროს განაახლოს ეს პირობები. მნიშვნელოვანი ცვლილებების შემთხვევაში, შეგატყობინებთ Push-შეტყობინებით ან ელ.ფოსტით სულ მცირე 7 დღით ადრე. განახლებული პირობების ძალაში შესვლის შემდეგ სერვისის გამოყენება ნიშნავს მათ მიღებას.</p>
+    </div>
+
+    <div class="card">
+      <h2>13. მოქმედი კანონმდებლობა</h2>
+      <p>ეს პირობები რეგულირდება საქართველოს კანონმდებლობით. ნებისმიერი დავა განხილულ იქნება საქართველოს სასამართლოებში.</p>
+    </div>
+
+    <div class="card">
+      <h2>14. კონტაქტი</h2>
+      <p>ნებისმიერი შეკითხვის შემთხვევაში:</p>
+      <p><strong>ელ.ფოსტა:</strong> <a href="mailto:support@kekemanager.app">support@kekemanager.app</a></p>
+    </div>
+  </div>
+
+  <!-- ===== ENGLISH ===== -->
+  <div data-lang="en">
+    <div class="doc-header">
+      <h1>Terms of Service</h1>
+      <p>KEKE MANAGER — Transportation Management System</p>
+    </div>
+
+    <div class="effective">Effective Date: May 16, 2026</div>
+
+    <div class="card">
+      <h2>1. Introduction and Acceptance</h2>
+      <p>Please read these Terms of Service ("Terms") carefully before using KEKE MANAGER ("Service", "Platform"). By using the KEKE MANAGER mobile application or web service, you confirm that you have read, understood, and agree to be bound by these Terms.</p>
+      <p>If you do not agree to these Terms, please do not use the Service.</p>
+    </div>
+
+    <div class="card">
+      <h2>2. Description of Service</h2>
+      <p>KEKE MANAGER is a transportation management platform that:</p>
+      <ul>
+        <li>Enables companies to create, manage, and coordinate transfers and tours</li>
+        <li>Enables drivers to receive and complete bookings</li>
+        <li>Facilitates communication between companies and drivers</li>
+        <li>Provides GPS monitoring during work sessions</li>
+        <li>Administers driver verification through an admin process</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>3. User Types and Requirements</h2>
+      <p><strong>Company:</strong></p>
+      <ul>
+        <li>Must be 18 years of age or older, or a representative of a legally operating organization</li>
+        <li>Must provide accurate company information</li>
+        <li>Is responsible for the accuracy of bookings</li>
+        <li>Must comply with applicable Georgian law</li>
+      </ul>
+      <p><strong>Driver:</strong></p>
+      <ul>
+        <li>Must hold a valid driver's license</li>
+        <li>Must complete the platform's verification process</li>
+        <li>Must operate a vehicle in appropriate technical condition</li>
+        <li>Must submit accurate documentation</li>
+        <li>Is responsible for the punctual fulfillment of bookings</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>4. Account Creation and Security</h2>
+      <p>When creating an account, you are required to:</p>
+      <ul>
+        <li>Provide accurate and complete information</li>
+        <li>Keep your password confidential</li>
+        <li>Notify us immediately of any unauthorized use of your account</li>
+        <li>Not share your account with other individuals</li>
+      </ul>
+      <p>KEKE MANAGER is not liable for losses resulting from account compromise due to your own negligence.</p>
+    </div>
+
+    <div class="card">
+      <h2>5. Verification Process</h2>
+      <p>Driver registration requires completion of a verification process:</p>
+      <ul>
+        <li>An administrator reviews submitted documents</li>
+        <li>Without verification, drivers cannot view available bookings</li>
+        <li>KEKE MANAGER reserves the right to decline verification for any reason</li>
+        <li>Submission of fraudulent documents results in immediate account suspension</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>6. Bookings and Obligations</h2>
+      <p><strong>Company:</strong></p>
+      <ul>
+        <li>Is responsible for providing accurate booking information (route, date, passenger)</li>
+        <li>Must cancel bookings with reasonable notice if necessary</li>
+        <li>May not use the service for illegal transportation purposes</li>
+      </ul>
+      <p><strong>Driver:</strong></p>
+      <ul>
+        <li>Must confirm or decline a booking within a reasonable timeframe</li>
+        <li>Is responsible for fulfilling a booking once accepted</li>
+        <li>Must end the work session upon completion of a booking</li>
+        <li>KEKE MANAGER does not act as an intermediary in booking pricing</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>7. Prohibited Conduct</h2>
+      <p>While using the Platform, the following are <strong>strictly prohibited:</strong></p>
+      <ul>
+        <li>Providing false information or fraudulent documents</li>
+        <li>Harassing or threatening other users</li>
+        <li>Unauthorized use of the system or its APIs</li>
+        <li>Sending spam or promotional messages via the in-app chat</li>
+        <li>Attempting to gain unauthorized access to other users' data</li>
+        <li>Using the service for any illegal activity</li>
+        <li>Creating fictitious bookings</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>8. Push Notifications</h2>
+      <p>KEKE MANAGER sends push notifications regarding new bookings, status changes, and service updates. For drivers, these notifications are critical to the work process. Disabling notifications may affect the quality of service delivery.</p>
+    </div>
+
+    <div class="card">
+      <h2>9. Intellectual Property</h2>
+      <p>The KEKE MANAGER platform, logo, design, and code are the intellectual property of KEKE MANAGER. You are granted a limited, non-exclusive, non-transferable license to use the Service.</p>
+      <p>Content uploaded by companies and drivers (photos, information) remains their own property. KEKE MANAGER is granted a license to use this content solely for the purposes of providing the Service.</p>
+    </div>
+
+    <div class="card">
+      <h2>10. Limitation of Liability</h2>
+      <p>KEKE MANAGER is not liable for:</p>
+      <ul>
+        <li>Disputes arising between companies and drivers</li>
+        <li>Direct or indirect losses resulting from unfulfilled bookings</li>
+        <li>Losses caused by technical interruptions (Force Majeure)</li>
+        <li>Issues caused by third-party service failures (Supabase, Expo)</li>
+        <li>Consequences arising from GPS location inaccuracies</li>
+      </ul>
+      <p>The Service is provided "AS IS." We strive for maximum stability but cannot guarantee 100% uptime.</p>
+    </div>
+
+    <div class="card">
+      <h2>11. Account Suspension and Termination</h2>
+      <p>KEKE MANAGER reserves the right to:</p>
+      <ul>
+        <li>Warn a user in the event of a Terms violation</li>
+        <li>Temporarily suspend an account during an investigation period</li>
+        <li>Permanently close an account in the event of a serious violation</li>
+      </ul>
+      <p>You may delete your account at any time by contacting us at: <a href="mailto:support@kekemanager.app">support@kekemanager.app</a></p>
+    </div>
+
+    <div class="card">
+      <h2>12. Changes to These Terms</h2>
+      <p>KEKE MANAGER may update these Terms at any time. In the event of significant changes, we will notify you via push notification or email at least 7 days in advance. Continued use of the Service after updated Terms take effect constitutes acceptance of the new Terms.</p>
+    </div>
+
+    <div class="card">
+      <h2>13. Governing Law</h2>
+      <p>These Terms are governed by the laws of Georgia. Any disputes shall be resolved in the courts of Georgia.</p>
+    </div>
+
+    <div class="card">
+      <h2>14. Contact Us</h2>
+      <p>For any questions or concerns:</p>
+      <p><strong>Email:</strong> <a href="mailto:support@kekemanager.app">support@kekemanager.app</a></p>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2026 KEKE MANAGER. All rights reserved.
+  </footer>
+
+</main>
+
+<script>
+  function setLang(lang) {
+    document.querySelectorAll('[data-lang]').forEach(el => {
+      el.classList.toggle('visible', el.dataset.lang === lang);
+    });
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent.toLowerCase() === (lang === 'ka' ? 'ge' : lang));
+    });
+    document.documentElement.lang = lang;
+  }
+</script>
+</body>
+</html>
