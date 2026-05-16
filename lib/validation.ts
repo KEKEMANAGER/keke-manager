@@ -1,8 +1,13 @@
 import { Alert, Platform } from 'react-native';
+import i18n from '../src/lib/i18n';
 import { getSupabaseErrorMessage } from './errorHandler';
 
 const MIN_PASSWORD_LENGTH = 6;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function t(key: string, options?: Record<string, unknown>): string {
+  return i18n.t(key, options);
+}
 
 export function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email.trim());
@@ -10,7 +15,7 @@ export function isValidEmail(email: string): boolean {
 
 export function validateRequired(value: string, fieldLabel: string): string | null {
   if (!value.trim()) {
-    return `შეიყვანეთ ${fieldLabel}.`;
+    return t('validation.required', { field: fieldLabel });
   }
   return null;
 }
@@ -18,10 +23,10 @@ export function validateRequired(value: string, fieldLabel: string): string | nu
 export function validateEmail(email: string, required = true): string | null {
   const trimmed = email.trim();
   if (!trimmed) {
-    return required ? 'შეიყვანეთ ელფოსტა.' : null;
+    return required ? t('validation.emailRequired') : null;
   }
   if (!isValidEmail(trimmed)) {
-    return 'ელფოსტის ფორმატი არასწორია.';
+    return t('validation.emailInvalid');
   }
   return null;
 }
@@ -31,17 +36,17 @@ export function validatePassword(
   minLength: number = MIN_PASSWORD_LENGTH,
 ): string | null {
   if (!password) {
-    return 'შეიყვანეთ პაროლი.';
+    return t('validation.passwordRequired');
   }
   if (password.length < minLength) {
-    return `პაროლი მინიმუმ ${minLength} სიმბოლო`;
+    return t('validation.passwordMin', { count: minLength });
   }
   return null;
 }
 
 export function validateSignInPassword(password: string): string | null {
   if (!password) {
-    return 'შეიყვანეთ პაროლი.';
+    return t('validation.passwordRequired');
   }
   return null;
 }
@@ -51,7 +56,7 @@ export function validateOptionalPhone(phone: string): string | null {
   if (!trimmed) return null;
   const digits = trimmed.replace(/\D/g, '');
   if (digits.length < 6) {
-    return 'ტელეფონის ნომერი არასწორია.';
+    return t('validation.phoneInvalid');
   }
   return null;
 }
@@ -60,11 +65,11 @@ export function validateExperienceYears(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (!/^\d+$/.test(trimmed)) {
-    return 'შეიყვანეთ რიცხვი';
+    return t('validation.experienceNumber');
   }
   const years = parseInt(trimmed, 10);
   if (!Number.isFinite(years) || years < 0 || years > 60) {
-    return 'გამოცდილების წლები უნდა იყოს 0–60.';
+    return t('validation.experienceRange');
   }
   return null;
 }
@@ -73,7 +78,7 @@ const BIO_MAX_LENGTH = 500;
 
 export function validateBioLength(bio: string): string | null {
   if (bio.length > BIO_MAX_LENGTH) {
-    return `ბიო არ უნდა აღემატებოდეს ${BIO_MAX_LENGTH} სიმბოლოს.`;
+    return t('validation.bioMax', { max: BIO_MAX_LENGTH });
   }
   return null;
 }
@@ -83,8 +88,8 @@ export function bioMaxLength(): number {
 }
 
 export function validateVehicleSave(type: string | null, vehicleClass: string | null): string | null {
-  if (!type) return 'აირჩიეთ ტრანსპორტის ტიპი';
-  if (!vehicleClass) return 'აირჩიეთ კლასი';
+  if (!type) return t('validation.vehicleTypeRequired');
+  if (!vehicleClass) return t('validation.vehicleClassRequired');
   return null;
 }
 
@@ -129,10 +134,10 @@ export type SignUpFieldErrors = {
 export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors {
   const errors: SignUpFieldErrors = {};
   if (!input.role) {
-    errors.role = 'აირჩიეთ როლი';
+    errors.role = t('validation.roleRequired');
   }
   if (!input.fullName.trim()) {
-    errors.fullName = 'შეიყვანეთ სახელი';
+    errors.fullName = t('validation.nameRequired');
   }
   const emailErr = validateEmail(input.email);
   if (emailErr) errors.email = emailErr.replace(/\.$/, '');
@@ -154,7 +159,7 @@ export type CompanyProfileFormInput = {
 
 export function validateCompanyProfileForm(input: CompanyProfileFormInput): string | null {
   return (
-    validateRequired(input.companyName, 'კომპანიის სახელი') ??
+    validateRequired(input.companyName, t('validation.fields.companyName')) ??
     validateEmail(input.email, false) ??
     validateOptionalPhone(input.phone)
   );
@@ -168,10 +173,10 @@ export type DriverProfileFormInput = {
 };
 
 export function validateDriverProfileForm(input: DriverProfileFormInput): string | null {
-  const nameErr = validateRequired(input.name, 'სახელი');
+  const nameErr = validateRequired(input.name, t('validation.fields.name'));
   if (nameErr) return nameErr;
   if (!input.vehicleType || !input.vehicleClass) {
-    return 'აირჩიეთ ავტომობილის ტიპი და კლასი.';
+    return t('validation.vehicleTypeClassRequired');
   }
   return validateExperienceYears(input.experienceYears);
 }
@@ -213,35 +218,30 @@ export function mapSupabaseError(err: unknown): string {
     lower.includes('user already registered') ||
     lower.includes('already registered')
   ) {
-    return 'ეს ელფოსტა უკვე რეგისტრირებულია — გადადით „შესვლაზე".';
+    return t('validation.emailAlreadyRegistered');
   }
   if (lower.includes('password should be at least')) {
-    return 'პაროლი მინიმუმ 6 სიმბოლო';
+    return t('validation.passwordMin', { count: MIN_PASSWORD_LENGTH });
   }
   if (lower.includes('unable to validate email')) {
-    return 'ელფოსტის ფორმატი არასწორია';
+    return t('validation.emailInvalid');
   }
-  return 'მონაცემები არასწორია ან მოთხოვნა ვერ შესრულდა.';
+  return t('validation.genericInvalid');
 }
 
-export function showErrorAlert(message: string, title = 'შეცდომა'): void {
+export function showErrorAlert(message: string, title?: string): void {
+  const alertTitle = title ?? t('system.errorTitle');
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(`${title}\n\n${message}`);
+    window.alert(`${alertTitle}\n\n${message}`);
     return;
   }
-  Alert.alert(title, message);
+  Alert.alert(alertTitle, message);
 }
 
-export function showValidationAlert(
-  message: string,
-  title = 'შევსება არ არის სრული',
-): void {
-  showErrorAlert(message, title);
+export function showValidationAlert(message: string, title?: string): void {
+  showErrorAlert(message, title ?? t('validation.alertTitle'));
 }
 
 export function showNetworkAlert(): void {
-  showErrorAlert(
-    'ინტერნეტი არ არის — შეამოწმეთ კავშირი და სცადეთ თავიდან.',
-    'კავშირი',
-  );
+  showErrorAlert(t('validation.networkError'), t('validation.networkTitle'));
 }

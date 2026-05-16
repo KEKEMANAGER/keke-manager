@@ -21,6 +21,7 @@ import {
   validateRequired,
 } from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
@@ -38,18 +39,24 @@ import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
 
-function companyDisplayName(profile: Profile | null, user: User | null) {
+function companyDisplayName(
+  profile: Profile | null,
+  user: User | null,
+  defaultLabel: string,
+) {
   const meta = user?.user_metadata as Record<string, unknown> | undefined;
   const cn = meta?.companyName;
   if (typeof cn === 'string' && cn.trim()) return cn.trim();
   const fn = profile?.full_name?.trim();
   if (fn) return fn;
-  return user?.email ?? 'კომპანია';
+  return user?.email ?? defaultLabel;
 }
 
 export default function CompanyProfileScreen() {
+  const { t } = useTranslation();
   const { user, profile, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
+  const defaultCompany = t('companyProfile.defaultCompany');
 
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
@@ -66,7 +73,7 @@ export default function CompanyProfileScreen() {
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const displayName = companyName.trim() || companyDisplayName(profile, user);
+  const displayName = companyName.trim() || companyDisplayName(profile, user, defaultCompany);
 
   const loadProfileFields = useCallback(async () => {
     if (!user?.id) return;
@@ -79,8 +86,8 @@ export default function CompanyProfileScreen() {
       .maybeSingle();
     setProfileLoading(false);
     if (error || !data) {
-      const fallbackName = companyDisplayName(profile, user);
-      setCompanyName(fallbackName === 'კომპანია' ? '' : fallbackName);
+      const fallbackName = companyDisplayName(profile, user, defaultCompany);
+      setCompanyName(fallbackName === defaultCompany ? '' : fallbackName);
       setEmail(profile?.email ?? user?.email ?? '');
       setPhone(profile?.phone ?? '');
       setTaxId('');
@@ -95,8 +102,8 @@ export default function CompanyProfileScreen() {
     if (typeof row.full_name === 'string' && row.full_name.trim()) {
       setCompanyName(row.full_name.trim());
     } else {
-      const fallbackName = companyDisplayName(profile, user);
-      setCompanyName(fallbackName === 'კომპანია' ? '' : fallbackName);
+      const fallbackName = companyDisplayName(profile, user, defaultCompany);
+      setCompanyName(fallbackName === defaultCompany ? '' : fallbackName);
     }
     setEmail(row.email?.trim() ?? profile?.email ?? user?.email ?? '');
     setPhone(row.phone?.trim() ?? profile?.phone ?? '');
@@ -166,9 +173,9 @@ export default function CompanyProfileScreen() {
     if (!user?.id || photoUploading) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      const permMsg = 'წვდომა ფოტოებზე უარყოფილია.';
+      const permMsg = t('profilePage.photoPermissionDenied');
       setPhotoError(permMsg);
-      showErrorAlert(permMsg, 'წვდომა');
+      showErrorAlert(permMsg, t('profilePage.permissionTitle'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -249,7 +256,7 @@ export default function CompanyProfileScreen() {
   async function onAddMember() {
     if (!user?.id || memberBusy) return;
 
-    const nameError = validateRequired(newMemberName, 'ოპერატორის სახელი');
+    const nameError = validateRequired(newMemberName, t('companyProfile.operatorNameRequired'));
     if (nameError) {
       setMemberError(nameError);
       showValidationAlert(nameError);
@@ -305,7 +312,7 @@ export default function CompanyProfileScreen() {
         />
       }
     >
-      <Text style={styles.screenTitle}>კომპანიის პროფილი</Text>
+      <Text style={styles.screenTitle}>{t('companyProfile.screenTitle')}</Text>
 
       <View style={styles.photoSection}>
         <Pressable
@@ -331,7 +338,7 @@ export default function CompanyProfileScreen() {
           ) : null}
         </Pressable>
         <Text style={styles.photoHint}>
-          შეეხეთ ლოგოს შესაცვლელად (Supabase: bucket media → avatars/[user_id].jpg)
+          {t('companyProfile.logoHint')}
         </Text>
         {photoError ? <Text style={styles.photoError}>{photoError}</Text> : null}
       </View>
@@ -342,12 +349,12 @@ export default function CompanyProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>იდენტიფიკაცია</Text>
+        <Text style={styles.cardTitle}>{t('companyProfile.identity')}</Text>
         <Row label="User ID" value={user?.id ? `${user.id.slice(0, 12)}…` : '—'} />
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>კონტაქტი</Text>
+        <Text style={styles.cardTitle}>{t('companyProfile.contact')}</Text>
         <EditModeButtons
           isEditing={isEditing}
           onEdit={onStartEdit}
@@ -360,23 +367,23 @@ export default function CompanyProfileScreen() {
         ) : null}
         {isEditing ? (
           <>
-            <EditField label="კომპანიის სახელი" value={companyName} onChangeText={setCompanyName} />
-            <EditField label="ტელეფონი" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            <EditField label={t('companyProfile.companyName')} value={companyName} onChangeText={setCompanyName} />
+            <EditField label={t('companyProfile.phone')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
             <EditField
-              label="ელფოსტა"
+              label={t('companyProfile.email')}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
-            <EditField label="საიდენტიფიკაციო კოდი" value={taxId} onChangeText={setTaxId} />
+            <EditField label={t('companyProfile.taxId')} value={taxId} onChangeText={setTaxId} />
           </>
         ) : (
           <>
-            <Row label="კომპანიის სახელი" value={displayName} />
-            <Row label="ტელეფონი" value={phone.trim() || '—'} />
-            <Row label="ელფოსტა" value={email.trim() || '—'} />
-            <Row label="საიდენტიფიკაციო კოდი" value={taxId.trim() || '—'} />
+            <Row label={t('companyProfile.companyName')} value={displayName} />
+            <Row label={t('companyProfile.phone')} value={phone.trim() || '—'} />
+            <Row label={t('companyProfile.email')} value={email.trim() || '—'} />
+            <Row label={t('companyProfile.taxId')} value={taxId.trim() || '—'} />
           </>
         )}
         {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
@@ -384,7 +391,7 @@ export default function CompanyProfileScreen() {
 
       <View style={styles.card}>
         <View style={styles.cardTitleRow}>
-          <Text style={styles.cardTitle}>ტურ ოპერატორები</Text>
+          <Text style={styles.cardTitle}>{t('companyProfile.operators')}</Text>
           <Pressable
             onPress={() => void loadMembers()}
             disabled={membersLoading || memberBusy}
@@ -397,7 +404,7 @@ export default function CompanyProfileScreen() {
         {membersLoading ? (
           <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.sm }} />
         ) : members.length === 0 ? (
-          <Text style={styles.membersHint}>დაამატეთ ოპერატორის სახელი ჯავშნისას არჩევისთვის.</Text>
+          <Text style={styles.membersHint}>{t('companyProfile.operatorsHint')}</Text>
         ) : (
           <View style={styles.memberList}>
             {members.map((m) => (
@@ -408,7 +415,7 @@ export default function CompanyProfileScreen() {
                   disabled={memberBusy}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel={`${m.name} წაშლა`}
+                  accessibilityLabel={t('companyProfile.deleteOperatorA11y', { name: m.name })}
                   style={({ pressed }) => [styles.memberDeleteBtn, pressed && styles.memberDeletePressed]}
                 >
                   <Ionicons name="trash-outline" size={20} color={COLORS.error} />
@@ -421,7 +428,7 @@ export default function CompanyProfileScreen() {
           <TextInput
             value={newMemberName}
             onChangeText={setNewMemberName}
-            placeholder="მაგ: ანი, მონიკა"
+            placeholder={t('companyProfile.operatorPlaceholder')}
             placeholderTextColor={COLORS.gray}
             style={styles.addMemberInput}
             editable={!memberBusy}
@@ -438,7 +445,7 @@ export default function CompanyProfileScreen() {
             {memberBusy ? (
               <ActivityIndicator color={COLORS.white} size="small" />
             ) : (
-              <Text style={styles.addMemberBtnText}>დამატება</Text>
+              <Text style={styles.addMemberBtnText}>{t('companyProfile.addMember')}</Text>
             )}
           </Pressable>
         </View>
@@ -448,18 +455,22 @@ export default function CompanyProfileScreen() {
       <ProfileFeedbackEntry />
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>გამოწერა</Text>
+        <Text style={styles.cardTitle}>{t('companyProfile.subscription')}</Text>
         <View style={styles.subRow}>
           <View>
             <Text style={styles.subTier}>{MOCK_COMPANY_SUBSCRIPTION.tier}</Text>
             <Text style={styles.subMeta}>
-              თვიური ლიმიტი: {MOCK_COMPANY_SUBSCRIPTION.usedThisMonth} /{' '}
-              {MOCK_COMPANY_SUBSCRIPTION.monthlyLimit} ჯავშანი
+              {t('companyProfile.monthlyLimit', {
+                used: MOCK_COMPANY_SUBSCRIPTION.usedThisMonth,
+                limit: MOCK_COMPANY_SUBSCRIPTION.monthlyLimit,
+              })}
             </Text>
-            <Text style={styles.subMeta}>ვადა: {MOCK_COMPANY_SUBSCRIPTION.validUntil}</Text>
+            <Text style={styles.subMeta}>
+              {t('companyProfile.validUntil', { date: MOCK_COMPANY_SUBSCRIPTION.validUntil })}
+            </Text>
           </View>
           <View style={styles.subBadge}>
-            <Text style={styles.subBadgeText}>აქტიური</Text>
+            <Text style={styles.subBadgeText}>{t('companyProfile.subscriptionActive')}</Text>
           </View>
         </View>
       </View>

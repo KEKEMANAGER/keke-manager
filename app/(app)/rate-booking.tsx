@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import { isBookingRowUuid } from '../../lib/bookings';
 import { insertRating } from '../../lib/ratings';
@@ -45,6 +46,7 @@ function normalizeRatingRouteParams(
 }
 
 export default function RateBookingScreen() {
+  const { t } = useTranslation();
   const searchParams = useLocalSearchParams();
 
   const insets = useSafeAreaInsets();
@@ -73,15 +75,15 @@ export default function RateBookingScreen() {
   async function submit() {
     setError(null);
     if (!bookingId || !driverClerkId || !companyId) {
-      setError('პარამეტრები აკლია');
+      setError(t('rateBookingScreen.errorLoad'));
       return;
     }
     if (!isBookingRowUuid(bookingId) || !driverClerkId || isBookingRowUuid(driverClerkId)) {
-      setError('ჯავშნის ან მძღოლის იდენტიფიკატორი არასწორია');
+      setError(t('rateBookingScreen.errorLoad'));
       return;
     }
     if (overall < 1 || overall > 5) {
-      setError('აირჩიეთ ვარსკვლავები (1–5)');
+      setError(t('rateBookingScreen.starsHint'));
       return;
     }
     setSubmitting(true);
@@ -94,7 +96,7 @@ export default function RateBookingScreen() {
     );
     setSubmitting(false);
     if (err) {
-      setError(err.message);
+      setError(err.message || t('rateBookingScreen.errorSubmit'));
       return;
     }
     router.replace('/(app)/dashboard');
@@ -109,8 +111,8 @@ export default function RateBookingScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>შეფასება</Text>
-      <Text style={styles.sub}>აირჩიეთ ვარსკვლავები და დატოვეთ კომენტარი (სურვილისამებრ).</Text>
+      <Text style={styles.title}>{t('rateBookingScreen.title')}</Text>
+      <Text style={styles.sub}>{t('rateBookingScreen.subtitle')}</Text>
 
       <View style={styles.starsRow}>
         {[1, 2, 3, 4, 5].map((n) => (
@@ -120,11 +122,11 @@ export default function RateBookingScreen() {
         ))}
       </View>
 
-      <Text style={styles.label}>კომენტარი</Text>
+      <Text style={styles.label}>{t('rateBookingScreen.comment')}</Text>
       <TextInput
         value={comment}
         onChangeText={setComment}
-        placeholder="დაწერეთ გამოცდილება..."
+        placeholder={t('rateBookingScreen.comment')}
         placeholderTextColor={COLORS.gray}
         style={styles.input}
         multiline
@@ -149,12 +151,12 @@ export default function RateBookingScreen() {
         {submitting ? (
           <ActivityIndicator color="#0f0f0f" />
         ) : (
-          <Text style={styles.primaryText}>გაგზავნა</Text>
+          <Text style={styles.primaryText}>{t('rateBookingScreen.submit')}</Text>
         )}
       </Pressable>
 
       <Pressable onPress={skip} style={styles.skip} disabled={submitting}>
-        <Text style={styles.skipText}>გამოტოვება</Text>
+        <Text style={styles.skipText}>{t('rateBookingScreen.skip')}</Text>
       </Pressable>
     </ScrollView>
   );

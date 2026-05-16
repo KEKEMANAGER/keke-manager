@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { DateTimeField } from '../../components/DateTimeField';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -21,13 +22,8 @@ import {
   type DriverScheduleRow,
 } from '../../lib/driverSchedules';
 
-function scheduleTitle(row: DriverScheduleRow): string {
-  if (row.label?.trim()) return row.label.trim();
-  if (row.source === 'booking') return 'ჯავშანი';
-  return 'დაკავებული';
-}
-
 export default function DriverCalendarScreen() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const userId = user?.id ?? '';
@@ -37,6 +33,12 @@ export default function DriverCalendarScreen() {
   const [busyStart, setBusyStart] = useState<Date | null>(null);
   const [busyEnd, setBusyEnd] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
+
+  function scheduleTitle(row: DriverScheduleRow): string {
+    if (row.label?.trim()) return row.label.trim();
+    if (row.source === 'booking') return t('calendarScreen.booking');
+    return t('calendarScreen.busyLabel');
+  }
 
   const load = useCallback(async () => {
     if (!userId) {
@@ -52,12 +54,12 @@ export default function DriverCalendarScreen() {
     const { data, error } = await fetchDriverSchedules(userId, from, to);
     setLoading(false);
     if (error) {
-      Alert.alert('შეცდომა', error.message);
+      Alert.alert(t('system.errorTitle'), error.message);
       setBlocks([]);
       return;
     }
     setBlocks(data);
-  }, [userId]);
+  }, [userId, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,18 +70,18 @@ export default function DriverCalendarScreen() {
   async function onAddBusyBlock() {
     if (!userId) return;
     if (!busyStart || !busyEnd) {
-      Alert.alert('შევსება', 'აირჩიეთ დაწყების და დასრულების დრო.');
+      Alert.alert(t('validation.alertTitle'), t('calendarScreen.fillDates'));
       return;
     }
     if (busyEnd.getTime() <= busyStart.getTime()) {
-      Alert.alert('შევსება', 'დასრულება უნდა იყოს დაწყების შემდეგ.');
+      Alert.alert(t('validation.alertTitle'), t('calendarScreen.endAfterStart'));
       return;
     }
     setSaving(true);
     const res = await createManualDriverSchedule(userId, { start: busyStart, end: busyEnd });
     setSaving(false);
     if (!res.ok) {
-      Alert.alert('შეცდომა', res.error?.message ?? 'ვერ შეინახა');
+      Alert.alert(t('system.errorTitle'), res.error?.message ?? t('calendarScreen.saveFailed'));
       return;
     }
     setBusyStart(null);
@@ -89,16 +91,19 @@ export default function DriverCalendarScreen() {
 
   function onDeleteBlock(row: DriverScheduleRow) {
     if (row.source !== 'manual' || !userId) return;
-    Alert.alert('წაშლა', 'წავშალოთ ეს დაკავებული საათები?', [
-      { text: 'არა', style: 'cancel' },
+    Alert.alert(t('calendarScreen.deleteTitle'), t('calendarScreen.deleteConfirm'), [
+      { text: t('common.no'), style: 'cancel' },
       {
-        text: 'წაშლა',
+        text: t('calendarScreen.deleteTitle'),
         style: 'destructive',
         onPress: () => {
           void (async () => {
             const res = await deleteManualDriverSchedule(row.id, userId);
             if (!res.ok) {
-              Alert.alert('შეცდომა', res.error?.message ?? 'ვერ წაიშალა');
+              Alert.alert(
+                t('system.errorTitle'),
+                res.error?.message ?? t('calendarScreen.deleteFailed'),
+              );
               return;
             }
             void load();
@@ -117,21 +122,19 @@ export default function DriverCalendarScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>კალენდარი</Text>
-      <Text style={styles.subtitle}>
-        მიუთითეთ ზუსტი საათები, როცა დაკავებული ხართ. ბლოკირება მხოლოდ ამ დროის ინტერვალში მოქმედებს.
-      </Text>
+      <Text style={styles.title}>{t('calendarScreen.title')}</Text>
+      <Text style={styles.subtitle}>{t('calendarScreen.subtitle')}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>ახალი დაკავება</Text>
+        <Text style={styles.cardTitle}>{t('calendarScreen.newBusy')}</Text>
         <DateTimeField
-          label="დაწყება"
+          label={t('calendarScreen.start')}
           value={busyStart}
           onChange={setBusyStart}
           minimumDate={new Date()}
         />
         <DateTimeField
-          label="დასრულება"
+          label={t('calendarScreen.end')}
           value={busyEnd}
           onChange={setBusyEnd}
           minimumDate={busyStart ?? new Date()}
@@ -148,16 +151,16 @@ export default function DriverCalendarScreen() {
           {saving ? (
             <ActivityIndicator color={COLORS.black} />
           ) : (
-            <Text style={styles.primaryBtnText}>დაკავებული ვარ</Text>
+            <Text style={styles.primaryBtnText}>{t('calendarScreen.imBusy')}</Text>
           )}
         </Pressable>
       </View>
 
-      <Text style={styles.sectionTitle}>ჩემი დაკავებული საათები</Text>
+      <Text style={styles.sectionTitle}>{t('calendarScreen.myBusyHours')}</Text>
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.lg }} />
       ) : blocks.length === 0 ? (
-        <Text style={styles.empty}>ახლა დაკავებული საათები არ გაქვთ.</Text>
+        <Text style={styles.empty}>{t('calendarScreen.empty')}</Text>
       ) : (
         blocks.map((row) => {
           const start = parseStoredDateTime(row.start_time);
@@ -177,7 +180,9 @@ export default function DriverCalendarScreen() {
                   ]}
                 >
                   <Text style={styles.badgeText}>
-                    {row.source === 'booking' ? 'ჯავშანი' : 'ხელით'}
+                    {row.source === 'booking'
+                      ? t('calendarScreen.booking')
+                      : t('calendarScreen.manual')}
                   </Text>
                 </View>
               </View>
@@ -187,12 +192,10 @@ export default function DriverCalendarScreen() {
                   onPress={() => onDeleteBlock(row)}
                   style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressed]}
                 >
-                  <Text style={styles.deleteBtnText}>წაშლა</Text>
+                  <Text style={styles.deleteBtnText}>{t('calendarScreen.delete')}</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.blockHint}>
-                  ჯავშნის დასრულებისას კალენდარი ავტომატურად გათავისუფლდება.
-                </Text>
+                <Text style={styles.blockHint}>{t('calendarScreen.bookingHint')}</Text>
               )}
             </View>
           );

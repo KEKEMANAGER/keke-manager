@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatDisplayDateTime, formatDisplayTime } from '../lib/dateTime';
+import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 type Props = {
@@ -40,9 +41,11 @@ export function DateTimeField({
   label,
   value,
   onChange,
-  placeholder = 'აირჩიეთ თარიღი და დრო',
+  placeholder,
   mode = 'datetime',
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t('dateTimeField.default');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const displayText = useMemo(() => {
@@ -68,7 +71,7 @@ export function DateTimeField({
         style={({ pressed }) => [styles.input, pressed && styles.inputPressed]}
       >
         <Text style={displayText ? styles.valueText : styles.placeholderText}>
-          {displayText || placeholder}
+          {displayText || resolvedPlaceholder}
         </Text>
       </Pressable>
       {/* Web-only native picker; hidden visually */}

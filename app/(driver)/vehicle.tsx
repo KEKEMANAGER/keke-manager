@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { uploadMediaObject, vehiclePhotoObjectPath, withCacheBust } from '../../lib/mediaUpload';
@@ -41,14 +42,14 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const SLOTS: {
   angle: 'front' | 'left' | 'right' | 'interior' | 'rear';
-  label: string;
+  labelKey: 'photoFront' | 'photoLeft' | 'photoRight' | 'photoInterior' | 'photoRear';
   column: VehiclePhotoKey;
 }[] = [
-  { angle: 'front', label: 'წინა', column: 'photo_front' },
-  { angle: 'left', label: 'მარცხენა', column: 'photo_left' },
-  { angle: 'right', label: 'მარჯვენა', column: 'photo_right' },
-  { angle: 'interior', label: 'სალონი', column: 'photo_interior' },
-  { angle: 'rear', label: 'უკანა', column: 'photo_rear' },
+  { angle: 'front', labelKey: 'photoFront', column: 'photo_front' },
+  { angle: 'left', labelKey: 'photoLeft', column: 'photo_left' },
+  { angle: 'right', labelKey: 'photoRight', column: 'photo_right' },
+  { angle: 'interior', labelKey: 'photoInterior', column: 'photo_interior' },
+  { angle: 'rear', labelKey: 'photoRear', column: 'photo_rear' },
 ];
 
 function hasPhotoUrl(value: string | null | undefined): boolean {
@@ -64,9 +65,13 @@ const emptyWebFileRefs = (): Record<VehiclePhotoKey, HTMLInputElement | null> =>
 });
 
 export default function DriverVehiclePhotosScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
+
+  const slotLabel = (labelKey: (typeof SLOTS)[number]['labelKey']) =>
+    t(`vehicleScreen.${labelKey}`);
   const userId = user?.id;
 
   const [urls, setUrls] = useState<Record<VehiclePhotoKey, string | null>>(() =>
@@ -178,8 +183,9 @@ export default function DriverVehiclePhotosScreen() {
 
   /** Labels for slots still empty (informational under the button). */
   const missingPhotoLabels = useMemo(
-    () => SLOTS.filter((s) => !hasPhotoUrl(urls[s.column])).map((s) => s.label),
-    [urls],
+    () =>
+      SLOTS.filter((s) => !hasPhotoUrl(urls[s.column])).map((s) => slotLabel(s.labelKey)),
+    [urls, t],
   );
 
   const runUploadPipeline = useCallback(
@@ -233,16 +239,22 @@ export default function DriverVehiclePhotosScreen() {
           const blob = opts.revokeObjectUrl;
           setTimeout(() => URL.revokeObjectURL(blob), 800);
         }
-        Alert.alert('შენახულია', `„${label}“ — ფოტო ატვირთულია Supabase Storage-ში და URL შენახულია.`);
+        Alert.alert(
+          t('vehicleScreen.uploadSuccessTitle'),
+          t('vehicleScreen.uploadSuccessBody', { label }),
+        );
       } catch (e: unknown) {
         setUrls((prev) => ({ ...prev, [column]: previous ?? null }));
         if (opts?.revokeObjectUrl) URL.revokeObjectURL(opts.revokeObjectUrl);
-        Alert.alert('შეცდომა', e instanceof Error ? e.message : 'ატვირთვა ვერ მოხერხდა');
+        Alert.alert(
+          t('system.errorTitle'),
+          e instanceof Error ? e.message : t('vehicleScreen.uploadFailed'),
+        );
       } finally {
         setUploadingKey(null);
       }
     },
-    [],
+    [t],
   );
 
   const handleWebFileInputChange = useCallback(
@@ -271,7 +283,7 @@ export default function DriverVehiclePhotosScreen() {
 
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('წვდომა', 'ფოტოების წვდომა საჭიროა ატვირთვისთვის.');
+      Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -293,9 +305,9 @@ export default function DriverVehiclePhotosScreen() {
     const missing = missingPhotoLabels;
     const extra =
       missing.length > 0
-        ? `\n\nჯერ არ არის ატვირთული: ${missing.join(', ')}.`
+        ? `\n\n${t('vehicleScreen.notUploadedYet', { labels: missing.join(', ') })}`
         : '';
-    const message = `ფოტო(ები) Supabase-შია (vehicles + bucket media).${extra}`;
+    const message = t('vehicleScreen.completeMessage', { extra });
 
     const goDashboard = () => {
       router.replace('/(driver)/dashboard');
@@ -303,12 +315,14 @@ export default function DriverVehiclePhotosScreen() {
 
     // react-native-web: Alert.alert is often a no-op — use window.alert so the user sees feedback.
     if (Platform.OS === 'web') {
-      window.alert(`დასრულებულია\n\n${message}`);
+      window.alert(`${t('vehicleScreen.completeTitle')}\n\n${message}`);
       goDashboard();
       return;
     }
 
-    Alert.alert('დასრულებულია', message, [{ text: 'კარგი', onPress: goDashboard }]);
+    Alert.alert(t('vehicleScreen.completeTitle'), message, [
+      { text: t('common.confirm'), onPress: goDashboard },
+    ]);
   }
 
   const bottomPad = insets.bottom + SPACING.xl + 96;
@@ -322,14 +336,15 @@ export default function DriverVehiclePhotosScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>ავტომობილის ფოტოები</Text>
+      <Text style={styles.title}>{t('vehicleScreen.title')}</Text>
       <Text style={styles.sub}>
-        ატვირთეთ სასურველი ხედები (ერთი ან მეტი). ბილიკი: media → vehicles/[user_id]/[კუთხე].jpg
-        {Platform.OS === 'web' ? ' · ვებზე: თითო ღილაკი უკავშირდება ფაილის არჩევას.' : ''}
+        {t('vehicleScreen.photosSubtitle', {
+          webHint: Platform.OS === 'web' ? t('vehicleScreen.photosWebHint') : '',
+        })}
       </Text>
 
       <View style={styles.metaCard}>
-        <Text style={styles.metaCardTitle}>ავტომობილის მონაცემები</Text>
+        <Text style={styles.metaCardTitle}>{t('vehicleScreen.vehicleData')}</Text>
         <EditModeButtons
           isEditing={isEditing}
           onEdit={onStartEdit}
@@ -339,7 +354,7 @@ export default function DriverVehiclePhotosScreen() {
         />
         {isEditing ? (
           <>
-            <Text style={styles.sectionLabel}>ტიპი</Text>
+            <Text style={styles.sectionLabel}>{t('vehicleScreen.type')}</Text>
             <View style={styles.chipRow}>
               {VEHICLE_TYPES.map((t) => (
                 <Pressable
@@ -353,7 +368,7 @@ export default function DriverVehiclePhotosScreen() {
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.sectionLabel}>კლასი</Text>
+            <Text style={styles.sectionLabel}>{t('vehicleScreen.class')}</Text>
             <View style={styles.chipRow}>
               {VEHICLE_CLASSES.map((c) => (
                 <Pressable
@@ -367,19 +382,19 @@ export default function DriverVehiclePhotosScreen() {
                 </Pressable>
               ))}
             </View>
-            <VehicleField label="მოდელი" value={model} onChangeText={setModel} />
-            <VehicleField label="ფერი" value={color} onChangeText={setColor} />
-            <VehicleField label="წელი" value={year} onChangeText={setYear} keyboardType="number-pad" />
-            <VehicleField label="სანომრე ნიშანი" value={plate} onChangeText={setPlate} />
+            <VehicleField label={t('vehicleScreen.model')} value={model} onChangeText={setModel} />
+            <VehicleField label={t('vehicleScreen.color')} value={color} onChangeText={setColor} />
+            <VehicleField label={t('vehicleScreen.year')} value={year} onChangeText={setYear} keyboardType="number-pad" />
+            <VehicleField label={t('vehicleScreen.plateLabel')} value={plate} onChangeText={setPlate} />
           </>
         ) : (
           <>
-            <MetaRow label="ტიპი" value={vehicleTypeLabel(vehicleType)} />
-            <MetaRow label="კლასი" value={vehicleClassLabel(vehicleClass)} />
-            <MetaRow label="მოდელი" value={model || '—'} />
-            <MetaRow label="ფერი" value={color || '—'} />
-            <MetaRow label="წელი" value={year || '—'} />
-            <MetaRow label="სანომრე ნიშანი" value={plate || '—'} />
+            <MetaRow label={t('vehicleScreen.type')} value={vehicleTypeLabel(vehicleType)} />
+            <MetaRow label={t('vehicleScreen.class')} value={vehicleClassLabel(vehicleClass)} />
+            <MetaRow label={t('vehicleScreen.model')} value={model || '—'} />
+            <MetaRow label={t('vehicleScreen.color')} value={color || '—'} />
+            <MetaRow label={t('vehicleScreen.year')} value={year || '—'} />
+            <MetaRow label={t('vehicleScreen.plateLabel')} value={plate || '—'} />
           </>
         )}
         {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
@@ -389,7 +404,7 @@ export default function DriverVehiclePhotosScreen() {
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{loadError}</Text>
           <Pressable onPress={() => void load()} style={styles.retry}>
-            <Text style={styles.retryText}>ხელახლა</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -405,7 +420,7 @@ export default function DriverVehiclePhotosScreen() {
           const showImage = hasPhotoUrl(uri);
           return (
             <View key={slot.column} style={styles.slot}>
-              <Text style={styles.slotLabel}>{slot.label}</Text>
+              <Text style={styles.slotLabel}>{slotLabel(slot.labelKey)}</Text>
               <View style={styles.slotBody}>
                 <View style={styles.preview}>
                   {showImage ? (
@@ -451,7 +466,7 @@ export default function DriverVehiclePhotosScreen() {
                       type="file"
                       accept="image/*"
                       disabled={busy || !userId}
-                      onChange={handleWebFileInputChange(slot.column, slot.angle, slot.label)}
+                      onChange={handleWebFileInputChange(slot.column, slot.angle, slotLabel(slot.labelKey))}
                       style={{
                         position: 'absolute',
                         inset: 0,
@@ -472,12 +487,16 @@ export default function DriverVehiclePhotosScreen() {
                       }}
                     >
                       <Ionicons name="camera" size={18} color="#000000" />
-                      <Text style={styles.uploadBtnText}>{showImage ? 'თავიდან' : 'ატვირთვა'}</Text>
+                      <Text style={styles.uploadBtnText}>
+                        {showImage ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
+                      </Text>
                     </View>
                   </label>
                 ) : (
                   <Pressable
-                    onPress={() => void pickNativeAndUpload(slot.column, slot.angle, slot.label)}
+                    onPress={() =>
+                      void pickNativeAndUpload(slot.column, slot.angle, slotLabel(slot.labelKey))
+                    }
                     disabled={busy || !userId}
                     style={({ pressed }) => [
                       styles.uploadBtn,
@@ -487,7 +506,9 @@ export default function DriverVehiclePhotosScreen() {
                     ]}
                   >
                     <Ionicons name="camera" size={18} color="#000000" />
-                    <Text style={styles.uploadBtnText}>{showImage ? 'თავიდან' : 'ატვირთვა'}</Text>
+                    <Text style={styles.uploadBtnText}>
+                      {showImage ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -506,13 +527,15 @@ export default function DriverVehiclePhotosScreen() {
         ]}
         accessibilityState={{ disabled: !hasAtLeastOnePhoto }}
       >
-        <Text style={[styles.submitText, !hasAtLeastOnePhoto && styles.submitTextDisabled]}>დასრულება</Text>
+        <Text style={[styles.submitText, !hasAtLeastOnePhoto && styles.submitTextDisabled]}>
+          {t('vehicleScreen.finish')}
+        </Text>
       </Pressable>
       {!hasAtLeastOnePhoto && !loading ? (
-        <Text style={styles.submitHint}>დასრულება ჩაირთვება, როცა მინიმუმ ერთ ხედზე ფოტო აიტვირთება.</Text>
+        <Text style={styles.submitHint}>{t('vehicleScreen.finishHint')}</Text>
       ) : hasAtLeastOnePhoto && missingPhotoLabels.length > 0 ? (
         <Text style={styles.submitHint}>
-          სურვილისამებრ: ჯერ არ არის — {missingPhotoLabels.join(', ')}.
+          {t('vehicleScreen.missingOptional', { labels: missingPhotoLabels.join(', ') })}
         </Text>
       ) : null}
     </ScrollView>

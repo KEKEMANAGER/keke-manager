@@ -107,7 +107,7 @@ export default function SignInScreen() {
 
           <Link href="/forgot-password" asChild>
             <Pressable style={styles.forgotRow} hitSlop={8}>
-              <Text style={styles.forgotLink}>დაგავიწყდათ პაროლი?</Text>
+              <Text style={styles.forgotLink}>{t('auth.forgotPassword')}</Text>
             </Pressable>
           </Link>
 

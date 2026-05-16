@@ -59,8 +59,10 @@ type TransferTab = 'arrival' | 'departure';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-type PaymentWhen = 'ახლა' | 'შემდეგ' | 'კლიენტის ბარათით';
+type PaymentWhen = 'now' | 'later' | 'clientCard';
 type CommissionMode = 'gel' | 'percent';
+
+const PAYMENT_OPTIONS: PaymentWhen[] = ['now', 'later', 'clientCard'];
 
 function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): string {
   const code =
@@ -148,13 +150,16 @@ function persistItineraryForDb(days: ItineraryDay[]): ItineraryDay[] {
   }));
 }
 
-function buildTourRouteDescription(days: ItineraryDay[]): string | null {
+function buildTourRouteDescription(
+  days: ItineraryDay[],
+  formatDayLine: (day: number, from: string, to: string) => string,
+): string | null {
   const parts = days
     .map((d) => {
       const f = d.from.trim();
-      const t = d.to.trim();
-      if (!f && !t) return null;
-      return `დღე ${d.day}: ${f || '—'} → ${t || '—'}`;
+      const to = d.to.trim();
+      if (!f && !to) return null;
+      return formatDayLine(d.day, f || '—', to || '—');
     })
     .filter((x): x is string => !!x);
   return parts.length ? parts.join(' | ') : null;
@@ -192,12 +197,13 @@ function TransferSegmented({
   tab: TransferTab;
   onChange: (t: TransferTab) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.segmentTrack}>
       {(
         [
-          { id: 'arrival' as const, label: 'ჩამოსვლა' },
-          { id: 'departure' as const, label: 'გამგზავრება' },
+          { id: 'arrival' as const, labelKey: 'newBooking.transferTab.arrival' },
+          { id: 'departure' as const, labelKey: 'newBooking.transferTab.departure' },
         ] as const
       ).map((item) => {
         const active = tab === item.id;
@@ -207,7 +213,9 @@ function TransferSegmented({
             onPress={() => switchTransferTab(onChange, item.id)}
             style={[styles.segmentItem, active && styles.segmentItemActive]}
           >
-            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{item.label}</Text>
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+              {t(item.labelKey)}
+            </Text>
             {active ? <View style={styles.segmentUnderline} /> : null}
           </Pressable>
         );
@@ -223,6 +231,7 @@ function ServiceKindSelector({
   value: BookingKindUi;
   onChange: (k: BookingKindUi) => void;
 }) {
+  const { t } = useTranslation();
   const items: { id: BookingKindUi; label: string }[] = [
     { id: 'transfer', label: bookingKindLabel('transfer') },
     { id: 'tour', label: bookingKindLabel('tour') },
@@ -230,7 +239,7 @@ function ServiceKindSelector({
   ];
   return (
     <View style={styles.serviceKindWrap}>
-      <Text style={styles.serviceKindSectionLabel}>სერვისის ტიპი</Text>
+      <Text style={styles.serviceKindSectionLabel}>{t('newBooking.serviceKind')}</Text>
       <View style={styles.serviceKindRow}>
         {items.map((item) => {
           const active = value === item.id;
@@ -272,15 +281,14 @@ function OperatorPicker({
   selectedName: string | null;
   onSelect: (name: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={[styles.block, styles.operatorBlock]}>
-      <Text style={styles.fieldLabel}>ოპერატორი</Text>
+      <Text style={styles.fieldLabel}>{t('newBooking.operator')}</Text>
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.sm }} />
       ) : members.length === 0 ? (
-        <Text style={styles.operatorHint}>
-          პროფილში დაამატეთ ტურ ოპერატორები (მაგ. მონიკა), რომ აქ აირჩიოთ.
-        </Text>
+        <Text style={styles.operatorHint}>{t('newBooking.operatorHint')}</Text>
       ) : (
         <View style={styles.chips}>
           {members.map((m) => (
@@ -540,10 +548,11 @@ function VehiclePicker({
   vehicleClass: VehicleClassCode;
   onVehicleClassChange: (cls: VehicleClassCode) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
-      <Text style={styles.sectionHeader}>ავტომობილი</Text>
-      <Text style={styles.fieldLabel}>ტიპი</Text>
+      <Text style={styles.sectionHeader}>{t('newBooking.vehicleSection')}</Text>
+      <Text style={styles.fieldLabel}>{t('newBooking.form.vehicleType')}</Text>
       <View style={styles.chips}>
         {VEHICLE_TYPES.map((t) => (
           <Pressable
@@ -557,7 +566,7 @@ function VehiclePicker({
           </Pressable>
         ))}
       </View>
-      <Text style={styles.fieldLabel}>კლასი</Text>
+      <Text style={styles.fieldLabel}>{t('newBooking.form.vehicleClass')}</Text>
       <View style={styles.chips}>
         {VEHICLE_CLASSES.map((c) => (
           <Pressable
@@ -628,7 +637,7 @@ export default function NewBookingScreen() {
   const [transferInDateTime, setTransferInDateTime] = useState<Date | null>(null);
   const [transferOutDateTime, setTransferOutDateTime] = useState<Date | null>(null);
 
-  const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('ახლა');
+  const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('now');
   const [operators, setOperators] = useState<CompanyMember[]>([]);
   const [operatorsLoading, setOperatorsLoading] = useState(false);
   const [selectedOperatorName, setSelectedOperatorName] = useState<string | null>(null);
@@ -703,8 +712,13 @@ export default function NewBookingScreen() {
     [],
   );
   const companyName = useMemo(
-    () => companyDisplayName(profile, user) ?? 'კომპანია',
-    [profile, user],
+    () => companyDisplayName(profile, user) ?? t('common.companyDefault'),
+    [profile, user, t],
+  );
+
+  const paymentLabel = useCallback(
+    (when: PaymentWhen) => t(`newBooking.payment.${when}`),
+    [t],
   );
 
   function patchDay(index: number, patch: Partial<ItineraryDay>) {
@@ -726,22 +740,22 @@ export default function NewBookingScreen() {
   function validateStep2(): string | null {
     if (booking_kind === 'transfer') {
       if (transferTab === 'arrival') {
-        if (!arrivalAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
-        if (!arrivalDestination.trim()) return 'შეიყვანეთ დანიშნულების ადგილი.';
-        if (!arrivalDateTime) return 'აირჩიეთ თარიღი და დრო.';
+        if (!arrivalAirport.trim()) return t('newBooking.validation.airport');
+        if (!arrivalDestination.trim()) return t('newBooking.validation.destination');
+        if (!arrivalDateTime) return t('newBooking.validation.dateTime');
         return null;
       }
-      if (!departureAddress.trim()) return 'შეიყვანეთ სასტუმრო / მისამართი.';
-      if (!departureAirport.trim()) return 'შეიყვანეთ აეროპორტი.';
-      if (!departureDateTime) return 'აირჩიეთ გამგზავრების თარიღი და დრო.';
+      if (!departureAddress.trim()) return t('newBooking.validation.hotel');
+      if (!departureAirport.trim()) return t('newBooking.validation.airport');
+      if (!departureDateTime) return t('newBooking.validation.departureDate');
       return null;
     }
     if (booking_kind === 'dayTour') {
-      if (!bookingDateTime) return 'აირჩიეთ თარიღი და დრო.';
+      if (!bookingDateTime) return t('newBooking.validation.dateTime');
       const desc = tourRouteDescription.trim();
       const hasFrom = Boolean(days[0]?.from.trim());
       if (!desc && !hasFrom) {
-        return 'შეიყვანეთ ტურის აღწერა / მარშრუტი ან „საიდან“.';
+        return t('newBooking.validation.tourRoute');
       }
       return null;
     }
@@ -749,11 +763,11 @@ export default function NewBookingScreen() {
       const desc = tourRouteDescription.trim();
       const hasStructured = days.some((d) => d.from.trim());
       if (!desc && !hasStructured) {
-        return 'შეიყვანეთ ტურის აღწერა / მარშრუტი ან დღეების მარშრუტი.';
+        return t('newBooking.validation.tourDays');
       }
       return null;
     }
-    return 'აირჩიეთ ჯავშნის ტიპი.';
+    return t('newBooking.validation.kind');
   }
 
   function canAdvanceFrom2(): boolean {
@@ -791,27 +805,27 @@ export default function NewBookingScreen() {
     setTransferOut(emptyTransferLeg());
     setTransferInDateTime(null);
     setTransferOutDateTime(null);
-    setPaymentWhen('ახლა');
+    setPaymentWhen('now');
     setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
   }
 
   function validateBeforeSave(): string | null {
     if (!normalizeVehicleType(selectedVehicleType)) {
-      return 'აირჩიეთ ტრანსპორტის ტიპი';
+      return t('newBooking.validation.vehicleType');
     }
     if (!normalizeVehicleClass(vehicleClass)) {
-      return 'აირჩიეთ კლასი';
+      return t('newBooking.validation.vehicleClass');
     }
     if (
       driverTargetMode === 'specific' &&
       matchingDrivers.length > 0 &&
       !selectedDriverId
     ) {
-      return 'აირჩიეთ მძღოლი ან აირჩიეთ „ყველა მძღოლს გაუგზავნე“.';
+      return t('newBooking.validation.driverPick');
     }
     if (!passengers.trim() || pax < 1) {
-      return 'შეიყვანეთ მგზავრების რაოდენობა.';
+      return t('newBooking.validation.passengers');
     }
 
     return validateStep2();
@@ -819,14 +833,14 @@ export default function NewBookingScreen() {
 
   async function confirmAndSaveBooking() {
     if (!user?.id) {
-      const sessionMsg = 'სესია არ არის ნაპოვნი. გთხოვთ თავიდან შეხვიდეთ.';
+      const sessionMsg = t('newBooking.validation.session');
       setSubmitError(sessionMsg);
-      showErrorAlert(sessionMsg, 'სესია');
+      showErrorAlert(sessionMsg, t('system.sessionExpiredTitle'));
       return;
     }
     const operatorName = selectedOperatorName?.trim() || null;
     if (operators.length > 0 && !operatorName) {
-      const operatorMsg = 'აირჩიეთ ოპერატორი.';
+      const operatorMsg = t('newBooking.validation.operator');
       setSubmitError(operatorMsg);
       showValidationAlert(operatorMsg);
       return;
@@ -865,14 +879,18 @@ export default function NewBookingScreen() {
           date: transferOutDateTime ? toIsoString(transferOutDateTime) : '',
         })
       : null;
-    const structuredRoute = isTour ? buildTourRouteDescription(days) : null;
+    const structuredRoute = isTour
+      ? buildTourRouteDescription(days, (day, from, to) =>
+          t('newBooking.dayLine', { day, from, to }),
+        )
+      : null;
     const descPart = tourRouteDescription.trim();
     const routeForDb =
       isTour ? [descPart, structuredRoute].filter(Boolean).join('\n\n') || null : null;
 
     const { error } = await insertBooking({
       company_id: user.id,
-      company_name: companyDisplayName(profile, user) ?? 'კომპანია',
+      company_name: companyDisplayName(profile, user) ?? t('common.companyDefault'),
       kind: dbKind,
       from_location:
         booking_kind === 'transfer'
@@ -961,26 +979,28 @@ export default function NewBookingScreen() {
         showsVerticalScrollIndicator={false}
       >
         <AppLogo size="auth" style={styles.logoImage} />
-        <Text style={styles.title}>ახალი ჯავშანი</Text>
+        <Text style={styles.title}>{t('newBooking.title')}</Text>
         <View style={styles.stepDots}>
           {[1, 2, 3].map((s) => (
             <View key={s} style={[styles.dot, step >= s && styles.dotActive]} />
           ))}
         </View>
         <Text style={styles.stepLabel}>
-          ნაბიჯი {step} / 3 —{' '}
-          {step === 1 && 'ტიპი'}
-          {step === 2 && 'დეტალები'}
-          {step === 3 && 'შეჯამება და გადახდა'}
+          {t('newBooking.step', {
+            current: step,
+            total: 3,
+            name:
+              step === 1
+                ? t('newBooking.stepType')
+                : step === 2
+                  ? t('newBooking.stepDetails')
+                  : t('newBooking.stepSummary'),
+          })}
         </Text>
 
         <ServiceKindSelector value={booking_kind} onChange={set_booking_kind} />
 
-        {step === 1 ? (
-          <Text style={styles.hint}>
-            აირჩიეთ სერვისის ტიპი ზემოთ და გადადით შემდეგ ნაბიჯზე.
-          </Text>
-        ) : null}
+        {step === 1 ? <Text style={styles.hint}>{t('newBooking.pickService')}</Text> : null}
 
         {step >= 2 ? (
           <OperatorPicker
@@ -999,52 +1019,52 @@ export default function NewBookingScreen() {
               {transferTab === 'arrival' ? (
                 <>
                   <AuthInput
-                    label="აეროპორტი"
+                    label={t('newBooking.form.airport')}
                     value={arrivalAirport}
                     onChangeText={setArrivalAirport}
-                    placeholder="მაგ: თბილისის აეროპორტი"
+                    placeholder={t('newBooking.form.placeholders.airportExample')}
                   />
                   <AuthInput
-                    label="რეისის ნომერი"
+                    label={t('newBooking.form.flightNo')}
                     value={arrivalFlightNo}
                     onChangeText={setArrivalFlightNo}
                     autoCapitalize="characters"
-                    placeholder="მაგ: A9-1234"
+                    placeholder={t('newBooking.form.placeholders.flightExample')}
                   />
                   <DateTimeField
-                    label="თარიღი და დრო"
+                    label={t('newBooking.form.dateTime')}
                     value={arrivalDateTime}
                     onChange={setArrivalDateTime}
-                    placeholder="აირჩიეთ თარიღი და დრო"
+                    placeholder={t('newBooking.form.placeholders.dateTime')}
                     minimumDate={new Date()}
                   />
                   <AuthInput
-                    label="დანიშნულების ადგილი"
+                    label={t('newBooking.form.destination')}
                     value={arrivalDestination}
                     onChangeText={setArrivalDestination}
-                    placeholder="მაგ: სასტუმრო / ქალაქის ცენტრი"
+                    placeholder={t('newBooking.form.placeholders.destinationExample')}
                   />
                 </>
               ) : (
                 <>
                   <AuthInput
-                    label="სასტუმრო / მისამართი"
+                    label={t('newBooking.form.hotelAddress')}
                     value={departureAddress}
                     onChangeText={setDepartureAddress}
-                    placeholder="აღების ადგილი"
+                    placeholder={t('newBooking.form.pickupPlace')}
                   />
                   <DateTimeField
-                    label="გამგზავრების თარიღი და დრო"
+                    label={t('newBooking.form.departureDateTime')}
                     value={departureDateTime}
                     onChange={setDepartureDateTime}
-                    placeholder="აირჩიეთ თარიღი და დრო"
+                    placeholder={t('newBooking.form.placeholders.dateTime')}
                     minimumDate={new Date()}
                   />
                   <AuthInput
-                    label="აეროპორტი"
+                    label={t('newBooking.form.airport')}
                     value={departureAirport}
                     onChangeText={setDepartureAirport}
-                    placeholder="მაგ: თბილისის აეროპორტი"
+                    placeholder={t('newBooking.form.placeholders.airportExample')}
                   />
                 </>
               )}
@@ -1053,7 +1073,7 @@ export default function NewBookingScreen() {
             <View style={styles.compactDivider} />
 
             <AuthInput
-              label="მგზავრები"
+              label={t('newBooking.form.passengers')}
               value={passengers}
               onChangeText={setPassengers}
               keyboardType="number-pad"
@@ -1067,12 +1087,12 @@ export default function NewBookingScreen() {
 
             <View style={styles.compactRow}>
               <AuthInput
-                label="მგზავრის სახელი"
+                label={t('newBooking.form.passengerName')}
                 value={passengerName}
                 onChangeText={setPassengerName}
               />
               <AuthInput
-                label="ტელეფონი"
+                label={t('newBooking.form.phone')}
                 value={passengerPhone}
                 onChangeText={setPassengerPhone}
                 keyboardType="phone-pad"
@@ -1087,27 +1107,27 @@ export default function NewBookingScreen() {
               ]}
             >
               <Text style={meetGreet ? styles.meetToggleTextOn : styles.meetToggleTextOff}>
-                დასახვედრი პლაკატი
+                {t('newBooking.form.meetGreet')}
               </Text>
             </Pressable>
             {meetGreet ? (
               <AuthInput
-                label="პლაკატის ტექსტი"
+                label={t('newBooking.form.signText')}
                 value={signText}
                 onChangeText={setSignText}
-                placeholder="სახელი"
+                placeholder={t('newBooking.form.placeholders.signName')}
               />
             ) : null}
 
-            <Text style={styles.sectionHeader}>ფასები</Text>
+            <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
             <AuthInput
-              label="კლიენტის ფასი (₾)"
+              label={t('newBooking.form.clientPrice')}
               value={clientPriceStr}
               onChangeText={setClientPriceStr}
               keyboardType="decimal-pad"
-              placeholder="0"
+              placeholder={t('newBooking.form.placeholders.zero')}
             />
-            <Text style={styles.fieldLabel}>კომისია (₾ ან %)</Text>
+            <Text style={styles.fieldLabel}>{t('newBooking.form.commission')}</Text>
             <View style={styles.chips}>
               <Pressable
                 onPress={() => setCommissionMode('gel')}
@@ -1129,29 +1149,35 @@ export default function NewBookingScreen() {
               </Pressable>
             </View>
             <AuthInput
-              label={commissionMode === 'gel' ? 'კომისია (₾)' : 'კომისია (%)'}
+              label={
+                commissionMode === 'gel'
+                  ? t('newBooking.form.commissionGel')
+                  : t('newBooking.form.commissionPct')
+              }
               value={commissionStr}
               onChangeText={setCommissionStr}
               keyboardType="decimal-pad"
-              placeholder={commissionMode === 'gel' ? '0' : 'მაგ: 10'}
+              placeholder={
+                commissionMode === 'gel'
+                  ? t('newBooking.form.placeholders.zero')
+                  : t('newBooking.form.placeholders.commissionPctExample')
+              }
             />
             {clientGelParsed > 0 ? (
               <View style={styles.incomeRow}>
-                <Text style={styles.incomeLabel}>თქვენი შემოსავალი</Text>
+                <Text style={styles.incomeLabel}>{t('newBooking.form.yourIncome')}</Text>
                 <Text style={styles.incomeValue}>{formatGel(companyIncomePreview)}</Text>
               </View>
             ) : (
-              <Text style={styles.incomeHint}>
-                შეიყვანეთ კლიენტის ფასი — ნაჩვენები იქნება თქვენი შემოსავალი კომისიის გამოკლებით.
-              </Text>
+              <Text style={styles.incomeHint}>{t('newBooking.form.incomeHint')}</Text>
             )}
             <Text style={styles.driverPayNote}>
-              მძღოლის ანაზღაურება (სისტემის ფასი): {formatGel(price)}
+              {t('newBooking.form.driverPayInline', { amount: formatGel(price) })}
             </Text>
 
-            <Text style={styles.sectionHeader}>შენიშვნა</Text>
+            <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
-              label="კომენტარი"
+              label={t('newBooking.form.comment')}
               value={comment}
               onChangeText={setComment}
               multiline
@@ -1162,26 +1188,26 @@ export default function NewBookingScreen() {
 
         {step === 2 && booking_kind === 'dayTour' && (
           <View style={styles.block}>
-            <Text style={styles.dayTourTitle}>ერთდღიანი ტურის დეტალები</Text>
+            <Text style={styles.dayTourTitle}>{t('newBooking.form.dayTourDetails')}</Text>
 
             <AuthInput
-              label="ტურის აღწერა / მარშრუტი"
+              label={t('newBooking.form.tourDescription')}
               value={tourRouteDescription}
               onChangeText={setTourRouteDescription}
               multiline
               style={styles.textArea}
-              placeholder="მაგ: მარშრუტი, ღირსშესანიშნაობები, დროის ჩარჩო..."
+              placeholder={t('newBooking.form.placeholders.dayTourDesc')}
             />
 
             <DateTimeField
-              label="თარიღი და დრო"
+              label={t('newBooking.form.dateTime')}
               value={bookingDateTime}
               onChange={setBookingDateTime}
-              placeholder="აირჩიეთ თარიღი და დრო"
+              placeholder={t('newBooking.form.placeholders.dateTime')}
               minimumDate={new Date()}
             />
             <AuthInput
-              label="მგზავრები"
+              label={t('newBooking.form.passengers')}
               value={passengers}
               onChangeText={setPassengers}
               keyboardType="number-pad"
@@ -1189,20 +1215,20 @@ export default function NewBookingScreen() {
 
             <View style={styles.dayTourCard}>
               <AuthInput
-                label="საიდან"
+                label={t('newBooking.form.from')}
                 value={days[0]?.from ?? ''}
-                onChangeText={(t) => patchDay(0, { from: t })}
+                onChangeText={(text) => patchDay(0, { from: text })}
               />
               <AuthInput
-                label="სად"
+                label={t('newBooking.form.to')}
                 value={days[0]?.to ?? ''}
-                onChangeText={(t) => patchDay(0, { to: t })}
+                onChangeText={(text) => patchDay(0, { to: text })}
               />
               <AuthInput
-                label="გაჩერებები"
+                label={t('newBooking.form.stops')}
                 value={days[0]?.stops ?? ''}
-                onChangeText={(t) => patchDay(0, { stops: t })}
-                placeholder="მაგ: ბათუმი, ქუთაისი"
+                onChangeText={(text) => patchDay(0, { stops: text })}
+                placeholder={t('newBooking.form.placeholders.stopsExample')}
                 multiline
                 style={styles.textArea}
               />
@@ -1215,9 +1241,9 @@ export default function NewBookingScreen() {
               onVehicleClassChange={setVehicleClass}
             />
 
-            <Text style={styles.sectionHeader}>შენიშვნა</Text>
+            <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
-              label="კომენტარი"
+              label={t('newBooking.form.comment')}
               value={comment}
               onChangeText={setComment}
               multiline
@@ -1229,65 +1255,67 @@ export default function NewBookingScreen() {
         {step === 2 && booking_kind === 'tour' && (
           <View style={styles.block}>
             <AuthInput
-              label="ტურის აღწერა / მარშრუტი"
+              label={t('newBooking.form.tourDescription')}
               value={tourRouteDescription}
               onChangeText={setTourRouteDescription}
               multiline
               style={styles.textArea}
-              placeholder="მაგ: მრავალდღიანი ტურის სრული აღწერა, სასტუმროები, ქალაქები..."
+              placeholder={t('newBooking.form.placeholders.multiDayTourDesc')}
             />
 
-            <Text style={styles.sectionHeader}>ტრანსფერი — ჩამოსვლა</Text>
+            <Text style={styles.sectionHeader}>{t('newBooking.form.transferArrivalSection')}</Text>
             <DateTimeField
-              label="თარიღი და დრო"
+              label={t('newBooking.form.dateTime')}
               value={transferInDateTime}
               onChange={setTransferInDateTime}
-              placeholder="აირჩიეთ თარიღი და დრო"
+              placeholder={t('newBooking.form.placeholders.dateTime')}
               minimumDate={new Date()}
             />
             <AuthInput
-              label="ფრენის ნომერი"
+              label={t('newBooking.form.flightNo')}
               value={transferIn.flight}
-              onChangeText={(t) => setTransferIn((p) => ({ ...p, flight: t }))}
+              onChangeText={(text) => setTransferIn((p) => ({ ...p, flight: text }))}
               autoCapitalize="characters"
             />
             <AuthInput
-              label="მგზავრის სახელი გვარი"
+              label={t('newBooking.form.passengerFullName')}
               value={transferIn.passengerName}
-              onChangeText={(t) => setTransferIn((p) => ({ ...p, passengerName: t }))}
+              onChangeText={(text) => setTransferIn((p) => ({ ...p, passengerName: text }))}
             />
 
-            <Text style={styles.sectionHeader}>მარშრუტი დღეების მიხედვით</Text>
+            <Text style={styles.sectionHeader}>{t('newBooking.form.tourDays')}</Text>
             {days.map((day, dayIndex) => (
               <View key={`day-${day.day}-${dayIndex}`} style={styles.tourDayBlock}>
                 <View style={styles.tourDayHeaderRow}>
-                  <Text style={styles.tourDayTitle}>დღე {day.day}</Text>
+                  <Text style={styles.tourDayTitle}>
+                    {t('newBooking.form.dayN', { n: day.day })}
+                  </Text>
                   {dayIndex > 0 ? (
                     <Pressable
                       onPress={() => removeDay(dayIndex)}
                       hitSlop={10}
-                      accessibilityLabel="დღის წაშლა"
+                      accessibilityLabel={t('newBooking.form.removeDayA11y')}
                       style={({ pressed }) => [styles.tourDayRemoveBtn, pressed && styles.pressed]}
                     >
-                      <Text style={styles.tourDayRemoveText}>წაშლა</Text>
+                      <Text style={styles.tourDayRemoveText}>{t('newBooking.form.removeDay')}</Text>
                     </Pressable>
                   ) : null}
                 </View>
                 <AuthInput
-                  label="საიდან"
+                  label={t('newBooking.form.from')}
                   value={day.from}
-                  onChangeText={(t) => patchDay(dayIndex, { from: t })}
+                  onChangeText={(text) => patchDay(dayIndex, { from: text })}
                 />
                 <AuthInput
-                  label="სად"
+                  label={t('newBooking.form.to')}
                   value={day.to}
-                  onChangeText={(t) => patchDay(dayIndex, { to: t })}
+                  onChangeText={(text) => patchDay(dayIndex, { to: text })}
                 />
                 <AuthInput
-                  label="გაჩერებები"
+                  label={t('newBooking.form.stops')}
                   value={day.stops}
-                  onChangeText={(t) => patchDay(dayIndex, { stops: t })}
-                  placeholder="მაგ: ბათუმი, ქუთაისი"
+                  onChangeText={(text) => patchDay(dayIndex, { stops: text })}
+                  placeholder={t('newBooking.form.placeholders.stopsExample')}
                   multiline
                   style={styles.textArea}
                 />
@@ -1298,32 +1326,32 @@ export default function NewBookingScreen() {
                 onPress={addDay}
                 style={({ pressed }) => [styles.addDayOutline, pressed && styles.pressed]}
               >
-                <Text style={styles.addDayOutlineText}>+ დღის დამატება</Text>
+                <Text style={styles.addDayOutlineText}>{t('newBooking.form.addDay')}</Text>
               </Pressable>
             ) : null}
 
-            <Text style={styles.sectionHeader}>ტრანსფერი — გამგზავრება</Text>
+            <Text style={styles.sectionHeader}>{t('newBooking.form.transferDepartureSection')}</Text>
             <DateTimeField
-              label="თარიღი და დრო"
+              label={t('newBooking.form.dateTime')}
               value={transferOutDateTime}
               onChange={setTransferOutDateTime}
-              placeholder="აირჩიეთ თარიღი და დრო"
+              placeholder={t('newBooking.form.placeholders.dateTime')}
               minimumDate={new Date()}
             />
             <AuthInput
-              label="ფრენის ნომერი"
+              label={t('newBooking.form.flightNo')}
               value={transferOut.flight}
-              onChangeText={(t) => setTransferOut((p) => ({ ...p, flight: t }))}
+              onChangeText={(text) => setTransferOut((p) => ({ ...p, flight: text }))}
               autoCapitalize="characters"
             />
             <AuthInput
-              label="მგზავრის სახელი გვარი"
+              label={t('newBooking.form.passengerFullName')}
               value={transferOut.passengerName}
-              onChangeText={(t) => setTransferOut((p) => ({ ...p, passengerName: t }))}
+              onChangeText={(text) => setTransferOut((p) => ({ ...p, passengerName: text }))}
             />
 
             <AuthInput
-              label="მგზავრები"
+              label={t('newBooking.form.passengers')}
               value={passengers}
               onChangeText={setPassengers}
               keyboardType="number-pad"
@@ -1335,8 +1363,13 @@ export default function NewBookingScreen() {
               onVehicleClassChange={setVehicleClass}
             />
 
-            <Text style={styles.sectionHeader}>შენიშვნა</Text>
-            <AuthInput label="კომენტარი" value={comment} onChangeText={setComment} multiline />
+            <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
+            <AuthInput
+              label={t('newBooking.form.comment')}
+              value={comment}
+              onChangeText={setComment}
+              multiline
+            />
           </View>
         )}
 
@@ -1345,75 +1378,91 @@ export default function NewBookingScreen() {
             <View style={styles.priceBox}>
               {booking_kind === 'transfer' ? (
                 <>
-                  <Text style={styles.priceLabel}>მძღოლის ანაზღაურება (სისტემის ფასი)</Text>
+                  <Text style={styles.priceLabel}>{t('newBooking.form.driverPayLabel')}</Text>
                   <Text style={styles.priceBig}>{formatGel(price)}</Text>
                   {clientGelParsed > 0 ? (
                     <>
                       <View style={styles.priceSplit}>
-                        <Text style={styles.priceSubLabel}>კლიენტის ფასი</Text>
+                        <Text style={styles.priceSubLabel}>{t('newBooking.form.clientPriceShort')}</Text>
                         <Text style={styles.priceSubValue}>{formatGel(clientGelParsed)}</Text>
                       </View>
                       {commissionGelPreview > 0 ? (
                         <View style={styles.priceSplit}>
-                          <Text style={styles.priceSubLabel}>კომისია (₾)</Text>
+                          <Text style={styles.priceSubLabel}>{t('newBooking.form.commissionGel')}</Text>
                           <Text style={styles.priceSubValue}>{formatGel(commissionGelPreview)}</Text>
                         </View>
                       ) : null}
                       <View style={[styles.priceSplit, styles.priceIncomeRow]}>
-                        <Text style={styles.priceIncomeLabel}>თქვენი შემოსავალი</Text>
+                        <Text style={styles.priceIncomeLabel}>{t('newBooking.form.yourIncome')}</Text>
                         <Text style={styles.priceIncomeValue}>{formatGel(companyIncomePreview)}</Text>
                       </View>
                     </>
                   ) : null}
                   <Text style={styles.priceNote}>
-                    საბოლოო ფასი დადასტურდება მენეჯერის მიერ. ჩათვლილია მგზავრები: {pax}, კლასი:{' '}
-                    {vehicleClassLabel(vehicleClass)}.
+                    {t('newBooking.form.finalPriceNote', {
+                      pax,
+                      class: vehicleClassLabel(vehicleClass),
+                    })}
                   </Text>
                 </>
               ) : (
                 <>
-                  <Text style={styles.priceLabel}>სავარაუდო ფასი</Text>
+                  <Text style={styles.priceLabel}>{t('newBooking.form.estimatedPrice')}</Text>
                   <Text style={styles.priceBig}>{formatGel(price)}</Text>
                   <Text style={styles.priceNote}>
-                    საბოლოო ფასი დადასტურდება მენეჯერის მიერ. ჩათვლილია მგზავრები: {pax}, კლასი:{' '}
-                    {vehicleClassLabel(vehicleClass)}.
+                    {t('newBooking.form.estimatedPriceNote', {
+                      pax,
+                      class: vehicleClassLabel(vehicleClass),
+                    })}
                   </Text>
                 </>
               )}
             </View>
-            <Text style={styles.fieldLabel}>გადახდის მეთოდი</Text>
-            {(['ახლა', 'შემდეგ', 'კლიენტის ბარათით'] as PaymentWhen[]).map((p) => (
+            <Text style={styles.fieldLabel}>{t('newBooking.form.paymentMethod')}</Text>
+            {PAYMENT_OPTIONS.map((p) => (
               <Pressable
                 key={p}
                 onPress={() => setPaymentWhen(p)}
                 style={[styles.payRow, paymentWhen === p && styles.payRowActive]}
               >
-                <Text style={[styles.payText, paymentWhen === p && styles.payTextActive]}>{p}</Text>
+                <Text style={[styles.payText, paymentWhen === p && styles.payTextActive]}>
+                  {paymentLabel(p)}
+                </Text>
               </Pressable>
             ))}
             <View style={[styles.voucher, SHADOWS.gold, styles.voucherSpaced]}>
-              <Text style={styles.voucherTitle}>ვაუჩერი</Text>
+              <Text style={styles.voucherTitle}>{t('newBooking.form.voucherTitle')}</Text>
               <Text style={styles.voucherId}>{previewVoucherId}</Text>
               <View style={styles.vDivider} />
-              <Text style={styles.vLine}>კომპანია: {companyName}</Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherCompany')}: {companyName}
+              </Text>
               {selectedOperatorName?.trim() ? (
-                <Text style={styles.vLine}>ოპერატორი: {selectedOperatorName.trim()}</Text>
+                <Text style={styles.vLine}>
+                  {t('newBooking.form.voucherOperator')}: {selectedOperatorName.trim()}
+                </Text>
               ) : null}
               <Text style={styles.vLine}>
-                ტიპი: {bookingKindUiLabel(booking_kind, transferTab)}
+                {t('newBooking.form.voucherType')}: {bookingKindUiLabel(booking_kind, transferTab)}
               </Text>
-              <Text style={styles.vLine}>ტრანსპორტი: {vehicleTypeLabel(selectedVehicleType)}</Text>
-              <Text style={styles.vLine}>კლასი: {vehicleClassLabel(vehicleClass)}</Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherVehicle')}: {vehicleTypeLabel(selectedVehicleType)}
+              </Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherClass')}: {vehicleClassLabel(vehicleClass)}
+              </Text>
               {(booking_kind === 'tour' || booking_kind === 'dayTour') &&
               tourRouteDescription.trim() ? (
                 <Text style={styles.vLineMuted}>
-                  ტურის აღწერა: {tourRouteDescription.trim()}
+                  {t('newBooking.form.voucherTourDesc')}: {tourRouteDescription.trim()}
                 </Text>
               ) : null}
               {booking_kind === 'transfer' ? (
                 <>
                   <Text style={styles.vLine}>
-                    {transferTab === 'arrival' ? 'ჩამოსვლა' : 'გამგზავრება'}
+                    {transferTab === 'arrival'
+                      ? t('newBooking.form.voucherArrival')
+                      : t('newBooking.form.voucherDeparture')}
                   </Text>
                   <Text style={styles.vLine}>
                     {transferTab === 'arrival'
@@ -1427,10 +1476,14 @@ export default function NewBookingScreen() {
                     <Text style={styles.vLine}>{formatDisplayDateTime(departureDateTime)}</Text>
                   ) : null}
                   {transferTab === 'arrival' && arrivalFlightNo.trim() ? (
-                    <Text style={styles.vLineMuted}>რეისი: {arrivalFlightNo.trim()}</Text>
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherFlight')}: {arrivalFlightNo.trim()}
+                    </Text>
                   ) : null}
                   {passengerName.trim() ? (
-                    <Text style={styles.vLineMuted}>მგზავრი: {passengerName.trim()}</Text>
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherPassenger')}: {passengerName.trim()}
+                    </Text>
                   ) : null}
                 </>
               ) : booking_kind === 'dayTour' ? (
@@ -1442,7 +1495,9 @@ export default function NewBookingScreen() {
                     <Text style={styles.vLineMuted}>{formatDisplayDateTime(bookingDateTime)}</Text>
                   ) : null}
                   {days[0]?.stops.trim() ? (
-                    <Text style={styles.vLineMuted}>გაჩერებები: {days[0].stops.trim()}</Text>
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherStops')}: {days[0].stops.trim()}
+                    </Text>
                   ) : null}
                 </>
               ) : (
@@ -1451,40 +1506,70 @@ export default function NewBookingScreen() {
                     transferIn.flight.trim() ||
                     transferIn.passengerName.trim()) && (
                     <Text style={styles.vLineMuted}>
-                      ჩამოსვლა:{' '}
-                      {transferInDateTime ? formatDisplayDateTime(transferInDateTime) : '—'} · ფრენა{' '}
-                      {transferIn.flight.trim() || '—'} · {transferIn.passengerName.trim() || '—'}
+                      {t('newBooking.form.voucherTransferInDetail', {
+                        datetime: transferInDateTime
+                          ? formatDisplayDateTime(transferInDateTime)
+                          : '—',
+                        flight: transferIn.flight.trim() || '—',
+                        passenger: transferIn.passengerName.trim() || '—',
+                      })}
                     </Text>
                   )}
                   {days.map((d) => (
                     <Text key={`preview-day-${d.day}`} style={styles.vLineMuted}>
-                      დღე {d.day}: {d.from.trim() || '—'} → {d.to.trim() || '—'}
-                      {d.stops.trim() ? ` · გაჩერებები: ${d.stops.trim()}` : ''}
+                      {d.stops.trim()
+                        ? t('newBooking.form.voucherDayRouteWithStops', {
+                            day: d.day,
+                            from: d.from.trim() || '—',
+                            to: d.to.trim() || '—',
+                            stops: d.stops.trim(),
+                          })
+                        : t('newBooking.dayLine', {
+                            day: d.day,
+                            from: d.from.trim() || '—',
+                            to: d.to.trim() || '—',
+                          })}
                     </Text>
                   ))}
                   {(transferOutDateTime ||
                     transferOut.flight.trim() ||
                     transferOut.passengerName.trim()) && (
                     <Text style={styles.vLineMuted}>
-                      გამგზავრება:{' '}
-                      {transferOutDateTime ? formatDisplayDateTime(transferOutDateTime) : '—'} · ფრენა{' '}
-                      {transferOut.flight.trim() || '—'} · {transferOut.passengerName.trim() || '—'}
+                      {t('newBooking.form.voucherTransferOutDetail', {
+                        datetime: transferOutDateTime
+                          ? formatDisplayDateTime(transferOutDateTime)
+                          : '—',
+                        flight: transferOut.flight.trim() || '—',
+                        passenger: transferOut.passengerName.trim() || '—',
+                      })}
                     </Text>
                   )}
                 </>
               )}
-              <Text style={styles.vLine}>მგზავრები: {pax}</Text>
-              <Text style={styles.vLine}>გადახდა: {paymentWhen}</Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherPassengers')}: {pax}
+              </Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherPayment')}: {paymentLabel(paymentWhen)}
+              </Text>
               {booking_kind === 'transfer' && clientGelParsed > 0 ? (
                 <>
-                  <Text style={styles.vLineMuted}>კლიენტის ფასი: {formatGel(clientGelParsed)}</Text>
+                  <Text style={styles.vLineMuted}>
+                    {t('newBooking.form.voucherClientPrice')}: {formatGel(clientGelParsed)}
+                  </Text>
                   {commissionGelPreview > 0 ? (
-                    <Text style={styles.vLineMuted}>კომისია: {formatGel(commissionGelPreview)}</Text>
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherCommission')}: {formatGel(commissionGelPreview)}
+                    </Text>
                   ) : null}
-                  <Text style={styles.vLineMuted}>შემოსავალი: {formatGel(companyIncomePreview)}</Text>
+                  <Text style={styles.vLineMuted}>
+                    {t('newBooking.form.voucherIncome')}: {formatGel(companyIncomePreview)}
+                  </Text>
                 </>
               ) : null}
-              <Text style={styles.vPrice}>მძღოლი: {formatGel(price)}</Text>
+              <Text style={styles.vPrice}>
+                {t('newBooking.form.voucherDriver')}: {formatGel(price)}
+              </Text>
             </View>
 
             <MatchingDriversSection
@@ -1513,7 +1598,7 @@ export default function NewBookingScreen() {
               {submitting ? (
                 <ActivityIndicator color={COLORS.white} size="small" />
               ) : (
-                <Text style={styles.btnPrimaryText}>დაჯავშნა</Text>
+                <Text style={styles.btnPrimaryText}>{t('newBooking.submit')}</Text>
               )}
             </Pressable>
           </View>
@@ -1525,7 +1610,7 @@ export default function NewBookingScreen() {
               onPress={() => setStep((s) => Math.max(1, s - 1))}
               style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
             >
-              <Text style={styles.btnSecondaryText}>უკან</Text>
+              <Text style={styles.btnSecondaryText}>{t('common.back')}</Text>
             </Pressable>
           )}
           {step < 3 && (
@@ -1546,7 +1631,7 @@ export default function NewBookingScreen() {
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.btnPrimaryText}>შემდეგი</Text>
+              <Text style={styles.btnPrimaryText}>{t('common.next')}</Text>
             </Pressable>
           )}
         </View>

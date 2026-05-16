@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,6 +38,7 @@ type SubmittedUser = {
 };
 
 export default function AdminVerifyScreen() {
+  const { t } = useTranslation();
   const { profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -76,19 +78,20 @@ export default function AdminVerifyScreen() {
 
   function promptRejectReason(): Promise<string | null> {
     if (Platform.OS === 'web') {
-      const v = typeof window !== 'undefined' ? window.prompt('უარყოფის მიზეზი:', '') : null;
-      const t = v?.trim();
-      return Promise.resolve(t && t.length > 0 ? t : null);
+      const v =
+        typeof window !== 'undefined' ? window.prompt(t('adminVerify.rejectReasonWeb'), '') : null;
+      const trimmed = v?.trim();
+      return Promise.resolve(trimmed && trimmed.length > 0 ? trimmed : null);
     }
     if (Platform.OS === 'ios') {
       return new Promise((resolve) => {
         Alert.prompt(
-          'უარყოფა',
-          'შეიყვანეთ მიზეზი',
+          t('adminVerify.rejectTitle'),
+          t('adminVerify.rejectPrompt'),
           [
-            { text: 'გაუქმება', style: 'cancel', onPress: () => resolve(null) },
+            { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(null) },
             {
-              text: 'კი',
+              text: t('adminVerify.confirmYes'),
               onPress: (text?: string) => {
                 const r = (text ?? '').trim();
                 resolve(r.length > 0 ? r : null);
@@ -132,7 +135,7 @@ export default function AdminVerifyScreen() {
       .eq('id', targetUserId);
     setActingId(null);
     if (err) {
-      Alert.alert('შეცდომა', err.message);
+      Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
     await load();
@@ -151,7 +154,7 @@ export default function AdminVerifyScreen() {
       .eq('id', targetUserId);
     setActingId(null);
     if (err) {
-      Alert.alert('შეცდომა', err.message);
+      Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
     await load();
@@ -173,9 +176,9 @@ export default function AdminVerifyScreen() {
           { paddingTop: insets.top + SPACING.xl, paddingHorizontal: SPACING.lg },
         ]}
       >
-        <Text style={styles.forbidden}>წვდომა აკრძალულია</Text>
+        <Text style={styles.forbidden}>{t('adminVerify.forbidden')}</Text>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>უკან</Text>
+          <Text style={styles.backBtnText}>{t('common.back')}</Text>
         </Pressable>
       </View>
     );
@@ -192,16 +195,16 @@ export default function AdminVerifyScreen() {
       >
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} style={styles.backLink}>
-            <Text style={styles.backLinkText}>← უკან</Text>
+            <Text style={styles.backLinkText}>← {t('common.back')}</Text>
           </Pressable>
-          <Text style={styles.title}>ადმინი · ვერიფიკაცია</Text>
+          <Text style={styles.title}>{t('adminVerify.screenTitle')}</Text>
         </View>
 
         {error ? (
           <View style={styles.errBox}>
             <Text style={styles.errText}>{error}</Text>
             <Pressable onPress={() => void load()} style={styles.retry}>
-              <Text style={styles.retryText}>ხელახლა</Text>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -209,7 +212,7 @@ export default function AdminVerifyScreen() {
         {loading ? (
           <ActivityIndicator color={COLORS.gold} style={{ marginTop: SPACING.xl }} size="large" />
         ) : rows.length === 0 ? (
-          <Text style={styles.empty}>მოლოდინში მძღოლები არ არის</Text>
+          <Text style={styles.empty}>{t('adminVerify.emptyPending')}</Text>
         ) : (
           rows.map((u) => (
             <View key={u.id} style={styles.card}>
@@ -250,7 +253,7 @@ export default function AdminVerifyScreen() {
                   {actingId === u.id ? (
                     <ActivityIndicator color="#0f0f0f" />
                   ) : (
-                    <Text style={styles.approveText}>დამტკიცება ✅</Text>
+                    <Text style={styles.approveText}>{t('adminVerify.approveAction')}</Text>
                   )}
                 </Pressable>
                 <Pressable
@@ -261,7 +264,7 @@ export default function AdminVerifyScreen() {
                     (pressed || actingId === u.id) && styles.rejectPressed,
                   ]}
                 >
-                  <Text style={styles.rejectText}>უარყოფა ❌</Text>
+                  <Text style={styles.rejectText}>{t('adminVerify.rejectAction')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -272,21 +275,21 @@ export default function AdminVerifyScreen() {
       <Modal visible={rejectModalOpen} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>უარყოფის მიზეზი</Text>
+            <Text style={styles.modalTitle}>{t('adminVerify.modalTitle')}</Text>
             <TextInput
               value={rejectReason}
               onChangeText={setRejectReason}
-              placeholder="მიზეზი…"
+              placeholder={t('adminVerify.modalPlaceholder')}
               placeholderTextColor={COLORS.gray}
               style={styles.modalInput}
               multiline
             />
             <View style={styles.modalBtns}>
               <Pressable onPress={cancelRejectModal} style={styles.modalCancel}>
-                <Text style={styles.modalCancelText}>გაუქმება</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </Pressable>
               <Pressable onPress={confirmRejectModal} style={styles.modalOk}>
-                <Text style={styles.modalOkText}>გაგზავნა</Text>
+                <Text style={styles.modalOkText}>{t('verificationScreen.submit')}</Text>
               </Pressable>
             </View>
           </View>

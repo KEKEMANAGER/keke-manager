@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 
 const TBILISI: Region = {
@@ -13,6 +14,7 @@ const TBILISI: Region = {
 };
 
 export default function DriverGpsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView | null>(null);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
@@ -79,10 +81,8 @@ export default function DriverGpsScreen() {
   if (Platform.OS === 'web') {
     return (
       <View style={[styles.screen, styles.webFallback, { paddingTop: insets.top + SPACING.lg }]}>
-        <Text style={styles.webTitle}>GPS / რუკა</Text>
-        <Text style={styles.webBody}>
-          ინტერაქტიული რუკა ხელმისაწვდომია iOS და Android აპში. ვებ ვერსიაში გამოიყენეთ მობილური აპი ტურის ტრეკინგისთვის.
-        </Text>
+        <Text style={styles.webTitle}>{t('gpsScreen.title')}</Text>
+        <Text style={styles.webBody}>{t('gpsScreen.webBody')}</Text>
       </View>
     );
   }
@@ -97,14 +97,14 @@ export default function DriverGpsScreen() {
         showsMyLocationButton={false}
       >
         {isTracking && currentLocation ? (
-          <Marker coordinate={currentLocation} pinColor="blue" title="თქვენი პოზიცია" />
+          <Marker coordinate={currentLocation} pinColor="blue" title={t('gpsScreen.yourPosition')} />
         ) : null}
       </MapView>
 
       <View style={[styles.badgeWrap, { top: insets.top + SPACING.sm }]}>
         <View style={[styles.badge, isTracking ? styles.badgeOn : styles.badgeOff]}>
           <Text style={[styles.badgeText, isTracking ? styles.badgeTextOn : styles.badgeTextOff]}>
-            {isTracking ? 'GPS აქტიურია 🟢' : 'GPS გამორთულია'}
+            {isTracking ? t('gpsScreen.active') : t('gpsScreen.inactive')}
           </Text>
         </View>
       </View>
@@ -119,7 +119,7 @@ export default function DriverGpsScreen() {
           ]}
         >
           <Text style={[styles.toggleText, isTracking && styles.toggleTextOnRed]}>
-            {isTracking ? 'ტური დასრულება' : 'ტური დაწყება'}
+            {isTracking ? t('gpsScreen.endTour') : t('gpsScreen.startTour')}
           </Text>
         </Pressable>
       </View>

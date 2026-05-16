@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -24,17 +25,18 @@ import {
   type VerificationStatus,
 } from '../../lib/verification';
 
-const STEPS = [
-  { key: 'license' as const, title: 'მართვის მოწმობა', hint: 'ატვირთეთ მართვის მოწმობის ფოტო' },
-  { key: 'id' as const, title: 'პირადობა', hint: 'ატვირთეთ პირადობის მოწმობის ფოტო' },
-  { key: 'registration' as const, title: 'ავტომობილის მოწმობა', hint: 'ატვირთეთ საერთო სატრანსპორტო საშუალების სარეგისტრაციო მოწმობა' },
-];
+const STEP_KEYS = [
+  { key: 'license' as const, titleKey: 'license', hintKey: 'licenseHint' },
+  { key: 'id' as const, titleKey: 'id', hintKey: 'idHint' },
+  { key: 'registration' as const, titleKey: 'registration', hintKey: 'registrationHint' },
+] as const;
 
 function isRemoteUrl(s: string | null): boolean {
   return !!s && (s.startsWith('http://') || s.startsWith('https://'));
 }
 
 export default function DriverVerificationScreen() {
+  const { t } = useTranslation();
   const { user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
   const userId = user?.id;
@@ -81,8 +83,8 @@ export default function DriverVerificationScreen() {
     setIsVerified(!!row?.is_verified);
     setRejectionReason(row?.rejection_reason?.trim() || null);
     const bust = (u: string | null | undefined) => {
-      const t = u?.trim() || null;
-      return t && isRemoteUrl(t) ? withCacheBust(t) ?? t : t;
+      const trimmed = u?.trim() || null;
+      return trimmed && isRemoteUrl(trimmed) ? withCacheBust(trimmed) ?? trimmed : trimmed;
     };
     setLicensePhoto(bust(row?.license_photo));
     setIdPhoto(bust(row?.id_photo));
@@ -101,7 +103,7 @@ export default function DriverVerificationScreen() {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        setSubmitError('ფოტოებზე წვდომა უარყოფილია.');
+        setSubmitError(t('profilePage.photoPermissionDenied'));
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
@@ -122,14 +124,14 @@ export default function DriverVerificationScreen() {
   async function onSubmit() {
     if (!userId) return;
     if (!licensePhoto || !idPhoto || !vehicleRegPhoto) {
-      setSubmitError('სამივე ფოტო სავალდებულოა');
+      setSubmitError(t('verificationScreen.allPhotosRequired'));
       return;
     }
     setSubmitting(true);
     setSubmitError(null);
     try {
       const resolveUrl = async (uri: string | null, slot: 'license' | 'id' | 'registration') => {
-        if (!uri) throw new Error('ფოტო აკლია');
+        if (!uri) throw new Error(t('verificationScreen.photoMissing'));
         if (isRemoteUrl(uri)) return storagePublicUrlBase(uri.trim());
         const mime = 'image/jpeg';
         const path = verificationPhotoObjectPath(userId, slot);
@@ -153,7 +155,7 @@ export default function DriverVerificationScreen() {
       }
       await load();
     } catch (e: unknown) {
-      setSubmitError(e instanceof Error ? e.message : 'ატვირთვა ვერ მოხერხდა');
+      setSubmitError(e instanceof Error ? e.message : t('vehicleScreen.uploadFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -173,7 +175,7 @@ export default function DriverVerificationScreen() {
   if (!userId) {
     return (
       <View style={[styles.center, { paddingTop: insets.top + SPACING.xl }]}>
-        <Text style={styles.muted}>შედით ანგარიშით</Text>
+        <Text style={styles.muted}>{t('verificationScreen.signInRequired')}</Text>
       </View>
     );
   }
@@ -183,7 +185,7 @@ export default function DriverVerificationScreen() {
       <View style={[styles.center, { paddingTop: insets.top + SPACING.xl, paddingHorizontal: SPACING.lg }]}>
         <Text style={styles.err}>{loadError}</Text>
         <Pressable onPress={() => void load()} style={styles.retry}>
-          <Text style={styles.retryText}>ხელახლა</Text>
+          <Text style={styles.retryText}>{t('common.retry')}</Text>
         </Pressable>
       </View>
     );
@@ -200,10 +202,10 @@ export default function DriverVerificationScreen() {
       >
         <Text style={styles.bigEmoji}>✅</Text>
         <View style={[styles.badge, styles.badgeOk]}>
-          <Text style={styles.badgeTextOk}>დამოწმებული</Text>
+          <Text style={styles.badgeTextOk}>{t('verificationScreen.verifiedBadge')}</Text>
         </View>
-        <Text style={styles.title}>თქვენი პროფილი ვერიფიცირებულია</Text>
-        <Text style={styles.sub}>გმადლობთ — შეგიძლიათ მიიღოთ ჯავშნები პლატფორმაზე.</Text>
+        <Text style={styles.title}>{t('verificationScreen.verifiedTitle')}</Text>
+        <Text style={styles.sub}>{t('verificationScreen.verifiedSub')}</Text>
       </ScrollView>
     );
   }
@@ -219,15 +221,15 @@ export default function DriverVerificationScreen() {
       >
         <Text style={styles.bigEmoji}>⏳</Text>
         <View style={[styles.badge, styles.badgePending]}>
-          <Text style={styles.badgeTextPending}>მოლოდინში</Text>
+          <Text style={styles.badgeTextPending}>{t('verificationScreen.pendingBadge')}</Text>
         </View>
-        <Text style={styles.title}>დოკუმენტები განხილვაშია</Text>
-        <Text style={styles.sub}>ადმინისტრაცია მალე განაახლებს სტატუსს — შეგიძლიათ მოგვიანებით ჩამორთოთ ეს გვერდი.</Text>
+        <Text style={styles.title}>{t('verificationScreen.pendingTitle')}</Text>
+        <Text style={styles.sub}>{t('verificationScreen.pendingSub')}</Text>
       </ScrollView>
     );
   }
 
-  const s = STEPS[step];
+  const s = STEP_KEYS[step];
   const currentUri = step === 0 ? licensePhoto : step === 1 ? idPhoto : vehicleRegPhoto;
 
   return (
@@ -239,27 +241,27 @@ export default function DriverVerificationScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.screenTitle}>ვერიფიკაცია</Text>
-      <Text style={styles.screenSub}>სამი ფოტო — მართვის მოწმობა, პირადობა, სარეგისტრაციო მოწმობა.</Text>
+      <Text style={styles.screenTitle}>{t('verificationScreen.title')}</Text>
+      <Text style={styles.screenSub}>{t('verificationScreen.screenSub')}</Text>
 
       {verificationStatus === 'rejected' && rejectionReason ? (
         <View style={styles.rejectBox}>
-          <Text style={styles.rejectTitle}>უარყოფილია</Text>
+          <Text style={styles.rejectTitle}>{t('verificationScreen.rejectedTitle')}</Text>
           <Text style={styles.rejectBody}>{rejectionReason}</Text>
-          <Text style={styles.rejectHint}>გთხოვთ ხელახლა ატვირთოთ სწორი დოკუმენტები და გაგზავნოთ.</Text>
+          <Text style={styles.rejectHint}>{t('verificationScreen.rejectedHint')}</Text>
         </View>
       ) : null}
 
       <View style={styles.stepDots}>
-        {STEPS.map((item, i) => (
+        {STEP_KEYS.map((item, i) => (
           <View key={item.key} style={[styles.dot, i === step && styles.dotOn]} />
         ))}
       </View>
       <Text style={styles.stepLabel}>
-        ნაბიჯი {step + 1} / {STEPS.length}
+        {t('verificationScreen.step', { current: step + 1, total: STEP_KEYS.length })}
       </Text>
-      <Text style={styles.title}>{s.title}</Text>
-      <Text style={styles.sub}>{s.hint}</Text>
+      <Text style={styles.title}>{t(`verificationScreen.${s.titleKey}`)}</Text>
+      <Text style={styles.sub}>{t(`verificationScreen.${s.hintKey}`)}</Text>
 
       <Pressable
         onPress={() => void pickForStep(step)}
@@ -269,7 +271,9 @@ export default function DriverVerificationScreen() {
         {picking ? (
           <ActivityIndicator color="#0f0f0f" />
         ) : (
-          <Text style={styles.pickBtnText}>{currentUri ? 'შეცვლა' : 'ფოტოს არჩევა'}</Text>
+          <Text style={styles.pickBtnText}>
+            {currentUri ? t('verificationScreen.replace') : t('verificationScreen.pickPhoto')}
+          </Text>
         )}
       </Pressable>
 
@@ -277,23 +281,23 @@ export default function DriverVerificationScreen() {
         <Image source={{ uri: currentUri }} style={styles.preview} resizeMode="contain" />
       ) : (
         <View style={styles.previewPlaceholder}>
-          <Text style={styles.previewPhText}>ფოტო არ არის არჩეული</Text>
+          <Text style={styles.previewPhText}>{t('verificationScreen.noPhoto')}</Text>
         </View>
       )}
 
       <View style={styles.navRow}>
         {step > 0 ? (
           <Pressable onPress={() => setStep((x) => x - 1)} style={styles.secondary} disabled={submitting}>
-            <Text style={styles.secondaryText}>უკან</Text>
+            <Text style={styles.secondaryText}>{t('common.back')}</Text>
           </Pressable>
         ) : (
           <View style={styles.secondary} />
         )}
-        {step < STEPS.length - 1 ? (
+        {step < STEP_KEYS.length - 1 ? (
           <Pressable
             onPress={() => {
               if (!currentUri) {
-                setSubmitError('ჯერ აირჩიეთ ფოტო');
+                setSubmitError(t('verificationScreen.pickFirst'));
                 return;
               }
               setSubmitError(null);
@@ -302,7 +306,7 @@ export default function DriverVerificationScreen() {
             style={styles.primary}
             disabled={submitting}
           >
-            <Text style={styles.primaryText}>შემდეგი</Text>
+            <Text style={styles.primaryText}>{t('verificationScreen.next')}</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -313,7 +317,7 @@ export default function DriverVerificationScreen() {
             {submitting ? (
               <ActivityIndicator color="#0f0f0f" />
             ) : (
-              <Text style={styles.primaryText}>გაგზავნა</Text>
+              <Text style={styles.primaryText}>{t('verificationScreen.submit')}</Text>
             )}
           </Pressable>
         )}

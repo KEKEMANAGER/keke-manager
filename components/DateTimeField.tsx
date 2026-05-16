@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { formatDisplayDateTime, formatDisplayTime, mergeDateAndTime } from '../lib/dateTime';
+import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 type PickerStep = 'none' | 'date' | 'time';
@@ -29,10 +30,12 @@ export function DateTimeField({
   label,
   value,
   onChange,
-  placeholder = 'აირჩიეთ თარიღი და დრო',
+  placeholder,
   mode = 'datetime',
   minimumDate,
 }: Props) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t('dateTimeField.default');
   const [step, setStep] = useState<PickerStep>('none');
   const [draft, setDraft] = useState<Date>(() => value ?? new Date());
   /** Date portion kept between Android/iOS date → time steps */
@@ -124,7 +127,7 @@ export function DateTimeField({
         accessibilityLabel={label}
       >
         <Text style={displayText ? styles.valueText : styles.placeholderText}>
-          {displayText || placeholder}
+          {displayText || resolvedPlaceholder}
         </Text>
       </Pressable>
 
@@ -143,11 +146,13 @@ export function DateTimeField({
           {Platform.OS === 'ios' ? (
             <View style={styles.iosActions}>
               <Pressable onPress={closePicker} style={styles.iosBtnGhost}>
-                <Text style={styles.iosBtnGhostText}>გაუქმება</Text>
+                <Text style={styles.iosBtnGhostText}>{t('dateTimeField.cancel')}</Text>
               </Pressable>
               <Pressable onPress={confirmIosStep} style={styles.iosBtnPrimary}>
                 <Text style={styles.iosBtnPrimaryText}>
-                  {step === 'date' && mode === 'datetime' ? 'შემდეგ → დრო' : 'დასრულება'}
+                  {step === 'date' && mode === 'datetime'
+                    ? t('dateTimeField.nextToTime')
+                    : t('dateTimeField.done')}
                 </Text>
               </Pressable>
             </View>

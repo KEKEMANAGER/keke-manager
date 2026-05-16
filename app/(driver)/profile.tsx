@@ -161,9 +161,9 @@ export default function DriverProfileScreen() {
     if (!user?.id) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      const permMsg = 'ფოტოებზე წვდომა უარყოფილია.';
+      const permMsg = t('profilePage.photoPermissionDenied');
       setPhotoError(permMsg);
-      showErrorAlert(permMsg, 'წვდომა');
+      showErrorAlert(permMsg, t('profilePage.permissionTitle'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -252,7 +252,7 @@ export default function DriverProfileScreen() {
     }
     if (!profilesRes.ok) {
       const message = mapSupabaseError(
-        profilesRes.error ?? new Error('ავტომობილის პარამეტრები ვერ შეინახა'),
+        profilesRes.error ?? new Error(t('profilePage.vehicleSaveFailed')),
       );
       setSaveError(message);
       showErrorAlert(message);
@@ -293,7 +293,7 @@ export default function DriverProfileScreen() {
             </View>
           ) : null}
         </Pressable>
-        <Text style={styles.photoHint}>შეეხეთ ფოტოს შესაცვლელად (Supabase: media/avatars/[user_id].jpg)</Text>
+        <Text style={styles.photoHint}>{t('profilePage.photoHint')}</Text>
         {photoError ? <Text style={styles.photoError}>{photoError}</Text> : null}
       </View>
 
@@ -320,7 +320,7 @@ export default function DriverProfileScreen() {
               label={t('profilePage.languages')}
               value={languages}
               onChangeText={setLanguages}
-              placeholder="ქართული, ინგლისური"
+              placeholder={t('profilePage.languagesPlaceholder')}
             />
             <Field
               label={t('profilePage.experience')}
@@ -329,14 +329,14 @@ export default function DriverProfileScreen() {
               keyboardType="number-pad"
             />
             <OptionChips
-              label="ავტომობილის ტიპი"
+              label={t('profilePage.vehicleTypeLabel')}
               options={vehicleTypeOptions}
               value={vehicleType}
               onChange={setVehicleType}
               disabled={saveBusy}
             />
             <OptionChips
-              label="ავტომობილის კლასი"
+              label={t('profilePage.vehicleClassLabel')}
               options={vehicleClassOptions}
               value={vehicleClass}
               onChange={setVehicleClass}
@@ -345,16 +345,16 @@ export default function DriverProfileScreen() {
           </>
         ) : (
           <>
-            <ViewField label="სახელი გვარი" value={name || '—'} />
-            <ViewField label="ბიო" value={bio || '—'} />
-            <ViewField label="ენები" value={languages || '—'} />
-            <ViewField label="გამოცდილება (წლები)" value={experienceYears || '—'} />
+            <ViewField label={t('profilePage.fullName')} value={name || '—'} />
+            <ViewField label={t('profilePage.bio')} value={bio || '—'} />
+            <ViewField label={t('profilePage.languages')} value={languages || '—'} />
+            <ViewField label={t('profilePage.experience')} value={experienceYears || '—'} />
             <ViewField
-              label="ავტომობილის ტიპი"
+              label={t('profilePage.vehicleTypeLabel')}
               value={vehicleType ? vehicleTypeLabel(vehicleType) : '—'}
             />
             <ViewField
-              label="ავტომობილის კლასი"
+              label={t('profilePage.vehicleClassLabel')}
               value={vehicleClass ? vehicleClassLabel(vehicleClass) : '—'}
             />
           </>
@@ -363,19 +363,16 @@ export default function DriverProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>ავტომობილი</Text>
-        <ViewField label="მოდელი" value={vehicleModel} />
-        <ViewField label="სანომრე ნიშანი" value={vehiclePlate} />
+        <Text style={styles.cardTitle}>{t('profilePage.vehicleCard')}</Text>
+        <ViewField label={t('vehicleScreen.model')} value={vehicleModel} />
+        <ViewField label={t('profilePage.plate')} value={vehiclePlate} />
       </View>
 
       <ProfileFeedbackEntry />
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>ხელმისაწვდომობა</Text>
-        <Text style={styles.availabilityHint}>
-          მიუთითეთ ზუსტი საათები, როცა დაკავებული ხართ — არა მთელი დღე. ჯავშნის დასრულებისას კალენდარი
-          ავტომატურად ითავისუფლება.
-        </Text>
+        <Text style={styles.cardTitle}>{t('profilePage.availability')}</Text>
+        <Text style={styles.availabilityHint}>{t('profilePage.availabilityHint')}</Text>
         <Pressable
           onPress={() => router.push('/(driver)/calendar')}
           style={({ pressed }) => [styles.calendarLink, pressed && { opacity: 0.9 }]}
@@ -385,15 +382,15 @@ export default function DriverProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>რეიტინგის დეტალები</Text>
+        <Text style={styles.cardTitle}>{t('profilePage.ratingDetails')}</Text>
         <View style={styles.overallRow}>
-          <Text style={styles.overallLabel}>საერთო</Text>
+          <Text style={styles.overallLabel}>{t('profilePage.overall')}</Text>
           <StarRow value={4.8} />
         </View>
-        <RatingBar label="დროულობა" value={MOCK_RATING_BREAKDOWN.punctuality} />
-        <RatingBar label="სისუფთავე" value={MOCK_RATING_BREAKDOWN.cleanliness} />
-        <RatingBar label="კომუნიკაცია" value={MOCK_RATING_BREAKDOWN.communication} />
-        <RatingBar label="ძალისმიერი მართვა" value={MOCK_RATING_BREAKDOWN.driving} />
+        <RatingBar label={t('profilePage.punctuality')} value={MOCK_RATING_BREAKDOWN.punctuality} />
+        <RatingBar label={t('profilePage.cleanliness')} value={MOCK_RATING_BREAKDOWN.cleanliness} />
+        <RatingBar label={t('profilePage.communication')} value={MOCK_RATING_BREAKDOWN.communication} />
+        <RatingBar label={t('profilePage.driving')} value={MOCK_RATING_BREAKDOWN.driving} />
       </View>
 
     </ScrollView>

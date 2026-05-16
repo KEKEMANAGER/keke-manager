@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -21,6 +22,7 @@ import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { showValidationAlert, validateEmail } from '../../lib/validation';
 
 export default function ForgotPasswordScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
@@ -75,20 +77,18 @@ export default function ForgotPasswordScreen() {
         <Text style={styles.tagline}>KEKE MANAGER</Text>
 
         <View style={styles.card}>
-          <Text style={styles.title}>პაროლის აღდგენა</Text>
-          <Text style={styles.subtitle}>
-            შეიყვანეთ ელფოსტა და გამოგიგზავნით აღდგენის ბმულს
-          </Text>
+          <Text style={styles.title}>{t('authScreen.forgotTitle')}</Text>
+          <Text style={styles.subtitle}>{t('authScreen.forgotSubtitle')}</Text>
 
           {sent ? (
             <View style={styles.successBox}>
               <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
-              <Text style={styles.successText}>აღდგენის ბმული გაიგზავნა! შეამოწმეთ ელფოსტა.</Text>
+              <Text style={styles.successText}>{t('authScreen.linkSentMessage')}</Text>
             </View>
           ) : (
             <>
               <AuthInput
-                label="ელფოსტა"
+                label={t('auth.email')}
                 autoCapitalize="none"
                 autoComplete="email"
                 keyboardType="email-address"
@@ -111,7 +111,7 @@ export default function ForgotPasswordScreen() {
                 {loading ? (
                   <ActivityIndicator color={COLORS.black} size="small" />
                 ) : (
-                  <Text style={styles.buttonText}>გაგზავნა</Text>
+                  <Text style={styles.buttonText}>{t('authScreen.sendLink')}</Text>
                 )}
               </Pressable>
             </>
@@ -122,15 +122,15 @@ export default function ForgotPasswordScreen() {
             hitSlop={8}
             style={({ pressed }) => [styles.backRow, pressed && styles.backPressed]}
           >
-            <Text style={styles.backLink}>უკან</Text>
+            <Text style={styles.backLink}>{t('common.back')}</Text>
           </Pressable>
 
           {!sent ? (
             <View style={styles.footerRow}>
-              <Text style={styles.footerMuted}>გაქვთ ანგარიში? </Text>
+              <Text style={styles.footerMuted}>{t('authScreen.haveAccount')} </Text>
               <Link href="/sign-in" asChild>
                 <Pressable hitSlop={8}>
-                  <Text style={styles.link}>შესვლა</Text>
+                  <Text style={styles.link}>{t('authScreen.signIn')}</Text>
                 </Pressable>
               </Link>
             </View>

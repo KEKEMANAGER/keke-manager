@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 export interface AnimatedSplashProps {
   onFinish: () => void;
 }
 
 export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
+  const { t } = useTranslation();
   const kOpacity = useRef(new Animated.Value(0)).current;
   const kScale = useRef(new Animated.Value(0.3)).current;
   const roadWidth = useRef(new Animated.Value(0)).current;
@@ -127,7 +129,7 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
           KEKE MANAGER
         </Animated.Text>
         <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
-          B2B სატრანსპორტო პლატფორმა
+          {t('auth.tagline')}
         </Animated.Text>
       </View>
     </Animated.View>

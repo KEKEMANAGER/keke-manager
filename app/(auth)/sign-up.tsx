@@ -18,6 +18,7 @@ import {
   type SignUpFieldErrors,
 } from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../constants/theme';
@@ -27,6 +28,7 @@ import { getUserRole } from '../../lib/role';
 type Role = KekeRole;
 
 export default function SignUpScreen() {
+  const { t } = useTranslation();
   const { user, profile, loading: authLoading, signUp } = useAuth();
   const existingRole = getUserRole(profile);
   const router = useRouter();
@@ -105,9 +107,9 @@ export default function SignUpScreen() {
         showsVerticalScrollIndicator={false}
       >
         <AppLogo size="auth" />
-        <Text style={styles.stepTitle}>რეგისტრაცია</Text>
+        <Text style={styles.stepTitle}>{t('authScreen.signUp')}</Text>
 
-        <Text style={styles.sectionLabel}>აირჩიეთ როლი</Text>
+        <Text style={styles.sectionLabel}>{t('authScreen.selectRole')}</Text>
         <View style={styles.roleRow}>
           <Pressable
             onPress={() => setRole('driver')}
@@ -119,9 +121,9 @@ export default function SignUpScreen() {
           >
             <Text style={styles.roleEmoji}>🚚</Text>
             <Text style={[styles.roleTitle, role === 'driver' && styles.roleTitleActive]}>
-              მძღოლი
+              {t('authScreen.roleDriver')}
             </Text>
-            <Text style={styles.roleHint}>ინდივიდუალური გადაზიდვები</Text>
+            <Text style={styles.roleHint}>{t('authScreen.roleDriverHint')}</Text>
           </Pressable>
           <Pressable
             onPress={() => setRole('company')}
@@ -133,22 +135,22 @@ export default function SignUpScreen() {
           >
             <Text style={styles.roleEmoji}>🏢</Text>
             <Text style={[styles.roleTitle, role === 'company' && styles.roleTitleActive]}>
-              კომპანია
+              {t('authScreen.roleCompany')}
             </Text>
-            <Text style={styles.roleHint}>B2B ლოგისტიკა</Text>
+            <Text style={styles.roleHint}>{t('authScreen.roleCompanyHint')}</Text>
           </Pressable>
         </View>
         {fieldErrors.role ? <Text style={styles.fieldError}>{fieldErrors.role}</Text> : null}
 
         <View style={styles.card}>
           <AuthInput
-            label="სრული სახელი"
+            label={t('authScreen.fullName')}
             value={fullName}
             onChangeText={setFullName}
             error={fieldErrors.fullName}
           />
           <AuthInput
-            label="ელფოსტა"
+            label={t('auth.email')}
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -156,7 +158,7 @@ export default function SignUpScreen() {
             error={fieldErrors.email}
           />
           <AuthInput
-            label="პაროლი"
+            label={t('auth.password')}
             secureTextEntry
             autoCapitalize="none"
             value={password}
@@ -182,16 +184,16 @@ export default function SignUpScreen() {
             {isSubmitting ? (
               <ActivityIndicator color={COLORS.white} size="small" />
             ) : (
-              <Text style={styles.buttonText}>რეგისტრაცია</Text>
+              <Text style={styles.buttonText}>{t('authScreen.signUp')}</Text>
             )}
           </Pressable>
         </View>
 
         <View style={styles.footerRow}>
-          <Text style={styles.footerMuted}>უკვე გაქვთ ანგარიში? </Text>
+          <Text style={styles.footerMuted}>{t('authScreen.haveAccount')} </Text>
           <Link href="/sign-in" asChild>
             <Pressable hitSlop={8}>
-              <Text style={styles.link}>შესვლა</Text>
+              <Text style={styles.link}>{t('authScreen.signIn')}</Text>
             </Pressable>
           </Link>
         </View>
