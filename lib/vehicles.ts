@@ -1,5 +1,6 @@
 import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
+import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 
 export type VehiclePhotoKey =
   | 'photo_front'
@@ -45,6 +46,32 @@ export async function fetchVehicleByDriver(driverId: string) {
   return { data: data as VehicleRow | null, error };
 }
 
+function normalizeVehicleDbFields(fields: {
+  type?: string | null;
+  class?: string | null;
+  model?: string | null;
+  color?: string | null;
+  year?: number | null;
+  plate?: string | null;
+}): { fields: typeof fields; error: Error | null } {
+  const out = { ...fields };
+  if (fields.type !== undefined && fields.type !== null) {
+    const normalized = normalizeVehicleType(fields.type);
+    if (!normalized) {
+      return { fields: out, error: new Error('აირჩიეთ ტრანსპორტის ტიპი') };
+    }
+    out.type = normalized;
+  }
+  if (fields.class !== undefined && fields.class !== null) {
+    const normalized = normalizeVehicleClass(fields.class);
+    if (!normalized) {
+      return { fields: out, error: new Error('აირჩიეთ კლასი') };
+    }
+    out.class = normalized;
+  }
+  return { fields: out, error: null };
+}
+
 /**
  * Persist one photo URL. PK is `id` (uuid); DB generates `id` on insert.
  *
@@ -57,6 +84,7 @@ export async function saveVehiclePhotoUrl(
   vehicleType: string = 'sedan',
 ): Promise<{ error: Error | null }> {
   const now = new Date().toISOString();
+  const normalizedType = normalizeVehicleType(vehicleType) ?? 'sedan';
 
   const { data: existing, error: selErr } = await supabase
     .from('vehicles')
@@ -91,7 +119,7 @@ export async function saveVehiclePhotoUrl(
 
   const { error } = await supabase.from('vehicles').insert({
     driver_id: driverId,
-    type: vehicleType,
+    type: normalizedType,
     class: null,
     model: null,
     color: null,
@@ -114,7 +142,7 @@ export async function saveVehicleInfo(
   return saveVehicleDetails(driverId, { type, class: vehicleClass });
 }
 
-/** Updates vehicle metadata (type, class, model, color, year, plate). */
+/** Updates vehicle metadata (type, class, model, color, year, plate). Always stores English codes. */
 export async function saveVehicleDetails(
   driverId: string,
   fields: {
@@ -126,11 +154,16 @@ export async function saveVehicleDetails(
     plate?: string | null;
   },
 ): Promise<{ error: Error | null }> {
+  const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
+  if (normErr) {
+    return { error: normErr };
+  }
+
   const now = new Date().toISOString();
   const { error } = await supabase.from('vehicles').upsert(
     {
       driver_id: driverId,
-      ...fields,
+      ...normalizedFields,
       updated_at: now,
     },
     { onConflict: 'driver_id' },

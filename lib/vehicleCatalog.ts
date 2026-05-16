@@ -1,17 +1,16 @@
 /**
- * Canonical keys for `bookings`, `profiles`, and pickers (lowercase English).
- * Labels use locale JSON (`vehicle.type` / `vehicle.class`) + current `i18n.language`
- * so UI matches the chosen app language reliably (avoid i18next `exists` edge cases).
+ * Canonical keys for `bookings`, `profiles`, `vehicles`, and pickers (lowercase English).
+ * Labels use locale JSON (`vehicle.type` / `vehicle.class`) + current `i18n.language`.
  */
 import en from '../src/locales/en.json';
 import ka from '../src/locales/ka.json';
 import ru from '../src/locales/ru.json';
 import i18n from '../src/lib/i18n';
 
-export const VEHICLE_TYPES = ['sedan', 'minivan', 'suv', 'minibus', 'bus'] as const;
+export const VEHICLE_TYPES = ['sedan', 'minivan', 'suv', 'microbus', 'bus', 'special'] as const;
 export type VehicleTypeCode = (typeof VEHICLE_TYPES)[number];
 
-export const VEHICLE_CLASSES = ['economy', 'comfort', 'premium'] as const;
+export const VEHICLE_CLASSES = ['economy', 'comfort', 'business', 'premium', 'vip'] as const;
 export type VehicleClassCode = (typeof VEHICLE_CLASSES)[number];
 
 type VehicleLocales = typeof ka;
@@ -31,14 +30,17 @@ const TYPE_LABELS_EN: Record<VehicleTypeCode, string> = {
   sedan: 'Sedan',
   minivan: 'Minivan',
   suv: 'SUV',
-  minibus: 'Minibus',
+  microbus: 'Microbus',
   bus: 'Bus',
+  special: 'Special transport',
 };
 
 const CLASS_LABELS_EN: Record<VehicleClassCode, string> = {
   economy: 'Economy',
   comfort: 'Comfort',
+  business: 'Business',
   premium: 'Premium',
+  vip: 'VIP',
 };
 
 /** Maps any known label (Geo/EN/legacy DB) → canonical type. */
@@ -46,37 +48,49 @@ const TYPE_ALIASES: Record<string, VehicleTypeCode> = {
   sedan: 'sedan',
   minivan: 'minivan',
   suv: 'suv',
-  minibus: 'minibus',
+  microbus: 'microbus',
+  minibus: 'microbus',
+  'micro-bus': 'microbus',
   bus: 'bus',
-  microbus: 'minibus',
-  'micro-bus': 'minibus',
+  special: 'special',
   სედანი: 'sedan',
   მინივენი: 'minivan',
-  მიკროავტობუსი: 'minibus',
+  მიკროავტობუსი: 'microbus',
   ავტობუსი: 'bus',
-  'სპეც. ტრანსპორტი': 'suv',
-  'special transport': 'suv',
+  'სპეც. ტრანსპორტი': 'special',
+  'სპეციალური': 'special',
+  'special transport': 'special',
 };
 
 /** Maps any known label (Geo/EN/legacy DB) → canonical class. */
 const CLASS_ALIASES: Record<string, VehicleClassCode> = {
   economy: 'economy',
   comfort: 'comfort',
+  business: 'business',
   premium: 'premium',
+  vip: 'vip',
   eco: 'economy',
   lux: 'premium',
-  business: 'premium',
   ეკონომი: 'economy',
   ეკო: 'economy',
   კომფორტი: 'comfort',
-  ბიზნესი: 'premium',
-  ბიზნეს: 'premium',
+  ბიზნესი: 'business',
+  ბიზნეს: 'business',
   პრემიუმი: 'premium',
   პრემიუმ: 'premium',
   ლუქსი: 'premium',
   ლუქს: 'premium',
-  vip: 'premium',
 };
+
+function lookupAlias<T extends string>(raw: string, aliases: Record<string, T>, canonical: readonly string[]): T | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (canonical.includes(lower)) {
+    return lower as T;
+  }
+  return aliases[lower] ?? aliases[trimmed] ?? null;
+}
 
 export function vehicleTypeLabel(code: VehicleTypeCode | string | null | undefined): string {
   const c = normalizeVehicleType(code);
@@ -97,25 +111,11 @@ export function vehicleClassLabel(code: VehicleClassCode | string | null | undef
 }
 
 export function normalizeVehicleType(raw: string | null | undefined): VehicleTypeCode | null {
-  const rawStr = String(raw ?? '').trim();
-  const key = rawStr.toLowerCase();
-  if (!key) return null;
-  if ((VEHICLE_TYPES as readonly string[]).includes(key)) {
-    return key as VehicleTypeCode;
-  }
-  const fromAlias = TYPE_ALIASES[key] ?? TYPE_ALIASES[rawStr];
-  return fromAlias ?? null;
+  return lookupAlias(String(raw ?? ''), TYPE_ALIASES, VEHICLE_TYPES);
 }
 
 export function normalizeVehicleClass(raw: string | null | undefined): VehicleClassCode | null {
-  const rawStr = String(raw ?? '').trim();
-  const key = rawStr.toLowerCase();
-  if (!key) return null;
-  if ((VEHICLE_CLASSES as readonly string[]).includes(key)) {
-    return key as VehicleClassCode;
-  }
-  const fromAlias = CLASS_ALIASES[key] ?? CLASS_ALIASES[rawStr];
-  return fromAlias ?? null;
+  return lookupAlias(String(raw ?? ''), CLASS_ALIASES, VEHICLE_CLASSES);
 }
 
 export function isVehicleTypeCode(value: string): value is VehicleTypeCode {
@@ -126,7 +126,7 @@ export function isVehicleClassCode(value: string): value is VehicleClassCode {
   return (VEHICLE_CLASSES as readonly string[]).includes(value);
 }
 
-/** Picker options: same canonical `value` for company booking + driver profile. */
+/** Picker options: canonical `value` for DB; Georgian/EN `label` for UI. */
 export function vehicleTypeUiOptions(): { value: VehicleTypeCode; label: string }[] {
   return VEHICLE_TYPES.map((value) => ({ value, label: vehicleTypeLabel(value) }));
 }

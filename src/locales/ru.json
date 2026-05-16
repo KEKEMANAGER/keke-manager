@@ -120,13 +120,16 @@
       "sedan": "Седан",
       "minivan": "Минивэн",
       "suv": "SUV",
-      "minibus": "Микроавтобус",
-      "bus": "Автобус"
+      "microbus": "Микроавтобус",
+      "bus": "Автобус",
+      "special": "Спецтранспорт"
     },
     "class": {
       "economy": "Эконом",
       "comfort": "Комфорт",
-      "premium": "Премиум"
+      "business": "Бизнес",
+      "premium": "Премиум",
+      "vip": "VIP"
     }
   },
   "system": {

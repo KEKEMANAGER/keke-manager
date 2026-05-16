@@ -120,13 +120,16 @@
       "sedan": "Sedan",
       "minivan": "Minivan",
       "suv": "SUV",
-      "minibus": "Minibus",
-      "bus": "Bus"
+      "microbus": "Microbus",
+      "bus": "Bus",
+      "special": "Special transport"
     },
     "class": {
       "economy": "Economy",
       "comfort": "Comfort",
-      "premium": "Premium"
+      "business": "Business",
+      "premium": "Premium",
+      "vip": "VIP"
     }
   },
   "system": {

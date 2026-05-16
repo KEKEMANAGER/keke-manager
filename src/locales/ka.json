@@ -120,13 +120,16 @@
       "sedan": "სედანი",
       "minivan": "მინივენი",
       "suv": "SUV",
-      "minibus": "მიკროავტობუსი",
-      "bus": "ავტობუსი"
+      "microbus": "მიკროავტობუსი",
+      "bus": "ავტობუსი",
+      "special": "სპეც. ტრანსპორტი"
     },
     "class": {
       "economy": "ეკონომი",
       "comfort": "კომფორტი",
-      "premium": "ბიზნესი"
+      "business": "ბიზნესი",
+      "premium": "პრემიუმ",
+      "vip": "VIP"
     }
   },
   "system": {

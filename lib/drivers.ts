@@ -172,8 +172,8 @@ export async function fetchDriverProfile(
       vehicle: v
         ? {
             photo_front: v.photo_front ?? null,
-            type: v.type ?? null,
-            class: v.class ?? null,
+            type: normalizeVehicleType(v.type) ?? v.type ?? null,
+            class: normalizeVehicleClass(v.class) ?? v.class ?? null,
             model: v.model ?? null,
             color: v.color ?? null,
             year: v.year ?? null,

@@ -37,6 +37,7 @@ import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
+import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { shareVoucherPDF } from '../../lib/voucher';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 
@@ -425,7 +426,9 @@ export default function CompanyDashboardScreen() {
                 <>
                   <Text style={styles.driverName}>{b.driver_display_name}</Text>
                   <Text style={styles.driverMeta}>
-                    {[b.driver_phone, b.driver_plate, b.vehicle_class].filter(Boolean).join(' · ')}
+                    {[b.driver_phone, b.driver_plate, b.vehicle_class ? vehicleClassLabel(b.vehicle_class) : null]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </Text>
                 </>
               ) : (
@@ -534,12 +537,12 @@ export default function CompanyDashboardScreen() {
                     <View style={styles.chipRow}>
                       {driverProfile.vehicle.type ? (
                         <View style={styles.chip}>
-                          <Text style={styles.chipText}>{driverProfile.vehicle.type}</Text>
+                          <Text style={styles.chipText}>{vehicleTypeLabel(driverProfile.vehicle.type)}</Text>
                         </View>
                       ) : null}
                       {driverProfile.vehicle.class ? (
                         <View style={styles.chip}>
-                          <Text style={styles.chipText}>{driverProfile.vehicle.class}</Text>
+                          <Text style={styles.chipText}>{vehicleClassLabel(driverProfile.vehicle.class)}</Text>
                         </View>
                       ) : null}
                     </View>
