@@ -119,7 +119,7 @@ export default function SignUpScreen() {
               pressed && styles.roleCardPressed,
             ]}
           >
-            <Text style={styles.roleEmoji}>🚚</Text>
+            <Text style={styles.roleEmoji}>🧑‍💼</Text>
             <Text style={[styles.roleTitle, role === 'driver' && styles.roleTitleActive]}>
               {t('authScreen.roleDriver')}
             </Text>
