@@ -35,6 +35,7 @@ export default function DriverTabsLayout() {
       >
       <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="calendar" options={{ href: null }} />
+      <Tabs.Screen name="chat" options={{ href: null, title: t('tabs.chat') }} />
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -77,6 +78,15 @@ export default function DriverTabsLayout() {
           title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name="person-outline" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat-list"
+        options={{
+          title: t('tabs.chat'),
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name="chatbubbles-outline" color={color} focused={focused} />
           ),
         }}
       />

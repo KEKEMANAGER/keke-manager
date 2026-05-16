@@ -227,6 +227,8 @@
       "addDay": "+ Добавить день",
       "transferArrivalSection": "Трансфер — прилёт",
       "transferDepartureSection": "Трансфер — вылет",
+      "optionalArrivalTransfer": "Трансфер прилёта",
+      "optionalDepartureTransfer": "Трансфер вылета",
       "passengerFullName": "ФИО пассажира",
       "paymentMethod": "Способ оплаты",
       "voucherTitle": "Ваучер",
@@ -281,6 +283,8 @@
       "dateTime": "Выберите дату и время",
       "hotel": "Введите отель / адрес",
       "departureDate": "Выберите дату и время вылета",
+      "flightNo": "Введите номер рейса",
+      "passengerName": "Введите имя пассажира",
       "tourRoute": "Введите описание тура / маршрут или «Откуда»",
       "tourDays": "Введите описание тура / маршрут или маршруты по дням",
       "kind": "Выберите тип бронирования",
@@ -660,6 +664,17 @@
     "submitFailed": "Не удалось отправить отзыв. Попробуйте позже.",
     "thankYouToast": "Спасибо — ваше мнение для нас важно!"
   },
+  "chat": {
+    "listTitle": "Сообщения",
+    "emptyConversations": "Нет переписок",
+    "emptyMessages": "Сообщений пока нет. Поздоровайтесь!",
+    "inputPlaceholder": "Написать сообщение...",
+    "send": "Отправить",
+    "you": "Вы: ",
+    "yesterday": "Вчера",
+    "loadError": "Не удалось загрузить сообщения",
+    "sendError": "Не удалось отправить сообщение"
+  },
   "tabs": {
     "dashboard": "Панель",
     "booking": "Бронирование",
@@ -668,6 +683,7 @@
     "profile": "Профиль",
     "vehicle": "Авто",
     "verification": "Верификация",
-    "gps": "GPS"
+    "gps": "GPS",
+    "chat": "Чат"
   }
 }

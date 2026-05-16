@@ -63,6 +63,16 @@ export default function CompanyTabsLayout() {
         />
         <Tabs.Screen name="rate-booking" options={{ href: null, title: t('common.rating') }} />
         <Tabs.Screen name="admin-verify" options={{ href: null, title: t('common.admin') }} />
+        <Tabs.Screen name="chat" options={{ href: null, title: t('tabs.chat') }} />
+        <Tabs.Screen
+          name="chat-list"
+          options={{
+            title: t('tabs.chat'),
+            tabBarIcon: ({ color, focused }) => (
+              <TabBarIcon name="chatbubbles-outline" color={color} focused={focused} />
+            ),
+          }}
+        />
         <Tabs.Screen
           name="profile"
           options={{

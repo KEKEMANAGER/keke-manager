@@ -227,6 +227,8 @@
       "addDay": "+ Add day",
       "transferArrivalSection": "Transfer — arrival",
       "transferDepartureSection": "Transfer — departure",
+      "optionalArrivalTransfer": "Add arrival transfer",
+      "optionalDepartureTransfer": "Add departure transfer",
       "passengerFullName": "Passenger full name",
       "paymentMethod": "Payment method",
       "voucherTitle": "Voucher",
@@ -281,6 +283,8 @@
       "dateTime": "Select date and time",
       "hotel": "Enter hotel / address",
       "departureDate": "Select departure date and time",
+      "flightNo": "Enter flight number",
+      "passengerName": "Enter passenger name",
       "tourRoute": "Enter tour description / route or \"From\"",
       "tourDays": "Enter tour description / route or daily routes",
       "kind": "Select booking type",
@@ -660,6 +664,17 @@
     "submitFailed": "Could not send feedback. Try again later.",
     "thankYouToast": "Thank you — your feedback matters to us!"
   },
+  "chat": {
+    "listTitle": "Messages",
+    "emptyConversations": "No conversations yet",
+    "emptyMessages": "No messages yet. Say hello!",
+    "inputPlaceholder": "Type a message...",
+    "send": "Send",
+    "you": "You: ",
+    "yesterday": "Yesterday",
+    "loadError": "Failed to load messages",
+    "sendError": "Failed to send message"
+  },
   "tabs": {
     "dashboard": "Dashboard",
     "booking": "Booking",
@@ -668,6 +683,7 @@
     "profile": "Profile",
     "vehicle": "Vehicle",
     "verification": "Verification",
-    "gps": "GPS"
+    "gps": "GPS",
+    "chat": "Chat"
   }
 }
