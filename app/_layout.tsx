@@ -196,6 +196,8 @@ function NavigationShell() {
     const inApp = root === '(app)';
     const inDriver = root === '(driver)';
     const onSignUpRoute = segments.includes('sign-up');
+    const onPasswordRecoveryRoute =
+      segments.includes('reset-password') || segments.includes('forgot-password');
 
     let target: string | null = null;
 
@@ -203,9 +205,9 @@ function NavigationShell() {
       target = '/sign-in';
     } else if (userId && !role && (inApp || inDriver)) {
       target = '/sign-up';
-    } else if (userId && !role && inAuth && !onSignUpRoute) {
+    } else if (userId && !role && inAuth && !onSignUpRoute && !onPasswordRecoveryRoute) {
       target = '/sign-up';
-    } else if (userId && inAuth && role) {
+    } else if (userId && inAuth && role && !onPasswordRecoveryRoute) {
       target = role === 'driver' ? '/(driver)/dashboard' : '/(app)/dashboard';
     } else if (userId && role === 'driver' && inApp) {
       target = '/(driver)/dashboard';

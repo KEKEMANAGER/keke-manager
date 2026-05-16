@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
-import * as Linking from 'expo-linking';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { getPasswordResetRedirectUrl } from '../../lib/passwordResetAuth';
 import { supabase } from '../../lib/supabase';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { showValidationAlert, validateEmail } from '../../lib/validation';
@@ -42,7 +42,7 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     try {
-      const redirectTo = Linking.createURL('reset-password');
+      const redirectTo = getPasswordResetRedirectUrl();
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo,
       });

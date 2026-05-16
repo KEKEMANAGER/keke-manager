@@ -457,6 +457,7 @@
     "alertTitle": "Incomplete form",
     "networkTitle": "Connection",
     "networkError": "No internet — check your connection and try again.",
+    "passwordMismatch": "Passwords do not match.",
     "fields": {
       "companyName": "company name",
       "name": "name"
@@ -482,7 +483,16 @@
     "companyName": "Company name",
     "haveAccount": "Already have an account?",
     "signUpSuccess": "Registration successful",
-    "checkEmail": "Check your email to confirm your account."
+    "checkEmail": "Check your email to confirm your account.",
+    "resetPasswordTitle": "New password",
+    "resetPasswordSubtitle": "Enter your new password twice, then save.",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "savePassword": "Save password",
+    "resetSuccess": "Password updated. You can sign in with your new password.",
+    "resetInvalidLink": "This reset link is invalid or expired. Request a new link.",
+    "resetSessionRequired": "Open the reset link from your email, then try again.",
+    "resetOpenFromEmail": "Open the password reset link from your email to continue on this screen."
   },
   "rateBookingScreen": {
     "title": "Rating",

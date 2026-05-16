@@ -54,6 +54,7 @@ const appJson = require('./app.json');
 module.exports = {
   expo: {
     ...appJson.expo,
+    scheme: appJson.expo.scheme ?? 'kekemanager',
     icon: './assets/logo.png',
     splash: {
       image: './assets/splash.png',

@@ -457,6 +457,7 @@
     "alertTitle": "Форма не заполнена",
     "networkTitle": "Соединение",
     "networkError": "Нет интернета — проверьте соединение и попробуйте снова.",
+    "passwordMismatch": "Пароли не совпадают.",
     "fields": {
       "companyName": "название компании",
       "name": "имя"
@@ -482,7 +483,16 @@
     "companyName": "Название компании",
     "haveAccount": "Уже есть аккаунт?",
     "signUpSuccess": "Регистрация успешна",
-    "checkEmail": "Проверьте email для подтверждения."
+    "checkEmail": "Проверьте email для подтверждения.",
+    "resetPasswordTitle": "Новый пароль",
+    "resetPasswordSubtitle": "Введите новый пароль дважды и сохраните.",
+    "newPassword": "Новый пароль",
+    "confirmPassword": "Повторите пароль",
+    "savePassword": "Сохранить пароль",
+    "resetSuccess": "Пароль обновлён. Войдите с новым паролем.",
+    "resetInvalidLink": "Ссылка недействительна или истекла. Запросите новую.",
+    "resetSessionRequired": "Откройте ссылку из письма, затем повторите попытку.",
+    "resetOpenFromEmail": "Откройте ссылку сброса пароля из письма, чтобы продолжить."
   },
   "rateBookingScreen": {
     "title": "Оценка",

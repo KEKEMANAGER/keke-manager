@@ -44,6 +44,15 @@ export function validatePassword(
   return null;
 }
 
+export function validatePasswordConfirm(password: string, confirm: string): string | null {
+  const passErr = validatePassword(password);
+  if (passErr) return passErr;
+  if (password !== confirm) {
+    return t('validation.passwordMismatch');
+  }
+  return null;
+}
+
 export function validateSignInPassword(password: string): string | null {
   if (!password) {
     return t('validation.passwordRequired');
