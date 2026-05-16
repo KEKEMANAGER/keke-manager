@@ -120,6 +120,12 @@ export default function SignInScreen() {
             onChangeText={setPassword}
           />
 
+          <Link href="/forgot-password" asChild>
+            <Pressable style={styles.forgotRow} hitSlop={8}>
+              <Text style={styles.forgotLink}>დაგავიწყდათ პაროლი?</Text>
+            </Pressable>
+          </Link>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <Pressable
@@ -185,6 +191,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.text,
     marginBottom: SPACING.lg,
+  },
+  forgotRow: {
+    alignSelf: 'flex-end',
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  forgotLink: {
+    color: COLORS.gold,
+    fontSize: 14,
+    fontWeight: '600',
   },
   error: {
     color: COLORS.error,
