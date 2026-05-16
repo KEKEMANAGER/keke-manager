@@ -59,7 +59,7 @@ export async function fetchMatchingDrivers(
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, vehicle_type, vehicle_class, push_token')
+    .select('id, vehicle_type, vehicle_class')
     .eq('vehicle_type', normType)
     .eq('vehicle_class', normClass);
 
