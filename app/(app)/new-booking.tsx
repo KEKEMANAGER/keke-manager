@@ -312,19 +312,23 @@ function matchingDriverVehicleLine(vehicle: MatchingDriver['vehicle']): string {
 }
 
 function MatchingDriversSection({
+  active,
   vehicleType,
   vehicleClass,
   driverTargetMode,
   onDriverTargetModeChange,
   selectedDriverId,
   onSelectDriver,
+  onDriversLoaded,
 }: {
+  active: boolean;
   vehicleType: VehicleTypeCode;
   vehicleClass: VehicleClassCode;
   driverTargetMode: DriverTargetMode;
   onDriverTargetModeChange: (mode: DriverTargetMode) => void;
   selectedDriverId: string | null;
   onSelectDriver: (id: string | null) => void;
+  onDriversLoaded?: (drivers: MatchingDriver[]) => void;
 }) {
   const [drivers, setDrivers] = useState<MatchingDriver[]>([]);
   const [loading, setLoading] = useState(false);
@@ -334,9 +338,13 @@ function MatchingDriversSection({
   const normClass = normalizeVehicleClass(vehicleClass);
 
   useEffect(() => {
-    if (!normType || !normClass) {
-      setDrivers([]);
-      setLoadError(null);
+    if (!active || !normType || !normClass) {
+      if (!active) {
+        setDrivers([]);
+        setLoadError(null);
+        setLoading(false);
+        onDriversLoaded?.([]);
+      }
       return;
     }
 
@@ -350,10 +358,15 @@ function MatchingDriversSection({
       if (error) {
         setLoadError(error.message);
         setDrivers([]);
+        onDriversLoaded?.([]);
         return;
       }
       setDrivers(data);
-      if (selectedDriverId && !data.some((d) => d.id === selectedDriverId)) {
+      onDriversLoaded?.(data);
+      if (data.length === 0) {
+        onDriverTargetModeChange('all');
+        onSelectDriver(null);
+      } else if (selectedDriverId && !data.some((d) => d.id === selectedDriverId)) {
         onSelectDriver(null);
       }
     });
@@ -361,131 +374,141 @@ function MatchingDriversSection({
     return () => {
       cancelled = true;
     };
-  }, [vehicleType, vehicleClass, normType, normClass]);
+  }, [active, vehicleType, vehicleClass, normType, normClass]);
 
-  if (!normType || !normClass) {
+  if (!active || !normType || !normClass) {
     return null;
   }
 
+  const driverCountLabel = loading ? '…' : String(drivers.length);
+
   return (
     <View style={styles.matchingDriversBlock}>
-      <Text style={styles.matchingDriversTitle}>
-        ხელმისაწვდომი მძღოლები ({loading ? '…' : drivers.length})
-      </Text>
-
-      <View style={styles.driverTargetRow}>
-        <Pressable
-          onPress={() => {
-            onDriverTargetModeChange('all');
-            onSelectDriver(null);
-          }}
-          style={({ pressed }) => [
-            styles.driverTargetOption,
-            driverTargetMode === 'all' && styles.driverTargetOptionActive,
-            pressed && styles.pressed,
-          ]}
-        >
-          <View style={[styles.radioOuter, driverTargetMode === 'all' && styles.radioOuterActive]}>
-            {driverTargetMode === 'all' ? <View style={styles.radioInner} /> : null}
-          </View>
-          <Text
-            style={[
-              styles.driverTargetLabel,
-              driverTargetMode === 'all' && styles.driverTargetLabelActive,
-            ]}
-          >
-            ყველა მძღოლს გაუგზავნე
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => onDriverTargetModeChange('specific')}
-          style={({ pressed }) => [
-            styles.driverTargetOption,
-            driverTargetMode === 'specific' && styles.driverTargetOptionActive,
-            pressed && styles.pressed,
-          ]}
-        >
-          <View
-            style={[styles.radioOuter, driverTargetMode === 'specific' && styles.radioOuterActive]}
-          >
-            {driverTargetMode === 'specific' ? <View style={styles.radioInner} /> : null}
-          </View>
-          <Text
-            style={[
-              styles.driverTargetLabel,
-              driverTargetMode === 'specific' && styles.driverTargetLabelActive,
-            ]}
-          >
-            კონკრეტული მძღოლი
-          </Text>
-        </Pressable>
-      </View>
+      <Text style={styles.driversSectionTitle}>მძღოლები</Text>
 
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={styles.matchingDriversLoader} />
       ) : loadError ? (
         <Text style={styles.matchingDriversEmpty}>{loadError}</Text>
       ) : drivers.length === 0 ? (
-        <Text style={styles.matchingDriversEmpty}>ამ კატეგორიის მძღოლი ვერ მოიძებნა</Text>
-      ) : driverTargetMode === 'specific' ? (
-        drivers.map((driver) => {
-          const selected = selectedDriverId === driver.id;
-          const vehicleLine = matchingDriverVehicleLine(driver.vehicle);
-          const langs = formatDriverLanguages(driver.languages);
-          return (
+        <View style={styles.driversNoMatchBox}>
+          <Text style={styles.driversNoMatchTitle}>⚠️ ამ კატეგორიის მძღოლი ვერ მოიძებნა</Text>
+          <Text style={styles.driversNoMatchBody}>
+            შეკვეთა მაინც გაიგზავნება და მძღოლის მოძიებას KEKE MANAGER-ი უზრუნველყოფს
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View style={styles.driverTargetRow}>
             <Pressable
-              key={driver.id}
-              onPress={() => onSelectDriver(selected ? null : driver.id)}
+              onPress={() => {
+                onDriverTargetModeChange('all');
+                onSelectDriver(null);
+              }}
               style={({ pressed }) => [
-                styles.driverCard,
-                selected && styles.driverCardSelected,
+                styles.driverTargetOption,
+                driverTargetMode === 'all' && styles.driverTargetOptionActive,
                 pressed && styles.pressed,
               ]}
             >
-              <View style={styles.driverCardTop}>
-                {driver.avatar_url ? (
-                  <Image source={{ uri: driver.avatar_url }} style={styles.driverAvatar} />
-                ) : (
-                  <View style={[styles.driverAvatar, styles.driverAvatarPlaceholder]}>
-                    <Text style={styles.driverAvatarInitial}>
-                      {(driver.full_name || '?')[0]?.toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.driverCardMain}>
-                  <View style={styles.driverNameRow}>
-                    <Text style={styles.driverName} numberOfLines={1}>
-                      {driver.full_name || 'მძღოლი'}
-                    </Text>
-                    {driver.rating ? (
-                      <Text style={styles.driverRating}>⭐ {driver.rating}</Text>
-                    ) : null}
-                  </View>
-                  {vehicleLine ? <Text style={styles.driverVehicleLine}>{vehicleLine}</Text> : null}
-                  {langs ? <Text style={styles.driverMetaLine}>🗣 {langs}</Text> : null}
-                  {driver.experience_years > 0 ? (
-                    <Text style={styles.driverMetaLine}>
-                      📅 გამოცდილება: {driver.experience_years} წელი
-                    </Text>
-                  ) : null}
-                </View>
+              <View style={[styles.radioOuter, driverTargetMode === 'all' && styles.radioOuterActive]}>
+                {driverTargetMode === 'all' ? <View style={styles.radioInner} /> : null}
               </View>
-              <View
-                style={[styles.driverChooseBtn, selected && styles.driverChooseBtnSelected]}
+              <Text
+                style={[
+                  styles.driverTargetLabel,
+                  driverTargetMode === 'all' && styles.driverTargetLabelActive,
+                ]}
               >
-                <Text
-                  style={[
-                    styles.driverChooseBtnText,
-                    selected && styles.driverChooseBtnTextSelected,
-                  ]}
-                >
-                  {selected ? 'არჩეულია' : 'აირჩიე'}
-                </Text>
-              </View>
+                ყველა მძღოლს გაუგზავნე{' '}
+                <Text style={styles.driverCountBadge}>({driverCountLabel} მძღოლი)</Text>
+              </Text>
             </Pressable>
-          );
-        })
-      ) : null}
+            <Pressable
+              onPress={() => onDriverTargetModeChange('specific')}
+              style={({ pressed }) => [
+                styles.driverTargetOption,
+                driverTargetMode === 'specific' && styles.driverTargetOptionActive,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View
+                style={[
+                  styles.radioOuter,
+                  driverTargetMode === 'specific' && styles.radioOuterActive,
+                ]}
+              >
+                {driverTargetMode === 'specific' ? <View style={styles.radioInner} /> : null}
+              </View>
+              <Text
+                style={[
+                  styles.driverTargetLabel,
+                  driverTargetMode === 'specific' && styles.driverTargetLabelActive,
+                ]}
+              >
+                კონკრეტური მძღოლის არჩევა
+              </Text>
+            </Pressable>
+          </View>
+
+          {driverTargetMode === 'specific'
+            ? drivers.map((driver) => {
+                const selected = selectedDriverId === driver.id;
+                const vehicleLine = matchingDriverVehicleLine(driver.vehicle);
+                const langs = formatDriverLanguages(driver.languages);
+                return (
+                  <Pressable
+                    key={driver.id}
+                    onPress={() => onSelectDriver(selected ? null : driver.id)}
+                    style={({ pressed }) => [
+                      styles.driverCard,
+                      selected && styles.driverCardSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.driverCardTop}>
+                      {driver.avatar_url ? (
+                        <Image source={{ uri: driver.avatar_url }} style={styles.driverAvatar} />
+                      ) : (
+                        <View style={[styles.driverAvatar, styles.driverAvatarPlaceholder]}>
+                          <Text style={styles.driverAvatarInitial}>
+                            {(driver.full_name || '?')[0]?.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.driverCardMain}>
+                        <View style={styles.driverNameRow}>
+                          <Text style={styles.driverName} numberOfLines={1}>
+                            {driver.full_name || 'მძღოლი'}
+                          </Text>
+                          {driver.rating ? (
+                            <Text style={styles.driverRating}>⭐ {driver.rating}</Text>
+                          ) : null}
+                        </View>
+                        {vehicleLine ? (
+                          <Text style={styles.driverVehicleLine}>{vehicleLine}</Text>
+                        ) : null}
+                        {langs ? <Text style={styles.driverMetaLine}>🗣 {langs}</Text> : null}
+                      </View>
+                    </View>
+                    <View
+                      style={[styles.driverChooseBtn, selected && styles.driverChooseBtnSelected]}
+                    >
+                      <Text
+                        style={[
+                          styles.driverChooseBtnText,
+                          selected && styles.driverChooseBtnTextSelected,
+                        ]}
+                      >
+                        {selected ? 'არჩეულია' : 'აირჩიე'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })
+            : null}
+        </>
+      )}
     </View>
   );
 }
@@ -495,19 +518,11 @@ function VehiclePicker({
   onVehicleTypeChange,
   vehicleClass,
   onVehicleClassChange,
-  driverTargetMode,
-  onDriverTargetModeChange,
-  selectedDriverId,
-  onSelectDriver,
 }: {
   selectedVehicleType: VehicleTypeCode;
   onVehicleTypeChange: (type: VehicleTypeCode) => void;
   vehicleClass: VehicleClassCode;
   onVehicleClassChange: (cls: VehicleClassCode) => void;
-  driverTargetMode: DriverTargetMode;
-  onDriverTargetModeChange: (mode: DriverTargetMode) => void;
-  selectedDriverId: string | null;
-  onSelectDriver: (id: string | null) => void;
 }) {
   return (
     <>
@@ -540,14 +555,6 @@ function VehiclePicker({
           </Pressable>
         ))}
       </View>
-      <MatchingDriversSection
-        vehicleType={selectedVehicleType}
-        vehicleClass={vehicleClass}
-        driverTargetMode={driverTargetMode}
-        onDriverTargetModeChange={onDriverTargetModeChange}
-        selectedDriverId={selectedDriverId}
-        onSelectDriver={onSelectDriver}
-      />
     </>
   );
 }
@@ -582,9 +589,11 @@ export default function NewBookingScreen() {
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
   const [driverTargetMode, setDriverTargetMode] = useState<DriverTargetMode>('all');
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [matchingDrivers, setMatchingDrivers] = useState<MatchingDriver[]>([]);
 
   useEffect(() => {
     setSelectedDriverId(null);
+    setDriverTargetMode('all');
   }, [selectedVehicleType, vehicleClass]);
 
   const [meetGreet, setMeetGreet] = useState(false);
@@ -778,7 +787,11 @@ export default function NewBookingScreen() {
     if (!normalizeVehicleClass(vehicleClass)) {
       return 'აირჩიეთ ავტომობილის კლასი.';
     }
-    if (driverTargetMode === 'specific' && !selectedDriverId) {
+    if (
+      driverTargetMode === 'specific' &&
+      matchingDrivers.length > 0 &&
+      !selectedDriverId
+    ) {
       return 'აირჩიეთ მძღოლი ან აირჩიეთ „ყველა მძღოლს გაუგზავნე“.';
     }
     if (!passengers.trim() || pax < 1) {
@@ -1034,10 +1047,6 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
-              driverTargetMode={driverTargetMode}
-              onDriverTargetModeChange={setDriverTargetMode}
-              selectedDriverId={selectedDriverId}
-              onSelectDriver={setSelectedDriverId}
             />
 
             <View style={styles.compactRow}>
@@ -1188,10 +1197,6 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
-              driverTargetMode={driverTargetMode}
-              onDriverTargetModeChange={setDriverTargetMode}
-              selectedDriverId={selectedDriverId}
-              onSelectDriver={setSelectedDriverId}
             />
 
             <Text style={styles.sectionHeader}>შენიშვნა</Text>
@@ -1312,10 +1317,6 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
-              driverTargetMode={driverTargetMode}
-              onDriverTargetModeChange={setDriverTargetMode}
-              selectedDriverId={selectedDriverId}
-              onSelectDriver={setSelectedDriverId}
             />
 
             <Text style={styles.sectionHeader}>შენიშვნა</Text>
@@ -1467,10 +1468,36 @@ export default function NewBookingScreen() {
               ) : null}
               <Text style={styles.vPrice}>მძღოლი: {formatGel(price)}</Text>
             </View>
+
+            <MatchingDriversSection
+              active
+              vehicleType={selectedVehicleType}
+              vehicleClass={vehicleClass}
+              driverTargetMode={driverTargetMode}
+              onDriverTargetModeChange={setDriverTargetMode}
+              selectedDriverId={selectedDriverId}
+              onSelectDriver={setSelectedDriverId}
+              onDriversLoaded={setMatchingDrivers}
+            />
+
             {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
-            <Text style={styles.doneHint}>
-              დააჭირეთ შენახვას — ჯავშანი Supabase-ში ინახება და მძღოლებს რეალურ დროში გამოჩნდება.
-            </Text>
+
+            <Pressable
+              onPress={() => void confirmAndSaveBooking()}
+              disabled={submitting}
+              style={({ pressed }) => [
+                styles.btnPrimary,
+                styles.confirmSubmitBtn,
+                (pressed || submitting) && styles.pressed,
+                submitting && styles.btnDisabled,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator color={COLORS.white} size="small" />
+              ) : (
+                <Text style={styles.btnPrimaryText}>დაჯავშნა</Text>
+              )}
+            </Pressable>
           </View>
         )}
 
@@ -1502,24 +1529,6 @@ export default function NewBookingScreen() {
               ]}
             >
               <Text style={styles.btnPrimaryText}>შემდეგი</Text>
-            </Pressable>
-          )}
-          {step === 3 && (
-            <Pressable
-              onPress={() => void confirmAndSaveBooking()}
-              disabled={submitting}
-              style={({ pressed }) => [
-                styles.btnPrimary,
-                styles.btnPrimarySolo,
-                (pressed || submitting) && styles.pressed,
-                submitting && styles.btnDisabled,
-              ]}
-            >
-              {submitting ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <Text style={styles.btnPrimaryText}>ჯავშნის შენახვა</Text>
-              )}
             </Pressable>
           )}
         </View>
@@ -1878,11 +1887,38 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     marginBottom: SPACING.sm,
   },
-  matchingDriversTitle: {
-    fontSize: 15,
-    fontWeight: '800',
+  driversSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
     color: COLORS.text,
     marginBottom: SPACING.sm,
+  },
+  driverCountBadge: {
+    color: COLORS.gold,
+    fontWeight: '700',
+  },
+  driversNoMatchBox: {
+    backgroundColor: COLORS.goldTint,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  driversNoMatchTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  driversNoMatchBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.textSecondary,
+  },
+  confirmSubmitBtn: {
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   matchingDriversLoader: {
     marginVertical: SPACING.md,
@@ -1945,7 +1981,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 16,
+    padding: 12,
     marginBottom: 8,
     ...SHADOWS.cardStrong,
   },
