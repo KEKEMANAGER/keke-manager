@@ -437,9 +437,26 @@ export default function CompanyDashboardScreen() {
                 <Text style={styles.driverPending}>{t('common.selectingDriver')}</Text>
               )}
               {(b.status === 'accepted' || b.status === 'in_progress') && b.driver_id ? (
-                <Pressable onPress={() => void openDriverModal(b)} style={styles.driverBtn}>
-                  <Text style={styles.driverBtnText}>👤 {t('common.viewDriver')}</Text>
-                </Pressable>
+                <View style={styles.driverBtnRow}>
+                  <Pressable onPress={() => void openDriverModal(b)} style={styles.driverBtn}>
+                    <Text style={styles.driverBtnText}>👤 {t('common.viewDriver')}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/tracking',
+                        params: {
+                          driverId: b.driver_id!,
+                          driverName: b.driver_display_name ?? '',
+                        },
+                      })
+                    }
+                    style={styles.trackBtn}
+                  >
+                    <Ionicons name="navigate" size={14} color={COLORS.white} />
+                    <Text style={styles.trackBtnText}>{t('common.track')}</Text>
+                  </Pressable>
+                </View>
               ) : null}
             </View>
             <Text style={styles.price}>{formatGel(Number(b.price_gel))}</Text>
@@ -932,18 +949,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: 'italic',
   },
+  driverBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: 8,
+    flexWrap: 'wrap',
+  },
   driverBtn: {
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 10,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    alignSelf: 'flex-start',
-    marginTop: 8,
   },
   driverBtnText: {
     color: COLORS.grayLight,
     fontSize: 13,
+  },
+  trackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.gold,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  trackBtnText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
   },
   cancelBookingBtn: {
     alignSelf: 'stretch',
