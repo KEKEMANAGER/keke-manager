@@ -29,10 +29,10 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   input: {
-    backgroundColor: COLORS.white,
+    backgroundColor: '#F8F8F8',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: RADIUS.input,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
     paddingHorizontal: SPACING.md,
     paddingVertical: 14,
     fontSize: 16,
