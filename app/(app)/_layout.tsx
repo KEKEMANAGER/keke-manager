@@ -107,6 +107,7 @@ export default function CompanyTabsLayout() {
         <Tabs.Screen name="chat"         options={{ href: null }} />
         <Tabs.Screen name="history"      options={{ href: null }} />
         <Tabs.Screen name="profile"      options={{ href: null }} />
+        <Tabs.Screen name="tracking"     options={{ href: null }} />
 
         <Tabs.Screen
           name="dashboard"

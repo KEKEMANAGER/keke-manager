@@ -602,6 +602,17 @@
     "endTour": "End tour",
     "startTour": "Start tour"
   },
+  "tracking": {
+    "title": "Driver Tracking",
+    "live": "Live",
+    "weakSignal": "Weak signal",
+    "noSignal": "No signal",
+    "noSignalHint": "Driver has not started GPS tracking yet.",
+    "lastUpdated": "Updated",
+    "ago": "ago",
+    "driver": "Driver",
+    "webFallback": "GPS tracking is only available in the iOS and Android app."
+  },
   "adminVerify": {
     "title": "Verification review",
     "noAccess": "You do not have admin access",

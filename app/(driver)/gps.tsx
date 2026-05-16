@@ -5,6 +5,8 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
 
 const TBILISI: Region = {
   latitude: 41.6938,
@@ -15,6 +17,7 @@ const TBILISI: Region = {
 
 export default function DriverGpsScreen() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView | null>(null);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
@@ -60,14 +63,15 @@ export default function DriverGpsScreen() {
     const sub = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        timeInterval: 2000,
+        timeInterval: 4000,
         distanceInterval: 10,
       },
       (loc) => {
-        setCurrentLocation({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
+        const { latitude, longitude } = loc.coords;
+        setCurrentLocation({ latitude, longitude });
+        if (user?.id) {
+          void upsertDriverLocation(user.id, latitude, longitude);
+        }
       },
     );
     watchRef.current = sub;
@@ -76,6 +80,9 @@ export default function DriverGpsScreen() {
   function endTour() {
     stopWatch();
     setIsTracking(false);
+    if (user?.id) {
+      void clearDriverLocation(user.id);
+    }
   }
 
   if (Platform.OS === 'web') {
