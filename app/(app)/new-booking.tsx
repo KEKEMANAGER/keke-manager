@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -456,6 +457,14 @@ function MatchingDriversSection({
                 const selected = selectedDriverId === driver.id;
                 const vehicleLine = matchingDriverVehicleLine(driver.vehicle);
                 const langs = formatDriverLanguages(driver.languages);
+                const experienceLine =
+                  driver.experience_years > 0
+                    ? `გამოცდილება: ${driver.experience_years} წელი`
+                    : null;
+                const ratingLine =
+                  driver.rating != null
+                    ? `⭐ ${driver.rating}${driver.rating_count > 0 ? ` (${driver.rating_count})` : ''}`
+                    : '⭐ —';
                 return (
                   <Pressable
                     key={driver.id}
@@ -471,24 +480,23 @@ function MatchingDriversSection({
                         <Image source={{ uri: driver.avatar_url }} style={styles.driverAvatar} />
                       ) : (
                         <View style={[styles.driverAvatar, styles.driverAvatarPlaceholder]}>
-                          <Text style={styles.driverAvatarInitial}>
-                            {(driver.full_name || '?')[0]?.toUpperCase()}
-                          </Text>
+                          <Ionicons name="person" size={28} color={COLORS.textMuted} />
                         </View>
                       )}
                       <View style={styles.driverCardMain}>
-                        <View style={styles.driverNameRow}>
-                          <Text style={styles.driverName} numberOfLines={1}>
-                            {driver.full_name || 'მძღოლი'}
-                          </Text>
-                          {driver.rating ? (
-                            <Text style={styles.driverRating}>⭐ {driver.rating}</Text>
-                          ) : null}
-                        </View>
+                        <Text style={styles.driverName} numberOfLines={1}>
+                          {driver.full_name || 'მძღოლი'}
+                        </Text>
                         {vehicleLine ? (
-                          <Text style={styles.driverVehicleLine}>{vehicleLine}</Text>
-                        ) : null}
+                          <Text style={styles.driverVehicleLine}>🚗 {vehicleLine}</Text>
+                        ) : (
+                          <Text style={styles.driverVehicleLineMuted}>ავტომობილი ჯერ არ არის მითითებული</Text>
+                        )}
+                        <Text style={styles.driverMetaLine}>{ratingLine}</Text>
                         {langs ? <Text style={styles.driverMetaLine}>🗣 {langs}</Text> : null}
+                        {experienceLine ? (
+                          <Text style={styles.driverMetaLine}>{experienceLine}</Text>
+                        ) : null}
                       </View>
                     </View>
                     <View
@@ -2015,18 +2023,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  driverNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: SPACING.sm,
-    marginBottom: 4,
-  },
   driverName: {
-    flex: 1,
     fontSize: 16,
     fontWeight: '800',
     color: COLORS.text,
+    marginBottom: 4,
+  },
+  driverVehicleLineMuted: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginBottom: 2,
   },
   driverRating: {
     fontSize: 14,

@@ -1,3 +1,4 @@
+import { withCacheBust } from './mediaUpload';
 import { fetchDriverAverageRating } from './ratings';
 import { supabase } from './supabase';
 import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
@@ -36,6 +37,7 @@ export type MatchingDriver = {
   languages: string[];
   experience_years: number;
   rating: string | null;
+  rating_count: number;
   vehicle: {
     model: string | null;
     year: number | null;
@@ -44,6 +46,43 @@ export type MatchingDriver = {
     photo_front: string | null;
   } | null;
 };
+
+type ProfileMatchRow = {
+  id: string;
+  vehicle_type: string | null;
+  vehicle_class: string | null;
+  full_name?: string | null;
+};
+
+type UserRow = {
+  id: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  languages?: string[] | null;
+  experience_years?: number | null;
+  role?: string | null;
+};
+
+function computeRatingAverages(
+  rows: { driver_id: string; overall: number }[],
+): Map<string, { average: number; count: number }> {
+  const acc = new Map<string, { sum: number; count: number }>();
+  for (const row of rows) {
+    const id = String(row.driver_id);
+    const prev = acc.get(id) ?? { sum: 0, count: 0 };
+    prev.sum += Number(row.overall);
+    prev.count += 1;
+    acc.set(id, prev);
+  }
+  const out = new Map<string, { average: number; count: number }>();
+  for (const [id, { sum, count }] of acc) {
+    out.set(id, {
+      average: Math.round((sum / count) * 10) / 10,
+      count,
+    });
+  }
+  return out;
+}
 
 /** Drivers whose `profiles` vehicle prefs match the booking selection. */
 export async function fetchMatchingDrivers(
@@ -57,81 +96,138 @@ export async function fetchMatchingDrivers(
     return { data: [], error: null };
   }
 
-  const { data, error } = await supabase
+  let profileRows: ProfileMatchRow[] | null = null;
+  let profileError: { message: string } | null = null;
+
+  const primary = await supabase
     .from('profiles')
-    .select('id, vehicle_type, vehicle_class')
+    .select('id, full_name, vehicle_type, vehicle_class')
     .eq('vehicle_type', normType)
     .eq('vehicle_class', normClass);
 
-  if (error) {
-    return { data: [], error: new Error(error.message) };
+  if (!primary.error) {
+    profileRows = (primary.data ?? []) as ProfileMatchRow[];
+  } else {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id, vehicle_type, vehicle_class')
+      .eq('vehicle_type', normType)
+      .eq('vehicle_class', normClass);
+    profileRows = (fallback.data ?? []) as ProfileMatchRow[];
+    profileError = fallback.error;
   }
-  if (!data?.length) {
+
+  if (profileError) {
+    return { data: [], error: new Error(profileError.message) };
+  }
+  if (!profileRows?.length) {
     return { data: [], error: null };
   }
 
-  const enriched = await Promise.all(
-    data.map(async (row) => {
-      const driverId = String((row as { id: string }).id);
-      const [vehicleRes, ratingRes, userRes] = await Promise.all([
-        supabase
-          .from('vehicles')
-          .select('model, year, color, plate, photo_front')
-          .eq('driver_id', driverId)
-          .limit(1)
-          .maybeSingle(),
-        fetchDriverAverageRating(driverId),
-        supabase
-          .from('users')
-          .select('full_name, avatar_url, languages, experience_years, role')
-          .eq('id', driverId)
-          .maybeSingle(),
-      ]);
+  const ids = profileRows.map((r) => String(r.id));
 
-      const user = userRes.data as {
-        full_name?: string | null;
-        avatar_url?: string | null;
-        languages?: string[] | null;
-        experience_years?: number | null;
-        role?: string | null;
-      } | null;
+  const [usersRes, vehiclesRes, ratingsRes] = await Promise.all([
+    supabase
+      .from('users')
+      .select('id, full_name, avatar_url, languages, experience_years, role')
+      .in('id', ids),
+    supabase
+      .from('vehicles')
+      .select('driver_id, model, year, color, plate, photo_front')
+      .in('driver_id', ids),
+    supabase.from('ratings').select('driver_id, overall').in('driver_id', ids),
+  ]);
 
-      if (user?.role && user.role !== 'driver') {
-        return null;
-      }
+  if (usersRes.error) {
+    return { data: [], error: new Error(usersRes.error.message) };
+  }
+  if (vehiclesRes.error) {
+    return { data: [], error: new Error(vehiclesRes.error.message) };
+  }
 
-      const vehicle = vehicleRes.data as {
-        model?: string | null;
-        year?: number | null;
-        color?: string | null;
-        plate?: string | null;
-        photo_front?: string | null;
-      } | null;
+  const userById = new Map<string, UserRow>();
+  if (usersRes.data) {
+    for (const u of usersRes.data as UserRow[]) {
+      userById.set(String(u.id), u);
+    }
+  }
 
-      const avgRating =
-        ratingRes.count > 0 ? ratingRes.average.toFixed(1) : null;
+  const vehicleByDriver = new Map<
+    string,
+    {
+      model?: string | null;
+      year?: number | null;
+      color?: string | null;
+      plate?: string | null;
+      photo_front?: string | null;
+    }
+  >();
+  for (const v of (vehiclesRes.data ?? []) as {
+    driver_id: string;
+    model?: string | null;
+    year?: number | null;
+    color?: string | null;
+    plate?: string | null;
+    photo_front?: string | null;
+  }[]) {
+    vehicleByDriver.set(String(v.driver_id), v);
+  }
 
-      return {
-        id: driverId,
-        full_name: user?.full_name?.trim() || null,
-        avatar_url: user?.avatar_url ?? null,
-        languages: user?.languages ?? [],
-        experience_years: user?.experience_years ?? 0,
-        rating: avgRating,
-        vehicle: vehicle
-          ? {
-              model: vehicle.model ?? null,
-              year: vehicle.year ?? null,
-              color: vehicle.color ?? null,
-              plate: vehicle.plate ?? null,
-              photo_front: vehicle.photo_front ?? null,
-            }
-          : null,
-      } satisfies MatchingDriver;
-    }),
+  const ratingByDriver = computeRatingAverages(
+    (ratingsRes.data ?? []) as { driver_id: string; overall: number }[],
   );
 
-  const drivers = enriched.filter((d): d is MatchingDriver => d != null);
+  const drivers: MatchingDriver[] = [];
+
+  for (const row of profileRows) {
+    const driverId = String(row.id);
+    const user = userById.get(driverId) ?? null;
+
+    if (user?.role && user.role !== 'driver') {
+      continue;
+    }
+
+    const profileName =
+      typeof row.full_name === 'string' && row.full_name.trim()
+        ? row.full_name.trim()
+        : null;
+    const userName =
+      typeof user?.full_name === 'string' && user.full_name.trim()
+        ? user.full_name.trim()
+        : null;
+    const full_name = profileName ?? userName ?? null;
+
+    const rawAvatar = user?.avatar_url ?? null;
+    const avatar_url =
+      typeof rawAvatar === 'string' && rawAvatar.trim()
+        ? withCacheBust(rawAvatar.trim()) ?? rawAvatar.trim()
+        : null;
+
+    const vehicle = vehicleByDriver.get(driverId) ?? null;
+    const ratingStats = ratingByDriver.get(driverId);
+    const avgRating =
+      ratingStats && ratingStats.count > 0 ? ratingStats.average.toFixed(1) : null;
+
+    drivers.push({
+      id: driverId,
+      full_name,
+      avatar_url,
+      languages: user?.languages ?? [],
+      experience_years: user?.experience_years ?? 0,
+      rating: avgRating,
+      rating_count: ratingStats?.count ?? 0,
+      vehicle: vehicle
+        ? {
+            model: vehicle.model ?? null,
+            year: vehicle.year ?? null,
+            color: vehicle.color ?? null,
+            plate: vehicle.plate ?? null,
+            photo_front: vehicle.photo_front ?? null,
+          }
+        : null,
+    });
+  }
+
   drivers.sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'ka'));
 
   return { data: drivers, error: null };
