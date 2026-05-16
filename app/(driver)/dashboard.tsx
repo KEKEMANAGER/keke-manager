@@ -7,6 +7,7 @@ import {
   Animated,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +16,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
+import { BookingListSkeleton } from '../../components/BookingListSkeleton';
+import { ListEmptyState } from '../../components/ListEmptyState';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRealtimeRecord, BookingRow } from '../../lib/bookings';
 import {
@@ -74,13 +78,14 @@ export default function DriverDashboardScreen() {
   const [completedTrips, setCompletedTrips] = useState(0);
   const [earnings, setEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ratingAvg, setRatingAvg] = useState<number>(0);
   const [ratingCount, setRatingCount] = useState(0);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [testPushSending, setTestPushSending] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
       setAssigned([]);
       setOpenCount(0);
@@ -88,11 +93,13 @@ export default function DriverDashboardScreen() {
       setEarnings(0);
       setRatingAvg(0);
       setRatingCount(0);
-      setLoading(false);
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
       return;
     }
     setError(null);
-    setLoading(true);
+    if (mode === 'initial') setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
     const results = await Promise.all([
       fetchBookingsForDriver(userId),
       fetchOpenPendingBookingsForDriver(userId),
@@ -103,9 +110,10 @@ export default function DriverDashboardScreen() {
     const open = results[1]!;
     const stats = results[2]!;
     const ratingRes = results[3]!;
-    setLoading(false);
+    if (mode === 'initial') setLoading(false);
+    if (mode === 'refresh') setRefreshing(false);
     if (mine.error) {
-      setError(mine.error.message);
+      setError(getSupabaseErrorMessage(mine.error));
       setAssigned([]);
     } else {
       setAssigned(mine.data);
@@ -132,7 +140,7 @@ export default function DriverDashboardScreen() {
   }, [userId]);
 
   useEffect(() => {
-    void load();
+    void load('initial');
   }, [load]);
 
   useEffect(() => {
@@ -164,7 +172,7 @@ export default function DriverDashboardScreen() {
   useEffect(() => {
     if (!userId) return;
     const ch = subscribeBookingsChanges((payload) => {
-      void load();
+      void load('silent');
       if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload) && userId) {
         const row = payload.new as BookingRealtimeRecord | undefined;
         void notifyNewOpenBookingIfMatchesDriver(
@@ -240,6 +248,14 @@ export default function DriverDashboardScreen() {
         { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + 100 },
       ]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load('refresh')}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <View style={styles.headerRow}>
         <AppLogo size="header" />
@@ -272,7 +288,7 @@ export default function DriverDashboardScreen() {
         <View style={styles.pendingLeft}>
           <Text style={styles.pendingLabel}>{t('driver.newOrdersPending')}</Text>
           <Text style={styles.pendingSubtitle}>
-            {openCount > 0 ? t('driver.tapToView') : t('driver.noNewOrders')}
+            {openCount > 0 ? t('driver.tapToView') : 'ახალი შეკვეთა ჯერ არ არის'}
           </Text>
         </View>
         {openCount > 0 ? (
@@ -288,7 +304,7 @@ export default function DriverDashboardScreen() {
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable onPress={() => void load()} style={styles.retryBtn}>
+          <Pressable onPress={() => void load('initial')} style={styles.retryBtn}>
             <Text style={styles.retryText}>{t('common.retry')}</Text>
           </Pressable>
         </View>
@@ -297,9 +313,7 @@ export default function DriverDashboardScreen() {
       <View style={styles.sectionDivider} />
       <Text style={styles.sectionTitle}>{t('driver.activeBooking')}</Text>
       {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator color={COLORS.gold} size="large" />
-        </View>
+        <BookingListSkeleton variant="driver" />
       ) : hasActive && activeBooking ? (
         <View style={[styles.activeCard, SHADOWS.card]}>
           <View style={styles.activeBadge}>
@@ -316,12 +330,7 @@ export default function DriverDashboardScreen() {
           </View>
         </View>
       ) : (
-        <View style={styles.emptyActive}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="car-outline" size={28} color={COLORS.textMuted} />
-          </View>
-          <Text style={styles.emptyActiveText}>{t('driver.noActiveBooking')}</Text>
-        </View>
+        <ListEmptyState icon="car-outline" message="აქტიური ჯავშანი არ არის" />
       )}
 
       {__DEV__ && Platform.OS !== 'web' ? (

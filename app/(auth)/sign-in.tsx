@@ -16,33 +16,13 @@ import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
-  isNetworkError,
-  mapSupabaseError,
   showErrorAlert,
   showValidationAlert,
-  validateSignInForm,
+  validateSignInFields,
+  type SignInFieldErrors,
 } from '../../lib/validation';
-
-function mapSupabaseSignInError(
-  err: unknown,
-  t: (key: string) => string,
-): string {
-  if (isNetworkError(err)) {
-    return t('auth.errorNetwork');
-  }
-  const mapped = mapSupabaseError(err);
-  if (mapped.includes('ელფოსტა ან პაროლი')) {
-    return t('auth.errorInvalidCredentials');
-  }
-  if (mapped.includes('დადასტურებული')) {
-    return t('auth.errorEmailNotConfirmed');
-  }
-  if (mapped === 'მონაცემები არასწორია ან მოთხოვნა ვერ შესრულდა.') {
-    return t('auth.errorSignInFailed');
-  }
-  return mapped;
-}
 
 export default function SignInScreen() {
   const { t } = useTranslation();
@@ -53,15 +33,18 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<SignInFieldErrors>({});
 
   async function handleSignIn() {
-    const validationError = validateSignInForm({
+    const fields = validateSignInFields({
       email: emailAddress,
       password,
     });
-    if (validationError) {
-      setError(validationError);
-      showValidationAlert(validationError);
+    setFieldErrors(fields);
+    if (fields.email || fields.password) {
+      const first = fields.email ?? fields.password ?? '';
+      setError(first);
+      showValidationAlert(first);
       return;
     }
 
@@ -70,14 +53,14 @@ export default function SignInScreen() {
     try {
       const { error: signInError } = await signIn(emailAddress.trim(), password);
       if (signInError) {
-        const message = mapSupabaseSignInError(signInError, t);
+        const message = getSupabaseErrorMessage(signInError);
         setError(message);
         showErrorAlert(message);
         return;
       }
       router.replace('/');
     } catch (err: unknown) {
-      const message = mapSupabaseSignInError(err, t);
+      const message = getSupabaseErrorMessage(err);
       setError(message);
       showErrorAlert(message);
     } finally {
@@ -111,6 +94,7 @@ export default function SignInScreen() {
             keyboardType="email-address"
             value={emailAddress}
             onChangeText={setEmailAddress}
+            error={fieldErrors.email}
           />
           <AuthInput
             label={t('auth.password')}
@@ -118,6 +102,7 @@ export default function SignInScreen() {
             autoCapitalize="none"
             value={password}
             onChangeText={setPassword}
+            error={fieldErrors.password}
           />
 
           <Link href="/forgot-password" asChild>

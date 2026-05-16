@@ -10,11 +10,12 @@ import {
   Text,
   View,
 } from 'react-native';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
-  mapSupabaseError,
   showErrorAlert,
   showValidationAlert,
-  validateSignUpForm,
+  validateSignUpFields,
+  type SignUpFieldErrors,
 } from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppLogo } from '../../components/AppLogo';
@@ -36,6 +37,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<SignUpFieldErrors>({});
 
   useEffect(() => {
     if (authLoading) return;
@@ -55,15 +57,17 @@ export default function SignUpScreen() {
   async function onRegister() {
     if (isSubmitting) return;
 
-    const validationError = validateSignUpForm({
+    const fields = validateSignUpFields({
       role,
       fullName,
       email,
       password,
     });
-    if (validationError) {
-      setError(validationError);
-      showValidationAlert(validationError);
+    setFieldErrors(fields);
+    if (fields.role || fields.fullName || fields.email || fields.password) {
+      const first = fields.role ?? fields.fullName ?? fields.email ?? fields.password ?? '';
+      setError(first);
+      showValidationAlert(first);
       return;
     }
 
@@ -72,14 +76,14 @@ export default function SignUpScreen() {
     try {
       const { error: signUpError } = await signUp(email.trim(), password, fullName.trim(), role!);
       if (signUpError) {
-        const message = mapSupabaseError(signUpError);
+        const message = getSupabaseErrorMessage(signUpError);
         setError(message);
         showErrorAlert(message);
         return;
       }
       router.replace('/');
     } catch (e: unknown) {
-      const message = mapSupabaseError(e);
+      const message = getSupabaseErrorMessage(e);
       setError(message);
       showErrorAlert(message);
     } finally {
@@ -134,15 +138,22 @@ export default function SignUpScreen() {
             <Text style={styles.roleHint}>B2B ლოგისტიკა</Text>
           </Pressable>
         </View>
+        {fieldErrors.role ? <Text style={styles.fieldError}>{fieldErrors.role}</Text> : null}
 
         <View style={styles.card}>
-          <AuthInput label="სრული სახელი" value={fullName} onChangeText={setFullName} />
+          <AuthInput
+            label="სრული სახელი"
+            value={fullName}
+            onChangeText={setFullName}
+            error={fieldErrors.fullName}
+          />
           <AuthInput
             label="ელფოსტა"
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
             onChangeText={setEmail}
+            error={fieldErrors.email}
           />
           <AuthInput
             label="პაროლი"
@@ -150,6 +161,7 @@ export default function SignUpScreen() {
             autoCapitalize="none"
             value={password}
             onChangeText={setPassword}
+            error={fieldErrors.password}
           />
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -268,6 +280,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: SPACING.lg,
     ...SHADOWS.card,
+  },
+  fieldError: {
+    color: COLORS.error,
+    fontSize: 12,
+    marginBottom: SPACING.sm,
+    marginTop: -SPACING.xs,
   },
   error: {
     color: COLORS.error,

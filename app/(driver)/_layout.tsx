@@ -34,6 +34,7 @@ export default function DriverTabsLayout() {
         }}
       >
       <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="calendar" options={{ href: null }} />
       <Tabs.Screen
         name="dashboard"
         options={{

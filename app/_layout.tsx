@@ -13,6 +13,7 @@ import * as Notifications from 'expo-notifications';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedSplash from '../components/AnimatedSplash';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { LogoutButton } from '../components/LogoutButton';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
@@ -270,11 +271,13 @@ export default function RootLayout() {
       <I18nBootstrap>
         <I18nextProvider i18n={i18n}>
           <AuthProvider>
-            <PushNotificationRegistration />
-            <PushNotificationListeners />
-            <WebRootStyles />
-            <StatusBar style="light" />
-            <NavigationShell />
+            <ErrorBoundary>
+              <PushNotificationRegistration />
+              <PushNotificationListeners />
+              <WebRootStyles />
+              <StatusBar style="light" />
+              <NavigationShell />
+            </ErrorBoundary>
           </AuthProvider>
         </I18nextProvider>
       </I18nBootstrap>

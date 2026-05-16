@@ -1,4 +1,5 @@
 import { Alert, Platform } from 'react-native';
+import { getSupabaseErrorMessage } from './errorHandler';
 
 const MIN_PASSWORD_LENGTH = 6;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,7 +34,7 @@ export function validatePassword(
     return 'შეიყვანეთ პაროლი.';
   }
   if (password.length < minLength) {
-    return `პაროლი უნდა იყოს მინიმუმ ${minLength} სიმბოლო.`;
+    return `პაროლი მინიმუმ ${minLength} სიმბოლო`;
   }
   return null;
 }
@@ -58,10 +59,32 @@ export function validateOptionalPhone(phone: string): string | null {
 export function validateExperienceYears(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (!/^\d+$/.test(trimmed)) {
+    return 'შეიყვანეთ რიცხვი';
+  }
   const years = parseInt(trimmed, 10);
   if (!Number.isFinite(years) || years < 0 || years > 60) {
     return 'გამოცდილების წლები უნდა იყოს 0–60.';
   }
+  return null;
+}
+
+const BIO_MAX_LENGTH = 500;
+
+export function validateBioLength(bio: string): string | null {
+  if (bio.length > BIO_MAX_LENGTH) {
+    return `ბიო არ უნდა აღემატებოდეს ${BIO_MAX_LENGTH} სიმბოლოს.`;
+  }
+  return null;
+}
+
+export function bioMaxLength(): number {
+  return BIO_MAX_LENGTH;
+}
+
+export function validateVehicleSave(type: string | null, vehicleClass: string | null): string | null {
+  if (!type) return 'აირჩიეთ ტრანსპორტის ტიპი';
+  if (!vehicleClass) return 'აირჩიეთ კლასი';
   return null;
 }
 
@@ -70,8 +93,23 @@ export type SignInFormInput = {
   password: string;
 };
 
+export type SignInFieldErrors = {
+  email?: string;
+  password?: string;
+};
+
+export function validateSignInFields(input: SignInFormInput): SignInFieldErrors {
+  const errors: SignInFieldErrors = {};
+  const emailErr = validateEmail(input.email);
+  if (emailErr) errors.email = emailErr.replace(/\.$/, '');
+  const passErr = validateSignInPassword(input.password);
+  if (passErr) errors.password = passErr.replace(/\.$/, '');
+  return errors;
+}
+
 export function validateSignInForm(input: SignInFormInput): string | null {
-  return validateEmail(input.email) ?? validateSignInPassword(input.password);
+  const e = validateSignInFields(input);
+  return e.email ?? e.password ?? null;
 }
 
 export type SignUpFormInput = {
@@ -81,15 +119,31 @@ export type SignUpFormInput = {
   password: string;
 };
 
-export function validateSignUpForm(input: SignUpFormInput): string | null {
+export type SignUpFieldErrors = {
+  role?: string;
+  fullName?: string;
+  email?: string;
+  password?: string;
+};
+
+export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors {
+  const errors: SignUpFieldErrors = {};
   if (!input.role) {
-    return 'აირჩიეთ როლი (მძღოლი ან კომპანია).';
+    errors.role = 'აირჩიეთ როლი';
   }
-  return (
-    validateRequired(input.fullName, 'სრული სახელი') ??
-    validateEmail(input.email) ??
-    validatePassword(input.password)
-  );
+  if (!input.fullName.trim()) {
+    errors.fullName = 'შეიყვანეთ სახელი';
+  }
+  const emailErr = validateEmail(input.email);
+  if (emailErr) errors.email = emailErr.replace(/\.$/, '');
+  const passErr = validatePassword(input.password);
+  if (passErr) errors.password = passErr.replace(/\.$/, '');
+  return errors;
+}
+
+export function validateSignUpForm(input: SignUpFormInput): string | null {
+  const e = validateSignUpFields(input);
+  return e.role ?? e.fullName ?? e.email ?? e.password ?? null;
 }
 
 export type CompanyProfileFormInput = {
@@ -144,9 +198,8 @@ export function isNetworkError(err: unknown): boolean {
 }
 
 export function mapSupabaseError(err: unknown): string {
-  if (isNetworkError(err)) {
-    return 'ინტერნეტი არ არის — შეამოწმეთ კავშირი და სცადეთ თავიდან.';
-  }
+  const mapped = getSupabaseErrorMessage(err);
+  if (mapped) return mapped;
 
   const msg = extractErrorMessage(err);
   const lower = msg.toLowerCase();
@@ -155,12 +208,6 @@ export function mapSupabaseError(err: unknown): string {
       ? String((err as { code?: string }).code ?? '')
       : '';
 
-  if (lower.includes('invalid login credentials')) {
-    return 'ელფოსტა ან პაროლი არასწორია.';
-  }
-  if (lower.includes('email not confirmed')) {
-    return 'ელფოსტა არ არის დადასტურებული.';
-  }
   if (
     code === 'user_already_exists' ||
     lower.includes('user already registered') ||
@@ -169,24 +216,10 @@ export function mapSupabaseError(err: unknown): string {
     return 'ეს ელფოსტა უკვე რეგისტრირებულია — გადადით „შესვლაზე".';
   }
   if (lower.includes('password should be at least')) {
-    return 'პაროლი უნდა იყოს მინიმუმ 6 სიმბოლო.';
+    return 'პაროლი მინიმუმ 6 სიმბოლო';
   }
   if (lower.includes('unable to validate email')) {
-    return 'ელფოსტის ფორმატი არასწორია.';
-  }
-  if (
-    lower.includes('jwt') ||
-    lower.includes('session') ||
-    lower.includes('not authenticated') ||
-    code === 'PGRST301'
-  ) {
-    return 'სესია ამოიწურა — გთხოვთ თავიდან შეხვიდეთ.';
-  }
-  if (lower.includes('permission') || code === '42501') {
-    return 'წვდომა აკრძალულია.';
-  }
-  if (msg.trim()) {
-    return msg;
+    return 'ელფოსტის ფორმატი არასწორია';
   }
   return 'მონაცემები არასწორია ან მოთხოვნა ვერ შესრულდა.';
 }

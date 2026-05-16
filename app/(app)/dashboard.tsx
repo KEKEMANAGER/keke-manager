@@ -31,7 +31,9 @@ import {
   unsubscribeChannel,
 } from '../../lib/bookings';
 import { AppLogo } from '../../components/AppLogo';
+import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { EmptyState } from '../../components/EmptyState';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
@@ -155,7 +157,7 @@ export default function CompanyDashboardScreen() {
     }
 
     if (bRes.error) {
-      setError(bRes.error.message);
+      setError(getSupabaseErrorMessage(bRes.error));
       setBookings([]);
     } else {
       setBookings(bRes.data);
@@ -237,7 +239,7 @@ export default function CompanyDashboardScreen() {
       try {
         const res = await cancelBookingByCompany(b.id, userId);
         if (!res.ok) {
-          const msg = res.error?.message ?? 'გაუქმება ვერ მოხერხდა';
+          const msg = res.error ? getSupabaseErrorMessage(res.error) : 'გაუქმება ვერ მოხერხდა';
           if (Platform.OS === 'web') {
             window.alert(msg);
           } else {
@@ -395,13 +397,11 @@ export default function CompanyDashboardScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.listLoading}>
-          <ActivityIndicator color={COLORS.gold} size="large" />
-        </View>
+        <BookingListSkeleton variant="company" />
       ) : activeBookings.length === 0 ? (
         <EmptyState
           icon="calendar"
-          title={t('company.noActiveBookings')}
+          title="აქტიური ჯავშანი არ არის"
           subtitle={
             'როცა ახალი შეკვეთა გამოჩნდება ან დადასტურდება, აქ გამოჩნდება ჯავშნები.'
           }
@@ -454,6 +454,26 @@ export default function CompanyDashboardScreen() {
                 ) : (
                   <Text style={styles.cancelBookingBtnText}>გაუქმება</Text>
                 )}
+              </Pressable>
+            ) : null}
+            {b.status === 'in_progress' ? (
+              <View style={styles.inProgressRow}>
+                <View style={styles.inProgressBadge}>
+                  <Ionicons name="navigate-outline" size={14} color={COLORS.goldDark} />
+                  <Text style={styles.inProgressText}>მიმდინარე</Text>
+                </View>
+              </View>
+            ) : null}
+            {b.status === 'completed' && b.driver_id ? (
+              <Pressable
+                onPress={() =>
+                  router.push(
+                    `/(app)/rate-booking?bookingId=${encodeURIComponent(b.id)}&driverClerkId=${encodeURIComponent(b.driver_id!)}`,
+                  )
+                }
+                style={({ pressed }) => [styles.rateBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.rateBtnText}>შეფასება</Text>
               </Pressable>
             ) : null}
             <Pressable onPress={() => void shareVoucherPDF(b)} style={styles.voucherBtn}>
@@ -938,6 +958,41 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 14,
     fontWeight: '800',
+  },
+  inProgressRow: {
+    marginTop: SPACING.sm,
+  },
+  inProgressBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: COLORS.goldTint,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+  },
+  inProgressText: {
+    color: COLORS.goldDark,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  rateBtn: {
+    marginTop: SPACING.sm,
+    alignSelf: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 12,
+    backgroundColor: COLORS.goldTint,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+  },
+  rateBtnText: {
+    color: COLORS.gold,
+    fontWeight: '800',
+    fontSize: 14,
   },
   voucherBtn: {
     borderWidth: 1,

@@ -35,6 +35,8 @@ import {
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
+import { showValidationAlert, validateVehicleSave } from '../../lib/validation';
 import { useAuth } from '../../contexts/AuthContext';
 
 const SLOTS: {
@@ -143,6 +145,12 @@ export default function DriverVehiclePhotosScreen() {
 
   async function onSaveVehicle() {
     if (!userId) return;
+    const validationError = validateVehicleSave(vehicleType, vehicleClass);
+    if (validationError) {
+      setSaveError(validationError);
+      showValidationAlert(validationError);
+      return;
+    }
     setSaveBusy(true);
     setSaveError(null);
     const yearNum = parseInt(year.trim(), 10);
@@ -156,7 +164,7 @@ export default function DriverVehiclePhotosScreen() {
     });
     setSaveBusy(false);
     if (error) {
-      setSaveError(error.message);
+      setSaveError(getSupabaseErrorMessage(error));
       return;
     }
     setIsEditing(false);

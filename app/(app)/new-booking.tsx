@@ -782,10 +782,10 @@ export default function NewBookingScreen() {
 
   function validateBeforeSave(): string | null {
     if (!normalizeVehicleType(selectedVehicleType)) {
-      return 'აირჩიეთ ავტომობილის ტიპი.';
+      return 'აირჩიეთ ტრანსპორტის ტიპი';
     }
     if (!normalizeVehicleClass(vehicleClass)) {
-      return 'აირჩიეთ ავტომობილის კლასი.';
+      return 'აირჩიეთ კლასი';
     }
     if (
       driverTargetMode === 'specific' &&

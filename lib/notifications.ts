@@ -1,6 +1,12 @@
 import * as Notifications from 'expo-notifications';
 import { Alert, Platform } from 'react-native';
 import i18n from '../src/lib/i18n';
+import type { BookingScheduleInput } from './driverSchedules';
+import {
+  estimateBookingBusyWindow,
+  filterDriverIdsAvailableForWindow,
+  SCHEDULE_OVERLAP_BUFFER_MS,
+} from './driverSchedules';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 import { sendExpoPushToMany } from './expoPush';
 import { supabase } from './supabase';
@@ -155,6 +161,7 @@ export function normalizeBookingVehicleFilters(
 export async function fetchMatchingDriverPushTokens(
   bookingVehicleType: string,
   bookingVehicleClass: string | null | undefined,
+  availability?: BookingScheduleInput | null,
 ): Promise<{ tokens: string[]; error: Error | null; vehicleType: VehicleTypeCode | null; vehicleClass: VehicleClassCode | null }> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     bookingVehicleType,
@@ -187,16 +194,32 @@ export async function fetchMatchingDriverPushTokens(
     return { tokens: [], error: new Error(error.message), vehicleType, vehicleClass };
   }
 
-  const matchedRows = (data ?? []).map((row) => row as ProfilePushRow);
+  let matchedRows = (data ?? []).map((row) => row as ProfilePushRow);
+
+  matchedRows = matchedRows.filter((row) => {
+    const rowType = normalizeVehicleType(row.vehicle_type);
+    if (rowType !== vehicleType) return false;
+    if (!vehicleClass) return true;
+    const rowClass = normalizeVehicleClass(row.vehicle_class);
+    return rowClass === vehicleClass;
+  });
+
+  const busyWindow = availability ? estimateBookingBusyWindow(availability) : null;
+  if (busyWindow && matchedRows.length > 0) {
+    const { availableIds, error: availErr } = await filterDriverIdsAvailableForWindow(
+      matchedRows.map((r) => r.id),
+      busyWindow,
+      SCHEDULE_OVERLAP_BUFFER_MS,
+    );
+    if (availErr) {
+      if (__DEV__) console.warn('[notify] schedule filter failed:', availErr.message);
+    } else {
+      const allowed = new Set(availableIds);
+      matchedRows = matchedRows.filter((r) => allowed.has(r.id));
+    }
+  }
 
   const tokens = matchedRows
-    .filter((row) => {
-      const rowType = normalizeVehicleType(row.vehicle_type);
-      if (rowType !== vehicleType) return false;
-      if (!vehicleClass) return true;
-      const rowClass = normalizeVehicleClass(row.vehicle_class);
-      return rowClass === vehicleClass;
-    })
     .map((row) => row.push_token?.trim() ?? '')
     .filter((token) => token.length > 0);
 
@@ -208,6 +231,7 @@ export async function fetchMatchingDriverPushTokens(
 /** Push token for one driver (targeted booking assignment). */
 export async function fetchDriverPushTokenById(
   driverId: string,
+  availability?: BookingScheduleInput | null,
 ): Promise<{ tokens: string[]; error: Error | null }> {
   const id = String(driverId ?? '').trim();
   if (!id) {
@@ -225,7 +249,21 @@ export async function fetchDriverPushTokenById(
   }
 
   const token = (data as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
-  return { tokens: token ? [token] : [], error: null };
+  if (!token) return { tokens: [], error: null };
+
+  const busyWindow = availability ? estimateBookingBusyWindow(availability) : null;
+  if (busyWindow) {
+    const { availableIds } = await filterDriverIdsAvailableForWindow(
+      [id],
+      busyWindow,
+      SCHEDULE_OVERLAP_BUFFER_MS,
+    );
+    if (!availableIds.includes(id)) {
+      return { tokens: [], error: null };
+    }
+  }
+
+  return { tokens: [token], error: null };
 }
 
 /**
@@ -240,6 +278,8 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   driverId?: string | null;
   bookingId?: string;
   showAlertIfEmpty?: boolean;
+  /** Service time window — drivers with overlapping `driver_schedules` are skipped. */
+  availability?: BookingScheduleInput | null;
 }): Promise<NotifyMatchingDriversResult> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     params.vehicleType,
@@ -274,8 +314,8 @@ export async function notifyMatchingDriversOfNewBooking(params: {
 
   const targetedDriverId = String(params.driverId ?? '').trim();
   const { tokens, error } = targetedDriverId
-    ? await fetchDriverPushTokenById(targetedDriverId)
-    : await fetchMatchingDriverPushTokens(vehicleType, vehicleClass);
+    ? await fetchDriverPushTokenById(targetedDriverId, params.availability)
+    : await fetchMatchingDriverPushTokens(vehicleType, vehicleClass, params.availability);
 
   if (error) {
     if (__DEV__) console.warn('[notifyMatchingDrivers] fetch error:', error.message);

@@ -2,6 +2,10 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import i18n from '../src/lib/i18n';
 import { formatDisplayDateTime, parseStoredDateTime } from './dateTime';
 import { notifyBookingConfirmed } from './localNotifications';
+import {
+  createScheduleForAcceptedBooking,
+  releaseDriverScheduleForBooking,
+} from './driverSchedules';
 import { notifyMatchingDriversOfNewBooking } from './notifications';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
@@ -509,6 +513,13 @@ export async function insertBooking(row: InsertBookingInput) {
       driverId: assignedDriverId || undefined,
       bookingId,
       showAlertIfEmpty: true,
+      availability: {
+        kind,
+        date_display: row.date_display,
+        itinerary: row.itinerary,
+        transfer_in: row.transfer_in,
+        transfer_out: row.transfer_out,
+      },
     });
   }
 
@@ -562,6 +573,7 @@ export async function acceptBooking(
   if (!data) {
     return { ok: false as const, error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია') };
   }
+  void createScheduleForAcceptedBooking(rowId, driverClerkId);
   void notifyBookingConfirmed();
   return { ok: true as const, error: null };
 }
@@ -620,6 +632,9 @@ export async function completeBooking(bookingRowId: string, driverClerkId: strin
     .select('id')
     .maybeSingle();
   if (error) return { ok: false as const, error };
+  if (data) {
+    void releaseDriverScheduleForBooking(rowId);
+  }
   if (!data) {
     return { ok: false as const, error: new Error('ჯავშანის დასრულება ხელმისაწვდომია მხოლოდ „გზაში“ სტატუსში') };
   }
@@ -652,6 +667,11 @@ export async function startBookingTrip(bookingRowId: string, driverClerkId: stri
     };
   }
   return { ok: true as const, error: null };
+}
+
+/** Company cancels only while still pending. */
+export async function cancelBooking(bookingId: string, companyId: string) {
+  return cancelBookingByCompany(bookingId, companyId);
 }
 
 /** Company cancels only while still pending (no driver assigned). */

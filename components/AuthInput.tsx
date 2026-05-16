@@ -3,17 +3,19 @@ import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 type Props = TextInputProps & {
   label: string;
+  error?: string | null;
 };
 
-export function AuthInput({ label, style, ...rest }: Props) {
+export function AuthInput({ label, style, error, ...rest }: Props) {
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         placeholderTextColor={COLORS.textMuted}
-        style={[styles.input, style]}
+        style={[styles.input, error ? styles.inputError : null, style]}
         {...rest}
       />
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -35,5 +37,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: COLORS.text,
+  },
+  inputError: {
+    borderColor: COLORS.error,
+  },
+  fieldError: {
+    color: COLORS.error,
+    fontSize: 12,
+    marginTop: 4,
   },
 });

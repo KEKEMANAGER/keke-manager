@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,9 +14,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  bioMaxLength,
   mapSupabaseError,
   showErrorAlert,
   showValidationAlert,
+  validateBioLength,
   validateDriverProfileForm,
 } from '../../lib/validation';
 import { useTranslation } from 'react-i18next';
@@ -59,6 +62,7 @@ function RatingBar({ label, value }: { label: string; value: number }) {
 }
 
 export default function DriverProfileScreen() {
+  const router = useRouter();
   const { i18n } = useTranslation();
   const vehicleTypeOptions = useMemo(
     () => vehicleTypeUiOptions(),
@@ -207,12 +211,13 @@ export default function DriverProfileScreen() {
   async function onSaveProfile() {
     if (!user?.id) return;
 
-    const validationError = validateDriverProfileForm({
-      name,
-      vehicleType,
-      vehicleClass,
-      experienceYears,
-    });
+    const validationError =
+      validateDriverProfileForm({
+        name,
+        vehicleType,
+        vehicleClass,
+        experienceYears,
+      }) ?? validateBioLength(bio);
     if (validationError) {
       setSaveError(validationError);
       showValidationAlert(validationError);
@@ -308,6 +313,9 @@ export default function DriverProfileScreen() {
           <>
             <Field label="სახელი გვარი" value={name} onChangeText={setName} />
             <Field label="ბიო" value={bio} onChangeText={setBio} multiline />
+            <Text style={styles.charCount}>
+              {bio.length}/{bioMaxLength()}
+            </Text>
             <Field
               label="ენები"
               value={languages}
@@ -361,6 +369,20 @@ export default function DriverProfileScreen() {
       </View>
 
       <ProfileFeedbackEntry />
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>ხელმისაწვდომობა</Text>
+        <Text style={styles.availabilityHint}>
+          მიუთითეთ ზუსტი საათები, როცა დაკავებული ხართ — არა მთელი დღე. ჯავშნის დასრულებისას კალენდარი
+          ავტომატურად ითავისუფლება.
+        </Text>
+        <Pressable
+          onPress={() => router.push('/(driver)/calendar')}
+          style={({ pressed }) => [styles.calendarLink, pressed && { opacity: 0.9 }]}
+        >
+          <Text style={styles.calendarLinkText}>კალენდარი / დაკავებული საათები</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>რეიტინგის დეტალები</Text>
@@ -499,6 +521,26 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     textTransform: 'uppercase',
   },
+  availabilityHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.md,
+  },
+  calendarLink: {
+    backgroundColor: COLORS.goldTint,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    borderRadius: RADIUS.button,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+    alignItems: 'center',
+  },
+  calendarLinkText: {
+    color: COLORS.goldDark,
+    fontWeight: '800',
+    fontSize: 14,
+  },
   field: {
     marginBottom: SPACING.md,
   },
@@ -507,6 +549,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginBottom: SPACING.xs,
+  },
+  charCount: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: 'right',
+    marginTop: -SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   input: {
     backgroundColor: COLORS.white,

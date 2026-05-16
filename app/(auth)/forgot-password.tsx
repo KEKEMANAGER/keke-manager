@@ -17,23 +17,8 @@ import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
-import {
-  isNetworkError,
-  mapSupabaseError,
-  showValidationAlert,
-  validateEmail,
-} from '../../lib/validation';
-
-function mapResetPasswordError(err: unknown): string {
-  if (isNetworkError(err)) {
-    return 'ქსელის შეცდომა. შეამოწმეთ ინტერნეტი და სცადეთ თავიდან.';
-  }
-  const mapped = mapSupabaseError(err);
-  if (mapped.includes('ელფოსტ')) {
-    return mapped;
-  }
-  return mapped || 'აღდგენის ბმული ვერ გაიგზავნა. სცადეთ თავიდან.';
-}
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
+import { showValidationAlert, validateEmail } from '../../lib/validation';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -61,13 +46,13 @@ export default function ForgotPasswordScreen() {
       });
 
       if (resetError) {
-        setError(mapResetPasswordError(resetError));
+        setError(getSupabaseErrorMessage(resetError));
         return;
       }
 
       setSent(true);
     } catch (err: unknown) {
-      setError(mapResetPasswordError(err));
+      setError(getSupabaseErrorMessage(err));
     } finally {
       setLoading(false);
     }

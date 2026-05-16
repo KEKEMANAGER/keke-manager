@@ -144,9 +144,9 @@ export default function CompanyHistoryScreen() {
         };
       default:
         return {
-          icon: 'calendar',
-          title: 'ჯავშნები ჯერ არ გაქვთ',
-          subtitle: 'როცა ახალი შეკვეთა გამოჩნდება, აქ გამოჩნდება ყველა ჩანაწერი.',
+          icon: 'archive',
+          title: 'ისტორია ცარიელია',
+          subtitle: 'დასრულებული და გაუქმებული ჯავშნები აქ გამოჩნდება.',
         };
     }
   }

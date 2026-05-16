@@ -17,6 +17,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { BookingRealtimeRecord, BookingRow, BookingStatus } from '../../lib/bookings';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
   acceptBooking,
   bookingStatusLabel,
@@ -274,10 +275,11 @@ export default function DriverBookingsScreen() {
     const res = await completeBooking(item.id, user.id);
     setActingId(null);
     if (!res.ok) {
-      crossInfoAlert('შეცდომა', res.error?.message || 'დასრულება ვერ მოხერხდა');
+      crossInfoAlert('შეცდომა', getSupabaseErrorMessage(res.error) || 'დასრულება ვერ მოხერხდა');
       void load('silent');
       return;
     }
+    crossInfoAlert('წარმატება', 'ჯავშანი დასრულებულია ✓');
     void load('silent');
     setTab('completed');
   }
@@ -288,7 +290,7 @@ export default function DriverBookingsScreen() {
     const res = await startBookingTrip(item.id, user.id);
     setActingId(null);
     if (!res.ok) {
-      crossInfoAlert('შეცდომა', res.error?.message || 'დაწყება ვერ მოხერხდა');
+      crossInfoAlert('შეცდომა', getSupabaseErrorMessage(res.error) || 'დაწყება ვერ მოხერხდა');
       void load('silent');
       return;
     }
@@ -308,7 +310,7 @@ export default function DriverBookingsScreen() {
         }
         return {
           icon: 'calendar' as const,
-          title: 'ჯავშნები ჯერ არ გაქვთ',
+          title: 'მოლოდინში მყოფი შეკვეთა არ არის',
           subtitle:
             'ახალი შეკვეთები ჩანს ტაბში „მოლოდინში“. თუ კომპანიამ გამოგიგზავნათ შეკვეთა, ჩამოწიეთ ეკრანი განახლებისთვის ან შეამოწმეთ რომ პროფილის ტიპი/კლასი ემთხვევა შეკვეთას.',
         };
@@ -459,6 +461,8 @@ export default function DriverBookingsScreen() {
                       )}
                     </Pressable>
                   </View>
+                ) : tab === 'completed' ? (
+                  <Text style={styles.completedLabel}>დასრულებული ✓</Text>
                 ) : tab === 'active' ? (
                   <View style={styles.actions}>
                     {item.status === 'accepted' ? (
@@ -470,7 +474,7 @@ export default function DriverBookingsScreen() {
                         {actingId === item.id ? (
                           <ActivityIndicator color={COLORS.white} size="small" />
                         ) : (
-                          <Text style={styles.btnGoldText}>დავიწყე შესრულება</Text>
+                          <Text style={styles.btnGoldText}>ტურის/ტრანსფერის დაწყება</Text>
                         )}
                       </Pressable>
                     ) : item.status === 'in_progress' ? (
@@ -675,6 +679,12 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '800',
     fontSize: 14,
+  },
+  completedLabel: {
+    color: COLORS.success,
+    fontWeight: '700',
+    fontSize: 14,
+    marginTop: SPACING.sm,
   },
   pressed: {
     opacity: 0.85,
