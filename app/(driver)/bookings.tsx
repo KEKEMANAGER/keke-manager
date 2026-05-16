@@ -12,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../../components/EmptyState';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -34,15 +35,21 @@ import {
   unsubscribeChannel,
 } from '../../lib/bookings';
 import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
+import i18n from '../../src/lib/i18n';
 
-function crossAlert(title: string, message: string, onConfirm: () => void, confirmText = 'დიახ') {
+function crossAlert(
+  title: string,
+  message: string,
+  onConfirm: () => void,
+  confirmText = i18n.t('common.yes'),
+) {
   if (Platform.OS === 'web') {
     if (window.confirm(`${title}\n${message}`)) {
       onConfirm();
     }
   } else {
     Alert.alert(title, message, [
-      { text: 'გაუქმება', style: 'cancel' },
+      { text: i18n.t('common.cancel'), style: 'cancel' },
       { text: confirmText, onPress: onConfirm },
     ]);
   }
@@ -58,19 +65,13 @@ function crossInfoAlert(title: string, message: string) {
 
 type BookingTabKey = 'open' | 'active' | 'completed';
 
-const TABS: { key: BookingTabKey; label: string }[] = [
-  { key: 'open', label: 'მოლოდინში' },
-  { key: 'active', label: 'მიმდინარე' },
-  { key: 'completed', label: 'დასრულებული' },
-];
-
-function driverDisplayName(user: User | null, profile: Profile | null) {
+function driverDisplayName(user: User | null, profile: Profile | null, fallback: string) {
   const full = profile?.full_name?.trim();
   if (full) return full;
   const meta = user?.user_metadata as Record<string, unknown> | undefined;
   const nm = typeof meta?.full_name === 'string' ? meta.full_name.trim() : '';
   if (nm) return nm;
-  return user?.email?.split('@')[0] || 'მძღოლი';
+  return user?.email?.split('@')[0] || fallback;
 }
 
 function driverPhone(_user: User | null, profile: Profile | null) {
@@ -121,8 +122,18 @@ function statusPillTextColor(status: BookingStatus): { color: string } {
 }
 
 export default function DriverBookingsScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
+
+  const tabs = useMemo(
+    (): { key: BookingTabKey; label: string }[] => [
+      { key: 'open', label: t('bookings.tabs.pending') },
+      { key: 'active', label: t('bookings.tabs.active') },
+      { key: 'completed', label: t('bookings.tabs.completed') },
+    ],
+    [t],
+  );
   const userId = user?.id;
   const params = useLocalSearchParams<{ bookingId?: string | string[] }>();
   const highlightBookingId = useMemo(() => {
@@ -242,13 +253,13 @@ export default function DriverBookingsScreen() {
     setActingId(item.id);
     const res = await acceptBooking(item.id, {
       clerkId: user.id,
-      displayName: driverDisplayName(user, profile),
+      displayName: driverDisplayName(user, profile, t('driver.defaultName')),
       phone: driverPhone(user, profile),
       plate: driverPlateFromMeta(user),
     });
     setActingId(null);
     if (!res.ok) {
-      crossInfoAlert('შეცდომა', res.error?.message || 'დადასტურება ვერ მოხერხდა');
+      crossInfoAlert(t('common.error'), res.error?.message || t('bookings.acceptFailed'));
       void load('silent');
       return;
     }
@@ -261,7 +272,7 @@ export default function DriverBookingsScreen() {
     const res = await rejectBooking(item.id);
     setActingId(null);
     if (!res.ok) {
-      crossInfoAlert('შეცდომა', res.error?.message || 'უარყოფა ვერ მოხერხდა');
+      crossInfoAlert(t('common.error'), res.error?.message || t('bookings.rejectFailed'));
       void load('silent');
       return;
     }
@@ -276,11 +287,14 @@ export default function DriverBookingsScreen() {
     const res = await completeBooking(item.id, user.id);
     setActingId(null);
     if (!res.ok) {
-      crossInfoAlert('შეცდომა', getSupabaseErrorMessage(res.error) || 'დასრულება ვერ მოხერხდა');
+      crossInfoAlert(
+        t('common.error'),
+        getSupabaseErrorMessage(res.error) || t('bookings.completeFailed'),
+      );
       void load('silent');
       return;
     }
-    crossInfoAlert('წარმატება', 'ჯავშანი დასრულებულია ✓');
+    crossInfoAlert(t('common.success'), t('bookings.completeSuccess'));
     void load('silent');
     setTab('completed');
   }
@@ -291,7 +305,10 @@ export default function DriverBookingsScreen() {
     const res = await startBookingTrip(item.id, user.id);
     setActingId(null);
     if (!res.ok) {
-      crossInfoAlert('შეცდომა', getSupabaseErrorMessage(res.error) || 'დაწყება ვერ მოხერხდა');
+      crossInfoAlert(
+        t('common.error'),
+        getSupabaseErrorMessage(res.error) || t('bookings.startFailed'),
+      );
       void load('silent');
       return;
     }
@@ -304,55 +321,53 @@ export default function DriverBookingsScreen() {
         if (openListHint === 'profile_vehicle_required') {
           return {
             icon: 'calendar' as const,
-            title: 'პროფილში მიუთითეთ ავტომობილი',
-            subtitle:
-              'პროფილში შეინახეთ მანქანის ტიპი და კლასი; სანამ ეს ცარიელია — არც შეკვეთები გამოჩნდება აქ და არც მოგივათ შესაბამისი შეტყობინებები.',
+            title: t('bookings.empty.profileVehicleTitle'),
+            subtitle: t('bookings.empty.profileVehicleSubtitle'),
           };
         }
         return {
           icon: 'calendar' as const,
-          title: 'მოლოდინში მყოფი შეკვეთა არ არის',
-          subtitle:
-            'ახალი შეკვეთები ჩანს ტაბში „მოლოდინში“. თუ კომპანიამ გამოგიგზავნათ შეკვეთა, ჩამოწიეთ ეკრანი განახლებისთვის ან შეამოწმეთ რომ პროფილის ტიპი/კლასი ემთხვევა შეკვეთას.',
+          title: t('bookings.empty.pendingTitle'),
+          subtitle: t('bookings.empty.pendingSubtitle'),
         };
       case 'active':
         return {
           icon: 'calendar' as const,
-          title: 'მიმდინარე ჯავშანი არაა',
-          subtitle:
-            'ჯავშნის მიღების შემდეგ აქ გამოჩნდება რეისები — ჯერ დააჭირეთ „დავიწყე შესრულება", შემდეგ „დასრულება".',
+          title: t('bookings.empty.activeTitle'),
+          subtitle: t('bookings.empty.activeSubtitle'),
         };
       default:
         return {
           icon: 'archive' as const,
-          title: 'დასრულებული რეისები არ გაქვთ',
-          subtitle:
-            'დასრულებული ჯავშნები აქ შეინახება ისტორიისთვის.',
+          title: t('bookings.empty.completedTitle'),
+          subtitle: t('bookings.empty.completedSubtitle'),
         };
     }
-  }, [tab, openListHint]);
+  }, [tab, openListHint, t]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + SPACING.md }]}>
-      <Text style={styles.title}>ჯავშანები</Text>
+      <Text style={styles.title}>{t('bookings.title')}</Text>
 
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
           <Pressable onPress={() => void load('initial')} style={styles.retryBtn}>
-            <Text style={styles.retryText}>ხელახლა</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </Pressable>
         </View>
       ) : null}
 
       <View style={styles.tabRow}>
-        {TABS.map((t) => (
+        {tabs.map((tabItem) => (
           <Pressable
-            key={t.key}
-            onPress={() => setTab(t.key)}
-            style={[styles.tab, tab === t.key && styles.tabActive]}
+            key={tabItem.key}
+            onPress={() => setTab(tabItem.key)}
+            style={[styles.tab, tab === tabItem.key && styles.tabActive]}
           >
-            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            <Text style={[styles.tabText, tab === tabItem.key && styles.tabTextActive]}>
+              {tabItem.label}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -407,10 +422,12 @@ export default function DriverBookingsScreen() {
                 </View>
               </View>
               <Text style={styles.kind}>{bookingTypeLabel(item.kind, item.flight_direction)}</Text>
-              <Text style={styles.company}>{item.company_name || 'კომპანია'}</Text>
+              <Text style={styles.company}>
+                {item.company_name || t('common.companyDefault')}
+              </Text>
               {item.created_by_name?.trim() ? (
                 <Text style={styles.operator}>
-                  ოპერატორი: {item.created_by_name.trim()}
+                  {t('bookings.operatorLine', { name: item.created_by_name.trim() })}
                 </Text>
               ) : null}
               <Text style={styles.date}>{formatBookingDate(item)}</Text>
@@ -423,16 +440,20 @@ export default function DriverBookingsScreen() {
                       onPress={() => {
                         if (Platform.OS === 'web') {
                           crossAlert(
-                            'შეკვეთის გაუქმება',
-                            'ნამდვილად გსურთ შეკვეთის გაუქმება?',
+                            t('bookings.rejectTitle'),
+                            t('bookings.rejectMessage'),
                             () => void handleReject(item),
-                            'უარყოფა',
+                            t('bookings.decline'),
                           );
                           return;
                         }
-                        Alert.alert('შეკვეთის გაუქმება', 'ნამდვილად გსურთ შეკვეთის გაუქმება?', [
-                          { text: 'არა', style: 'cancel' },
-                          { text: 'უარყოფა', style: 'destructive', onPress: () => void handleReject(item) },
+                        Alert.alert(t('bookings.rejectTitle'), t('bookings.rejectMessage'), [
+                          { text: t('common.no'), style: 'cancel' },
+                          {
+                            text: t('bookings.decline'),
+                            style: 'destructive',
+                            onPress: () => void handleReject(item),
+                          },
                         ]);
                       }}
                       disabled={actingId === item.id}
@@ -441,16 +462,16 @@ export default function DriverBookingsScreen() {
                       {actingId === item.id ? (
                         <ActivityIndicator color={COLORS.grayLight} size="small" />
                       ) : (
-                        <Text style={styles.btnGhostText}>უარყოფა</Text>
+                        <Text style={styles.btnGhostText}>{t('bookings.decline')}</Text>
                       )}
                     </Pressable>
                     <Pressable
                       onPress={() =>
                         crossAlert(
-                          'დადასტურება',
-                          `მიიღოთ ჯავშანი?`,
+                          t('bookings.acceptTitle'),
+                          t('bookings.acceptMessage'),
                           () => void onAccept(item),
-                          'მიღება',
+                          t('bookings.accept'),
                         )
                       }
                       disabled={actingId === item.id}
@@ -459,12 +480,12 @@ export default function DriverBookingsScreen() {
                       {actingId === item.id ? (
                         <ActivityIndicator color={COLORS.white} size="small" />
                       ) : (
-                        <Text style={styles.btnGoldText}>მიღება</Text>
+                        <Text style={styles.btnGoldText}>{t('bookings.accept')}</Text>
                       )}
                     </Pressable>
                   </View>
                 ) : tab === 'completed' ? (
-                  <Text style={styles.completedLabel}>დასრულებული ✓</Text>
+                  <Text style={styles.completedLabel}>{t('bookings.completedLabel')}</Text>
                 ) : tab === 'active' ? (
                   <View style={styles.actions}>
                     {item.status === 'accepted' ? (
@@ -476,17 +497,17 @@ export default function DriverBookingsScreen() {
                         {actingId === item.id ? (
                           <ActivityIndicator color={COLORS.white} size="small" />
                         ) : (
-                          <Text style={styles.btnGoldText}>ტურის/ტრანსფერის დაწყება</Text>
+                          <Text style={styles.btnGoldText}>{t('bookings.startTrip')}</Text>
                         )}
                       </Pressable>
                     ) : item.status === 'in_progress' ? (
                       <Pressable
                         onPress={() =>
                           crossAlert(
-                            'დასრულება',
-                            'დაასრულოთ ჯავშანი?',
+                            t('bookings.completeTitle'),
+                            t('bookings.completeMessage'),
                             () => void onComplete(item),
-                            'დასრულება',
+                            t('bookings.complete'),
                           )
                         }
                         disabled={actingId === item.id}
@@ -495,7 +516,7 @@ export default function DriverBookingsScreen() {
                         {actingId === item.id ? (
                           <ActivityIndicator color={COLORS.white} size="small" />
                         ) : (
-                          <Text style={styles.btnGoldText}>დასრულება</Text>
+                          <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
                         )}
                       </Pressable>
                     ) : null}

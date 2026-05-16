@@ -288,7 +288,7 @@ export default function DriverDashboardScreen() {
         <View style={styles.pendingLeft}>
           <Text style={styles.pendingLabel}>{t('driver.newOrdersPending')}</Text>
           <Text style={styles.pendingSubtitle}>
-            {openCount > 0 ? t('driver.tapToView') : 'ახალი შეკვეთა ჯერ არ არის'}
+            {openCount > 0 ? t('driver.tapToView') : t('dashboard.noNewOrders')}
           </Text>
         </View>
         {openCount > 0 ? (
@@ -330,7 +330,7 @@ export default function DriverDashboardScreen() {
           </View>
         </View>
       ) : (
-        <ListEmptyState icon="car-outline" message="აქტიური ჯავშანი არ არის" />
+        <ListEmptyState icon="car-outline" message={t('dashboard.noActiveBooking')} />
       )}
 
       {__DEV__ && Platform.OS !== 'web' ? (

@@ -29,7 +29,173 @@
     "viewDriver": "Водитель",
     "spentMonth": "Потрачено (месяц)",
     "spentCompleted": "Потрачено (завершённые)",
-    "close": "Закрыть"
+    "close": "Закрыть",
+    "edit": "Редактировать",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "upload": "Загрузить",
+    "yes": "Да",
+    "no": "Нет",
+    "back": "Назад",
+    "next": "Далее",
+    "companyDefault": "Компания",
+    "operator": "Оператор",
+    "inProgress": "В процессе",
+    "rate": "Оценить",
+    "confirm": "Подтвердить",
+    "success": "Успех",
+    "error": "Ошибка"
+  },
+  "bookings": {
+    "title": "Заказы",
+    "tabs": {
+      "pending": "Ожидание",
+      "active": "Активные",
+      "completed": "Завершённые"
+    },
+    "decline": "Отклонить",
+    "accept": "Принять",
+    "startTrip": "Начать поездку",
+    "complete": "Завершить",
+    "cancel": "Отмена",
+    "completedLabel": "Завершено ✓",
+    "rejectTitle": "Отклонить заказ",
+    "rejectMessage": "Вы уверены, что хотите отклонить заказ?",
+    "acceptTitle": "Подтверждение",
+    "acceptMessage": "Принять этот заказ?",
+    "completeTitle": "Завершение",
+    "completeMessage": "Отметить заказ как завершённый?",
+    "completeSuccess": "Заказ завершён ✓",
+    "startFailed": "Не удалось начать поездку",
+    "acceptFailed": "Не удалось принять заказ",
+    "rejectFailed": "Не удалось отклонить заказ",
+    "completeFailed": "Не удалось завершить заказ",
+    "operatorLine": "Оператор: {{name}}",
+    "empty": {
+      "profileVehicleTitle": "Укажите автомобиль в профиле",
+      "profileVehicleSubtitle": "Сохраните тип и класс автомобиля в профиле. Пока это не заполнено, подходящие заказы и уведомления не появятся.",
+      "pendingTitle": "Нет заказов в ожидании",
+      "pendingSubtitle": "Новые заказы отображаются во вкладке «Ожидание». Потяните для обновления или проверьте соответствие типа/класса в профиле.",
+      "activeTitle": "Нет активного заказа",
+      "activeSubtitle": "После принятия заказ появится здесь — нажмите «Начать поездку», затем «Завершить».",
+      "completedTitle": "Нет завершённых поездок",
+      "completedSubtitle": "Завершённые заказы сохраняются здесь."
+    }
+  },
+  "dashboard": {
+    "greeting": "Здравствуйте,",
+    "newOrders": "Новые заказы (ожидание)",
+    "activeBooking": "Активный заказ",
+    "statistics": "Статистика",
+    "completedTrips": "Завершённые поездки",
+    "earnings": "Заработок",
+    "earningsCompleted": "Заработок (завершённые)",
+    "revenue": "Заработок",
+    "noActiveBooking": "Нет активного заказа",
+    "noNewOrders": "Новых заказов пока нет"
+  },
+  "profilePage": {
+    "title": "Профиль",
+    "personalInfo": "Личная информация",
+    "fullName": "ФИО",
+    "bio": "О себе",
+    "languages": "Языки",
+    "experience": "Опыт (лет)",
+    "vehiclePrefs": "Автомобиль (соответствие заказам)",
+    "vehicleType": "Тип",
+    "vehicleClass": "Класс",
+    "calendarLink": "Календарь / занятые часы",
+    "ratings": "Оценки",
+    "logout": "Выйти",
+    "changePhoto": "Сменить фото",
+    "photoPermissionDenied": "Доступ к фото запрещён.",
+    "permissionTitle": "Доступ"
+  },
+  "vehicleScreen": {
+    "title": "Фото автомобиля",
+    "photos": "Фото автомобиля",
+    "type": "Тип",
+    "class": "Класс",
+    "model": "Модель",
+    "color": "Цвет",
+    "year": "Год",
+    "plate": "Номер",
+    "upload": "Загрузить",
+    "missingPhotos": "Добавьте фото: {{labels}}"
+  },
+  "newBooking": {
+    "title": "Новый заказ",
+    "step": "Шаг {{current}} / {{total}} — {{name}}",
+    "stepType": "Тип",
+    "stepDetails": "Детали",
+    "stepSummary": "Итог и оплата",
+    "pickService": "Выберите тип услуги выше и перейдите дальше.",
+    "serviceKind": "Тип услуги",
+    "drivers": "Водители",
+    "sendToAll": "Отправить всем водителям",
+    "driverCount": "({{count}} водителей)",
+    "selectDriver": "Выбрать конкретного водителя",
+    "noDriversTitle": "⚠️ Нет водителя в этой категории",
+    "noDriversBody": "Заказ всё равно будет отправлен, KEKE MANAGER подберёт водителя.",
+    "selected": "Выбрано",
+    "choose": "Выбрать",
+    "submit": "Забронировать",
+    "vehicleSection": "Автомобиль",
+    "operator": "Оператор",
+    "operatorHint": "Добавьте туроператоров в профиле, чтобы выбрать здесь.",
+    "experienceYears": "Опыт: {{years}} лет",
+    "noVehicle": "Автомобиль ещё не указан",
+    "payment": {
+      "now": "Сейчас",
+      "later": "Позже",
+      "clientCard": "Картой клиента"
+    },
+    "transferTab": {
+      "arrival": "Прилёт",
+      "departure": "Вылет"
+    }
+  },
+  "historyPage": {
+    "title": "История заказов",
+    "filters": {
+      "all": "Все",
+      "pending": "Ожидание",
+      "confirmed": "Подтверждённые",
+      "completed": "Завершённые",
+      "cancelled": "Отменённые"
+    },
+    "empty": {
+      "allTitle": "История пуста",
+      "allSubtitle": "Завершённые и отменённые заказы появятся здесь.",
+      "pendingTitle": "Нет заказов в ожидании",
+      "pendingSubtitle": "Когда вы ищете водителя, заказы появятся здесь.",
+      "confirmedTitle": "Нет подтверждённых заказов",
+      "confirmedSubtitle": "Подтверждённые заказы появятся здесь.",
+      "completedTitle": "Нет завершённых заказов",
+      "completedSubtitle": "Завершённые поездки отображаются здесь.",
+      "cancelledTitle": "Нет отменённых заказов",
+      "cancelledSubtitle": "Отменённые или отклонённые заказы появятся здесь."
+    },
+    "rate": "Оценить",
+    "voucher": "Ваучер",
+    "shownCount": "Показано {{count}} записей",
+    "filterActive": " · фильтр: {{filter}}"
+  },
+  "rateBooking": {
+    "title": "Оценка",
+    "submit": "Отправить",
+    "comment": "Комментарий",
+    "thankYou": "Спасибо за оценку!"
+  },
+  "companyDashboard": {
+    "cancelBooking": "Отменить",
+    "rateDriver": "Оценить",
+    "sessionInactive": "Сессия не активна.",
+    "cancelPendingOnly": "Отменить можно только заказы в ожидании.",
+    "cancelFailed": "Не удалось отменить заказ",
+    "cancelSuccess": "Заказ успешно отменён",
+    "cancelConfirm": "Вы уверены, что хотите отменить заказ?",
+    "emptyActiveSubtitle": "Новые и подтверждённые заказы появятся здесь."
   },
   "auth": {
     "tagline": "B2B транспортная платформа",
@@ -131,6 +297,11 @@
       "premium": "Премиум",
       "vip": "VIP"
     }
+  },
+  "errorBoundary": {
+    "title": "Что-то пошло не так",
+    "subtitle": "Попробуйте снова или перезапустите приложение.",
+    "retry": "Повторить"
   },
   "system": {
     "sessionExpiredTitle": "Сессия",

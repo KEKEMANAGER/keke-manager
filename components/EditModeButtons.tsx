@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 
 type Props = {
@@ -10,13 +11,15 @@ type Props = {
 };
 
 export function EditModeButtons({ isEditing, onEdit, onSave, onCancel, saveBusy }: Props) {
+  const { t } = useTranslation();
+
   if (!isEditing) {
     return (
       <Pressable
         onPress={onEdit}
         style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
       >
-        <Text style={styles.editBtnText}>რედაქტირება</Text>
+        <Text style={styles.editBtnText}>{t('common.edit')}</Text>
       </Pressable>
     );
   }
@@ -35,7 +38,7 @@ export function EditModeButtons({ isEditing, onEdit, onSave, onCancel, saveBusy 
         {saveBusy ? (
           <ActivityIndicator color={COLORS.white} size="small" />
         ) : (
-          <Text style={styles.saveBtnText}>შენახვა</Text>
+          <Text style={styles.saveBtnText}>{t('common.save')}</Text>
         )}
       </Pressable>
       <Pressable
@@ -43,7 +46,7 @@ export function EditModeButtons({ isEditing, onEdit, onSave, onCancel, saveBusy 
         disabled={saveBusy}
         style={({ pressed }) => [styles.cancelBtn, (pressed || saveBusy) && styles.pressed]}
       >
-        <Text style={styles.cancelBtnText}>გაუქმება</Text>
+        <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
       </Pressable>
     </View>
   );

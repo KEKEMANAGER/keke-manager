@@ -29,7 +29,173 @@
     "viewDriver": "Driver",
     "spentMonth": "Spent (month)",
     "spentCompleted": "Spent (completed)",
-    "close": "Close"
+    "close": "Close",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "upload": "Upload",
+    "yes": "Yes",
+    "no": "No",
+    "back": "Back",
+    "next": "Next",
+    "companyDefault": "Company",
+    "operator": "Operator",
+    "inProgress": "In progress",
+    "rate": "Rate",
+    "confirm": "Confirm",
+    "success": "Success",
+    "error": "Error"
+  },
+  "bookings": {
+    "title": "Bookings",
+    "tabs": {
+      "pending": "Pending",
+      "active": "Active",
+      "completed": "Completed"
+    },
+    "decline": "Decline",
+    "accept": "Accept",
+    "startTrip": "Start trip",
+    "complete": "Complete",
+    "cancel": "Cancel",
+    "completedLabel": "Completed ✓",
+    "rejectTitle": "Decline order",
+    "rejectMessage": "Are you sure you want to decline this order?",
+    "acceptTitle": "Confirm",
+    "acceptMessage": "Accept this booking?",
+    "completeTitle": "Complete",
+    "completeMessage": "Mark this booking as completed?",
+    "completeSuccess": "Booking completed ✓",
+    "startFailed": "Could not start trip",
+    "acceptFailed": "Could not accept booking",
+    "rejectFailed": "Could not decline booking",
+    "completeFailed": "Could not complete booking",
+    "operatorLine": "Operator: {{name}}",
+    "empty": {
+      "profileVehicleTitle": "Set your vehicle in profile",
+      "profileVehicleSubtitle": "Save vehicle type and class in your profile. Until then, matching orders and notifications will not appear.",
+      "pendingTitle": "No pending orders",
+      "pendingSubtitle": "New orders appear under Pending. Pull to refresh or check that your profile type/class matches the order.",
+      "activeTitle": "No active booking",
+      "activeSubtitle": "After you accept a booking it appears here — tap Start trip, then Complete.",
+      "completedTitle": "No completed trips",
+      "completedSubtitle": "Completed bookings are stored here for your history."
+    }
+  },
+  "dashboard": {
+    "greeting": "Hello,",
+    "newOrders": "New orders (pending)",
+    "activeBooking": "Active booking",
+    "statistics": "Statistics",
+    "completedTrips": "Completed trips",
+    "earnings": "Earnings",
+    "earningsCompleted": "Earnings (completed)",
+    "revenue": "Earnings",
+    "noActiveBooking": "No active booking",
+    "noNewOrders": "No new orders yet"
+  },
+  "profilePage": {
+    "title": "Profile",
+    "personalInfo": "Personal information",
+    "fullName": "Full name",
+    "bio": "Bio",
+    "languages": "Languages",
+    "experience": "Experience (years)",
+    "vehiclePrefs": "Vehicle (order matching)",
+    "vehicleType": "Type",
+    "vehicleClass": "Class",
+    "calendarLink": "Calendar / busy hours",
+    "ratings": "Ratings",
+    "logout": "Log out",
+    "changePhoto": "Change photo",
+    "photoPermissionDenied": "Photo library access denied.",
+    "permissionTitle": "Permission"
+  },
+  "vehicleScreen": {
+    "title": "Vehicle photos",
+    "photos": "Vehicle photos",
+    "type": "Type",
+    "class": "Class",
+    "model": "Model",
+    "color": "Color",
+    "year": "Year",
+    "plate": "Plate",
+    "upload": "Upload",
+    "missingPhotos": "Add photos: {{labels}}"
+  },
+  "newBooking": {
+    "title": "New booking",
+    "step": "Step {{current}} / {{total}} — {{name}}",
+    "stepType": "Type",
+    "stepDetails": "Details",
+    "stepSummary": "Summary & payment",
+    "pickService": "Choose a service type above, then continue.",
+    "serviceKind": "Service type",
+    "drivers": "Drivers",
+    "sendToAll": "Send to all drivers",
+    "driverCount": "({{count}} drivers)",
+    "selectDriver": "Choose a specific driver",
+    "noDriversTitle": "⚠️ No driver in this category",
+    "noDriversBody": "The order will still be submitted and KEKE MANAGER will find a driver.",
+    "selected": "Selected",
+    "choose": "Select",
+    "submit": "Book",
+    "vehicleSection": "Vehicle",
+    "operator": "Operator",
+    "operatorHint": "Add tour operators in your profile (e.g. Monika) to select here.",
+    "experienceYears": "Experience: {{years}} years",
+    "noVehicle": "Vehicle not specified yet",
+    "payment": {
+      "now": "Now",
+      "later": "Later",
+      "clientCard": "Client card"
+    },
+    "transferTab": {
+      "arrival": "Arrival",
+      "departure": "Departure"
+    }
+  },
+  "historyPage": {
+    "title": "Booking history",
+    "filters": {
+      "all": "All",
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "empty": {
+      "allTitle": "History is empty",
+      "allSubtitle": "Completed and cancelled bookings will appear here.",
+      "pendingTitle": "No pending bookings",
+      "pendingSubtitle": "When you search for a driver, bookings appear here.",
+      "confirmedTitle": "No confirmed bookings",
+      "confirmedSubtitle": "Confirmed bookings will appear here.",
+      "completedTitle": "No completed bookings",
+      "completedSubtitle": "Completed trips are listed here.",
+      "cancelledTitle": "No cancelled bookings",
+      "cancelledSubtitle": "Cancelled or declined bookings appear here."
+    },
+    "rate": "Rate",
+    "voucher": "Voucher",
+    "shownCount": "Showing {{count}} entries",
+    "filterActive": " · filter: {{filter}}"
+  },
+  "rateBooking": {
+    "title": "Rating",
+    "submit": "Submit",
+    "comment": "Comment",
+    "thankYou": "Thank you for your rating!"
+  },
+  "companyDashboard": {
+    "cancelBooking": "Cancel",
+    "rateDriver": "Rate",
+    "sessionInactive": "Session is not active.",
+    "cancelPendingOnly": "Only pending bookings can be cancelled.",
+    "cancelFailed": "Could not cancel booking",
+    "cancelSuccess": "Booking cancelled successfully",
+    "cancelConfirm": "Are you sure you want to cancel this booking?",
+    "emptyActiveSubtitle": "When a new or confirmed booking appears, it will show here."
   },
   "auth": {
     "tagline": "B2B transport platform",
@@ -131,6 +297,11 @@
       "premium": "Premium",
       "vip": "VIP"
     }
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "subtitle": "Try again or restart the app.",
+    "retry": "Try again"
   },
   "system": {
     "sessionExpiredTitle": "Session",

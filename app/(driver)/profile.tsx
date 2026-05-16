@@ -63,7 +63,7 @@ function RatingBar({ label, value }: { label: string; value: number }) {
 
 export default function DriverProfileScreen() {
   const router = useRouter();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const vehicleTypeOptions = useMemo(
     () => vehicleTypeUiOptions(),
     [i18n.language, i18n.resolvedLanguage],
@@ -272,7 +272,7 @@ export default function DriverProfileScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>პროფილი</Text>
+      <Text style={styles.title}>{t('profilePage.title')}</Text>
 
       <View style={styles.photoSection}>
         <Pressable onPress={pickPhoto} disabled={photoUploading} style={styles.photoRing}>
@@ -298,7 +298,7 @@ export default function DriverProfileScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>პირადი ინფორმაცია</Text>
+        <Text style={styles.cardTitle}>{t('profilePage.personalInfo')}</Text>
         <EditModeButtons
           isEditing={isEditing}
           onEdit={onStartEdit}
@@ -311,19 +311,19 @@ export default function DriverProfileScreen() {
         ) : null}
         {isEditing ? (
           <>
-            <Field label="სახელი გვარი" value={name} onChangeText={setName} />
-            <Field label="ბიო" value={bio} onChangeText={setBio} multiline />
+            <Field label={t('profilePage.fullName')} value={name} onChangeText={setName} />
+            <Field label={t('profilePage.bio')} value={bio} onChangeText={setBio} multiline />
             <Text style={styles.charCount}>
               {bio.length}/{bioMaxLength()}
             </Text>
             <Field
-              label="ენები"
+              label={t('profilePage.languages')}
               value={languages}
               onChangeText={setLanguages}
               placeholder="ქართული, ინგლისური"
             />
             <Field
-              label="გამოცდილება (წლები)"
+              label={t('profilePage.experience')}
               value={experienceYears}
               onChangeText={setExperienceYears}
               keyboardType="number-pad"
@@ -380,7 +380,7 @@ export default function DriverProfileScreen() {
           onPress={() => router.push('/(driver)/calendar')}
           style={({ pressed }) => [styles.calendarLink, pressed && { opacity: 0.9 }]}
         >
-          <Text style={styles.calendarLinkText}>კალენდარი / დაკავებული საათები</Text>
+          <Text style={styles.calendarLinkText}>{t('profilePage.calendarLink')}</Text>
         </Pressable>
       </View>
 

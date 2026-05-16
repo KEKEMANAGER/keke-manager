@@ -338,6 +338,7 @@ function MatchingDriversSection({
   onSelectDriver: (id: string | null) => void;
   onDriversLoaded?: (drivers: MatchingDriver[]) => void;
 }) {
+  const { t } = useTranslation();
   const [drivers, setDrivers] = useState<MatchingDriver[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -392,7 +393,7 @@ function MatchingDriversSection({
 
   return (
     <View style={styles.matchingDriversBlock}>
-      <Text style={styles.driversSectionTitle}>მძღოლები</Text>
+      <Text style={styles.driversSectionTitle}>{t('newBooking.drivers')}</Text>
 
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={styles.matchingDriversLoader} />
@@ -400,10 +401,8 @@ function MatchingDriversSection({
         <Text style={styles.matchingDriversEmpty}>{loadError}</Text>
       ) : drivers.length === 0 ? (
         <View style={styles.driversNoMatchBox}>
-          <Text style={styles.driversNoMatchTitle}>⚠️ ამ კატეგორიის მძღოლი ვერ მოიძებნა</Text>
-          <Text style={styles.driversNoMatchBody}>
-            შეკვეთა მაინც გაიგზავნება და მძღოლის მოძიებას KEKE MANAGER-ი უზრუნველყოფს
-          </Text>
+          <Text style={styles.driversNoMatchTitle}>{t('newBooking.noDriversTitle')}</Text>
+          <Text style={styles.driversNoMatchBody}>{t('newBooking.noDriversBody')}</Text>
         </View>
       ) : (
         <>
@@ -428,8 +427,10 @@ function MatchingDriversSection({
                   driverTargetMode === 'all' && styles.driverTargetLabelActive,
                 ]}
               >
-                ყველა მძღოლს გაუგზავნე{' '}
-                <Text style={styles.driverCountBadge}>({driverCountLabel} მძღოლი)</Text>
+                {t('newBooking.sendToAll')}{' '}
+                <Text style={styles.driverCountBadge}>
+                  {t('newBooking.driverCount', { count: driverCountLabel })}
+                </Text>
               </Text>
             </Pressable>
             <Pressable
@@ -454,7 +455,7 @@ function MatchingDriversSection({
                   driverTargetMode === 'specific' && styles.driverTargetLabelActive,
                 ]}
               >
-                კონკრეტური მძღოლის არჩევა
+                {t('newBooking.selectDriver')}
               </Text>
             </Pressable>
           </View>
@@ -466,7 +467,7 @@ function MatchingDriversSection({
                 const langs = formatDriverLanguages(driver.languages);
                 const experienceLine =
                   driver.experience_years > 0
-                    ? `გამოცდილება: ${driver.experience_years} წელი`
+                    ? t('newBooking.experienceYears', { years: driver.experience_years })
                     : null;
                 const ratingLine =
                   driver.rating != null
@@ -492,12 +493,12 @@ function MatchingDriversSection({
                       )}
                       <View style={styles.driverCardMain}>
                         <Text style={styles.driverName} numberOfLines={1}>
-                          {driver.full_name || 'მძღოლი'}
+                          {driver.full_name || t('driver.defaultName')}
                         </Text>
                         {vehicleLine ? (
                           <Text style={styles.driverVehicleLine}>🚗 {vehicleLine}</Text>
                         ) : (
-                          <Text style={styles.driverVehicleLineMuted}>ავტომობილი ჯერ არ არის მითითებული</Text>
+                          <Text style={styles.driverVehicleLineMuted}>{t('newBooking.noVehicle')}</Text>
                         )}
                         <Text style={styles.driverMetaLine}>{ratingLine}</Text>
                         {langs ? <Text style={styles.driverMetaLine}>🗣 {langs}</Text> : null}
@@ -515,7 +516,7 @@ function MatchingDriversSection({
                           selected && styles.driverChooseBtnTextSelected,
                         ]}
                       >
-                        {selected ? 'არჩეულია' : 'აირჩიე'}
+                        {selected ? t('newBooking.selected') : t('newBooking.choose')}
                       </Text>
                     </View>
                   </Pressable>
@@ -575,7 +576,7 @@ function VehiclePicker({
 }
 
 export default function NewBookingScreen() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, profile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();

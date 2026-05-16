@@ -29,7 +29,173 @@
     "viewDriver": "მძღოლი",
     "spentMonth": "დახარჯული (თვე)",
     "spentCompleted": "დახარჯული (დასრულებული)",
-    "close": "დახურვა"
+    "close": "დახურვა",
+    "edit": "რედაქტირება",
+    "save": "შენახვა",
+    "cancel": "გაუქმება",
+    "upload": "ატვირთვა",
+    "yes": "დიახ",
+    "no": "არა",
+    "back": "უკან",
+    "next": "შემდეგი",
+    "companyDefault": "კომპანია",
+    "operator": "ოპერატორი",
+    "inProgress": "მიმდინარე",
+    "rate": "შეფასება",
+    "confirm": "დადასტურება",
+    "success": "წარმატება",
+    "error": "შეცდომა"
+  },
+  "bookings": {
+    "title": "ჯავშნები",
+    "tabs": {
+      "pending": "მოლოდინში",
+      "active": "მიმდინარე",
+      "completed": "დასრულებული"
+    },
+    "decline": "უარყოფა",
+    "accept": "მიღება",
+    "startTrip": "ტურის/ტრანსფერის დაწყება",
+    "complete": "დასრულება",
+    "cancel": "გაუქმება",
+    "completedLabel": "დასრულებული ✓",
+    "rejectTitle": "შეკვეთის გაუქმება",
+    "rejectMessage": "ნამდვილად გსურთ შეკვეთის გაუქმება?",
+    "acceptTitle": "დადასტურება",
+    "acceptMessage": "მიიღოთ ჯავშანი?",
+    "completeTitle": "დასრულება",
+    "completeMessage": "დაასრულოთ ჯავშანი?",
+    "completeSuccess": "ჯავშანი დასრულებულია ✓",
+    "startFailed": "დაწყება ვერ მოხერხდა",
+    "acceptFailed": "დადასტურება ვერ მოხერხდა",
+    "rejectFailed": "უარყოფა ვერ მოხერხდა",
+    "completeFailed": "დასრულება ვერ მოხერხდა",
+    "operatorLine": "ოპერატორი: {{name}}",
+    "empty": {
+      "profileVehicleTitle": "პროფილში მიუთითეთ ავტომობილი",
+      "profileVehicleSubtitle": "პროფილში შეინახეთ მანქანის ტიპი და კლასი; სანამ ეს ცარიელია — არც შეკვეთები გამოჩნდება აქ და არც მოგივათ შესაბამისი შეტყობინებები.",
+      "pendingTitle": "მოლოდინში მყოფი შეკვეთა არ არის",
+      "pendingSubtitle": "ახალი შეკვეთები ჩანს ტაბში „მოლოდინში“. თუ კომპანიამ გამოგიგზავნათ შეკვეთა, ჩამოწიეთ ეკრანი განახლებისთვის ან შეამოწმეთ რომ პროფილის ტიპი/კლასი ემთხვევა შეკვეთას.",
+      "activeTitle": "მიმდინარე ჯავშანი არაა",
+      "activeSubtitle": "ჯავშნის მიღების შემდეგ აქ გამოჩნდება რეისები — ჯერ დააჭირეთ „ტურის/ტრანსფერის დაწყება“, შემდეგ „დასრულება“.",
+      "completedTitle": "დასრულებული რეისები არ გაქვთ",
+      "completedSubtitle": "დასრულებული ჯავშნები აქ შეინახება ისტორიისთვის."
+    }
+  },
+  "dashboard": {
+    "greeting": "გამარჯობა,",
+    "newOrders": "ახალი შეკვეთები (მოლოდინში)",
+    "activeBooking": "აქტიური ჯავშანი",
+    "statistics": "სტატისტიკა",
+    "completedTrips": "დასრულებული რეისი",
+    "earnings": "მოგება",
+    "earningsCompleted": "მოგება (დასრულებული)",
+    "revenue": "მოგება",
+    "noActiveBooking": "აქტიური ჯავშანი არ არის",
+    "noNewOrders": "ახალი შეკვეთა ჯერ არ არის"
+  },
+  "profilePage": {
+    "title": "პროფილი",
+    "personalInfo": "პირადი ინფორმაცია",
+    "fullName": "სახელი გვარი",
+    "bio": "ბიო",
+    "languages": "ენები",
+    "experience": "გამოცდილება (წლები)",
+    "vehiclePrefs": "ავტომობილი (შეკვეთების შესაბამისობა)",
+    "vehicleType": "ტიპი",
+    "vehicleClass": "კლასი",
+    "calendarLink": "კალენდარი / დაკავებული საათები",
+    "ratings": "შეფასებები",
+    "logout": "გამოსვლა",
+    "changePhoto": "ფოტოს შეცვლა",
+    "photoPermissionDenied": "ფოტოებზე წვდომა უარყოფილია.",
+    "permissionTitle": "წვდომა"
+  },
+  "vehicleScreen": {
+    "title": "ავტომობილის ფოტოები",
+    "photos": "ავტომობილის ფოტოები",
+    "type": "ტიპი",
+    "class": "კლასი",
+    "model": "მოდელი",
+    "color": "ფერი",
+    "year": "წელი",
+    "plate": "ნომერი",
+    "upload": "ატვირთვა",
+    "missingPhotos": "დაამატეთ ფოტოები: {{labels}}"
+  },
+  "newBooking": {
+    "title": "ახალი ჯავშანი",
+    "step": "ნაბიჯი {{current}} / {{total}} — {{name}}",
+    "stepType": "ტიპი",
+    "stepDetails": "დეტალები",
+    "stepSummary": "შეჯამება და გადახდა",
+    "pickService": "აირჩიეთ სერვისის ტიპი ზემოთ და გადადით შემდეგ ნაბიჯზე.",
+    "serviceKind": "სერვისის ტიპი",
+    "drivers": "მძღოლები",
+    "sendToAll": "ყველა მძღოლს გაუგზავნე",
+    "driverCount": "({{count}} მძღოლი)",
+    "selectDriver": "კონკრეტური მძღოლის არჩევა",
+    "noDriversTitle": "⚠️ ამ კატეგორიის მძღოლი ვერ მოიძებნა",
+    "noDriversBody": "შეკვეთა მაინც გაიგზავნება და მძღოლის მოძიებას KEKE MANAGER-ი უზრუნველყოფს",
+    "selected": "არჩეულია",
+    "choose": "აირჩიე",
+    "submit": "დაჯავშნა",
+    "vehicleSection": "ავტომობილი",
+    "operator": "ოპერატორი",
+    "operatorHint": "პროფილში დაამატეთ ტურ ოპერატორები (მაგ. მონიკა), რომ აქ აირჩიოთ.",
+    "experienceYears": "გამოცდილება: {{years}} წელი",
+    "noVehicle": "ავტომობილი ჯერ არ არის მითითებული",
+    "payment": {
+      "now": "ახლა",
+      "later": "შემდეგ",
+      "clientCard": "კლიენტის ბარათით"
+    },
+    "transferTab": {
+      "arrival": "ჩამოსვლა",
+      "departure": "გამგზავრება"
+    }
+  },
+  "historyPage": {
+    "title": "ჯავშნების ისტორია",
+    "filters": {
+      "all": "ყველა",
+      "pending": "მიმდინარე",
+      "confirmed": "დადასტურებული",
+      "completed": "დასრულებული",
+      "cancelled": "გაუქმებული"
+    },
+    "empty": {
+      "allTitle": "ისტორია ცარიელია",
+      "allSubtitle": "დასრულებული და გაუქმებული ჯავშნები აქ გამოჩნდება.",
+      "pendingTitle": "მოლოდინში ჯავშნები არ გაქვთ",
+      "pendingSubtitle": "როცა შეკვეთას მოძებნით მძღოლს, იგი აქ გამოჩნდება.",
+      "confirmedTitle": "დადასტურებული ჯავშნები არაა",
+      "confirmedSubtitle": "დადასტურების შემდეგ ჩანაწერები აქ გამოჩნდება.",
+      "completedTitle": "დასრულებული ჯავშნები არაა",
+      "completedSubtitle": "დასრულებული რეისები აქ დაიგროვება.",
+      "cancelledTitle": "გაუქმებული ჩანაწერები არაა",
+      "cancelledSubtitle": "გაუქმებული ან უარყოფილი ჯავშნები აქ გამოჩნდება."
+    },
+    "rate": "შეფასება",
+    "voucher": "ვაუჩერი",
+    "shownCount": "ნაჩვენებია {{count}} ჩანაწერი",
+    "filterActive": " · ფილტრი: {{filter}}"
+  },
+  "rateBooking": {
+    "title": "შეფასება",
+    "submit": "გაგზავნა",
+    "comment": "კომენტარი",
+    "thankYou": "მადლობა შეფასებისთვის!"
+  },
+  "companyDashboard": {
+    "cancelBooking": "გაუქმება",
+    "rateDriver": "შეფასება",
+    "sessionInactive": "სესია არ არის გააქტიურებული.",
+    "cancelPendingOnly": "გაუქმება შესაძლებელია მხოლოდ „მოლოდინში“ ჯავშნისთვის.",
+    "cancelFailed": "გაუქმება ვერ მოხერხდა",
+    "cancelSuccess": "ჯავშანი წარმატებით გაუქმდა",
+    "cancelConfirm": "ნამდვილად გსურთ ჯავშნის გაუქმება?",
+    "emptyActiveSubtitle": "როცა ახალი შეკვეთა გამოჩნდება ან დადასტურდება, აქ გამოჩნდება ჯავშნები."
   },
   "auth": {
     "tagline": "B2B სატრანსპორტო პლატფორმა",
@@ -131,6 +297,11 @@
       "premium": "პრემიუმ",
       "vip": "VIP"
     }
+  },
+  "errorBoundary": {
+    "title": "რაღაც შეცდომა მოხდა",
+    "subtitle": "სცადეთ ხელახლა ან გადატვირთეთ აპლიკაცია.",
+    "retry": "ხელახლა ცდა"
   },
   "system": {
     "sessionExpiredTitle": "სესია",

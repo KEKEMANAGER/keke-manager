@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { EmptyState } from '../../components/EmptyState';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRow, BookingStatus } from '../../lib/bookings';
@@ -25,15 +26,9 @@ import {
 import { shareVoucherPDF } from '../../lib/voucher';
 import { useAuth } from '../../contexts/AuthContext';
 
-type FilterKey = 'ყველა' | 'მიმდინარე' | 'დადასტურებული' | 'დასრულებული' | 'გაუქმებული';
+type FilterKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
-const FILTERS: FilterKey[] = [
-  'ყველა',
-  'მიმდინარე',
-  'დადასტურებული',
-  'დასრულებული',
-  'გაუქმებული',
-];
+const FILTERS: FilterKey[] = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -58,21 +53,33 @@ function statusColor(status: BookingStatus) {
 }
 
 function matchesFilter(row: BookingRow, filter: FilterKey): boolean {
-  if (filter === 'ყველა') return true;
-  if (filter === 'მიმდინარე') return row.status === 'pending';
-  if (filter === 'დადასტურებული') return row.status === 'accepted' || row.status === 'in_progress';
-  if (filter === 'დასრულებული') return row.status === 'completed';
-  if (filter === 'გაუქმებული') return row.status === 'rejected' || row.status === 'cancelled';
+  if (filter === 'all') return true;
+  if (filter === 'pending') return row.status === 'pending';
+  if (filter === 'confirmed') return row.status === 'accepted' || row.status === 'in_progress';
+  if (filter === 'completed') return row.status === 'completed';
+  if (filter === 'cancelled') return row.status === 'rejected' || row.status === 'cancelled';
   return true;
 }
 
 export default function CompanyHistoryScreen() {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id;
 
-  const [filter, setFilter] = useState<FilterKey>('ყველა');
+  const filterLabels = useMemo(
+    (): Record<FilterKey, string> => ({
+      all: t('historyPage.filters.all'),
+      pending: t('historyPage.filters.pending'),
+      confirmed: t('historyPage.filters.confirmed'),
+      completed: t('historyPage.filters.completed'),
+      cancelled: t('historyPage.filters.cancelled'),
+    }),
+    [t],
+  );
+
+  const [filter, setFilter] = useState<FilterKey>('all');
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,37 +123,41 @@ export default function CompanyHistoryScreen() {
 
   const filtered = useMemo(() => rows.filter((r) => matchesFilter(r, filter)), [rows, filter]);
 
-  function historyEmptyMessages(f: FilterKey): { icon: 'calendar' | 'archive' | 'clock'; title: string; subtitle: string } {
+  function historyEmptyMessages(f: FilterKey): {
+    icon: 'calendar' | 'archive' | 'clock';
+    title: string;
+    subtitle: string;
+  } {
     switch (f) {
-      case 'მიმდინარე':
+      case 'pending':
         return {
           icon: 'clock',
-          title: 'მოლოდინში ჯავშნები არ გაქვთ',
-          subtitle: 'როცა შეკვეთას მოძებნით მძღოლს, იგი აქ გამოჩნდება.',
+          title: t('historyPage.empty.pendingTitle'),
+          subtitle: t('historyPage.empty.pendingSubtitle'),
         };
-      case 'დადასტურებული':
+      case 'confirmed':
         return {
           icon: 'calendar',
-          title: 'დადასტურებული ჯავშნები არაა',
-          subtitle: 'დადასტურების შემდეგ ჩანაწერები აქ გამოჩნდება.',
+          title: t('historyPage.empty.confirmedTitle'),
+          subtitle: t('historyPage.empty.confirmedSubtitle'),
         };
-      case 'დასრულებული':
+      case 'completed':
         return {
           icon: 'archive',
-          title: 'დასრულებული ჯავშნები არაა',
-          subtitle: 'დასრულებული რეისები აქ დაიგროვება.',
+          title: t('historyPage.empty.completedTitle'),
+          subtitle: t('historyPage.empty.completedSubtitle'),
         };
-      case 'გაუქმებული':
+      case 'cancelled':
         return {
           icon: 'archive',
-          title: 'გაუქმებული ჩანაწერები არაა',
-          subtitle: 'გაუქმებული ან უარყოფილი ჯავშნები აქ გამოჩნდება.',
+          title: t('historyPage.empty.cancelledTitle'),
+          subtitle: t('historyPage.empty.cancelledSubtitle'),
         };
       default:
         return {
           icon: 'archive',
-          title: 'ისტორია ცარიელია',
-          subtitle: 'დასრულებული და გაუქმებული ჯავშნები აქ გამოჩნდება.',
+          title: t('historyPage.empty.allTitle'),
+          subtitle: t('historyPage.empty.allSubtitle'),
         };
     }
   }
@@ -170,7 +181,9 @@ export default function CompanyHistoryScreen() {
             onPress={() => setFilter(f)}
             style={[styles.filterChip, filter === f && styles.filterChipActive]}
           >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>{f}</Text>
+            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+              {filterLabels[f]}
+            </Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -194,19 +207,19 @@ export default function CompanyHistoryScreen() {
           />
         }
       >
-        <Text style={styles.title}>ჯავშნების ისტორია</Text>
+        <Text style={styles.title}>{t('historyPage.title')}</Text>
         {error ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
             <Pressable onPress={() => void load('initial')} style={styles.retryBtn}>
-              <Text style={styles.retryText}>ხელახლა</Text>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </Pressable>
           </View>
         ) : null}
 
         <Text style={styles.sub}>
-          ნაჩვენებია {filtered.length} ჩანაწერი
-          {filter !== 'ყველა' ? ` · ფილტრი: ${filter}` : ''}
+          {t('historyPage.shownCount', { count: filtered.length })}
+          {filter !== 'all' ? t('historyPage.filterActive', { filter: filterLabels[filter] }) : ''}
         </Text>
 
         {loading ? (
@@ -234,7 +247,7 @@ export default function CompanyHistoryScreen() {
                 <Text style={styles.price}>{formatGel(Number(r.price_gel))}</Text>
               </View>
               <Pressable onPress={() => void shareVoucherPDF(r)} style={styles.voucherBtn}>
-                <Text style={styles.voucherBtnText}>📄 ვაუჩერი</Text>
+                <Text style={styles.voucherBtnText}>📄 {t('historyPage.voucher')}</Text>
               </Pressable>
               {/* rate-booking: bookingId = booking.id (uuid), driverClerkId = driver (text). Query URL + rate-booking normalizer handle Expo web param order. */}
               {r.status === 'completed' && r.driver_id ? (
@@ -250,7 +263,7 @@ export default function CompanyHistoryScreen() {
                   }}
                   style={({ pressed }) => [styles.rateBtn, pressed && styles.rateBtnPressed]}
                 >
-                  <Text style={styles.rateBtnText}>შეფასება</Text>
+                  <Text style={styles.rateBtnText}>{t('historyPage.rate')}</Text>
                 </Pressable>
               ) : null}
             </View>

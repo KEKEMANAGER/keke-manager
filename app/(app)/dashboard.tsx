@@ -218,18 +218,18 @@ export default function CompanyDashboardScreen() {
 
     if (!userId) {
       if (Platform.OS === 'web') {
-        window.alert('სესია არ არის გააქტიურებული.');
+        window.alert(t('companyDashboard.sessionInactive'));
       } else {
-        Alert.alert('შეცდომა', 'სესია არ არის გააქტიურებული.');
+        Alert.alert(t('common.error'), t('companyDashboard.sessionInactive'));
       }
       return;
     }
 
     if (b.status !== 'pending') {
       if (Platform.OS === 'web') {
-        window.alert('გაუქმება შესაძლებელია მხოლოდ „მოლოდინში“ ჯავშნისთვის.');
+        window.alert(t('companyDashboard.cancelPendingOnly'));
       } else {
-        Alert.alert('გაუქმება', 'გაუქმება შესაძლებელია მხოლოდ „მოლოდინში“ ჯავშნისთვის.');
+        Alert.alert(t('companyDashboard.cancelBooking'), t('companyDashboard.cancelPendingOnly'));
       }
       return;
     }
@@ -240,19 +240,21 @@ export default function CompanyDashboardScreen() {
       try {
         const res = await cancelBookingByCompany(b.id, userId);
         if (!res.ok) {
-          const msg = res.error ? getSupabaseErrorMessage(res.error) : 'გაუქმება ვერ მოხერხდა';
+          const msg = res.error
+            ? getSupabaseErrorMessage(res.error)
+            : t('companyDashboard.cancelFailed');
           if (Platform.OS === 'web') {
             window.alert(msg);
           } else {
-            Alert.alert('შეცდომა', msg);
+            Alert.alert(t('common.error'), msg);
           }
           return;
         }
-        const successMsg = 'ჯავშანი წარმატებით გაუქმდა';
+        const successMsg = t('companyDashboard.cancelSuccess');
         if (Platform.OS === 'web') {
           window.alert(successMsg);
         } else {
-          Alert.alert('გაუქმება', successMsg);
+          Alert.alert(t('companyDashboard.cancelBooking'), successMsg);
         }
         void load('silent');
       } finally {
@@ -261,11 +263,11 @@ export default function CompanyDashboardScreen() {
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm('ნამდვილად გსურთ ჯავშნის გაუქმება?')) void run();
+      if (window.confirm(t('companyDashboard.cancelConfirm'))) void run();
     } else {
-      Alert.alert('გაუქმება', 'ნამდვილად გსურთ ჯავშნის გაუქმება?', [
-        { text: 'არა', style: 'cancel' },
-        { text: 'გაუქმება', style: 'destructive', onPress: () => void run() },
+      Alert.alert(t('companyDashboard.cancelBooking'), t('companyDashboard.cancelConfirm'), [
+        { text: t('common.no'), style: 'cancel' },
+        { text: t('companyDashboard.cancelBooking'), style: 'destructive', onPress: () => void run() },
       ]);
     }
   }
@@ -402,10 +404,8 @@ export default function CompanyDashboardScreen() {
       ) : activeBookings.length === 0 ? (
         <EmptyState
           icon="calendar"
-          title="აქტიური ჯავშანი არ არის"
-          subtitle={
-            'როცა ახალი შეკვეთა გამოჩნდება ან დადასტურდება, აქ გამოჩნდება ჯავშნები.'
-          }
+          title={t('company.noActiveBookings')}
+          subtitle={t('companyDashboard.emptyActiveSubtitle')}
         />
       ) : (
         activeBookings.map((b) => (
@@ -457,7 +457,7 @@ export default function CompanyDashboardScreen() {
                 {cancellingId === b.id ? (
                   <ActivityIndicator color={COLORS.white} size="small" />
                 ) : (
-                  <Text style={styles.cancelBookingBtnText}>გაუქმება</Text>
+                  <Text style={styles.cancelBookingBtnText}>{t('companyDashboard.cancelBooking')}</Text>
                 )}
               </Pressable>
             ) : null}
@@ -465,7 +465,7 @@ export default function CompanyDashboardScreen() {
               <View style={styles.inProgressRow}>
                 <View style={styles.inProgressBadge}>
                   <Ionicons name="navigate-outline" size={14} color={COLORS.goldDark} />
-                  <Text style={styles.inProgressText}>მიმდინარე</Text>
+                  <Text style={styles.inProgressText}>{t('common.inProgress')}</Text>
                 </View>
               </View>
             ) : null}
@@ -478,7 +478,7 @@ export default function CompanyDashboardScreen() {
                 }
                 style={({ pressed }) => [styles.rateBtn, pressed && styles.pressed]}
               >
-                <Text style={styles.rateBtnText}>შეფასება</Text>
+                <Text style={styles.rateBtnText}>{t('companyDashboard.rateDriver')}</Text>
               </Pressable>
             ) : null}
             <Pressable onPress={() => void shareVoucherPDF(b)} style={styles.voucherBtn}>

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import i18n from '../src/lib/i18n';
 
 type Props = {
   children: ReactNode;
@@ -34,13 +35,13 @@ export class ErrorBoundary extends Component<Props, State> {
         <View style={styles.screen}>
           <View style={styles.card}>
             <Ionicons name="warning-outline" size={48} color={COLORS.gold} />
-            <Text style={styles.title}>რაღაც შეცდომა მოხდა</Text>
-            <Text style={styles.subtitle}>სცადეთ ხელახლა ან გადატვირთეთ აპლიკაცია.</Text>
+            <Text style={styles.title}>{i18n.t('errorBoundary.title')}</Text>
+            <Text style={styles.subtitle}>{i18n.t('errorBoundary.subtitle')}</Text>
             <Pressable
               onPress={this.handleRetry}
               style={({ pressed }) => [styles.button, SHADOWS.button, pressed && styles.pressed]}
             >
-              <Text style={styles.buttonText}>ხელახლა ცდა</Text>
+              <Text style={styles.buttonText}>{i18n.t('errorBoundary.retry')}</Text>
             </Pressable>
           </View>
         </View>
