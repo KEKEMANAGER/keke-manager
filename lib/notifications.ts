@@ -205,6 +205,29 @@ export async function fetchMatchingDriverPushTokens(
   return { tokens: uniqueTokens, error: null, vehicleType, vehicleClass };
 }
 
+/** Push token for one driver (targeted booking assignment). */
+export async function fetchDriverPushTokenById(
+  driverId: string,
+): Promise<{ tokens: string[]; error: Error | null }> {
+  const id = String(driverId ?? '').trim();
+  if (!id) {
+    return { tokens: [], error: new Error('მძღოლის id არ არის') };
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('push_token')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    return { tokens: [], error: new Error(error.message) };
+  }
+
+  const token = (data as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  return { tokens: token ? [token] : [], error: null };
+}
+
 /**
  * Push to drivers whose `profiles.vehicle_type` (and `vehicle_class` when set on the booking) match.
  * Booking service `kind` does not affect which drivers are notified.
@@ -213,6 +236,8 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   kind: string;
   vehicleType: string;
   vehicleClass?: string | null;
+  /** When set, notify only this driver (not all matching). */
+  driverId?: string | null;
   bookingId?: string;
   showAlertIfEmpty?: boolean;
 }): Promise<NotifyMatchingDriversResult> {
@@ -247,7 +272,10 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     );
   }
 
-  const { tokens, error } = await fetchMatchingDriverPushTokens(vehicleType, vehicleClass);
+  const targetedDriverId = String(params.driverId ?? '').trim();
+  const { tokens, error } = targetedDriverId
+    ? await fetchDriverPushTokenById(targetedDriverId)
+    : await fetchMatchingDriverPushTokens(vehicleType, vehicleClass);
 
   if (error) {
     if (__DEV__) console.warn('[notifyMatchingDrivers] fetch error:', error.message);

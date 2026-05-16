@@ -2,6 +2,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   LayoutAnimation,
   Platform,
@@ -46,6 +47,7 @@ import {
   showValidationAlert,
 } from '../../lib/validation';
 import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
+import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
 
@@ -290,16 +292,222 @@ function OperatorPicker({
   );
 }
 
+type DriverTargetMode = 'all' | 'specific';
+
+function formatDriverLanguages(languages: string[]): string {
+  if (!languages.length) return '';
+  return languages.join(', ');
+}
+
+function matchingDriverVehicleLine(vehicle: MatchingDriver['vehicle']): string {
+  if (!vehicle) return '';
+  const parts: string[] = [];
+  if (vehicle.model?.trim()) parts.push(vehicle.model.trim());
+  if (vehicle.year != null) parts.push(String(vehicle.year));
+  const head = parts.join(' ');
+  if (vehicle.color?.trim()) {
+    return head ? `${head}, ${vehicle.color.trim()}` : vehicle.color.trim();
+  }
+  return head;
+}
+
+function MatchingDriversSection({
+  vehicleType,
+  vehicleClass,
+  driverTargetMode,
+  onDriverTargetModeChange,
+  selectedDriverId,
+  onSelectDriver,
+}: {
+  vehicleType: VehicleTypeCode;
+  vehicleClass: VehicleClassCode;
+  driverTargetMode: DriverTargetMode;
+  onDriverTargetModeChange: (mode: DriverTargetMode) => void;
+  selectedDriverId: string | null;
+  onSelectDriver: (id: string | null) => void;
+}) {
+  const [drivers, setDrivers] = useState<MatchingDriver[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const normType = normalizeVehicleType(vehicleType);
+  const normClass = normalizeVehicleClass(vehicleClass);
+
+  useEffect(() => {
+    if (!normType || !normClass) {
+      setDrivers([]);
+      setLoadError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+
+    void fetchMatchingDrivers(vehicleType, vehicleClass).then(({ data, error }) => {
+      if (cancelled) return;
+      setLoading(false);
+      if (error) {
+        setLoadError(error.message);
+        setDrivers([]);
+        return;
+      }
+      setDrivers(data);
+      if (selectedDriverId && !data.some((d) => d.id === selectedDriverId)) {
+        onSelectDriver(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicleType, vehicleClass, normType, normClass]);
+
+  if (!normType || !normClass) {
+    return null;
+  }
+
+  return (
+    <View style={styles.matchingDriversBlock}>
+      <Text style={styles.matchingDriversTitle}>
+        ხელმისაწვდომი მძღოლები ({loading ? '…' : drivers.length})
+      </Text>
+
+      <View style={styles.driverTargetRow}>
+        <Pressable
+          onPress={() => {
+            onDriverTargetModeChange('all');
+            onSelectDriver(null);
+          }}
+          style={({ pressed }) => [
+            styles.driverTargetOption,
+            driverTargetMode === 'all' && styles.driverTargetOptionActive,
+            pressed && styles.pressed,
+          ]}
+        >
+          <View style={[styles.radioOuter, driverTargetMode === 'all' && styles.radioOuterActive]}>
+            {driverTargetMode === 'all' ? <View style={styles.radioInner} /> : null}
+          </View>
+          <Text
+            style={[
+              styles.driverTargetLabel,
+              driverTargetMode === 'all' && styles.driverTargetLabelActive,
+            ]}
+          >
+            ყველა მძღოლს გაუგზავნე
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onDriverTargetModeChange('specific')}
+          style={({ pressed }) => [
+            styles.driverTargetOption,
+            driverTargetMode === 'specific' && styles.driverTargetOptionActive,
+            pressed && styles.pressed,
+          ]}
+        >
+          <View
+            style={[styles.radioOuter, driverTargetMode === 'specific' && styles.radioOuterActive]}
+          >
+            {driverTargetMode === 'specific' ? <View style={styles.radioInner} /> : null}
+          </View>
+          <Text
+            style={[
+              styles.driverTargetLabel,
+              driverTargetMode === 'specific' && styles.driverTargetLabelActive,
+            ]}
+          >
+            კონკრეტული მძღოლი
+          </Text>
+        </Pressable>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator color={COLORS.gold} style={styles.matchingDriversLoader} />
+      ) : loadError ? (
+        <Text style={styles.matchingDriversEmpty}>{loadError}</Text>
+      ) : drivers.length === 0 ? (
+        <Text style={styles.matchingDriversEmpty}>ამ კატეგორიის მძღოლი ვერ მოიძებნა</Text>
+      ) : driverTargetMode === 'specific' ? (
+        drivers.map((driver) => {
+          const selected = selectedDriverId === driver.id;
+          const vehicleLine = matchingDriverVehicleLine(driver.vehicle);
+          const langs = formatDriverLanguages(driver.languages);
+          return (
+            <Pressable
+              key={driver.id}
+              onPress={() => onSelectDriver(selected ? null : driver.id)}
+              style={({ pressed }) => [
+                styles.driverCard,
+                selected && styles.driverCardSelected,
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.driverCardTop}>
+                {driver.avatar_url ? (
+                  <Image source={{ uri: driver.avatar_url }} style={styles.driverAvatar} />
+                ) : (
+                  <View style={[styles.driverAvatar, styles.driverAvatarPlaceholder]}>
+                    <Text style={styles.driverAvatarInitial}>
+                      {(driver.full_name || '?')[0]?.toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.driverCardMain}>
+                  <View style={styles.driverNameRow}>
+                    <Text style={styles.driverName} numberOfLines={1}>
+                      {driver.full_name || 'მძღოლი'}
+                    </Text>
+                    {driver.rating ? (
+                      <Text style={styles.driverRating}>⭐ {driver.rating}</Text>
+                    ) : null}
+                  </View>
+                  {vehicleLine ? <Text style={styles.driverVehicleLine}>{vehicleLine}</Text> : null}
+                  {langs ? <Text style={styles.driverMetaLine}>🗣 {langs}</Text> : null}
+                  {driver.experience_years > 0 ? (
+                    <Text style={styles.driverMetaLine}>
+                      📅 გამოცდილება: {driver.experience_years} წელი
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              <View
+                style={[styles.driverChooseBtn, selected && styles.driverChooseBtnSelected]}
+              >
+                <Text
+                  style={[
+                    styles.driverChooseBtnText,
+                    selected && styles.driverChooseBtnTextSelected,
+                  ]}
+                >
+                  {selected ? 'არჩეულია' : 'აირჩიე'}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })
+      ) : null}
+    </View>
+  );
+}
+
 function VehiclePicker({
   selectedVehicleType,
   onVehicleTypeChange,
   vehicleClass,
   onVehicleClassChange,
+  driverTargetMode,
+  onDriverTargetModeChange,
+  selectedDriverId,
+  onSelectDriver,
 }: {
   selectedVehicleType: VehicleTypeCode;
   onVehicleTypeChange: (type: VehicleTypeCode) => void;
   vehicleClass: VehicleClassCode;
   onVehicleClassChange: (cls: VehicleClassCode) => void;
+  driverTargetMode: DriverTargetMode;
+  onDriverTargetModeChange: (mode: DriverTargetMode) => void;
+  selectedDriverId: string | null;
+  onSelectDriver: (id: string | null) => void;
 }) {
   return (
     <>
@@ -332,6 +540,14 @@ function VehiclePicker({
           </Pressable>
         ))}
       </View>
+      <MatchingDriversSection
+        vehicleType={selectedVehicleType}
+        vehicleClass={vehicleClass}
+        driverTargetMode={driverTargetMode}
+        onDriverTargetModeChange={onDriverTargetModeChange}
+        selectedDriverId={selectedDriverId}
+        onSelectDriver={onSelectDriver}
+      />
     </>
   );
 }
@@ -364,6 +580,13 @@ export default function NewBookingScreen() {
   const [passengers, setPassengers] = useState('2');
   const [vehicleClass, setVehicleClass] = useState<VehicleClassCode>('comfort');
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
+  const [driverTargetMode, setDriverTargetMode] = useState<DriverTargetMode>('all');
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedDriverId(null);
+  }, [selectedVehicleType, vehicleClass]);
+
   const [meetGreet, setMeetGreet] = useState(false);
   const [signText, setSignText] = useState('');
   const [passengerName, setPassengerName] = useState('');
@@ -527,6 +750,8 @@ export default function NewBookingScreen() {
     setPassengers('2');
     setVehicleClass('comfort');
     setSelectedVehicleType(VEHICLE_TYPES[0]);
+    setDriverTargetMode('all');
+    setSelectedDriverId(null);
     setMeetGreet(false);
     setSignText('');
     setPassengerName('');
@@ -552,6 +777,9 @@ export default function NewBookingScreen() {
     }
     if (!normalizeVehicleClass(vehicleClass)) {
       return 'აირჩიეთ ავტომობილის კლასი.';
+    }
+    if (driverTargetMode === 'specific' && !selectedDriverId) {
+      return 'აირჩიეთ მძღოლი ან აირჩიეთ „ყველა მძღოლს გაუგზავნე“.';
     }
     if (!passengers.trim() || pax < 1) {
       return 'შეიყვანეთ მგზავრების რაოდენობა.';
@@ -674,6 +902,8 @@ export default function NewBookingScreen() {
       payment_method: paymentWhen,
       price_gel: price,
       created_by_name: operatorName,
+      driver_id:
+        driverTargetMode === 'specific' && selectedDriverId ? selectedDriverId : null,
     });
     setSubmitting(false);
     if (error) {
@@ -804,6 +1034,10 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
+              driverTargetMode={driverTargetMode}
+              onDriverTargetModeChange={setDriverTargetMode}
+              selectedDriverId={selectedDriverId}
+              onSelectDriver={setSelectedDriverId}
             />
 
             <View style={styles.compactRow}>
@@ -954,6 +1188,10 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
+              driverTargetMode={driverTargetMode}
+              onDriverTargetModeChange={setDriverTargetMode}
+              selectedDriverId={selectedDriverId}
+              onSelectDriver={setSelectedDriverId}
             />
 
             <Text style={styles.sectionHeader}>შენიშვნა</Text>
@@ -1074,6 +1312,10 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
+              driverTargetMode={driverTargetMode}
+              onDriverTargetModeChange={setDriverTargetMode}
+              selectedDriverId={selectedDriverId}
+              onSelectDriver={setSelectedDriverId}
             />
 
             <Text style={styles.sectionHeader}>შენიშვნა</Text>
@@ -1631,6 +1873,161 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: COLORS.gold,
+  },
+  matchingDriversBlock: {
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  matchingDriversTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  matchingDriversLoader: {
+    marginVertical: SPACING.md,
+  },
+  matchingDriversEmpty: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: SPACING.sm,
+  },
+  driverTargetRow: {
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  driverTargetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.input,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+  },
+  driverTargetOptionActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  radioOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterActive: {
+    borderColor: COLORS.gold,
+  },
+  radioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.gold,
+  },
+  driverTargetLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  driverTargetLabelActive: {
+    color: COLORS.text,
+    fontWeight: '700',
+  },
+  driverCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    marginBottom: 8,
+    ...SHADOWS.cardStrong,
+  },
+  driverCardSelected: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  driverCardTop: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  driverAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  driverAvatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  driverAvatarInitial: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.gold,
+  },
+  driverCardMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  driverNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+    marginBottom: 4,
+  },
+  driverName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  driverRating: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  driverVehicleLine: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  driverMetaLine: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  driverChooseBtn: {
+    alignSelf: 'flex-start',
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.white,
+  },
+  driverChooseBtnSelected: {
+    backgroundColor: COLORS.gold,
+    borderColor: COLORS.gold,
+  },
+  driverChooseBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.gold,
+  },
+  driverChooseBtnTextSelected: {
+    color: COLORS.black,
   },
   textArea: {
     minHeight: 88,

@@ -193,6 +193,7 @@ export default function DriverBookingsScreen() {
           row?.vehicle_type ?? '',
           row?.vehicle_class ?? '',
           row?.kind ?? row?.booking_type,
+          row?.driver_id,
         );
       }
     });

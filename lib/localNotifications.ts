@@ -57,8 +57,14 @@ export async function notifyNewOpenBookingIfMatchesDriver(
   bookingVehicleType: string,
   bookingVehicleClass: string | null | undefined,
   bookingKind?: string | null,
+  bookingDriverId?: string | null,
 ): Promise<void> {
   if (isWeb || !driverUserId.trim()) return;
+
+  const targetedId = bookingDriverId != null ? String(bookingDriverId).trim() : '';
+  if (targetedId && targetedId !== driverUserId.trim()) {
+    return;
+  }
 
   const matches = await driverProfileMatchesBooking(
     driverUserId,

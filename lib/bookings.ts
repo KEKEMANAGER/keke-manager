@@ -23,8 +23,7 @@ export function isNewOpenPendingBookingInsert(
   if (payload.eventType !== 'INSERT') return false;
   const row = payload.new;
   if (!row) return false;
-  const open = row.driver_id == null || String(row.driver_id).trim() === '';
-  return row.status === 'pending' && open;
+  return row.status === 'pending';
 }
 
 export type BookingStatus =
@@ -211,6 +210,8 @@ export type InsertBookingInput = {
   payment_method: string | null;
   price_gel: number;
   created_by_name?: string | null;
+  /** When set, booking is offered only to this driver (pending until they accept). */
+  driver_id?: string | null;
 };
 
 /** Localized booking status label */
@@ -341,7 +342,7 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     .from('bookings')
     .select('*')
     .eq('status', 'pending')
-    .is('driver_id', null)
+    .or(`driver_id.is.null,driver_id.eq.${id}`)
     .eq('vehicle_type', profileType)
     .order('created_at', { ascending: false });
 
@@ -350,9 +351,12 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
   }
 
   const rows = (data ?? []).filter((r) => {
-    const bookingClass = normalizeVehicleClass(
-      (r as { vehicle_class?: string | null }).vehicle_class ?? '',
-    );
+    const row = r as { driver_id?: string | null; vehicle_class?: string | null };
+    const rowDriverId = row.driver_id != null ? String(row.driver_id).trim() : '';
+    if (rowDriverId && rowDriverId !== id) {
+      return false;
+    }
+    const bookingClass = normalizeVehicleClass(row.vehicle_class ?? '');
     return !bookingClass || bookingClass === profileClass;
   });
 
@@ -373,6 +377,7 @@ export async function insertBooking(row: InsertBookingInput) {
   }
 
   const voucherCode = `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  const assignedDriverId = clerkId(row.driver_id);
 
   function buildBookingInsertBody(
     routeCol: 'route' | 'route_description',
@@ -404,7 +409,7 @@ export async function insertBooking(row: InsertBookingInput) {
       price_gel: row.price_gel,
       created_by_name: row.created_by_name?.trim() || null,
       status: 'pending',
-      driver_id: null,
+      driver_id: assignedDriverId || null,
     };
 
     if (opts.includeKindColumn) {
@@ -501,6 +506,7 @@ export async function insertBooking(row: InsertBookingInput) {
       kind,
       vehicleType,
       vehicleClass: vehicleClass ?? undefined,
+      driverId: assignedDriverId || undefined,
       bookingId,
       showAlertIfEmpty: true,
     });
@@ -543,7 +549,7 @@ export async function acceptBooking(
       })
       .eq('id', rowId)
       .eq('status', 'pending')
-      .is('driver_id', null)
+      .or(`driver_id.is.null,driver_id.eq.${driverClerkId}`)
       .select('id')
       .maybeSingle();
 
