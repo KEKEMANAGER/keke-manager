@@ -162,7 +162,15 @@
     "reupload": "Replace",
     "finish": "Finish",
     "finishHint": "Finish is enabled once at least one view has a photo.",
-    "missingOptional": "Optional — not yet: {{labels}}."
+    "missingOptional": "Optional — not yet: {{labels}}.",
+    "addVehicle": "Add vehicle",
+    "setActive": "Set as active",
+    "activeBadge": "Active ✓",
+    "noVehicles": "No vehicles yet. Add a vehicle to start receiving bookings.",
+    "deleteVehicle": "Delete vehicle",
+    "deleteConfirmMsg": "Delete this vehicle? This cannot be undone.",
+    "cannotDeleteActive": "Cannot delete the active vehicle. Set another vehicle as active first.",
+    "vehicleN": "Vehicle {{n}}"
   },
   "newBooking": {
     "title": "New booking",

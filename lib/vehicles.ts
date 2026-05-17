@@ -10,7 +10,9 @@ export type VehiclePhotoKey =
   | 'photo_rear';
 
 export type VehicleRow = {
+  id: string;
   driver_id: string;
+  is_active: boolean;
   photo_front: string | null;
   photo_left: string | null;
   photo_right: string | null;
@@ -26,24 +28,128 @@ export type VehicleRow = {
   updated_at: string;
 };
 
-/**
- * Columns needed for the driver photo screen + row identity.
- * PK is `id` (uuid); `driver_id` references auth.users(id).
- */
 const VEHICLE_SELECT =
-  'driver_id,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,is_verified,updated_at';
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,is_verified,updated_at';
 
-/**
- * Load the driver's vehicle row by `driver_id` (at most one row expected).
- */
-export async function fetchVehicleByDriver(driverId: string) {
+/** All vehicles for this driver, active first. */
+export async function fetchVehiclesByDriver(driverId: string): Promise<{
+  data: VehicleRow[];
+  error: Error | null;
+}> {
   const { data, error } = await supabase
     .from('vehicles')
     .select(VEHICLE_SELECT)
     .eq('driver_id', driverId)
-    .limit(1)
+    .order('is_active', { ascending: false })
+    .order('updated_at', { ascending: false });
+  return {
+    data: (data ?? []) as VehicleRow[],
+    error: error ? new Error(error.message) : null,
+  };
+}
+
+/**
+ * Returns the active vehicle for a driver.
+ * Kept for backwards-compatible callers (profile screen, admin views).
+ */
+export async function fetchVehicleByDriver(driverId: string): Promise<{
+  data: VehicleRow | null;
+  error: Error | null;
+}> {
+  const { data, error } = await supabase
+    .from('vehicles')
+    .select(VEHICLE_SELECT)
+    .eq('driver_id', driverId)
+    .eq('is_active', true)
     .maybeSingle();
-  return { data: data as VehicleRow | null, error };
+  return { data: data as VehicleRow | null, error: error ? new Error(error.message) : null };
+}
+
+/** Insert a new (inactive) vehicle row and return it. */
+export async function insertVehicle(
+  driverId: string,
+  fields: {
+    type?: string | null;
+    class?: string | null;
+    model?: string | null;
+    color?: string | null;
+    year?: number | null;
+    plate?: string | null;
+  },
+): Promise<{ data: VehicleRow | null; error: Error | null }> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('vehicles')
+    .insert({
+      driver_id: driverId,
+      is_active: false,
+      photo_front: null,
+      photo_left: null,
+      photo_right: null,
+      photo_interior: null,
+      photo_rear: null,
+      is_verified: false,
+      updated_at: now,
+      ...fields,
+    })
+    .select(VEHICLE_SELECT)
+    .maybeSingle();
+  return { data: data as VehicleRow | null, error: error ? new Error(error.message) : null };
+}
+
+/**
+ * Mark one vehicle as active for this driver (deactivates all others).
+ * Also syncs type/class to profiles so notification matching stays accurate.
+ */
+export async function setActiveVehicle(
+  driverId: string,
+  vehicleId: string,
+): Promise<{ error: Error | null }> {
+  // Deactivate all vehicles for this driver first.
+  await supabase.from('vehicles').update({ is_active: false }).eq('driver_id', driverId);
+
+  // Activate the chosen vehicle (driver_id check prevents cross-driver writes).
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ is_active: true })
+    .eq('id', vehicleId)
+    .eq('driver_id', driverId);
+
+  if (error) return { error: new Error(error.message) };
+
+  // Sync type/class to profiles so push-notification matching stays current.
+  const { data: v } = await supabase
+    .from('vehicles')
+    .select('type, class')
+    .eq('id', vehicleId)
+    .maybeSingle();
+  if (v?.type && v?.class) {
+    await supabase
+      .from('profiles')
+      .upsert(
+        { id: driverId, vehicle_type: v.type, vehicle_class: v.class },
+        { onConflict: 'id' },
+      );
+  }
+
+  return { error: null };
+}
+
+/**
+ * Delete a non-active vehicle.
+ * Will silently no-op if the vehicle is active (is_active = false guard).
+ */
+export async function deleteVehicle(
+  vehicleId: string,
+  driverId: string,
+): Promise<{ error: Error | null }> {
+  const { error } = await supabase
+    .from('vehicles')
+    .delete()
+    .eq('id', vehicleId)
+    .eq('driver_id', driverId)
+    .eq('is_active', false);
+  return { error: error ? new Error(error.message) : null };
 }
 
 function normalizeVehicleDbFields(fields: {
@@ -55,95 +161,22 @@ function normalizeVehicleDbFields(fields: {
   plate?: string | null;
 }): { fields: typeof fields; error: Error | null } {
   const out = { ...fields };
-  if (fields.type !== undefined && fields.type !== null) {
-    const normalized = normalizeVehicleType(fields.type);
-    if (!normalized) {
-      return { fields: out, error: new Error('აირჩიეთ ტრანსპორტის ტიპი') };
-    }
-    out.type = normalized;
+  if (fields.type != null) {
+    const n = normalizeVehicleType(fields.type);
+    if (!n) return { fields: out, error: new Error('აირჩიეთ ტრანსპორტის ტიპი') };
+    out.type = n;
   }
-  if (fields.class !== undefined && fields.class !== null) {
-    const normalized = normalizeVehicleClass(fields.class);
-    if (!normalized) {
-      return { fields: out, error: new Error('აირჩიეთ კლასი') };
-    }
-    out.class = normalized;
+  if (fields.class != null) {
+    const n = normalizeVehicleClass(fields.class);
+    if (!n) return { fields: out, error: new Error('აირჩიეთ კლასი') };
+    out.class = n;
   }
   return { fields: out, error: null };
 }
 
-/**
- * Persist one photo URL. PK is `id` (uuid); DB generates `id` on insert.
- *
- * New rows require NOT NULL `type` — pass `vehicleType` (e.g. from a UI selector); defaults to `'sedan'`.
- */
-export async function saveVehiclePhotoUrl(
-  driverId: string,
-  column: VehiclePhotoKey,
-  publicUrl: string,
-  vehicleType: string = 'sedan',
-): Promise<{ error: Error | null }> {
-  const now = new Date().toISOString();
-  const normalizedType = normalizeVehicleType(vehicleType) ?? 'sedan';
-
-  const { data: existing, error: selErr } = await supabase
-    .from('vehicles')
-    .select('driver_id')
-    .eq('driver_id', driverId)
-    .limit(1)
-    .maybeSingle();
-
-  if (selErr) {
-    return { error: new Error(selErr.message) };
-  }
-
-  const cleanUrl = storagePublicUrlBase(publicUrl);
-
-  if (existing?.driver_id) {
-    const { error } = await supabase
-      .from('vehicles')
-      .update({ [column]: cleanUrl, updated_at: now })
-      .eq('driver_id', driverId);
-
-    return { error: error ? new Error(error.message) : null };
-  }
-
-  const photos: Record<VehiclePhotoKey, string | null> = {
-    photo_front: null,
-    photo_left: null,
-    photo_right: null,
-    photo_interior: null,
-    photo_rear: null,
-  };
-  photos[column] = cleanUrl;
-
-  const { error } = await supabase.from('vehicles').insert({
-    driver_id: driverId,
-    type: normalizedType,
-    class: null,
-    model: null,
-    color: null,
-    year: null,
-    plate: null,
-    ...photos,
-    is_verified: false,
-    updated_at: now,
-  });
-
-  return { error: error ? new Error(error.message) : null };
-}
-
-/** Updates or inserts type/class without touching photo URLs. */
-export async function saveVehicleInfo(
-  driverId: string,
-  type: string | null,
-  vehicleClass: string | null,
-): Promise<{ error: Error | null }> {
-  return saveVehicleDetails(driverId, { type, class: vehicleClass });
-}
-
-/** Updates vehicle metadata (type, class, model, color, year, plate). Always stores English codes. */
+/** Update metadata for a specific vehicle row (vehicleId + driverId safety check). */
 export async function saveVehicleDetails(
+  vehicleId: string,
   driverId: string,
   fields: {
     type?: string | null;
@@ -155,19 +188,27 @@ export async function saveVehicleDetails(
   },
 ): Promise<{ error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
-  if (normErr) {
-    return { error: normErr };
-  }
+  if (normErr) return { error: normErr };
 
-  const now = new Date().toISOString();
-  const { error } = await supabase.from('vehicles').upsert(
-    {
-      driver_id: driverId,
-      ...normalizedFields,
-      updated_at: now,
-    },
-    { onConflict: 'driver_id' },
-  );
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ ...normalizedFields, updated_at: new Date().toISOString() })
+    .eq('id', vehicleId)
+    .eq('driver_id', driverId);
+  return { error: error ? new Error(error.message) : null };
+}
+
+/** Persist one photo URL for a specific vehicle (updates by vehicleId). */
+export async function saveVehiclePhotoUrl(
+  vehicleId: string,
+  column: VehiclePhotoKey,
+  publicUrl: string,
+): Promise<{ error: Error | null }> {
+  const cleanUrl = storagePublicUrlBase(publicUrl);
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ [column]: cleanUrl, updated_at: new Date().toISOString() })
+    .eq('id', vehicleId);
   return { error: error ? new Error(error.message) : null };
 }
 
@@ -181,7 +222,8 @@ function rowToUrlsWithCacheBust(row: VehicleRow | null): Record<VehiclePhotoKey,
       photo_rear: null,
     };
   }
-  const bust = (u: string | null) => (u && u.startsWith('http') ? `${storagePublicUrlBase(u)}?t=${Date.now()}` : u);
+  const bust = (u: string | null) =>
+    u && u.startsWith('http') ? `${storagePublicUrlBase(u)}?t=${Date.now()}` : u;
   return {
     photo_front: bust(row.photo_front),
     photo_left: bust(row.photo_left),

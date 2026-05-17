@@ -305,7 +305,14 @@ export async function fetchOpenPendingBookings() {
 /** Explains zero open-job rows when filtering by driver prefs is impossible. */
 export type DriverOpenJobsHint = 'profile_vehicle_required';
 
-/** Pending jobs matching this driver's `profiles.vehicle_type` / `vehicle_class`. */
+/**
+ * Pending jobs matching this driver's active vehicle type/class.
+ *
+ * Matching priority:
+ *   1. Active vehicle in `vehicles` table (is_active = true) — preferred.
+ *   2. Fallback to `profiles.vehicle_type/class` for drivers who haven't
+ *      set up vehicles yet (backwards-compatible).
+ */
 export async function fetchOpenPendingBookingsForDriver(driverUserId: string): Promise<{
   data: BookingRow[];
   error: Error | null;
@@ -316,6 +323,7 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     return { data: [] as BookingRow[], error: null };
   }
 
+  // Always check verification from profiles.
   const { data: profileRow, error: profileError } = await fetchDriverProfile(id);
   if (profileError) {
     return { data: [] as BookingRow[], error: profileError };
@@ -323,16 +331,23 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
   if (!profileRow?.is_verified) {
     return { data: [] as BookingRow[], error: null };
   }
-  if (!profileRow?.vehicle_type || !profileRow?.vehicle_class) {
-    return {
-      data: [] as BookingRow[],
-      error: null,
-      hint: 'profile_vehicle_required',
-    };
-  }
 
-  const profileType = normalizeVehicleType(profileRow.vehicle_type);
-  const profileClass = normalizeVehicleClass(profileRow.vehicle_class);
+  // Primary source: active vehicle in vehicles table.
+  const { data: activeVehicle } = await supabase
+    .from('vehicles')
+    .select('type, class')
+    .eq('driver_id', id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  // Fallback to profiles for drivers without a vehicles row yet.
+  const profileType = normalizeVehicleType(
+    (activeVehicle as { type?: string | null } | null)?.type ?? profileRow?.vehicle_type ?? '',
+  );
+  const profileClass = normalizeVehicleClass(
+    (activeVehicle as { class?: string | null } | null)?.class ?? profileRow?.vehicle_class ?? '',
+  );
+
   if (!profileType || !profileClass) {
     return {
       data: [] as BookingRow[],

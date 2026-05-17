@@ -19,12 +19,15 @@ import { useTranslation } from 'react-i18next';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { uploadMediaObject, vehiclePhotoObjectPath, withCacheBust } from '../../lib/mediaUpload';
-import type { VehiclePhotoKey } from '../../lib/vehicles';
+import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
 import {
-  fetchVehicleByDriver,
+  deleteVehicle,
+  fetchVehiclesByDriver,
+  insertVehicle,
   rowToUrlsWithCacheBust,
   saveVehicleDetails,
   saveVehiclePhotoUrl,
+  setActiveVehicle,
 } from '../../lib/vehicles';
 import {
   normalizeVehicleClass as normalizeStoredVehicleClass,
@@ -45,112 +48,138 @@ const SLOTS: {
   labelKey: 'photoFront' | 'photoLeft' | 'photoRight' | 'photoInterior' | 'photoRear';
   column: VehiclePhotoKey;
 }[] = [
-  { angle: 'front', labelKey: 'photoFront', column: 'photo_front' },
-  { angle: 'left', labelKey: 'photoLeft', column: 'photo_left' },
-  { angle: 'right', labelKey: 'photoRight', column: 'photo_right' },
+  { angle: 'front',    labelKey: 'photoFront',    column: 'photo_front' },
+  { angle: 'left',     labelKey: 'photoLeft',     column: 'photo_left' },
+  { angle: 'right',    labelKey: 'photoRight',    column: 'photo_right' },
   { angle: 'interior', labelKey: 'photoInterior', column: 'photo_interior' },
-  { angle: 'rear', labelKey: 'photoRear', column: 'photo_rear' },
+  { angle: 'rear',     labelKey: 'photoRear',     column: 'photo_rear' },
 ];
 
-function hasPhotoUrl(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.trim().length > 0;
+function hasPhotoUrl(v: string | null | undefined): boolean {
+  return typeof v === 'string' && v.trim().length > 0;
 }
 
 const emptyWebFileRefs = (): Record<VehiclePhotoKey, HTMLInputElement | null> => ({
-  photo_front: null,
-  photo_left: null,
-  photo_right: null,
-  photo_interior: null,
-  photo_rear: null,
+  photo_front: null, photo_left: null, photo_right: null,
+  photo_interior: null, photo_rear: null,
 });
+
+type FormMode = 'view' | 'edit' | 'add';
 
 export default function DriverVehiclePhotosScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
-
-  const slotLabel = (labelKey: (typeof SLOTS)[number]['labelKey']) =>
-    t(`vehicleScreen.${labelKey}`);
   const userId = user?.id;
 
-  const [urls, setUrls] = useState<Record<VehiclePhotoKey, string | null>>(() =>
+  // ── Vehicle list ─────────────────────────────────────────────────────────
+  const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+
+  // ── Photo state for selected vehicle ─────────────────────────────────────
+  const [localUrls, setLocalUrls] = useState<Record<VehiclePhotoKey, string | null>>(
     rowToUrlsWithCacheBust(null),
   );
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [uploadingKey, setUploadingKey] = useState<VehiclePhotoKey | null>(null);
-  const [vehicleType, setVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
-  const [vehicleClass, setVehicleClass] = useState<VehicleClassCode>(VEHICLE_CLASSES[0]);
-  const [model, setModel] = useState('');
-  const [color, setColor] = useState('');
-  const [year, setYear] = useState('');
-  const [plate, setPlate] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
+
+  // ── Form (edit existing / add new) ────────────────────────────────────────
+  const [formMode, setFormMode] = useState<FormMode>('view');
+  const [editType, setEditType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
+  const [editClass, setEditClass] = useState<VehicleClassCode>(VEHICLE_CLASSES[0]);
+  const [editModel, setEditModel] = useState('');
+  const [editColor, setEditColor] = useState('');
+  const [editYear, setEditYear] = useState('');
+  const [editPlate, setEditPlate] = useState('');
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const urlsRef = useRef(urls);
-  urlsRef.current = urls;
+  // ── Refs ──────────────────────────────────────────────────────────────────
   const userIdRef = useRef(userId);
   userIdRef.current = userId;
-  const vehicleTypeRef = useRef(vehicleType);
-  vehicleTypeRef.current = vehicleType;
-  /** One real `<input type="file">` per slot on web (reliable file picker + label hit target). */
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const localUrlsRef = useRef(localUrls);
+  localUrlsRef.current = localUrls;
   const webFileInputRefs = useRef<Record<VehiclePhotoKey, HTMLInputElement | null>>(emptyWebFileRefs());
 
-  const load = useCallback(async () => {
+  const selectedVehicle = vehicles.find((v) => v.id === selectedId) ?? null;
+
+  // ── Sync photo URLs when selected vehicle changes ─────────────────────────
+  useEffect(() => {
+    setLocalUrls(rowToUrlsWithCacheBust(selectedVehicle));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, vehicles]);
+
+  // ── Load vehicles ─────────────────────────────────────────────────────────
+  const loadVehicles = useCallback(async () => {
     if (authLoading) return;
     if (!userId) {
-      setUrls(rowToUrlsWithCacheBust(null));
-      setLoading(false);
+      setListLoading(false);
       return;
     }
-    setLoadError(null);
-    setLoading(true);
-    const { data, error } = await fetchVehicleByDriver(userId);
-    setLoading(false);
+    setListError(null);
+    setListLoading(true);
+    const { data, error } = await fetchVehiclesByDriver(userId);
+    setListLoading(false);
     if (error) {
-      setLoadError(error.message);
-      setUrls(rowToUrlsWithCacheBust(null));
+      setListError(error.message);
       return;
     }
-    setUrls(rowToUrlsWithCacheBust(data));
-    if (data) {
-      setVehicleType(normalizeStoredVehicleType(data.type) ?? VEHICLE_TYPES[0]);
-      setVehicleClass(normalizeStoredVehicleClass(data.class) ?? VEHICLE_CLASSES[0]);
-      setModel(data.model?.trim() ?? '');
-      setColor(data.color?.trim() ?? '');
-      setYear(data.year != null && !Number.isNaN(Number(data.year)) ? String(data.year) : '');
-      setPlate(data.plate?.trim() ?? '');
-    } else {
-      setVehicleType(VEHICLE_TYPES[0]);
-      setVehicleClass(VEHICLE_CLASSES[0]);
-      setModel('');
-      setColor('');
-      setYear('');
-      setPlate('');
-    }
+    setVehicles(data);
+    setSelectedId((prev) => {
+      if (prev && data.some((v) => v.id === prev)) return prev;
+      return data.find((v) => v.is_active)?.id ?? data[0]?.id ?? null;
+    });
   }, [userId, authLoading]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadVehicles();
+  }, [loadVehicles]);
 
-  function onStartEdit() {
-    setIsEditing(true);
+  // ── Form helpers ──────────────────────────────────────────────────────────
+  function populateFormFrom(v: VehicleRow) {
+    setEditType(normalizeStoredVehicleType(v.type) ?? VEHICLE_TYPES[0]);
+    setEditClass(normalizeStoredVehicleClass(v.class) ?? VEHICLE_CLASSES[0]);
+    setEditModel(v.model?.trim() ?? '');
+    setEditColor(v.color?.trim() ?? '');
+    setEditYear(v.year != null ? String(v.year) : '');
+    setEditPlate(v.plate?.trim() ?? '');
     setSaveError(null);
   }
 
-  function onCancelEdit() {
-    setIsEditing(false);
-    setSaveError(null);
-    void load();
+  function startEdit() {
+    if (selectedVehicle) populateFormFrom(selectedVehicle);
+    setFormMode('edit');
   }
 
-  async function onSaveVehicle() {
-    if (!userId) return;
-    const validationError = validateVehicleSave(vehicleType, vehicleClass);
+  function cancelEdit() {
+    setFormMode('view');
+    setSaveError(null);
+  }
+
+  function startAdd() {
+    setEditType(VEHICLE_TYPES[0]);
+    setEditClass(VEHICLE_CLASSES[0]);
+    setEditModel('');
+    setEditColor('');
+    setEditYear('');
+    setEditPlate('');
+    setSaveError(null);
+    setFormMode('add');
+  }
+
+  function cancelAdd() {
+    setFormMode('view');
+    setSaveError(null);
+  }
+
+  // ── Save edit ─────────────────────────────────────────────────────────────
+  async function onSaveEdit() {
+    if (!userId || !selectedId) return;
+    const validationError = validateVehicleSave(editType, editClass);
     if (validationError) {
       setSaveError(validationError);
       showValidationAlert(validationError);
@@ -158,36 +187,87 @@ export default function DriverVehiclePhotosScreen() {
     }
     setSaveBusy(true);
     setSaveError(null);
-    const yearNum = parseInt(year.trim(), 10);
-    const { error } = await saveVehicleDetails(userId, {
-      type: vehicleType,
-      class: vehicleClass,
-      model: model.trim() || null,
-      color: color.trim() || null,
+    const yearNum = parseInt(editYear.trim(), 10);
+    const { error } = await saveVehicleDetails(selectedId, userId, {
+      type: editType,
+      class: editClass,
+      model: editModel.trim() || null,
+      color: editColor.trim() || null,
       year: Number.isFinite(yearNum) && yearNum > 1900 ? yearNum : null,
-      plate: plate.trim() || null,
+      plate: editPlate.trim() || null,
     });
     setSaveBusy(false);
     if (error) {
       setSaveError(getSupabaseErrorMessage(error));
       return;
     }
-    setIsEditing(false);
-    void load();
+    setFormMode('view');
+    void loadVehicles();
   }
 
-  const hasAtLeastOnePhoto = useMemo(
-    () => SLOTS.some((s) => hasPhotoUrl(urls[s.column])),
-    [urls],
-  );
+  // ── Save add (insert new vehicle) ─────────────────────────────────────────
+  async function onSaveAdd() {
+    if (!userId) return;
+    const validationError = validateVehicleSave(editType, editClass);
+    if (validationError) {
+      setSaveError(validationError);
+      showValidationAlert(validationError);
+      return;
+    }
+    setSaveBusy(true);
+    setSaveError(null);
+    const yearNum = parseInt(editYear.trim(), 10);
+    const { data: newV, error } = await insertVehicle(userId, {
+      type: editType,
+      class: editClass,
+      model: editModel.trim() || null,
+      color: editColor.trim() || null,
+      year: Number.isFinite(yearNum) && yearNum > 1900 ? yearNum : null,
+      plate: editPlate.trim() || null,
+    });
+    setSaveBusy(false);
+    if (error || !newV) {
+      setSaveError(getSupabaseErrorMessage(error ?? new Error('Failed to create vehicle')));
+      return;
+    }
+    setFormMode('view');
+    const { data } = await fetchVehiclesByDriver(userId);
+    setVehicles(data);
+    setSelectedId(newV.id);
+  }
 
-  /** Labels for slots still empty (informational under the button). */
-  const missingPhotoLabels = useMemo(
-    () =>
-      SLOTS.filter((s) => !hasPhotoUrl(urls[s.column])).map((s) => slotLabel(s.labelKey)),
-    [urls, t],
-  );
+  // ── Set active ────────────────────────────────────────────────────────────
+  async function onSetActive() {
+    if (!userId || !selectedId) return;
+    setSaveBusy(true);
+    const { error } = await setActiveVehicle(userId, selectedId);
+    setSaveBusy(false);
+    if (!error) {
+      setVehicles((prev) => prev.map((v) => ({ ...v, is_active: v.id === selectedId })));
+    }
+  }
 
+  // ── Delete ────────────────────────────────────────────────────────────────
+  function onDeletePress() {
+    if (!userId || !selectedId || !selectedVehicle) return;
+    if (selectedVehicle.is_active) {
+      Alert.alert(t('system.noticeTitle'), t('vehicleScreen.cannotDeleteActive'));
+      return;
+    }
+    const doDelete = () => {
+      void deleteVehicle(selectedId, userId).then(() => loadVehicles());
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm(t('vehicleScreen.deleteConfirmMsg'))) doDelete();
+      return;
+    }
+    Alert.alert(t('vehicleScreen.deleteVehicle'), t('vehicleScreen.deleteConfirmMsg'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.yes'), style: 'destructive', onPress: doDelete },
+    ]);
+  }
+
+  // ── Photo upload pipeline ─────────────────────────────────────────────────
   const runUploadPipeline = useCallback(
     async (
       column: VehiclePhotoKey,
@@ -196,45 +276,38 @@ export default function DriverVehiclePhotosScreen() {
       localUri: string,
       mime: string,
       opts?: {
-        /** Web file input: preview URI already applied synchronously */
         skipApplyLocalPreview?: boolean;
-        /** Blob URL to revoke after public URL is shown (deferred), or immediately on failure */
         revokeObjectUrl?: string;
-        /** Web: pass the real `File` to Storage (not the blob preview URI) */
         webUploadFile?: File;
       },
     ) => {
-      const cid = userIdRef.current;
-      if (!cid) {
+      const uid = userIdRef.current;
+      const vid = selectedIdRef.current;
+      if (!uid || !vid) {
         if (opts?.revokeObjectUrl) URL.revokeObjectURL(opts.revokeObjectUrl);
         return;
       }
-      const previous = urlsRef.current[column];
+      const previous = localUrlsRef.current[column];
       if (!opts?.skipApplyLocalPreview) {
-        setUrls((prev) => ({ ...prev, [column]: localUri }));
+        setLocalUrls((prev) => ({ ...prev, [column]: localUri }));
       }
       setUploadingKey(column);
-      setLoadError(null);
 
       try {
-        const path = vehiclePhotoObjectPath(cid, angle);
+        // Photos stored at vehicles/{vehicleId}/{angle}.jpg (one dir per vehicle).
+        const path = vehiclePhotoObjectPath(vid, angle);
         const uploadSource = opts?.webUploadFile ?? localUri;
         const publicUrl = await uploadMediaObject(path, uploadSource, { contentType: mime });
-        const { error } = await saveVehiclePhotoUrl(
-          cid,
-          column,
-          publicUrl,
-          vehicleTypeRef.current || 'sedan',
-        );
-        if (error) {
-          throw error;
-        }
+        const { error } = await saveVehiclePhotoUrl(vid, column, publicUrl);
+        if (error) throw error;
+
         const busted = withCacheBust(publicUrl) ?? publicUrl;
-        setUrls((prev) => ({ ...prev, [column]: busted }));
-        const { data: fresh } = await fetchVehicleByDriver(cid);
-        if (fresh) {
-          setUrls(rowToUrlsWithCacheBust(fresh));
-        }
+        setLocalUrls((prev) => ({ ...prev, [column]: busted }));
+
+        // Reload all vehicles so the updated photo URL appears in state.
+        const { data: fresh } = await fetchVehiclesByDriver(uid);
+        if (fresh) setVehicles(fresh);
+
         if (opts?.revokeObjectUrl) {
           const blob = opts.revokeObjectUrl;
           setTimeout(() => URL.revokeObjectURL(blob), 800);
@@ -244,7 +317,7 @@ export default function DriverVehiclePhotosScreen() {
           t('vehicleScreen.uploadSuccessBody', { label }),
         );
       } catch (e: unknown) {
-        setUrls((prev) => ({ ...prev, [column]: previous ?? null }));
+        setLocalUrls((prev) => ({ ...prev, [column]: previous ?? null }));
         if (opts?.revokeObjectUrl) URL.revokeObjectURL(opts.revokeObjectUrl);
         Alert.alert(
           t('system.errorTitle'),
@@ -258,29 +331,26 @@ export default function DriverVehiclePhotosScreen() {
   );
 
   const handleWebFileInputChange = useCallback(
-    (column: VehiclePhotoKey, angle: string, label: string) => (event: ChangeEvent<HTMLInputElement>) => {
-      const el = event.currentTarget;
-      const file = el.files?.[0];
-      el.value = '';
-      if (!file || !userIdRef.current) return;
-
-      const mime = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
-      const objectUrl = URL.createObjectURL(file);
-      setUrls((prev) => ({ ...prev, [column]: objectUrl }));
-
-      void runUploadPipeline(column, angle, label, objectUrl, mime, {
-        skipApplyLocalPreview: true,
-        revokeObjectUrl: objectUrl,
-        webUploadFile: file,
-      });
-    },
+    (column: VehiclePhotoKey, angle: string, label: string) =>
+      (event: ChangeEvent<HTMLInputElement>) => {
+        const el = event.currentTarget;
+        const file = el.files?.[0];
+        el.value = '';
+        if (!file || !userIdRef.current) return;
+        const mime = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
+        const objectUrl = URL.createObjectURL(file);
+        setLocalUrls((prev) => ({ ...prev, [column]: objectUrl }));
+        void runUploadPipeline(column, angle, label, objectUrl, mime, {
+          skipApplyLocalPreview: true,
+          revokeObjectUrl: objectUrl,
+          webUploadFile: file,
+        });
+      },
     [runUploadPipeline],
   );
 
   async function pickNativeAndUpload(column: VehiclePhotoKey, angle: string, label: string) {
-    const cid = userIdRef.current;
-    if (!cid) return;
-
+    if (!userIdRef.current || !selectedIdRef.current) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody'));
@@ -293,39 +363,41 @@ export default function DriverVehiclePhotosScreen() {
     });
     if (res.canceled || !res.assets[0]) return;
     const asset = res.assets[0];
-    const mime = asset.mimeType ?? 'image/jpeg';
-    await runUploadPipeline(column, angle, label, asset.uri, mime);
+    await runUploadPipeline(column, angle, label, asset.uri, asset.mimeType ?? 'image/jpeg');
   }
 
-  function onSubmitPress() {
-    if (!hasAtLeastOnePhoto) {
-      return;
-    }
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const hasAtLeastOnePhoto = useMemo(
+    () => SLOTS.some((s) => hasPhotoUrl(localUrls[s.column])),
+    [localUrls],
+  );
+  const missingPhotoLabels = useMemo(
+    () => SLOTS.filter((s) => !hasPhotoUrl(localUrls[s.column])).map((s) => t(`vehicleScreen.${s.labelKey}`)),
+    [localUrls, t],
+  );
 
-    const missing = missingPhotoLabels;
+  function onSubmitPress() {
+    if (!hasAtLeastOnePhoto) return;
     const extra =
-      missing.length > 0
-        ? `\n\n${t('vehicleScreen.notUploadedYet', { labels: missing.join(', ') })}`
+      missingPhotoLabels.length > 0
+        ? `\n\n${t('vehicleScreen.notUploadedYet', { labels: missingPhotoLabels.join(', ') })}`
         : '';
     const message = t('vehicleScreen.completeMessage', { extra });
-
-    const goDashboard = () => {
-      router.replace('/(driver)/dashboard');
-    };
-
-    // react-native-web: Alert.alert is often a no-op — use window.alert so the user sees feedback.
+    const goDashboard = () => router.replace('/(driver)/dashboard');
     if (Platform.OS === 'web') {
       window.alert(`${t('vehicleScreen.completeTitle')}\n\n${message}`);
       goDashboard();
       return;
     }
-
     Alert.alert(t('vehicleScreen.completeTitle'), message, [
       { text: t('common.confirm'), onPress: goDashboard },
     ]);
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   const bottomPad = insets.bottom + SPACING.xl + 96;
+
+  const isFormOpen = formMode === 'edit' || formMode === 'add';
 
   return (
     <ScrollView
@@ -337,207 +409,318 @@ export default function DriverVehiclePhotosScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.title}>{t('vehicleScreen.title')}</Text>
-      <Text style={styles.sub}>
-        {t('vehicleScreen.photosSubtitle', {
-          webHint: Platform.OS === 'web' ? t('vehicleScreen.photosWebHint') : '',
-        })}
-      </Text>
 
-      <View style={styles.metaCard}>
-        <Text style={styles.metaCardTitle}>{t('vehicleScreen.vehicleData')}</Text>
-        <EditModeButtons
-          isEditing={isEditing}
-          onEdit={onStartEdit}
-          onSave={() => void onSaveVehicle()}
-          onCancel={onCancelEdit}
-          saveBusy={saveBusy}
-        />
-        {isEditing ? (
-          <>
-            <Text style={styles.sectionLabel}>{t('vehicleScreen.type')}</Text>
-            <View style={styles.chipRow}>
-              {VEHICLE_TYPES.map((t) => (
-                <Pressable
-                  key={t}
-                  onPress={() => setVehicleType(t)}
-                  style={[styles.chip, vehicleType === t && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, vehicleType === t && styles.chipTextActive]}>
-                    {vehicleTypeLabel(t)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text style={styles.sectionLabel}>{t('vehicleScreen.class')}</Text>
-            <View style={styles.chipRow}>
-              {VEHICLE_CLASSES.map((c) => (
-                <Pressable
-                  key={c}
-                  onPress={() => setVehicleClass(c)}
-                  style={[styles.chip, vehicleClass === c && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>
-                    {vehicleClassLabel(c)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <VehicleField label={t('vehicleScreen.model')} value={model} onChangeText={setModel} />
-            <VehicleField label={t('vehicleScreen.color')} value={color} onChangeText={setColor} />
-            <VehicleField label={t('vehicleScreen.year')} value={year} onChangeText={setYear} keyboardType="number-pad" />
-            <VehicleField label={t('vehicleScreen.plateLabel')} value={plate} onChangeText={setPlate} />
-          </>
-        ) : (
-          <>
-            <MetaRow label={t('vehicleScreen.type')} value={vehicleTypeLabel(vehicleType)} />
-            <MetaRow label={t('vehicleScreen.class')} value={vehicleClassLabel(vehicleClass)} />
-            <MetaRow label={t('vehicleScreen.model')} value={model || '—'} />
-            <MetaRow label={t('vehicleScreen.color')} value={color || '—'} />
-            <MetaRow label={t('vehicleScreen.year')} value={year || '—'} />
-            <MetaRow label={t('vehicleScreen.plateLabel')} value={plate || '—'} />
-          </>
-        )}
-        {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
-      </View>
-
-      {loadError ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{loadError}</Text>
-          <Pressable onPress={() => void load()} style={styles.retry}>
-            <Text style={styles.retryText}>{t('common.retry')}</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {loading ? (
+      {/* ── Loading / Error ─────────────────────────────────────────────── */}
+      {listLoading ? (
         <View style={styles.center}>
           <ActivityIndicator color={COLORS.gold} size="large" />
         </View>
+      ) : listError ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{listError}</Text>
+          <Pressable onPress={() => void loadVehicles()} style={styles.retry}>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
+          </Pressable>
+        </View>
       ) : (
-        SLOTS.map((slot) => {
-          const uri = urls[slot.column];
-          const busy = uploadingKey === slot.column;
-          const showImage = hasPhotoUrl(uri);
-          return (
-            <View key={slot.column} style={styles.slot}>
-              <Text style={styles.slotLabel}>{slotLabel(slot.labelKey)}</Text>
-              <View style={styles.slotBody}>
-                <View style={styles.preview}>
-                  {showImage ? (
-                    <Image
-                      key={uri}
-                      source={{ uri: uri! }}
-                      style={styles.previewImg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Ionicons name="image-outline" size={40} color={COLORS.gray} />
-                  )}
-                  {busy ? (
-                    <View style={styles.busyOverlay}>
-                      <ActivityIndicator color={COLORS.gold} />
-                    </View>
-                  ) : null}
-                </View>
-                {Platform.OS === 'web' ? (
-                  <label
-                    style={{
-                      flex: 1,
-                      position: 'relative',
-                      display: 'flex',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: SPACING.sm,
-                      backgroundColor: COLORS.gold,
-                      borderRadius: 14,
-                      paddingTop: 14,
-                      paddingBottom: 14,
-                      cursor: busy || !userId ? 'not-allowed' : 'pointer',
-                      opacity: busy || !userId ? 0.7 : 1,
-                      boxShadow: '0 2px 8px rgba(245, 166, 35, 0.35)',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <input
-                      ref={(node) => {
-                        webFileInputRefs.current[slot.column] = node;
-                      }}
-                      type="file"
-                      accept="image/*"
-                      disabled={busy || !userId}
-                      onChange={handleWebFileInputChange(slot.column, slot.angle, slotLabel(slot.labelKey))}
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        opacity: 0,
-                        cursor: busy || !userId ? 'not-allowed' : 'pointer',
-                        zIndex: 1,
-                        fontSize: 0,
-                      }}
-                    />
-                    <View
-                      pointerEvents="none"
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: SPACING.sm,
-                      }}
-                    >
-                      <Ionicons name="camera" size={18} color="#000000" />
-                      <Text style={styles.uploadBtnText}>
-                        {showImage ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
-                      </Text>
-                    </View>
-                  </label>
-                ) : (
-                  <Pressable
-                    onPress={() =>
-                      void pickNativeAndUpload(slot.column, slot.angle, slotLabel(slot.labelKey))
+        <>
+          {/* ── Vehicle selector + add button ─────────────────────────── */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.selectorScroll}
+            contentContainerStyle={styles.selectorContent}
+          >
+            {vehicles.map((v, i) => {
+              const active = v.id === selectedId;
+              return (
+                <Pressable
+                  key={v.id}
+                  onPress={() => {
+                    if (formMode !== 'add') {
+                      setSelectedId(v.id);
+                      if (formMode === 'edit') setFormMode('view');
                     }
-                    disabled={busy || !userId}
-                    style={({ pressed }) => [
-                      styles.uploadBtn,
-                      SHADOWS.button,
-                      pressed && styles.pressed,
-                      busy && styles.btnDisabled,
-                    ]}
-                  >
-                    <Ionicons name="camera" size={18} color="#000000" />
-                    <Text style={styles.uploadBtnText}>
-                      {showImage ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            </View>
-          );
-        })
-      )}
+                  }}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  {v.is_active ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={12}
+                      color={active ? '#0f0f0f' : COLORS.success}
+                    />
+                  ) : null}
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {v.type
+                      ? vehicleTypeLabel(normalizeStoredVehicleType(v.type) ?? VEHICLE_TYPES[0])
+                      : t('vehicleScreen.vehicleN', { n: i + 1 })}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              onPress={startAdd}
+              style={[styles.chip, styles.chipAdd, formMode === 'add' && styles.chipActive]}
+            >
+              <Ionicons
+                name="add"
+                size={14}
+                color={formMode === 'add' ? '#0f0f0f' : COLORS.gold}
+              />
+              <Text style={[styles.chipText, styles.chipAddText, formMode === 'add' && styles.chipTextActive]}>
+                {t('vehicleScreen.addVehicle')}
+              </Text>
+            </Pressable>
+          </ScrollView>
 
-      <Pressable
-        onPress={onSubmitPress}
-        disabled={!hasAtLeastOnePhoto}
-        style={({ pressed }) => [
-          styles.submit,
-          !hasAtLeastOnePhoto && styles.submitDisabled,
-          pressed && hasAtLeastOnePhoto && styles.pressed,
-        ]}
-        accessibilityState={{ disabled: !hasAtLeastOnePhoto }}
-      >
-        <Text style={[styles.submitText, !hasAtLeastOnePhoto && styles.submitTextDisabled]}>
-          {t('vehicleScreen.finish')}
-        </Text>
-      </Pressable>
-      {!hasAtLeastOnePhoto && !loading ? (
-        <Text style={styles.submitHint}>{t('vehicleScreen.finishHint')}</Text>
-      ) : hasAtLeastOnePhoto && missingPhotoLabels.length > 0 ? (
-        <Text style={styles.submitHint}>
-          {t('vehicleScreen.missingOptional', { labels: missingPhotoLabels.join(', ') })}
-        </Text>
-      ) : null}
+          {/* ── No vehicles empty state ────────────────────────────────── */}
+          {vehicles.length === 0 && formMode === 'view' ? (
+            <View style={styles.emptyWrap}>
+              <Ionicons name="car-outline" size={48} color={COLORS.textMuted} />
+              <Text style={styles.emptyText}>{t('vehicleScreen.noVehicles')}</Text>
+              <Pressable onPress={startAdd} style={styles.addBtn}>
+                <Ionicons name="add-circle-outline" size={18} color="#0f0f0f" />
+                <Text style={styles.addBtnText}>{t('vehicleScreen.addVehicle')}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* ── Vehicle detail card ────────────────────────────────────── */}
+          {(selectedVehicle && formMode !== 'add') || formMode === 'add' ? (
+            <View style={styles.metaCard}>
+              {formMode === 'add' ? (
+                <Text style={styles.metaCardTitle}>{t('vehicleScreen.addVehicle')}</Text>
+              ) : (
+                <Text style={styles.metaCardTitle}>{t('vehicleScreen.vehicleData')}</Text>
+              )}
+
+              {/* Edit / Add mode buttons */}
+              {formMode === 'edit' ? (
+                <EditModeButtons
+                  isEditing
+                  onEdit={() => {}}
+                  onSave={() => void onSaveEdit()}
+                  onCancel={cancelEdit}
+                  saveBusy={saveBusy}
+                />
+              ) : formMode === 'add' ? (
+                <EditModeButtons
+                  isEditing
+                  onEdit={() => {}}
+                  onSave={() => void onSaveAdd()}
+                  onCancel={cancelAdd}
+                  saveBusy={saveBusy}
+                />
+              ) : (
+                <EditModeButtons
+                  isEditing={false}
+                  onEdit={startEdit}
+                  onSave={() => {}}
+                  onCancel={() => {}}
+                  saveBusy={false}
+                />
+              )}
+
+              {isFormOpen ? (
+                <>
+                  <Text style={styles.sectionLabel}>{t('vehicleScreen.type')}</Text>
+                  <View style={styles.chipRow}>
+                    {VEHICLE_TYPES.map((vt) => (
+                      <Pressable
+                        key={vt}
+                        onPress={() => setEditType(vt)}
+                        style={[styles.typeChip, editType === vt && styles.typeChipActive]}
+                      >
+                        <Text style={[styles.typeChipText, editType === vt && styles.typeChipTextActive]}>
+                          {vehicleTypeLabel(vt)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={styles.sectionLabel}>{t('vehicleScreen.class')}</Text>
+                  <View style={styles.chipRow}>
+                    {VEHICLE_CLASSES.map((vc) => (
+                      <Pressable
+                        key={vc}
+                        onPress={() => setEditClass(vc)}
+                        style={[styles.typeChip, editClass === vc && styles.typeChipActive]}
+                      >
+                        <Text style={[styles.typeChipText, editClass === vc && styles.typeChipTextActive]}>
+                          {vehicleClassLabel(vc)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <VehicleField label={t('vehicleScreen.model')} value={editModel} onChangeText={setEditModel} />
+                  <VehicleField label={t('vehicleScreen.color')} value={editColor} onChangeText={setEditColor} />
+                  <VehicleField label={t('vehicleScreen.year')} value={editYear} onChangeText={setEditYear} keyboardType="number-pad" />
+                  <VehicleField label={t('vehicleScreen.plateLabel')} value={editPlate} onChangeText={setEditPlate} />
+                </>
+              ) : selectedVehicle ? (
+                <>
+                  <MetaRow label={t('vehicleScreen.type')} value={vehicleTypeLabel(normalizeStoredVehicleType(selectedVehicle.type) ?? VEHICLE_TYPES[0])} />
+                  <MetaRow label={t('vehicleScreen.class')} value={vehicleClassLabel(normalizeStoredVehicleClass(selectedVehicle.class) ?? VEHICLE_CLASSES[0])} />
+                  <MetaRow label={t('vehicleScreen.model')} value={selectedVehicle.model || '—'} />
+                  <MetaRow label={t('vehicleScreen.color')} value={selectedVehicle.color || '—'} />
+                  <MetaRow label={t('vehicleScreen.year')} value={selectedVehicle.year != null ? String(selectedVehicle.year) : '—'} />
+                  <MetaRow label={t('vehicleScreen.plateLabel')} value={selectedVehicle.plate || '—'} />
+                </>
+              ) : null}
+
+              {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
+            </View>
+          ) : null}
+
+          {/* ── Active / Delete action row ─────────────────────────────── */}
+          {selectedVehicle && formMode === 'view' ? (
+            <View style={styles.actionRow}>
+              {selectedVehicle.is_active ? (
+                <View style={styles.activeBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                  <Text style={styles.activeBadgeText}>{t('vehicleScreen.activeBadge')}</Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={() => void onSetActive()}
+                  disabled={saveBusy}
+                  style={({ pressed }) => [styles.setActiveBtn, pressed && styles.pressed]}
+                >
+                  {saveBusy ? (
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle-outline" size={16} color={COLORS.white} />
+                      <Text style={styles.setActiveBtnText}>{t('vehicleScreen.setActive')}</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+              {!selectedVehicle.is_active ? (
+                <Pressable onPress={onDeletePress} style={styles.deleteBtn} hitSlop={8}>
+                  <Ionicons name="trash-outline" size={18} color={COLORS.error} />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* ── Photo slots (only when a vehicle is selected, not in add mode) ── */}
+          {selectedVehicle && formMode !== 'add' ? (
+            <>
+              <Text style={styles.photosSectionTitle}>
+                {t('vehicleScreen.photos')}
+              </Text>
+              <Text style={styles.sub}>
+                {t('vehicleScreen.photosSubtitle', {
+                  webHint: Platform.OS === 'web' ? t('vehicleScreen.photosWebHint') : '',
+                })}
+              </Text>
+
+              {SLOTS.map((slot) => {
+                const uri = localUrls[slot.column];
+                const busy = uploadingKey === slot.column;
+                const showImage = hasPhotoUrl(uri);
+                const label = t(`vehicleScreen.${slot.labelKey}`);
+                return (
+                  <View key={slot.column} style={styles.slot}>
+                    <Text style={styles.slotLabel}>{label}</Text>
+                    <View style={styles.slotBody}>
+                      <View style={styles.preview}>
+                        {showImage ? (
+                          <Image
+                            key={uri}
+                            source={{ uri: uri! }}
+                            style={styles.previewImg}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Ionicons name="image-outline" size={40} color={COLORS.gray} />
+                        )}
+                        {busy ? (
+                          <View style={styles.busyOverlay}>
+                            <ActivityIndicator color={COLORS.gold} />
+                          </View>
+                        ) : null}
+                      </View>
+                      {Platform.OS === 'web' ? (
+                        <label
+                          style={{
+                            flex: 1, position: 'relative', display: 'flex',
+                            flexDirection: 'row', alignItems: 'center',
+                            justifyContent: 'center', gap: SPACING.sm,
+                            backgroundColor: COLORS.gold, borderRadius: 14,
+                            paddingTop: 14, paddingBottom: 14,
+                            cursor: busy || !selectedId ? 'not-allowed' : 'pointer',
+                            opacity: busy || !selectedId ? 0.7 : 1,
+                            boxShadow: '0 2px 8px rgba(245, 166, 35, 0.35)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <input
+                            ref={(node) => { webFileInputRefs.current[slot.column] = node; }}
+                            type="file"
+                            accept="image/*"
+                            disabled={busy || !selectedId}
+                            onChange={handleWebFileInputChange(slot.column, slot.angle, label)}
+                            style={{
+                              position: 'absolute', inset: 0, width: '100%', height: '100%',
+                              opacity: 0, cursor: busy ? 'not-allowed' : 'pointer',
+                              zIndex: 1, fontSize: 0,
+                            }}
+                          />
+                          <View pointerEvents="none" style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+                            <Ionicons name="camera" size={18} color="#000000" />
+                            <Text style={styles.uploadBtnText}>
+                              {showImage ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
+                            </Text>
+                          </View>
+                        </label>
+                      ) : (
+                        <Pressable
+                          onPress={() => void pickNativeAndUpload(slot.column, slot.angle, label)}
+                          disabled={busy || !selectedId}
+                          style={({ pressed }) => [
+                            styles.uploadBtn,
+                            SHADOWS.button,
+                            pressed && styles.pressed,
+                            busy && styles.btnDisabled,
+                          ]}
+                        >
+                          <Ionicons name="camera" size={18} color="#000000" />
+                          <Text style={styles.uploadBtnText}>
+                            {showImage ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+
+              <Pressable
+                onPress={onSubmitPress}
+                disabled={!hasAtLeastOnePhoto}
+                style={({ pressed }) => [
+                  styles.submit,
+                  !hasAtLeastOnePhoto && styles.submitDisabled,
+                  pressed && hasAtLeastOnePhoto && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.submitText, !hasAtLeastOnePhoto && styles.submitTextDisabled]}>
+                  {t('vehicleScreen.finish')}
+                </Text>
+              </Pressable>
+              {!hasAtLeastOnePhoto ? (
+                <Text style={styles.submitHint}>{t('vehicleScreen.finishHint')}</Text>
+              ) : missingPhotoLabels.length > 0 ? (
+                <Text style={styles.submitHint}>
+                  {t('vehicleScreen.missingOptional', { labels: missingPhotoLabels.join(', ') })}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -577,226 +760,153 @@ function VehicleField({
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scroll: {
-    paddingHorizontal: SPACING.lg,
-  },
-  title: {
-    color: COLORS.text,
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: SPACING.sm,
-  },
-  sub: {
-    color: COLORS.grayLight,
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: SPACING.md,
-  },
-  metaCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.card,
-  },
-  metaCardTitle: {
-    color: COLORS.gold,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: SPACING.sm,
-    textTransform: 'uppercase',
-  },
-  metaRow: {
-    marginBottom: SPACING.md,
-  },
-  metaLabel: {
-    color: COLORS.grayLight,
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  metaValue: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  field: {
-    marginBottom: SPACING.md,
-  },
-  fieldLabel: {
-    color: COLORS.grayLight,
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: SPACING.xs,
-  },
-  input: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.input,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 12,
-    color: COLORS.text,
-    fontSize: 15,
-  },
-  saveError: {
-    color: COLORS.error,
-    fontSize: 13,
-    marginTop: SPACING.sm,
-  },
-  sectionLabel: {
-    color: COLORS.goldLight,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
+  screen:  { flex: 1, backgroundColor: COLORS.background },
+  scroll:  { paddingHorizontal: SPACING.lg },
+  title:   { color: COLORS.text, fontSize: 22, fontWeight: '800', marginBottom: SPACING.sm },
+  sub:     { color: COLORS.grayLight, fontSize: 14, lineHeight: 20, marginBottom: SPACING.md },
+  center:  { paddingVertical: SPACING.xl * 2, alignItems: 'center' },
+
+  // ── Vehicle selector ──────────────────────────────────────────────────────
+  selectorScroll:  { marginBottom: SPACING.md },
+  selectorContent: { flexDirection: 'row', gap: SPACING.sm, paddingRight: SPACING.md },
   chip: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 20, paddingVertical: 7, paddingHorizontal: 12,
     backgroundColor: COLORS.white,
   },
-  chipActive: {
-    borderColor: COLORS.gold,
-    backgroundColor: 'rgba(245, 166, 35, 0.15)',
-  },
-  chipText: {
-    color: COLORS.grayLight,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  chipTextActive: {
-    color: COLORS.gold,
-  },
-  errorBox: {
-    padding: SPACING.md,
-    borderRadius: 12,
-    backgroundColor: 'rgba(244,67,54,0.1)',
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    marginBottom: SPACING.md,
-  },
-  errorText: {
-    color: COLORS.error,
-    marginBottom: SPACING.sm,
-  },
-  retry: {
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-  },
-  retryText: {
-    color: COLORS.gold,
-    fontWeight: '700',
-  },
-  center: {
-    paddingVertical: SPACING.xl * 2,
-    alignItems: 'center',
-  },
-  slot: {
-    marginBottom: SPACING.lg,
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.md,
-    ...SHADOWS.card,
-  },
-  slotLabel: {
-    color: COLORS.goldLight,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: SPACING.md,
-  },
-  slotBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  chipActive:    { borderColor: COLORS.gold, backgroundColor: COLORS.gold },
+  chipAdd:       { borderColor: COLORS.gold, borderStyle: 'dashed' },
+  chipText:      { color: COLORS.grayLight, fontSize: 13, fontWeight: '600' },
+  chipTextActive:{ color: '#0f0f0f' },
+  chipAddText:   { color: COLORS.gold },
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  emptyWrap: {
+    alignItems: 'center', paddingVertical: SPACING.xl * 2,
     gap: SPACING.md,
   },
+  emptyText: {
+    color: COLORS.textSecondary, fontSize: 15, textAlign: 'center',
+    lineHeight: 22, paddingHorizontal: SPACING.lg,
+  },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.gold, borderRadius: RADIUS.button,
+    paddingVertical: 12, paddingHorizontal: SPACING.lg,
+  },
+  addBtnText: { color: '#0f0f0f', fontWeight: '800', fontSize: 15 },
+
+  // ── Meta card ─────────────────────────────────────────────────────────────
+  metaCard: {
+    backgroundColor: COLORS.white, borderRadius: RADIUS.card,
+    borderWidth: 1, borderColor: COLORS.border,
+    padding: SPACING.lg, marginBottom: SPACING.md, ...SHADOWS.card,
+  },
+  metaCardTitle: {
+    color: COLORS.gold, fontSize: 13, fontWeight: '700',
+    letterSpacing: 0.8, marginBottom: SPACING.sm, textTransform: 'uppercase',
+  },
+  metaRow:   { marginBottom: SPACING.md },
+  metaLabel: { color: COLORS.grayLight, fontSize: 13, fontWeight: '600', marginBottom: 4 },
+  metaValue: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+
+  // ── Form fields ───────────────────────────────────────────────────────────
+  sectionLabel: {
+    color: COLORS.goldLight, fontSize: 13, fontWeight: '700',
+    marginBottom: SPACING.sm, marginTop: SPACING.sm,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.md },
+  typeChip: {
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 20,
+    paddingVertical: 6, paddingHorizontal: 12, backgroundColor: COLORS.white,
+  },
+  typeChipActive:     { borderColor: COLORS.gold, backgroundColor: 'rgba(245,166,35,0.15)' },
+  typeChipText:       { color: COLORS.grayLight, fontSize: 13, fontWeight: '600' },
+  typeChipTextActive: { color: COLORS.gold },
+  field:       { marginBottom: SPACING.md },
+  fieldLabel:  { color: COLORS.grayLight, fontSize: 13, fontWeight: '600', marginBottom: SPACING.xs },
+  input: {
+    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.input, paddingHorizontal: SPACING.md,
+    paddingVertical: 12, color: COLORS.text, fontSize: 15,
+  },
+  saveError: { color: COLORS.error, fontSize: 13, marginTop: SPACING.sm },
+
+  // ── Active / Delete row ───────────────────────────────────────────────────
+  actionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  activeBadge: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.3)', borderRadius: RADIUS.button,
+    paddingVertical: 10, paddingHorizontal: SPACING.md,
+  },
+  activeBadgeText: { color: COLORS.success, fontWeight: '700', fontSize: 14 },
+  setActiveBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, backgroundColor: COLORS.gold, borderRadius: RADIUS.button,
+    paddingVertical: 10, paddingHorizontal: SPACING.md,
+  },
+  setActiveBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
+  deleteBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: 'rgba(239,68,68,0.08)', borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)', alignItems: 'center', justifyContent: 'center',
+  },
+
+  // ── Photos section ────────────────────────────────────────────────────────
+  photosSectionTitle: {
+    color: COLORS.gold, fontSize: 13, fontWeight: '700',
+    letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: SPACING.sm,
+  },
+  slot: {
+    marginBottom: SPACING.lg, backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
+    padding: SPACING.md, ...SHADOWS.card,
+  },
+  slotLabel: { color: COLORS.goldLight, fontSize: 15, fontWeight: '700', marginBottom: SPACING.md },
+  slotBody:  { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   preview: {
-    width: 100,
-    height: 100,
-    borderRadius: RADIUS.card,
-    backgroundColor: COLORS.surface,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 100, height: 100, borderRadius: RADIUS.card,
+    backgroundColor: COLORS.surface, borderWidth: 2, borderColor: COLORS.border,
+    borderStyle: 'dashed', overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
   },
-  previewImg: {
-    width: '100%',
-    height: '100%',
-  },
+  previewImg: { width: '100%', height: '100%' },
   busyOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center', justifyContent: 'center',
   },
   uploadBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.gold,
-    borderRadius: 14,
-    paddingVertical: 14,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: SPACING.sm, backgroundColor: COLORS.gold, borderRadius: 14, paddingVertical: 14,
   },
-  uploadBtnText: {
-    color: '#000000',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  btnDisabled: {
-    opacity: 0.7,
-  },
+  uploadBtnText: { color: '#000000', fontWeight: '800', fontSize: 15 },
+  btnDisabled: { opacity: 0.7 },
+
+  // ── Finish ────────────────────────────────────────────────────────────────
   submit: {
-    marginTop: SPACING.md,
-    backgroundColor: COLORS.gold,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
+    marginTop: SPACING.md, backgroundColor: COLORS.gold,
+    borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
-  submitDisabled: {
-    backgroundColor: COLORS.border,
-  },
-  submitText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  submitTextDisabled: {
-    color: COLORS.gray,
-  },
+  submitDisabled:     { backgroundColor: COLORS.border },
+  submitText:         { color: '#000000', fontSize: 16, fontWeight: '800' },
+  submitTextDisabled: { color: COLORS.gray },
   submitHint: {
-    color: COLORS.gray,
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.md,
+    color: COLORS.gray, fontSize: 13, textAlign: 'center',
+    marginTop: SPACING.sm, marginBottom: SPACING.md,
   },
-  pressed: {
-    opacity: 0.9,
+
+  // ── Error ─────────────────────────────────────────────────────────────────
+  errorBox: {
+    padding: SPACING.md, borderRadius: 12, backgroundColor: 'rgba(244,67,54,0.1)',
+    borderWidth: 1, borderColor: COLORS.error, marginBottom: SPACING.md,
   },
+  errorText: { color: COLORS.error, marginBottom: SPACING.sm },
+  retry:     { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: COLORS.surface, borderRadius: 8 },
+  retryText: { color: COLORS.gold, fontWeight: '700' },
+
+  pressed: { opacity: 0.9 },
 });
