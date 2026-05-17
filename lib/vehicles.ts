@@ -65,6 +65,25 @@ export async function fetchVehicleByDriver(driverId: string): Promise<{
   return { data: data as VehicleRow | null, error: error ? new Error(error.message) : null };
 }
 
+/**
+ * Returns true if the given plate is already registered on another driver's vehicle.
+ * Same-driver duplicates are intentionally allowed (a driver may have multiple
+ * vehicles with the same plate, e.g. re-registering under a new vehicle record).
+ */
+async function plateUsedByOtherDriver(
+  plate: string,
+  driverId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('vehicles')
+    .select('id')
+    .eq('plate', plate.trim())
+    .neq('driver_id', driverId)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
 /** Insert a new (inactive) vehicle row and return it. */
 export async function insertVehicle(
   driverId: string,
@@ -77,6 +96,14 @@ export async function insertVehicle(
     plate?: string | null;
   },
 ): Promise<{ data: VehicleRow | null; error: Error | null }> {
+  const plate = fields.plate?.trim() ?? '';
+  if (plate) {
+    const duplicate = await plateUsedByOtherDriver(plate, driverId);
+    if (duplicate) {
+      return { data: null, error: new Error('სანომრე ნიშანი სხვა მძღოლს უკვე გამოიყენება') };
+    }
+  }
+
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('vehicles')
@@ -189,6 +216,14 @@ export async function saveVehicleDetails(
 ): Promise<{ error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
   if (normErr) return { error: normErr };
+
+  const plate = fields.plate?.trim() ?? '';
+  if (plate) {
+    const duplicate = await plateUsedByOtherDriver(plate, driverId);
+    if (duplicate) {
+      return { error: new Error('სანომრე ნიშანი სხვა მძღოლს უკვე გამოიყენება') };
+    }
+  }
 
   const { error } = await supabase
     .from('vehicles')

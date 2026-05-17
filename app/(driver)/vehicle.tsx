@@ -557,7 +557,7 @@ export default function DriverVehiclePhotosScreen() {
           ) : null}
 
           {/* ── Photo slots ───────────────────────────────────────────────── */}
-          {selectedVehicle && formMode !== 'add' ? (
+          {selectedVehicle ? (
             <>
               <Text style={styles.photosSectionTitle}>{t('vehicleScreen.photos')}</Text>
               <Text style={styles.sub}>
