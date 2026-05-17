@@ -163,6 +163,8 @@
     "finish": "Завершить",
     "finishHint": "Завершение доступно, когда загружено хотя бы одно фото.",
     "missingOptional": "По желанию — пока нет: {{labels}}.",
+    "myVehicles": "Мои автомобили",
+    "editDetails": "Изменить",
     "addVehicle": "Добавить авто",
     "setActive": "Сделать активным",
     "activeBadge": "Активный ✓",

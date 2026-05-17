@@ -163,6 +163,8 @@
     "finish": "Finish",
     "finishHint": "Finish is enabled once at least one view has a photo.",
     "missingOptional": "Optional — not yet: {{labels}}.",
+    "myVehicles": "My Vehicles",
+    "editDetails": "Edit details",
     "addVehicle": "Add vehicle",
     "setActive": "Set as active",
     "activeBadge": "Active ✓",
