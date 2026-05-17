@@ -181,6 +181,7 @@ export async function fetchMatchingDriverPushTokens(
     .from('profiles')
     .select('push_token, vehicle_type, vehicle_class, id')
     .eq('vehicle_type', vehicleType)
+    .eq('is_verified', true)
     .not('push_token', 'is', null);
 
   if (vehicleClass) {
@@ -240,7 +241,7 @@ export async function fetchDriverPushTokenById(
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('push_token')
+    .select('push_token, is_verified')
     .eq('id', id)
     .maybeSingle();
 
@@ -248,7 +249,9 @@ export async function fetchDriverPushTokenById(
     return { tokens: [], error: new Error(error.message) };
   }
 
-  const token = (data as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  const row = data as { push_token?: string | null; is_verified?: boolean | null } | null;
+  if (!row?.is_verified) return { tokens: [], error: null };
+  const token = row.push_token?.trim() ?? '';
   if (!token) return { tokens: [], error: null };
 
   const busyWindow = availability ? estimateBookingBusyWindow(availability) : null;

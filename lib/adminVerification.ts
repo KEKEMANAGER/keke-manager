@@ -70,16 +70,23 @@ function bustUrl(url: string | null | undefined): string | null {
 }
 
 export async function approveUserVerification(userId: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase
-    .from('users')
-    .update({
-      is_verified: true,
-      verification_status: 'approved',
-      rejection_reason: null,
-    })
-    .eq('id', userId);
+  const [usersRes, profilesRes] = await Promise.all([
+    supabase
+      .from('users')
+      .update({
+        is_verified: true,
+        verification_status: 'approved',
+        rejection_reason: null,
+      })
+      .eq('id', userId),
+    supabase
+      .from('profiles')
+      .update({ is_verified: true })
+      .eq('id', userId),
+  ]);
 
-  if (error) return { error: new Error(error.message) };
+  if (usersRes.error) return { error: new Error(usersRes.error.message) };
+  if (profilesRes.error) return { error: new Error(profilesRes.error.message) };
   return { error: null };
 }
 
@@ -87,16 +94,23 @@ export async function rejectUserVerification(
   userId: string,
   reason: string,
 ): Promise<{ error: Error | null }> {
-  const { error } = await supabase
-    .from('users')
-    .update({
-      is_verified: false,
-      verification_status: 'rejected',
-      rejection_reason: reason.trim(),
-    })
-    .eq('id', userId);
+  const [usersRes, profilesRes] = await Promise.all([
+    supabase
+      .from('users')
+      .update({
+        is_verified: false,
+        verification_status: 'rejected',
+        rejection_reason: reason.trim(),
+      })
+      .eq('id', userId),
+    supabase
+      .from('profiles')
+      .update({ is_verified: false })
+      .eq('id', userId),
+  ]);
 
-  if (error) return { error: new Error(error.message) };
+  if (usersRes.error) return { error: new Error(usersRes.error.message) };
+  if (profilesRes.error) return { error: new Error(profilesRes.error.message) };
   return { error: null };
 }
 

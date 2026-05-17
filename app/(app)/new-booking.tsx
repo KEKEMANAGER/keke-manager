@@ -190,6 +190,32 @@ function transferLegOrNull(leg: TourTransferLeg): TourTransferLeg | null {
   };
 }
 
+function OptionalTransferToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        onChange(!value);
+      }}
+      style={({ pressed }) => [
+        styles.meetToggleCompact,
+        value ? styles.meetToggleOn : styles.meetToggleOff,
+        pressed && styles.pressed,
+      ]}
+    >
+      <Text style={value ? styles.meetToggleTextOn : styles.meetToggleTextOff}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function TransferSegmented({
   tab,
   onChange,
@@ -636,6 +662,8 @@ export default function NewBookingScreen() {
   const [transferOut, setTransferOut] = useState<TourTransferLeg>(() => emptyTransferLeg());
   const [transferInDateTime, setTransferInDateTime] = useState<Date | null>(null);
   const [transferOutDateTime, setTransferOutDateTime] = useState<Date | null>(null);
+  const [hasArrivalTransfer, setHasArrivalTransfer] = useState(false);
+  const [hasDepartureTransfer, setHasDepartureTransfer] = useState(false);
 
   const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('now');
   const [operators, setOperators] = useState<CompanyMember[]>([]);
@@ -765,6 +793,16 @@ export default function NewBookingScreen() {
       if (!desc && !hasStructured) {
         return t('newBooking.validation.tourDays');
       }
+      if (hasArrivalTransfer) {
+        if (!transferInDateTime) return t('newBooking.validation.dateTime');
+        if (!transferIn.flight.trim()) return t('newBooking.validation.flightNo');
+        if (!transferIn.passengerName.trim()) return t('newBooking.validation.passengerName');
+      }
+      if (hasDepartureTransfer) {
+        if (!transferOutDateTime) return t('newBooking.validation.departureDate');
+        if (!transferOut.flight.trim()) return t('newBooking.validation.flightNo');
+        if (!transferOut.passengerName.trim()) return t('newBooking.validation.passengerName');
+      }
       return null;
     }
     return t('newBooking.validation.kind');
@@ -805,6 +843,8 @@ export default function NewBookingScreen() {
     setTransferOut(emptyTransferLeg());
     setTransferInDateTime(null);
     setTransferOutDateTime(null);
+    setHasArrivalTransfer(false);
+    setHasDepartureTransfer(false);
     setPaymentWhen('now');
     setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
@@ -867,18 +907,20 @@ export default function NewBookingScreen() {
     const isTour = isMultiDayTour || isDayTour;
     const itineraryDb = isTour ? persistItineraryForDb(days) : null;
     const tourEnds = isTour ? tourEndpoints(itineraryDb ?? []) : { from: null, to: null };
-    const transferInDb: TourTransferLeg | null = isMultiDayTour
-      ? transferLegOrNull({
-          ...transferIn,
-          date: transferInDateTime ? toIsoString(transferInDateTime) : '',
-        })
-      : null;
-    const transferOutDb: TourTransferLeg | null = isMultiDayTour
-      ? transferLegOrNull({
-          ...transferOut,
-          date: transferOutDateTime ? toIsoString(transferOutDateTime) : '',
-        })
-      : null;
+    const transferInDb: TourTransferLeg | null =
+      isMultiDayTour && hasArrivalTransfer
+        ? transferLegOrNull({
+            ...transferIn,
+            date: transferInDateTime ? toIsoString(transferInDateTime) : '',
+          })
+        : null;
+    const transferOutDb: TourTransferLeg | null =
+      isMultiDayTour && hasDepartureTransfer
+        ? transferLegOrNull({
+            ...transferOut,
+            date: transferOutDateTime ? toIsoString(transferOutDateTime) : '',
+          })
+        : null;
     const structuredRoute = isTour
       ? buildTourRouteDescription(days, (day, from, to) =>
           t('newBooking.dayLine', { day, from, to }),
@@ -910,7 +952,10 @@ export default function NewBookingScreen() {
           ? toIsoString(bookingDateTime)
           : null
         : isMultiDayTour
-          ? tourBookingDateIso(transferInDateTime, transferOutDateTime)
+          ? tourBookingDateIso(
+              hasArrivalTransfer ? transferInDateTime : null,
+              hasDepartureTransfer ? transferOutDateTime : null,
+            )
           : booking_kind === 'transfer'
             ? transferTab === 'arrival'
               ? arrivalDateTime
@@ -1263,25 +1308,36 @@ export default function NewBookingScreen() {
               placeholder={t('newBooking.form.placeholders.multiDayTourDesc')}
             />
 
-            <Text style={styles.sectionHeader}>{t('newBooking.form.transferArrivalSection')}</Text>
-            <DateTimeField
-              label={t('newBooking.form.dateTime')}
-              value={transferInDateTime}
-              onChange={setTransferInDateTime}
-              placeholder={t('newBooking.form.placeholders.dateTime')}
-              minimumDate={new Date()}
+            <OptionalTransferToggle
+              label={t('newBooking.form.optionalArrivalTransfer')}
+              value={hasArrivalTransfer}
+              onChange={setHasArrivalTransfer}
             />
-            <AuthInput
-              label={t('newBooking.form.flightNo')}
-              value={transferIn.flight}
-              onChangeText={(text) => setTransferIn((p) => ({ ...p, flight: text }))}
-              autoCapitalize="characters"
-            />
-            <AuthInput
-              label={t('newBooking.form.passengerFullName')}
-              value={transferIn.passengerName}
-              onChangeText={(text) => setTransferIn((p) => ({ ...p, passengerName: text }))}
-            />
+            {hasArrivalTransfer ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.transferArrivalSection')}</Text>
+                <DateTimeField
+                  label={t('newBooking.form.dateTime')}
+                  value={transferInDateTime}
+                  onChange={setTransferInDateTime}
+                  placeholder={t('newBooking.form.placeholders.dateTime')}
+                  minimumDate={new Date()}
+                />
+                <AuthInput
+                  label={t('newBooking.form.flightNo')}
+                  value={transferIn.flight}
+                  onChangeText={(text) => setTransferIn((p) => ({ ...p, flight: text }))}
+                  autoCapitalize="characters"
+                  placeholder={t('newBooking.form.placeholders.flightExample')}
+                />
+                <AuthInput
+                  label={t('newBooking.form.passengerFullName')}
+                  value={transferIn.passengerName}
+                  onChangeText={(text) => setTransferIn((p) => ({ ...p, passengerName: text }))}
+                  placeholder={t('newBooking.form.placeholders.signName')}
+                />
+              </>
+            ) : null}
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.tourDays')}</Text>
             {days.map((day, dayIndex) => (
@@ -1330,25 +1386,36 @@ export default function NewBookingScreen() {
               </Pressable>
             ) : null}
 
-            <Text style={styles.sectionHeader}>{t('newBooking.form.transferDepartureSection')}</Text>
-            <DateTimeField
-              label={t('newBooking.form.dateTime')}
-              value={transferOutDateTime}
-              onChange={setTransferOutDateTime}
-              placeholder={t('newBooking.form.placeholders.dateTime')}
-              minimumDate={new Date()}
+            <OptionalTransferToggle
+              label={t('newBooking.form.optionalDepartureTransfer')}
+              value={hasDepartureTransfer}
+              onChange={setHasDepartureTransfer}
             />
-            <AuthInput
-              label={t('newBooking.form.flightNo')}
-              value={transferOut.flight}
-              onChangeText={(text) => setTransferOut((p) => ({ ...p, flight: text }))}
-              autoCapitalize="characters"
-            />
-            <AuthInput
-              label={t('newBooking.form.passengerFullName')}
-              value={transferOut.passengerName}
-              onChangeText={(text) => setTransferOut((p) => ({ ...p, passengerName: text }))}
-            />
+            {hasDepartureTransfer ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.transferDepartureSection')}</Text>
+                <DateTimeField
+                  label={t('newBooking.form.dateTime')}
+                  value={transferOutDateTime}
+                  onChange={setTransferOutDateTime}
+                  placeholder={t('newBooking.form.placeholders.dateTime')}
+                  minimumDate={new Date()}
+                />
+                <AuthInput
+                  label={t('newBooking.form.flightNo')}
+                  value={transferOut.flight}
+                  onChangeText={(text) => setTransferOut((p) => ({ ...p, flight: text }))}
+                  autoCapitalize="characters"
+                  placeholder={t('newBooking.form.placeholders.flightExample')}
+                />
+                <AuthInput
+                  label={t('newBooking.form.passengerFullName')}
+                  value={transferOut.passengerName}
+                  onChangeText={(text) => setTransferOut((p) => ({ ...p, passengerName: text }))}
+                  placeholder={t('newBooking.form.placeholders.signName')}
+                />
+              </>
+            ) : null}
 
             <AuthInput
               label={t('newBooking.form.passengers')}
@@ -1502,9 +1569,7 @@ export default function NewBookingScreen() {
                 </>
               ) : (
                 <>
-                  {(transferInDateTime ||
-                    transferIn.flight.trim() ||
-                    transferIn.passengerName.trim()) && (
+                  {hasArrivalTransfer && (
                     <Text style={styles.vLineMuted}>
                       {t('newBooking.form.voucherTransferInDetail', {
                         datetime: transferInDateTime
@@ -1531,9 +1596,7 @@ export default function NewBookingScreen() {
                           })}
                     </Text>
                   ))}
-                  {(transferOutDateTime ||
-                    transferOut.flight.trim() ||
-                    transferOut.passengerName.trim()) && (
+                  {hasDepartureTransfer && (
                     <Text style={styles.vLineMuted}>
                       {t('newBooking.form.voucherTransferOutDetail', {
                         datetime: transferOutDateTime
