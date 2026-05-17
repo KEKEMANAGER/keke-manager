@@ -27,7 +27,7 @@ import { EditModeButtons } from '../../components/EditModeButtons';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
-import { MOCK_RATING_BREAKDOWN } from '../../constants/driverMocks';
+import { fetchDriverAverageRating } from '../../lib/ratings';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
 import {
@@ -47,21 +47,6 @@ import {
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
 import { useAuth } from '../../contexts/AuthContext';
-
-function RatingBar({ label, value }: { label: string; value: number }) {
-  const pct = (value / 5) * 100;
-  return (
-    <View style={styles.barWrap}>
-      <View style={styles.barHeader}>
-        <Text style={styles.barLabel}>{label}</Text>
-        <Text style={styles.barValue}>{value.toFixed(1)}</Text>
-      </View>
-      <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${pct}%` }]} />
-      </View>
-    </View>
-  );
-}
 
 export default function DriverProfileScreen() {
   const router = useRouter();
@@ -107,6 +92,8 @@ export default function DriverProfileScreen() {
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [vehicleType, setVehicleType] = useState<VehicleTypeCode | null>(null);
   const [vehicleClass, setVehicleClass] = useState<VehicleClassCode | null>(null);
+  const [ratingAverage, setRatingAverage] = useState(0);
+  const [ratingCount, setRatingCount] = useState(0);
   const [profileLoading, setProfileLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -163,6 +150,17 @@ export default function DriverProfileScreen() {
   useEffect(() => {
     void loadVehiclePreferences();
   }, [loadVehiclePreferences]);
+
+  const loadRating = useCallback(async () => {
+    if (!user?.id) return;
+    const { average, count } = await fetchDriverAverageRating(user.id);
+    setRatingAverage(average);
+    setRatingCount(count);
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadRating();
+  }, [loadRating]);
 
   async function pickPhoto() {
     if (!user?.id) return;
@@ -391,13 +389,16 @@ export default function DriverProfileScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('profilePage.ratingDetails')}</Text>
         <View style={styles.overallRow}>
-          <Text style={styles.overallLabel}>{t('profilePage.overall')}</Text>
-          <StarRow value={4.8} />
+          <View>
+            <Text style={styles.overallLabel}>{t('profilePage.overall')}</Text>
+            <Text style={styles.ratingMeta}>
+              {ratingCount > 0
+                ? `${ratingAverage.toFixed(1)} · ${ratingCount} ${t('common.rating')}`
+                : '—'}
+            </Text>
+          </View>
+          <StarRow value={ratingAverage} />
         </View>
-        <RatingBar label={t('profilePage.punctuality')} value={MOCK_RATING_BREAKDOWN.punctuality} />
-        <RatingBar label={t('profilePage.cleanliness')} value={MOCK_RATING_BREAKDOWN.cleanliness} />
-        <RatingBar label={t('profilePage.communication')} value={MOCK_RATING_BREAKDOWN.communication} />
-        <RatingBar label={t('profilePage.driving')} value={MOCK_RATING_BREAKDOWN.driving} />
       </View>
 
       <View style={styles.card}>
@@ -606,32 +607,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  barWrap: {
-    marginBottom: SPACING.md,
-  },
-  barHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  barLabel: {
-    color: COLORS.grayLight,
-    fontSize: 14,
-  },
-  barValue: {
-    color: COLORS.goldLight,
-    fontWeight: '700',
-  },
-  barTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.border,
-    overflow: 'hidden',
-  },
-  barFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: COLORS.gold,
+  ratingMeta: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    marginTop: 2,
   },
   langRow: {
     flexDirection: 'row',
