@@ -301,10 +301,14 @@ export default function DriverVehiclePhotosScreen() {
       setSaveError(getSupabaseErrorMessage(error ?? new Error('Failed to create vehicle')));
       return;
     }
-    setFormMode('view');
-    const { data } = await fetchVehiclesByDriver(userId);
-    setVehicles(data);
+    // Immediately put the new vehicle in state so photos appear without waiting for the fetch.
+    setVehicles((prev) => [...prev, newV]);
     setSelectedId(newV.id);
+    setFormMode('view');
+    // Refresh in background to pick up server-side defaults (timestamps, etc.).
+    void fetchVehiclesByDriver(userId).then(({ data }) => {
+      if (data.length > 0) setVehicles(data);
+    });
   }
 
   // ── Set active ────────────────────────────────────────────────────────────
