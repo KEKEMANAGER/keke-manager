@@ -48,12 +48,9 @@ export async function fetchVehiclesByDriver(driverId: string): Promise<{
   };
 }
 
-/**
- * Returns the active vehicle for a driver.
- * Kept for backwards-compatible callers (profile screen, admin views).
- */
-export async function fetchVehicleByDriver(driverId: string): Promise<{
-  data: VehicleRow | null;
+/** All active vehicles for a driver (multiple allowed). */
+export async function fetchActiveVehiclesByDriver(driverId: string): Promise<{
+  data: VehicleRow[];
   error: Error | null;
 }> {
   const { data, error } = await supabase
@@ -61,26 +58,66 @@ export async function fetchVehicleByDriver(driverId: string): Promise<{
     .select(VEHICLE_SELECT)
     .eq('driver_id', driverId)
     .eq('is_active', true)
-    .maybeSingle();
-  return { data: data as VehicleRow | null, error: error ? new Error(error.message) : null };
+    .order('updated_at', { ascending: false });
+  return {
+    data: (data ?? []) as VehicleRow[],
+    error: error ? new Error(error.message) : null,
+  };
+}
+
+/**
+ * Returns one active vehicle (most recently updated) for display/admin fallbacks.
+ */
+export async function fetchVehicleByDriver(driverId: string): Promise<{
+  data: VehicleRow | null;
+  error: Error | null;
+}> {
+  const { data, error } = await fetchActiveVehiclesByDriver(driverId);
+  if (error) return { data: null, error };
+  return { data: data[0] ?? null, error: null };
+}
+
+function normalizePlate(plate: string): string {
+  return plate.trim().toUpperCase();
+}
+
+function isDriverVehicleLimitError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('duplicate key') &&
+    (m.includes('driver_clerk_id') ||
+      m.includes('vehicles_driver_clerk_id') ||
+      m.includes('vehicles_driver_clerk_id_key'))
+  );
 }
 
 /**
  * Returns true if the given plate is already registered on another driver's vehicle.
- * Same-driver duplicates are intentionally allowed (a driver may have multiple
- * vehicles with the same plate, e.g. re-registering under a new vehicle record).
+ * Same-driver duplicates are intentionally allowed.
  */
 async function plateUsedByOtherDriver(
   plate: string,
   driverId: string,
+  excludeVehicleId?: string,
 ): Promise<boolean> {
-  const { data } = await supabase
+  const normalized = normalizePlate(plate);
+  if (!normalized) return false;
+
+  let query = supabase
     .from('vehicles')
     .select('id')
-    .eq('plate', plate.trim())
+    .eq('plate', normalized)
     .neq('driver_id', driverId)
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  if (excludeVehicleId) {
+    query = query.neq('id', excludeVehicleId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error && __DEV__) {
+    console.warn('[vehicles] plateUsedByOtherDriver', error.message);
+  }
   return !!data;
 }
 
@@ -96,7 +133,11 @@ export async function insertVehicle(
     plate?: string | null;
   },
 ): Promise<{ data: VehicleRow | null; error: Error | null }> {
-  const plate = fields.plate?.trim() ?? '';
+  const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
+  if (normErr) return { data: null, error: normErr };
+
+  const plateRaw = normalizedFields.plate?.trim() ?? '';
+  const plate = plateRaw ? normalizePlate(plateRaw) : null;
   if (plate) {
     const duplicate = await plateUsedByOtherDriver(plate, driverId);
     if (duplicate) {
@@ -117,49 +158,92 @@ export async function insertVehicle(
       photo_rear: null,
       is_verified: false,
       updated_at: now,
-      ...fields,
+      ...normalizedFields,
+      plate,
     })
     .select(VEHICLE_SELECT)
     .maybeSingle();
-  return { data: data as VehicleRow | null, error: error ? new Error(error.message) : null };
+
+  if (error) {
+    if (isDriverVehicleLimitError(error.message)) {
+      return {
+        data: null,
+        error: new Error(
+          'მეორე მანქანის დამატება ბაზაში არ არის ჩართული. გაუშვით migration: 20260518140000_vehicles_drop_driver_unique.sql',
+        ),
+      };
+    }
+    return { data: null, error: new Error(error.message) };
+  }
+  return { data: data as VehicleRow | null, error: null };
 }
 
-/**
- * Mark one vehicle as active for this driver (deactivates all others).
- * Also syncs type/class to profiles so notification matching stays accurate.
- */
-export async function setActiveVehicle(
-  driverId: string,
-  vehicleId: string,
-): Promise<{ error: Error | null }> {
-  // Deactivate all vehicles for this driver first.
-  await supabase.from('vehicles').update({ is_active: false }).eq('driver_id', driverId);
-
-  // Activate the chosen vehicle (driver_id check prevents cross-driver writes).
-  const { error } = await supabase
-    .from('vehicles')
-    .update({ is_active: true })
-    .eq('id', vehicleId)
-    .eq('driver_id', driverId);
-
-  if (error) return { error: new Error(error.message) };
-
-  // Sync type/class to profiles so push-notification matching stays current.
-  const { data: v } = await supabase
+async function syncProfileVehicleFromActives(driverId: string): Promise<void> {
+  const { data: remaining } = await supabase
     .from('vehicles')
     .select('type, class')
-    .eq('id', vehicleId)
+    .eq('driver_id', driverId)
+    .eq('is_active', true)
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
-  if (v?.type && v?.class) {
+
+  if (remaining?.type && remaining?.class) {
     await supabase
       .from('profiles')
       .upsert(
-        { id: driverId, vehicle_type: v.type, vehicle_class: v.class },
+        { id: driverId, vehicle_type: remaining.type, vehicle_class: remaining.class },
         { onConflict: 'id' },
       );
   }
+}
 
-  return { error: null };
+/**
+ * Toggle `is_active` for one vehicle. Multiple vehicles may be active at once.
+ * Syncs profiles from the toggled vehicle (on activate) or last active (on deactivate).
+ */
+export async function toggleVehicleActive(
+  driverId: string,
+  vehicleId: string,
+): Promise<{ is_active: boolean; error: Error | null }> {
+  const { data: current, error: fetchErr } = await supabase
+    .from('vehicles')
+    .select('is_active, type, class')
+    .eq('id', vehicleId)
+    .eq('driver_id', driverId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    return { is_active: false, error: new Error(fetchErr.message) };
+  }
+  if (!current) {
+    return { is_active: false, error: new Error('მანქანა ვერ მოიძებნა') };
+  }
+
+  const nextActive = !current.is_active;
+
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ is_active: nextActive, updated_at: new Date().toISOString() })
+    .eq('id', vehicleId)
+    .eq('driver_id', driverId);
+
+  if (error) {
+    return { is_active: !!current.is_active, error: new Error(error.message) };
+  }
+
+  if (nextActive && current.type && current.class) {
+    await supabase
+      .from('profiles')
+      .upsert(
+        { id: driverId, vehicle_type: current.type, vehicle_class: current.class },
+        { onConflict: 'id' },
+      );
+  } else if (!nextActive) {
+    await syncProfileVehicleFromActives(driverId);
+  }
+
+  return { is_active: nextActive, error: null };
 }
 
 /**
@@ -217,17 +301,29 @@ export async function saveVehicleDetails(
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
   if (normErr) return { error: normErr };
 
-  const plate = fields.plate?.trim() ?? '';
-  if (plate) {
-    const duplicate = await plateUsedByOtherDriver(plate, driverId);
-    if (duplicate) {
-      return { error: new Error('სანომრე ნიშანი სხვა მძღოლს უკვე გამოიყენება') };
+  let plateForDb: string | null | undefined;
+  if (fields.plate !== undefined) {
+    const plateRaw = fields.plate?.trim() ?? '';
+    plateForDb = plateRaw ? normalizePlate(plateRaw) : null;
+    if (plateForDb) {
+      const duplicate = await plateUsedByOtherDriver(plateForDb, driverId, vehicleId);
+      if (duplicate) {
+        return { error: new Error('სანომრე ნიშანი სხვა მძღოლს უკვე გამოიყენება') };
+      }
     }
+  }
+
+  const payload: Record<string, unknown> = {
+    ...normalizedFields,
+    updated_at: new Date().toISOString(),
+  };
+  if (plateForDb !== undefined) {
+    payload.plate = plateForDb;
   }
 
   const { error } = await supabase
     .from('vehicles')
-    .update({ ...normalizedFields, updated_at: new Date().toISOString() })
+    .update(payload)
     .eq('id', vehicleId)
     .eq('driver_id', driverId);
   return { error: error ? new Error(error.message) : null };
@@ -243,6 +339,18 @@ export async function saveVehiclePhotoUrl(
   const { error } = await supabase
     .from('vehicles')
     .update({ [column]: cleanUrl, updated_at: new Date().toISOString() })
+    .eq('id', vehicleId);
+  return { error: error ? new Error(error.message) : null };
+}
+
+/** Remove one photo URL from a vehicle row. */
+export async function clearVehiclePhotoUrl(
+  vehicleId: string,
+  column: VehiclePhotoKey,
+): Promise<{ error: Error | null }> {
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ [column]: null, updated_at: new Date().toISOString() })
     .eq('id', vehicleId);
   return { error: error ? new Error(error.message) : null };
 }

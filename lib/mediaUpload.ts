@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
+import type { VerificationDocSlot } from './verificationDocs';
 
 /**
  * Read local image URI (Expo native / web) into an ArrayBuffer for Supabase Storage.
@@ -75,8 +76,16 @@ export function withCacheBust(url: string | null | undefined): string | null {
   return `${storagePublicUrlBase(url)}?t=${Date.now()}`;
 }
 
-/** `verification/[user_id]/[slot].jpg` — slot: license | id | registration */
-export function verificationPhotoObjectPath(userId: string, slot: 'license' | 'id' | 'registration'): string {
+/** `verifications/[user_id]/[slot].jpg` */
+export function verificationPhotoObjectPath(userId: string, slot: VerificationDocSlot): string {
+  return `verifications/${userId}/${slot}.jpg`;
+}
+
+/** @deprecated Legacy path prefix */
+export function verificationPhotoObjectPathLegacy(
+  userId: string,
+  slot: 'license' | 'id' | 'registration',
+): string {
   return `verification/${userId}/${slot}.jpg`;
 }
 

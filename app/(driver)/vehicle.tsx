@@ -1,7 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MutableRefObject,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,13 +29,14 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { uploadMediaObject, vehiclePhotoObjectPath, withCacheBust } from '../../lib/mediaUpload';
 import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
 import {
+  clearVehiclePhotoUrl,
   deleteVehicle,
   fetchVehiclesByDriver,
   insertVehicle,
   rowToUrlsWithCacheBust,
   saveVehicleDetails,
   saveVehiclePhotoUrl,
-  setActiveVehicle,
+  toggleVehicleActive,
 } from '../../lib/vehicles';
 import {
   normalizeVehicleClass as normalizeStoredVehicleClass,
@@ -39,6 +48,7 @@ import {
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
+import { assignSubDriverToVehicle, resolveDriverUserId } from '../../lib/fleet';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { showValidationAlert, validateVehicleSave } from '../../lib/validation';
 import { useAuth } from '../../contexts/AuthContext';
@@ -66,6 +76,168 @@ const emptyWebFileRefs = (): Record<VehiclePhotoKey, HTMLInputElement | null> =>
 
 type FormMode = 'view' | 'edit' | 'add';
 
+type PhotoSlotDef = (typeof SLOTS)[number];
+
+// ── Photos accordion (edit / add forms) ───────────────────────────────────────
+function VehiclePhotosAccordion({
+  vehicleId,
+  localUrls,
+  uploadingKey,
+  expandedSlots,
+  onToggleSlot,
+  onDeletePhoto,
+  onPickNative,
+  webFileInputRefs,
+  onWebFileChange,
+  disabled,
+}: {
+  vehicleId: string | null;
+  localUrls: Record<VehiclePhotoKey, string | null>;
+  uploadingKey: VehiclePhotoKey | null;
+  expandedSlots: Partial<Record<VehiclePhotoKey, boolean>>;
+  onToggleSlot: (column: VehiclePhotoKey) => void;
+  onDeletePhoto: (column: VehiclePhotoKey) => void;
+  onPickNative: (slot: PhotoSlotDef) => void;
+  webFileInputRefs: MutableRefObject<Record<VehiclePhotoKey, HTMLInputElement | null>>;
+  onWebFileChange: (slot: PhotoSlotDef) => (event: ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.photosAccordion}>
+      <Text style={styles.photosAccordionTitle}>{t('vehicleScreen.photos')}</Text>
+      {SLOTS.map((slot, index) => {
+        const uri = localUrls[slot.column];
+        const hasPhoto = hasPhotoUrl(uri);
+        const expanded = !!expandedSlots[slot.column];
+        const busy = uploadingKey === slot.column;
+        const label = t(`vehicleScreen.${slot.labelKey}`);
+
+        return (
+          <View
+            key={slot.column}
+            style={[styles.accordionItem, index === SLOTS.length - 1 && styles.accordionItemLast]}
+          >
+            <Pressable
+              onPress={() => onToggleSlot(slot.column)}
+              style={({ pressed }) => [styles.accordionHeader, pressed && styles.pressed]}
+            >
+              <Text style={styles.accordionHeaderLabel}>{label}</Text>
+              <View style={styles.accordionHeaderRight}>
+                {hasPhoto ? (
+                  <Image source={{ uri: uri! }} style={styles.accordionHeaderThumb} resizeMode="cover" />
+                ) : (
+                  <View style={styles.accordionHeaderThumbEmpty}>
+                    <Ionicons name="image-outline" size={14} color={COLORS.textMuted} />
+                  </View>
+                )}
+                <Ionicons
+                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={COLORS.textSecondary}
+                />
+              </View>
+            </Pressable>
+
+            {expanded ? (
+              <View style={styles.accordionBody}>
+                {hasPhoto ? (
+                  <View style={styles.accordionPreviewWrap}>
+                    <Image source={{ uri: uri! }} style={styles.accordionPreview} resizeMode="cover" />
+                    {busy ? (
+                      <View style={styles.busyOverlay}>
+                        <ActivityIndicator color={COLORS.gold} size="small" />
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <View style={styles.accordionActions}>
+                  {hasPhoto ? (
+                    <Pressable
+                      onPress={() => onDeletePhoto(slot.column)}
+                      disabled={busy || disabled}
+                      style={({ pressed }) => [
+                        styles.accordionBtnOutline,
+                        (busy || disabled) && styles.btnDisabled,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={COLORS.error} />
+                      <Text style={styles.accordionBtnOutlineText}>{t('vehicleScreen.deletePhoto')}</Text>
+                    </Pressable>
+                  ) : null}
+
+                  {Platform.OS === 'web' ? (
+                    <label
+                      style={{
+                        flex: hasPhoto ? 1 : undefined,
+                        alignSelf: hasPhoto ? 'stretch' : 'flex-start',
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        borderWidth: 1,
+                        borderColor: COLORS.gold,
+                        borderRadius: 10,
+                        paddingTop: 10,
+                        paddingBottom: 10,
+                        paddingLeft: 14,
+                        paddingRight: 14,
+                        backgroundColor: COLORS.goldTint,
+                        cursor: busy || disabled || !vehicleId ? 'not-allowed' : 'pointer',
+                        opacity: busy || disabled || !vehicleId ? 0.55 : 1,
+                      }}
+                    >
+                      <input
+                        ref={(node) => {
+                          webFileInputRefs.current[slot.column] = node;
+                        }}
+                        type="file"
+                        accept="image/*"
+                        disabled={busy || disabled || !vehicleId}
+                        onChange={onWebFileChange(slot)}
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          width: '100%',
+                          height: '100%',
+                          opacity: 0,
+                          cursor: busy || disabled || !vehicleId ? 'not-allowed' : 'pointer',
+                          fontSize: 0,
+                        }}
+                      />
+                      <Ionicons name="cloud-upload-outline" size={16} color={COLORS.goldDark} />
+                      <Text style={styles.accordionBtnUploadText}>{t('vehicleScreen.upload')}</Text>
+                    </label>
+                  ) : (
+                    <Pressable
+                      onPress={() => onPickNative(slot)}
+                      disabled={busy || disabled || !vehicleId}
+                      style={({ pressed }) => [
+                        styles.accordionBtnUpload,
+                        !hasPhoto && styles.accordionBtnUploadSolo,
+                        (busy || disabled) && styles.btnDisabled,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons name="cloud-upload-outline" size={16} color={COLORS.goldDark} />
+                      <Text style={styles.accordionBtnUploadText}>{t('vehicleScreen.upload')}</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── Vehicle list card ─────────────────────────────────────────────────────────
 function VehicleListCard({
   vehicle,
@@ -75,7 +247,7 @@ function VehicleListCard({
   saveBusy,
   onSelect,
   onEdit,
-  onSetActive,
+  onToggleActive,
   onDelete,
 }: {
   vehicle: VehicleRow;
@@ -85,7 +257,7 @@ function VehicleListCard({
   saveBusy: boolean;
   onSelect: () => void;
   onEdit: () => void;
-  onSetActive: () => void;
+  onToggleActive: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
@@ -131,16 +303,24 @@ function VehicleListCard({
 
           {/* Action row */}
           <View style={styles.vehicleCardActions}>
-            {!vehicle.is_active ? (
-              <Pressable
-                onPress={onSetActive}
-                disabled={saveBusy}
-                style={({ pressed }) => [styles.cardBtn, styles.cardBtnGold, pressed && styles.pressed]}
-              >
-                <Ionicons name="checkmark-circle-outline" size={13} color={COLORS.gold} />
-                <Text style={styles.cardBtnGoldText}>{t('vehicleScreen.setActive')}</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              onPress={onToggleActive}
+              disabled={saveBusy}
+              style={({ pressed }) => [
+                styles.cardBtn,
+                vehicle.is_active ? styles.cardBtnMuted : styles.cardBtnGold,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name={vehicle.is_active ? 'close-circle-outline' : 'checkmark-circle-outline'}
+                size={13}
+                color={vehicle.is_active ? COLORS.textSecondary : COLORS.gold}
+              />
+              <Text style={vehicle.is_active ? styles.cardBtnText : styles.cardBtnGoldText}>
+                {vehicle.is_active ? t('vehicleScreen.deactivate') : t('vehicleScreen.setActive')}
+              </Text>
+            </Pressable>
 
             <Pressable
               onPress={onEdit}
@@ -189,6 +369,7 @@ export default function DriverVehiclePhotosScreen() {
   // ── Photo state ───────────────────────────────────────────────────────────
   const [localUrls, setLocalUrls]     = useState<Record<VehiclePhotoKey, string | null>>(rowToUrlsWithCacheBust(null));
   const [uploadingKey, setUploadingKey] = useState<VehiclePhotoKey | null>(null);
+  const [expandedPhotoSlots, setExpandedPhotoSlots] = useState<Partial<Record<VehiclePhotoKey, boolean>>>({});
 
   // ── Form ──────────────────────────────────────────────────────────────────
   const [formMode, setFormMode]   = useState<FormMode>('view');
@@ -198,6 +379,7 @@ export default function DriverVehiclePhotosScreen() {
   const [editColor, setEditColor] = useState('');
   const [editYear, setEditYear]   = useState('');
   const [editPlate, setEditPlate] = useState('');
+  const [subDriverRef, setSubDriverRef] = useState('');
   const [saveBusy, setSaveBusy]   = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -205,6 +387,7 @@ export default function DriverVehiclePhotosScreen() {
   const userIdRef   = useRef(userId);    userIdRef.current   = userId;
   const selectedIdRef = useRef(selectedId); selectedIdRef.current = selectedId;
   const localUrlsRef  = useRef(localUrls);  localUrlsRef.current  = localUrls;
+  const addDraftIdRef = useRef<string | null>(null);
   const webFileInputRefs = useRef<Record<VehiclePhotoKey, HTMLInputElement | null>>(emptyWebFileRefs());
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedId) ?? null;
@@ -247,20 +430,61 @@ export default function DriverVehiclePhotosScreen() {
   function handleEdit(vehicle: VehicleRow) {
     setSelectedId(vehicle.id);
     populateFormFrom(vehicle);
+    setExpandedPhotoSlots({});
     setFormMode('edit');
   }
 
-  function cancelEdit() { setFormMode('view'); setSaveError(null); }
+  function cancelEdit() {
+    setFormMode('view');
+    setSaveError(null);
+    setExpandedPhotoSlots({});
+  }
 
-  function startAdd() {
+  async function startAdd() {
+    if (!userId) return;
     setEditType(VEHICLE_TYPES[0]);
     setEditClass(VEHICLE_CLASSES[0]);
-    setEditModel(''); setEditColor(''); setEditYear(''); setEditPlate('');
+    setEditModel('');
+    setEditColor('');
+    setEditYear('');
+    setEditPlate('');
+    setSubDriverRef('');
     setSaveError(null);
+    setSaveBusy(true);
+
+    const { data: draft, error } = await insertVehicle(userId, {
+      type: VEHICLE_TYPES[0],
+      class: VEHICLE_CLASSES[0],
+    });
+    setSaveBusy(false);
+
+    if (error || !draft) {
+      setSaveError(getSupabaseErrorMessage(error ?? new Error('Failed to create vehicle')));
+      return;
+    }
+
+    addDraftIdRef.current = draft.id;
+    setVehicles((prev) => [...prev, draft]);
+    setSelectedId(draft.id);
+    setLocalUrls(rowToUrlsWithCacheBust(draft));
+    setExpandedPhotoSlots({});
     setFormMode('add');
   }
 
-  function cancelAdd() { setFormMode('view'); setSaveError(null); }
+  function cancelAdd() {
+    const draftId = addDraftIdRef.current;
+    addDraftIdRef.current = null;
+    setFormMode('view');
+    setSaveError(null);
+    setSubDriverRef('');
+    setExpandedPhotoSlots({});
+    if (draftId && userId) {
+      void deleteVehicle(draftId, userId).then(() => {
+        setSelectedId((prev) => (prev === draftId ? null : prev));
+        void loadVehicles();
+      });
+    }
+  }
 
   // ── Save edit ─────────────────────────────────────────────────────────────
   async function onSaveEdit() {
@@ -284,40 +508,60 @@ export default function DriverVehiclePhotosScreen() {
 
   // ── Save add ──────────────────────────────────────────────────────────────
   async function onSaveAdd() {
-    if (!userId) return;
+    if (!userId || !selectedId) return;
     const err = validateVehicleSave(editType, editClass);
     if (err) { setSaveError(err); showValidationAlert(err); return; }
-    setSaveBusy(true); setSaveError(null);
+    setSaveBusy(true);
+    setSaveError(null);
     const yearNum = parseInt(editYear.trim(), 10);
-    const { data: newV, error } = await insertVehicle(userId, {
-      type: editType, class: editClass,
-      model:  editModel.trim()  || null,
-      color:  editColor.trim()  || null,
-      year:   Number.isFinite(yearNum) && yearNum > 1900 ? yearNum : null,
-      plate:  editPlate.trim()  || null,
+    const { error } = await saveVehicleDetails(selectedId, userId, {
+      type: editType,
+      class: editClass,
+      model: editModel.trim() || null,
+      color: editColor.trim() || null,
+      year: Number.isFinite(yearNum) && yearNum > 1900 ? yearNum : null,
+      plate: editPlate.trim() || null,
     });
-    setSaveBusy(false);
-    if (error || !newV) {
-      setSaveError(getSupabaseErrorMessage(error ?? new Error('Failed to create vehicle')));
+    if (error) {
+      setSaveBusy(false);
+      setSaveError(getSupabaseErrorMessage(error));
       return;
     }
-    // Immediately put the new vehicle in state so photos appear without waiting for the fetch.
-    setVehicles((prev) => [...prev, newV]);
-    setSelectedId(newV.id);
+
+    const subRef = subDriverRef.trim();
+    if (subRef) {
+      const { userId: subId, error: resolveErr } = await resolveDriverUserId(subRef);
+      if (resolveErr || !subId) {
+        setSaveBusy(false);
+        setSaveError(resolveErr?.message ?? t('fleet.driverNotFound'));
+        return;
+      }
+      const { error: fleetErr } = await assignSubDriverToVehicle(userId, selectedId, subId);
+      if (fleetErr) {
+        setSaveBusy(false);
+        setSaveError(fleetErr.message);
+        return;
+      }
+    }
+
+    setSaveBusy(false);
+    addDraftIdRef.current = null;
+    setSubDriverRef('');
     setFormMode('view');
-    // Refresh in background to pick up server-side defaults (timestamps, etc.).
-    void fetchVehiclesByDriver(userId).then(({ data }) => {
-      if (data.length > 0) setVehicles(data);
-    });
+    void loadVehicles();
   }
 
-  // ── Set active ────────────────────────────────────────────────────────────
-  async function handleSetActive(vehicleId: string) {
+  // ── Toggle active ─────────────────────────────────────────────────────────
+  async function handleToggleActive(vehicleId: string) {
     if (!userId) return;
     setSaveBusy(true);
-    const { error } = await setActiveVehicle(userId, vehicleId);
+    const { is_active, error } = await toggleVehicleActive(userId, vehicleId);
     setSaveBusy(false);
-    if (!error) setVehicles((prev) => prev.map((v) => ({ ...v, is_active: v.id === vehicleId })));
+    if (!error) {
+      setVehicles((prev) =>
+        prev.map((v) => (v.id === vehicleId ? { ...v, is_active } : v)),
+      );
+    }
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -367,7 +611,7 @@ export default function DriverVehiclePhotosScreen() {
         const busted = withCacheBust(publicUrl) ?? publicUrl;
         setLocalUrls((prev) => ({ ...prev, [column]: busted }));
         const { data: fresh } = await fetchVehiclesByDriver(uid);
-        if (fresh) setVehicles(fresh);
+        if (fresh.length > 0) setVehicles(fresh);
         if (opts?.revokeObjectUrl) { const b = opts.revokeObjectUrl; setTimeout(() => URL.revokeObjectURL(b), 800); }
         Alert.alert(t('vehicleScreen.uploadSuccessTitle'), t('vehicleScreen.uploadSuccessBody', { label }));
       } catch (e: unknown) {
@@ -400,14 +644,47 @@ export default function DriverVehiclePhotosScreen() {
     [runUploadPipeline],
   );
 
-  async function pickNativeAndUpload(column: VehiclePhotoKey, angle: string, label: string) {
+  async function pickNativeAndUpload(slot: PhotoSlotDef) {
     if (!userIdRef.current || !selectedIdRef.current) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody')); return; }
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality: 0.88 });
     if (res.canceled || !res.assets[0]) return;
     const asset = res.assets[0];
-    await runUploadPipeline(column, angle, label, asset.uri, asset.mimeType ?? 'image/jpeg');
+    const label = t(`vehicleScreen.${slot.labelKey}`);
+    await runUploadPipeline(slot.column, slot.angle, label, asset.uri, asset.mimeType ?? 'image/jpeg');
+  }
+
+  function togglePhotoSlot(column: VehiclePhotoKey) {
+    setExpandedPhotoSlots((prev) => ({ ...prev, [column]: !prev[column] }));
+  }
+
+  function confirmDeletePhoto(column: VehiclePhotoKey) {
+    const run = () => void handleDeletePhoto(column);
+    if (Platform.OS === 'web') {
+      if (window.confirm(t('vehicleScreen.deletePhotoConfirm'))) run();
+      return;
+    }
+    Alert.alert(t('vehicleScreen.deletePhoto'), t('vehicleScreen.deletePhotoConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.yes'), style: 'destructive', onPress: run },
+    ]);
+  }
+
+  async function handleDeletePhoto(column: VehiclePhotoKey) {
+    const vid = selectedIdRef.current;
+    if (!vid) return;
+    setUploadingKey(column);
+    const { error } = await clearVehiclePhotoUrl(vid, column);
+    setUploadingKey(null);
+    if (error) {
+      Alert.alert(t('system.errorTitle'), error.message);
+      return;
+    }
+    setLocalUrls((prev) => ({ ...prev, [column]: null }));
+    setVehicles((prev) =>
+      prev.map((v) => (v.id === vid ? { ...v, [column]: null } : v)),
+    );
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -477,7 +754,7 @@ export default function DriverVehiclePhotosScreen() {
                   if (formMode === 'add') setFormMode('view');
                 }}
                 onEdit={() => handleEdit(v)}
-                onSetActive={() => void handleSetActive(v.id)}
+                onToggleActive={() => void handleToggleActive(v.id)}
                 onDelete={() => handleDelete(v)}
               />
             ))
@@ -485,7 +762,8 @@ export default function DriverVehiclePhotosScreen() {
 
           {/* ── Add vehicle button ────────────────────────────────────────── */}
           <Pressable
-            onPress={startAdd}
+            onPress={() => void startAdd()}
+            disabled={saveBusy}
             style={({ pressed }) => [
               styles.addVehicleBtn,
               formMode === 'add' && styles.addVehicleBtnActive,
@@ -552,115 +830,64 @@ export default function DriverVehiclePhotosScreen() {
               <VehicleField label={t('vehicleScreen.year')}       value={editYear}  onChangeText={setEditYear}  keyboardType="number-pad" />
               <VehicleField label={t('vehicleScreen.plateLabel')} value={editPlate} onChangeText={setEditPlate} />
 
+              {formMode === 'add' ? (
+                <VehicleField
+                  label={t('fleet.assignSubDriver')}
+                  value={subDriverRef}
+                  onChangeText={setSubDriverRef}
+                  placeholder={t('fleet.assignSubDriverHint')}
+                  autoCapitalize="none"
+                />
+              ) : null}
+
+              {selectedId ? (
+                <VehiclePhotosAccordion
+                  vehicleId={selectedId}
+                  localUrls={localUrls}
+                  uploadingKey={uploadingKey}
+                  expandedSlots={expandedPhotoSlots}
+                  onToggleSlot={togglePhotoSlot}
+                  onDeletePhoto={confirmDeletePhoto}
+                  onPickNative={(slot) => void pickNativeAndUpload(slot)}
+                  webFileInputRefs={webFileInputRefs}
+                  onWebFileChange={(slot) =>
+                    handleWebFileInputChange(
+                      slot.column,
+                      slot.angle,
+                      t(`vehicleScreen.${slot.labelKey}`),
+                    )
+                  }
+                  disabled={saveBusy}
+                />
+              ) : null}
+
+              {formMode === 'add' ? (
+                <>
+                  <Pressable
+                    onPress={onSubmitPress}
+                    disabled={!hasAtLeastOnePhoto}
+                    style={({ pressed }) => [
+                      styles.submit,
+                      !hasAtLeastOnePhoto && styles.submitDisabled,
+                      pressed && hasAtLeastOnePhoto && styles.pressed,
+                    ]}
+                  >
+                    <Text style={[styles.submitText, !hasAtLeastOnePhoto && styles.submitTextDisabled]}>
+                      {t('vehicleScreen.finish')}
+                    </Text>
+                  </Pressable>
+                  {!hasAtLeastOnePhoto ? (
+                    <Text style={styles.submitHint}>{t('vehicleScreen.finishHint')}</Text>
+                  ) : missingPhotoLabels.length > 0 ? (
+                    <Text style={styles.submitHint}>
+                      {t('vehicleScreen.missingOptional', { labels: missingPhotoLabels.join(', ') })}
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
+
               {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
             </View>
-          ) : null}
-
-          {/* ── Photo slots ───────────────────────────────────────────────── */}
-          {selectedVehicle ? (
-            <>
-              <Text style={styles.photosSectionTitle}>{t('vehicleScreen.photos')}</Text>
-              <Text style={styles.sub}>
-                {t('vehicleScreen.photosSubtitle', {
-                  webHint: Platform.OS === 'web' ? t('vehicleScreen.photosWebHint') : '',
-                })}
-              </Text>
-
-              {SLOTS.map((slot) => {
-                const uri     = localUrls[slot.column];
-                const busy    = uploadingKey === slot.column;
-                const showImg = hasPhotoUrl(uri);
-                const label   = t(`vehicleScreen.${slot.labelKey}`);
-                return (
-                  <View key={slot.column} style={styles.slot}>
-                    <Text style={styles.slotLabel}>{label}</Text>
-                    <View style={styles.slotBody}>
-                      <View style={styles.preview}>
-                        {showImg ? (
-                          <Image key={uri} source={{ uri: uri! }} style={styles.previewImg} resizeMode="cover" />
-                        ) : (
-                          <Ionicons name="image-outline" size={40} color={COLORS.gray} />
-                        )}
-                        {busy ? (
-                          <View style={styles.busyOverlay}>
-                            <ActivityIndicator color={COLORS.gold} />
-                          </View>
-                        ) : null}
-                      </View>
-
-                      {Platform.OS === 'web' ? (
-                        <label
-                          style={{
-                            flex: 1, position: 'relative', display: 'flex',
-                            flexDirection: 'row', alignItems: 'center',
-                            justifyContent: 'center', gap: SPACING.sm,
-                            backgroundColor: COLORS.gold, borderRadius: 14,
-                            paddingTop: 14, paddingBottom: 14,
-                            cursor: busy || !selectedId ? 'not-allowed' : 'pointer',
-                            opacity: busy || !selectedId ? 0.7 : 1,
-                            boxShadow: '0 2px 8px rgba(245,166,35,0.35)',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <input
-                            ref={(node) => { webFileInputRefs.current[slot.column] = node; }}
-                            type="file"
-                            accept="image/*"
-                            disabled={busy || !selectedId}
-                            onChange={handleWebFileInputChange(slot.column, slot.angle, label)}
-                            style={{
-                              position: 'absolute', inset: 0, width: '100%', height: '100%',
-                              opacity: 0, cursor: busy ? 'not-allowed' : 'pointer', zIndex: 1, fontSize: 0,
-                            }}
-                          />
-                          <View pointerEvents="none" style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
-                            <Ionicons name="camera" size={18} color="#000000" />
-                            <Text style={styles.uploadBtnText}>
-                              {showImg ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
-                            </Text>
-                          </View>
-                        </label>
-                      ) : (
-                        <Pressable
-                          onPress={() => void pickNativeAndUpload(slot.column, slot.angle, label)}
-                          disabled={busy || !selectedId}
-                          style={({ pressed }) => [
-                            styles.uploadBtn, SHADOWS.button,
-                            pressed && styles.pressed, busy && styles.btnDisabled,
-                          ]}
-                        >
-                          <Ionicons name="camera" size={18} color="#000000" />
-                          <Text style={styles.uploadBtnText}>
-                            {showImg ? t('vehicleScreen.reupload') : t('vehicleScreen.upload')}
-                          </Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
-
-              <Pressable
-                onPress={onSubmitPress}
-                disabled={!hasAtLeastOnePhoto}
-                style={({ pressed }) => [
-                  styles.submit,
-                  !hasAtLeastOnePhoto && styles.submitDisabled,
-                  pressed && hasAtLeastOnePhoto && styles.pressed,
-                ]}
-              >
-                <Text style={[styles.submitText, !hasAtLeastOnePhoto && styles.submitTextDisabled]}>
-                  {t('vehicleScreen.finish')}
-                </Text>
-              </Pressable>
-              {!hasAtLeastOnePhoto ? (
-                <Text style={styles.submitHint}>{t('vehicleScreen.finishHint')}</Text>
-              ) : missingPhotoLabels.length > 0 ? (
-                <Text style={styles.submitHint}>
-                  {t('vehicleScreen.missingOptional', { labels: missingPhotoLabels.join(', ') })}
-                </Text>
-              ) : null}
-            </>
           ) : null}
         </>
       )}
@@ -670,12 +897,19 @@ export default function DriverVehiclePhotosScreen() {
 
 // ── Small sub-components ──────────────────────────────────────────────────────
 function VehicleField({
-  label, value, onChangeText, keyboardType,
+  label,
+  value,
+  onChangeText,
+  keyboardType,
+  placeholder,
+  autoCapitalize,
 }: {
   label: string;
   value: string;
   onChangeText: (t: string) => void;
   keyboardType?: 'default' | 'number-pad';
+  placeholder?: string;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }) {
   return (
     <View style={styles.field}>
@@ -684,6 +918,8 @@ function VehicleField({
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
+        placeholder={placeholder}
+        autoCapitalize={autoCapitalize}
         placeholderTextColor={COLORS.gray}
         style={styles.input}
       />
@@ -763,6 +999,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface, borderColor: COLORS.border,
   },
   cardBtnGold:    { borderColor: 'rgba(245,166,35,0.4)', backgroundColor: 'rgba(245,166,35,0.07)' },
+  cardBtnMuted:   { borderColor: COLORS.border, backgroundColor: COLORS.surface },
   cardBtnEditing: { borderColor: COLORS.gold, backgroundColor: 'rgba(245,166,35,0.1)' },
   cardBtnText:    { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' },
   cardBtnGoldText:{ color: COLORS.gold, fontSize: 12, fontWeight: '600' },
@@ -825,34 +1062,128 @@ const styles = StyleSheet.create({
   },
   saveError: { color: COLORS.error, fontSize: 13, marginTop: SPACING.sm },
 
-  // ── Photos section ────────────────────────────────────────────────────────
-  photosSectionTitle: {
-    color: COLORS.gold, fontSize: 12, fontWeight: '700',
-    letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: SPACING.sm,
+  // ── Photos accordion ──────────────────────────────────────────────────────
+  photosAccordion: {
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.card,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
   },
-  slot: {
-    marginBottom: SPACING.lg, backgroundColor: COLORS.white,
-    borderRadius: RADIUS.card, borderWidth: 1, borderColor: COLORS.border,
-    padding: SPACING.md, ...SHADOWS.card,
+  photosAccordionTitle: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.sm,
   },
-  slotLabel: { color: COLORS.goldLight, fontSize: 15, fontWeight: '700', marginBottom: SPACING.md },
-  slotBody:  { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  preview: {
-    width: 100, height: 100, borderRadius: RADIUS.card,
-    backgroundColor: COLORS.surface, borderWidth: 2, borderColor: COLORS.border,
-    borderStyle: 'dashed', overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+  accordionItem: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.white,
   },
-  previewImg:  { width: '100%', height: '100%' },
+  accordionItemLast: {},
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+  },
+  accordionHeaderLabel: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  accordionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  accordionHeaderThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+  },
+  accordionHeaderThumbEmpty: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accordionBody: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  accordionPreviewWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  accordionPreview: { width: '100%', height: '100%' },
   busyOverlay: {
-    ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center', justifyContent: 'center',
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  uploadBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: SPACING.sm, backgroundColor: COLORS.gold, borderRadius: 14, paddingVertical: 14,
+  accordionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    flexWrap: 'wrap',
   },
-  uploadBtnText: { color: '#000000', fontWeight: '800', fontSize: 15 },
-  btnDisabled:   { opacity: 0.7 },
+  accordionBtnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+  },
+  accordionBtnOutlineText: {
+    color: COLORS.error,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  accordionBtnUpload: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  accordionBtnUploadSolo: { flex: 0, alignSelf: 'flex-start' },
+  accordionBtnUploadText: {
+    color: COLORS.goldDark,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  btnDisabled: { opacity: 0.55 },
 
   // ── Finish ────────────────────────────────────────────────────────────────
   submit: {

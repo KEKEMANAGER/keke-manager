@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { TabBarIcon } from '../../components/TabBarIcon';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { isHiredDriver } from '../../lib/role';
 
 const DRAWER_WIDTH = 280;
 
@@ -77,6 +78,7 @@ export default function DriverTabsLayout() {
 
   const displayName = profile?.full_name?.trim() || user?.email?.split('@')[0] || '';
   const email = user?.email || '';
+  const hideVehicleAndFleet = isHiredDriver(profile);
 
   return (
     <View style={styles.root}>
@@ -108,6 +110,8 @@ export default function DriverTabsLayout() {
         <Tabs.Screen name="vehicle"      options={{ href: null }} />
         <Tabs.Screen name="verification" options={{ href: null }} />
         <Tabs.Screen name="profile"      options={{ href: null }} />
+        <Tabs.Screen name="fleet"        options={{ href: null }} />
+        <Tabs.Screen name="find-drivers" options={{ href: null }} />
 
         <Tabs.Screen
           name="bookings"
@@ -192,11 +196,27 @@ export default function DriverTabsLayout() {
                 label={t('tabs.profile')}
                 onPress={() => navigate('/(driver)/profile')}
               />
-              <DrawerItem
-                icon="car-outline"
-                label={t('tabs.vehicle')}
-                onPress={() => navigate('/(driver)/vehicle')}
-              />
+              {!hideVehicleAndFleet ? (
+                <DrawerItem
+                  icon="car-outline"
+                  label={t('tabs.vehicle')}
+                  onPress={() => navigate('/(driver)/vehicle')}
+                />
+              ) : null}
+              {!hideVehicleAndFleet ? (
+                <DrawerItem
+                  icon="people-outline"
+                  label={t('tabs.fleet')}
+                  onPress={() => navigate('/(driver)/fleet')}
+                />
+              ) : null}
+              {!hideVehicleAndFleet ? (
+                <DrawerItem
+                  icon="search-outline"
+                  label={t('tabs.findDrivers')}
+                  onPress={() => navigate('/(driver)/find-drivers')}
+                />
+              ) : null}
               <DrawerItem
                 icon="shield-checkmark-outline"
                 label={t('tabs.verification')}

@@ -15,6 +15,7 @@ import {
   showErrorAlert,
   showValidationAlert,
   validateSignUpFields,
+  type SignUpAccountType,
   type SignUpFieldErrors,
 } from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,7 +26,35 @@ import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../constants/th
 import { useAuth, type KekeRole } from '../../contexts/AuthContext';
 import { getUserRole } from '../../lib/role';
 
-type Role = KekeRole;
+const ACCOUNT_OPTIONS: {
+  type: SignUpAccountType;
+  emoji: string;
+  titleKey: string;
+  hintKey: string;
+}[] = [
+  {
+    type: 'freelance_driver',
+    emoji: '🚗',
+    titleKey: 'roleFreelanceDriver',
+    hintKey: 'roleFreelanceDriverHint',
+  },
+  {
+    type: 'hired_driver',
+    emoji: '👤',
+    titleKey: 'roleHiredDriver',
+    hintKey: 'roleHiredDriverHint',
+  },
+  {
+    type: 'company',
+    emoji: '🏢',
+    titleKey: 'roleCompany',
+    hintKey: 'roleCompanyHint',
+  },
+];
+
+function accountTypeToRole(type: SignUpAccountType): KekeRole {
+  return type === 'company' ? 'company' : 'driver';
+}
 
 export default function SignUpScreen() {
   const { t } = useTranslation();
@@ -33,7 +62,7 @@ export default function SignUpScreen() {
   const existingRole = getUserRole(profile);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [role, setRole] = useState<Role | null>(null);
+  const [accountType, setAccountType] = useState<SignUpAccountType | null>(null);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,18 +85,22 @@ export default function SignUpScreen() {
     );
   }
 
+  const formReady =
+    !!accountType && !!fullName.trim() && !!email.trim() && !!password && !isSubmitting;
+
   async function onRegister() {
     if (isSubmitting) return;
 
     const fields = validateSignUpFields({
-      role,
+      accountType,
       fullName,
       email,
       password,
     });
     setFieldErrors(fields);
-    if (fields.role || fields.fullName || fields.email || fields.password) {
-      const first = fields.role ?? fields.fullName ?? fields.email ?? fields.password ?? '';
+    if (fields.accountType || fields.fullName || fields.email || fields.password) {
+      const first =
+        fields.accountType ?? fields.fullName ?? fields.email ?? fields.password ?? '';
       setError(first);
       showValidationAlert(first);
       return;
@@ -76,7 +109,11 @@ export default function SignUpScreen() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const { error: signUpError } = await signUp(email.trim(), password, fullName.trim(), role!);
+      const type = accountType!;
+      const role = accountTypeToRole(type);
+      const { error: signUpError } = await signUp(email.trim(), password, fullName.trim(), role, {
+        isHiredDriver: type === 'hired_driver',
+      });
       if (signUpError) {
         const message = getSupabaseErrorMessage(signUpError);
         setError(message);
@@ -110,37 +147,32 @@ export default function SignUpScreen() {
         <Text style={styles.stepTitle}>{t('authScreen.signUp')}</Text>
 
         <Text style={styles.sectionLabel}>{t('authScreen.selectRole')}</Text>
-        <View style={styles.roleRow}>
-          <Pressable
-            onPress={() => setRole('driver')}
-            style={({ pressed }) => [
-              styles.roleCard,
-              role === 'driver' && styles.roleCardActive,
-              pressed && styles.roleCardPressed,
-            ]}
-          >
-            <Text style={styles.roleEmoji}>🧑‍💼</Text>
-            <Text style={[styles.roleTitle, role === 'driver' && styles.roleTitleActive]}>
-              {t('authScreen.roleDriver')}
-            </Text>
-            <Text style={styles.roleHint}>{t('authScreen.roleDriverHint')}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setRole('company')}
-            style={({ pressed }) => [
-              styles.roleCard,
-              role === 'company' && styles.roleCardActive,
-              pressed && styles.roleCardPressed,
-            ]}
-          >
-            <Text style={styles.roleEmoji}>🏢</Text>
-            <Text style={[styles.roleTitle, role === 'company' && styles.roleTitleActive]}>
-              {t('authScreen.roleCompany')}
-            </Text>
-            <Text style={styles.roleHint}>{t('authScreen.roleCompanyHint')}</Text>
-          </Pressable>
+        <View style={styles.roleList}>
+          {ACCOUNT_OPTIONS.map((opt) => {
+            const selected = accountType === opt.type;
+            return (
+              <Pressable
+                key={opt.type}
+                onPress={() => setAccountType(opt.type)}
+                style={({ pressed }) => [
+                  styles.roleCard,
+                  SHADOWS.card,
+                  selected && styles.roleCardActive,
+                  pressed && styles.roleCardPressed,
+                ]}
+              >
+                <Text style={styles.roleEmoji}>{opt.emoji}</Text>
+                <Text style={[styles.roleTitle, selected && styles.roleTitleActive]}>
+                  {t(`authScreen.${opt.titleKey}`)}
+                </Text>
+                <Text style={styles.roleHint}>{t(`authScreen.${opt.hintKey}`)}</Text>
+              </Pressable>
+            );
+          })}
         </View>
-        {fieldErrors.role ? <Text style={styles.fieldError}>{fieldErrors.role}</Text> : null}
+        {fieldErrors.accountType ? (
+          <Text style={styles.fieldError}>{fieldErrors.accountType}</Text>
+        ) : null}
 
         <View style={styles.card}>
           <AuthInput
@@ -170,14 +202,11 @@ export default function SignUpScreen() {
 
           <Pressable
             onPress={onRegister}
-            disabled={
-              isSubmitting || !role || !fullName.trim() || !email.trim() || !password
-            }
+            disabled={!formReady}
             style={({ pressed }) => [
               styles.button,
               SHADOWS.button,
-              (isSubmitting || !role || !fullName.trim() || !email.trim() || !password) &&
-                styles.buttonDisabled,
+              !formReady && styles.buttonDisabled,
               pressed && styles.buttonPressed,
             ]}
           >
@@ -211,14 +240,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  roleHelp: {
-    color: COLORS.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
-    paddingHorizontal: SPACING.sm,
-  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
@@ -235,45 +256,46 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.label,
     marginBottom: SPACING.sm,
   },
-  roleRow: {
-    flexDirection: 'row',
+  roleList: {
     gap: SPACING.md,
     marginBottom: SPACING.lg,
   },
   roleCard: {
-    flex: 1,
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.card,
     borderWidth: 2,
     borderColor: COLORS.border,
     paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
     alignItems: 'center',
   },
   roleCardActive: {
     borderColor: COLORS.gold,
-    backgroundColor: 'rgba(245, 166, 35, 0.06)',
+    backgroundColor: COLORS.goldTint,
   },
   roleCardPressed: {
     opacity: 0.92,
   },
   roleEmoji: {
-    fontSize: 28,
+    fontSize: 40,
     marginBottom: SPACING.sm,
   },
   roleTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 4,
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
   },
   roleTitleActive: {
     color: COLORS.goldDark,
   },
   roleHint: {
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
     color: COLORS.textMuted,
     textAlign: 'center',
+    paddingHorizontal: SPACING.sm,
   },
   card: {
     backgroundColor: COLORS.white,

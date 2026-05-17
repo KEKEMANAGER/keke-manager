@@ -457,11 +457,11 @@ export default function CompanyProfileScreen() {
 
       {isAdmin ? (
         <Pressable
-          onPress={() => router.push('/(app)/admin-verify')}
+          onPress={() => router.push('/(app)/admin-panel')}
           style={({ pressed }) => [styles.adminPanelBtn, pressed && styles.adminPanelBtnPressed]}
         >
           <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.goldDark} />
-          <Text style={styles.adminPanelBtnText}>{t('adminVerify.panelEntry')}</Text>
+          <Text style={styles.adminPanelBtnText}>{t('adminPanel.panelEntry')}</Text>
           <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
         </Pressable>
       ) : null}

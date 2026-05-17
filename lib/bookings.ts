@@ -9,7 +9,12 @@ import {
 import { notifyMatchingDriversOfNewBooking } from './notifications';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
-import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
+import {
+  normalizeVehicleClass,
+  normalizeVehicleType,
+  type VehicleClassCode,
+  type VehicleTypeCode,
+} from './vehicleCatalog';
 
 /** Minimal booking row shape from Realtime `postgres_changes` payloads. */
 export type BookingRealtimeRecord = {
@@ -309,7 +314,7 @@ export type DriverOpenJobsHint = 'profile_vehicle_required';
  * Pending jobs matching this driver's active vehicle type/class.
  *
  * Matching priority:
- *   1. Active vehicle in `vehicles` table (is_active = true) — preferred.
+ *   1. All active vehicles in `vehicles` (is_active = true) — preferred.
  *   2. Fallback to `profiles.vehicle_type/class` for drivers who haven't
  *      set up vehicles yet (backwards-compatible).
  */
@@ -332,23 +337,32 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     return { data: [] as BookingRow[], error: null };
   }
 
-  // Primary source: active vehicle in vehicles table.
-  const { data: activeVehicle } = await supabase
+  // Primary source: all active vehicles (multiple allowed).
+  const { data: activeVehicles } = await supabase
     .from('vehicles')
     .select('type, class')
     .eq('driver_id', id)
-    .eq('is_active', true)
-    .maybeSingle();
+    .eq('is_active', true);
 
-  // Fallback to profiles for drivers without a vehicles row yet.
-  const profileType = normalizeVehicleType(
-    (activeVehicle as { type?: string | null } | null)?.type ?? profileRow?.vehicle_type ?? '',
-  );
-  const profileClass = normalizeVehicleClass(
-    (activeVehicle as { class?: string | null } | null)?.class ?? profileRow?.vehicle_class ?? '',
-  );
+  type VehicleMatch = { type: VehicleTypeCode; class: VehicleClassCode };
+  const activeMatches: VehicleMatch[] = [];
+  for (const v of activeVehicles ?? []) {
+    const row = v as { type?: string | null; class?: string | null };
+    const type = normalizeVehicleType(row.type ?? '');
+    const cls = normalizeVehicleClass(row.class ?? '');
+    if (type && cls) activeMatches.push({ type, class: cls });
+  }
 
-  if (!profileType || !profileClass) {
+  const fallbackType = normalizeVehicleType(profileRow?.vehicle_type ?? '');
+  const fallbackClass = normalizeVehicleClass(profileRow?.vehicle_class ?? '');
+  const matchPairs: VehicleMatch[] =
+    activeMatches.length > 0
+      ? activeMatches
+      : fallbackType && fallbackClass
+        ? [{ type: fallbackType, class: fallbackClass }]
+        : [];
+
+  if (matchPairs.length === 0) {
     return {
       data: [] as BookingRow[],
       error: null,
@@ -361,7 +375,6 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     .select('*')
     .eq('status', 'pending')
     .or(`driver_id.is.null,driver_id.eq.${id}`)
-    .eq('vehicle_type', profileType)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -369,13 +382,22 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
   }
 
   const rows = (data ?? []).filter((r) => {
-    const row = r as { driver_id?: string | null; vehicle_class?: string | null };
+    const row = r as {
+      driver_id?: string | null;
+      vehicle_type?: string | null;
+      vehicle_class?: string | null;
+    };
     const rowDriverId = row.driver_id != null ? String(row.driver_id).trim() : '';
     if (rowDriverId && rowDriverId !== id) {
       return false;
     }
+    const bookingType = normalizeVehicleType(row.vehicle_type ?? '');
     const bookingClass = normalizeVehicleClass(row.vehicle_class ?? '');
-    return !bookingClass || bookingClass === profileClass;
+    return matchPairs.some(
+      (m) =>
+        m.type === bookingType &&
+        (!bookingClass || !m.class || bookingClass === m.class),
+    );
   });
 
   return { data: hydrateBookingRows(rows), error: null };

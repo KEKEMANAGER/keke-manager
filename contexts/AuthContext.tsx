@@ -41,6 +41,8 @@ export type Profile = {
   id_photo: string | null;
   vehicle_registration_photo: string | null;
   rejection_reason: string | null;
+  is_hired_driver: boolean | null;
+  available_for_hire: boolean | null;
 };
 
 type AuthContextValue = {
@@ -55,6 +57,7 @@ type AuthContextValue = {
     password: string,
     fullName: string,
     role: KekeRole,
+    options?: { isHiredDriver?: boolean },
   ) => ReturnType<typeof supabase.auth.signUp>;
   signOut: () => ReturnType<typeof supabase.auth.signOut>;
 };
@@ -199,7 +202,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return supabase.auth.signInWithPassword({ email, password });
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, fullName: string, role: KekeRole) => {
+  const signUp = useCallback(
+    async (
+      email: string,
+      password: string,
+      fullName: string,
+      role: KekeRole,
+      options?: { isHiredDriver?: boolean },
+    ) => {
+    const isHiredDriver = role === 'driver' && !!options?.isHiredDriver;
     const result = await supabase.auth.signUp({
       email,
       password,
@@ -207,12 +218,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: {
           full_name: fullName,
           role,
+          is_hired_driver: isHiredDriver,
         },
       },
     });
     if (!result.error && result.data.user?.id) {
       const userId = result.data.user.id;
-      const { error: updateError } = await supabase.from('users').update({ role }).eq('id', userId);
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ role, is_hired_driver: isHiredDriver })
+        .eq('id', userId);
       if (updateError && __DEV__) {
         console.warn('[AuthContext] signUp role update', updateError.message);
       } else {
@@ -224,7 +239,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     return result;
-  }, [markHadSessionNative]);
+  },
+    [markHadSessionNative],
+  );
 
   const signOut = useCallback(async () => {
     const uid = user?.id ?? session?.user?.id;

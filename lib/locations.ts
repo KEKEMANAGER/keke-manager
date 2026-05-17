@@ -122,3 +122,58 @@ export function subscribeToAllLocations(onChange: () => void) {
     })
     .subscribe();
 }
+
+export type DriverLocationPin = DriverLocationRow & {
+  full_name: string | null;
+  is_host?: boolean;
+};
+
+/** Fetch locations for multiple drivers (fleet map). */
+export async function fetchLocationsForDriverIds(
+  driverIds: string[],
+): Promise<{ data: DriverLocationPin[]; error: Error | null }> {
+  const ids = [...new Set(driverIds.map((d) => d.trim()).filter(Boolean))];
+  if (ids.length === 0) return { data: [], error: null };
+
+  const [{ data: locs, error: locErr }, { data: users }] = await Promise.all([
+    supabase
+      .from('driver_locations')
+      .select('driver_id, latitude, longitude, updated_at')
+      .in('driver_id', ids),
+    supabase.from('users').select('id, full_name').in('id', ids),
+  ]);
+
+  if (locErr) return { data: [], error: new Error(locErr.message) };
+
+  const nameMap = new Map(
+    (users as { id: string; full_name: string | null }[] ?? []).map((u) => [u.id, u.full_name]),
+  );
+
+  return {
+    data: ((locs ?? []) as DriverLocationRow[]).map((loc) => ({
+      ...loc,
+      full_name: nameMap.get(loc.driver_id) ?? null,
+    })),
+    error: null,
+  };
+}
+
+export function subscribeToDriverLocations(
+  driverIds: string[],
+  onChange: () => void,
+) {
+  const ids = driverIds.filter(Boolean);
+  if (ids.length === 0) {
+    return supabase.channel('fleet-locs-empty').subscribe();
+  }
+  const filter =
+    ids.length === 1 ? `driver_id=eq.${ids[0]}` : `driver_id=in.(${ids.join(',')})`;
+  return supabase
+    .channel(`fleet-locs-${ids.join('-').slice(0, 40)}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'driver_locations', filter },
+      () => onChange(),
+    )
+    .subscribe();
+}

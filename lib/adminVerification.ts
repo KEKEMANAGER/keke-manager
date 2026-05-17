@@ -1,6 +1,11 @@
 import type { KekeRole } from '../contexts/AuthContext';
 import { withCacheBust } from './mediaUpload';
 import { supabase } from './supabase';
+import {
+  VERIFICATION_DOC_COLUMNS,
+  verificationStepsForHired,
+  type VerificationDocSlot,
+} from './verificationDocs';
 import { fetchVehicleByDriver, type VehicleRow } from './vehicles';
 
 export type AdminVerificationUser = {
@@ -8,15 +13,21 @@ export type AdminVerificationUser = {
   full_name: string | null;
   role: KekeRole | string | null;
   email: string | null;
+  is_hired_driver: boolean | null;
   verification_status: string | null;
+  license_front: string | null;
+  license_back: string | null;
+  tech_passport_front: string | null;
+  tech_passport_back: string | null;
+  id_front: string | null;
+  id_back: string | null;
   license_photo: string | null;
   id_photo: string | null;
   vehicle_registration_photo: string | null;
   vehicle: VehicleRow | null;
 };
 
-const USER_SELECT =
-  'id, full_name, role, email, license_photo, id_photo, vehicle_registration_photo, verification_status';
+const USER_SELECT = `id, full_name, role, email, is_hired_driver, ${VERIFICATION_DOC_COLUMNS}, license_photo, id_photo, vehicle_registration_photo, verification_status`;
 
 /** Users awaiting admin review (drivers who submitted, or still pending with docs). */
 export async function fetchAdminVerificationQueue(): Promise<{
@@ -38,12 +49,18 @@ export async function fetchAdminVerificationQueue(): Promise<{
   const withVehicle = await Promise.all(
     users.map(async (u) => {
       let vehicle: VehicleRow | null = null;
-      if (u.role === 'driver') {
+      if (u.role === 'driver' && !u.is_hired_driver) {
         const { data: v } = await fetchVehicleByDriver(u.id);
         vehicle = v;
       }
       return {
         ...u,
+        license_front: bustUrl(u.license_front ?? u.license_photo),
+        license_back: bustUrl(u.license_back),
+        tech_passport_front: bustUrl(u.tech_passport_front ?? u.vehicle_registration_photo),
+        tech_passport_back: bustUrl(u.tech_passport_back),
+        id_front: bustUrl(u.id_front ?? u.id_photo),
+        id_back: bustUrl(u.id_back),
         license_photo: bustUrl(u.license_photo),
         id_photo: bustUrl(u.id_photo),
         vehicle_registration_photo: bustUrl(u.vehicle_registration_photo),
@@ -79,10 +96,7 @@ export async function approveUserVerification(userId: string): Promise<{ error: 
         rejection_reason: null,
       })
       .eq('id', userId),
-    supabase
-      .from('profiles')
-      .update({ is_verified: true })
-      .eq('id', userId),
+    supabase.from('profiles').update({ is_verified: true }).eq('id', userId),
   ]);
 
   if (usersRes.error) return { error: new Error(usersRes.error.message) };
@@ -103,10 +117,7 @@ export async function rejectUserVerification(
         rejection_reason: reason.trim(),
       })
       .eq('id', userId),
-    supabase
-      .from('profiles')
-      .update({ is_verified: false })
-      .eq('id', userId),
+    supabase.from('profiles').update({ is_verified: false }).eq('id', userId),
   ]);
 
   if (usersRes.error) return { error: new Error(usersRes.error.message) };
@@ -115,26 +126,34 @@ export async function rejectUserVerification(
 }
 
 export type AdminDocumentKey =
-  | 'license'
-  | 'id'
-  | 'vehicle_reg'
+  | VerificationDocSlot
   | 'vehicle_front'
   | 'vehicle_left'
   | 'vehicle_right'
   | 'vehicle_interior'
   | 'vehicle_rear';
 
+export function verificationDocSlotsForAdmin(user: AdminVerificationUser): VerificationDocSlot[] {
+  return verificationStepsForHired(!!user.is_hired_driver);
+}
+
 export function documentUrlFor(
   user: AdminVerificationUser,
   key: AdminDocumentKey,
 ): string | null {
   switch (key) {
-    case 'license':
-      return user.license_photo;
-    case 'id':
-      return user.id_photo;
-    case 'vehicle_reg':
-      return user.vehicle_registration_photo;
+    case 'license_front':
+      return user.license_front;
+    case 'license_back':
+      return user.license_back;
+    case 'tech_passport_front':
+      return user.tech_passport_front;
+    case 'tech_passport_back':
+      return user.tech_passport_back;
+    case 'id_front':
+      return user.id_front;
+    case 'id_back':
+      return user.id_back;
     case 'vehicle_front':
       return user.vehicle?.photo_front ?? null;
     case 'vehicle_left':

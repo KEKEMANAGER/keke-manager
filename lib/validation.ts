@@ -126,15 +126,17 @@ export function validateSignInForm(input: SignInFormInput): string | null {
   return e.email ?? e.password ?? null;
 }
 
+export type SignUpAccountType = 'freelance_driver' | 'hired_driver' | 'company';
+
 export type SignUpFormInput = {
-  role: string | null;
+  accountType: SignUpAccountType | null;
   fullName: string;
   email: string;
   password: string;
 };
 
 export type SignUpFieldErrors = {
-  role?: string;
+  accountType?: string;
   fullName?: string;
   email?: string;
   password?: string;
@@ -142,8 +144,8 @@ export type SignUpFieldErrors = {
 
 export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors {
   const errors: SignUpFieldErrors = {};
-  if (!input.role) {
-    errors.role = t('validation.roleRequired');
+  if (!input.accountType) {
+    errors.accountType = t('validation.roleRequired');
   }
   if (!input.fullName.trim()) {
     errors.fullName = t('validation.nameRequired');
@@ -157,7 +159,7 @@ export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors 
 
 export function validateSignUpForm(input: SignUpFormInput): string | null {
   const e = validateSignUpFields(input);
-  return e.role ?? e.fullName ?? e.email ?? e.password ?? null;
+  return e.accountType ?? e.fullName ?? e.email ?? e.password ?? null;
 }
 
 export type CompanyProfileFormInput = {

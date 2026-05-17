@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -37,6 +38,14 @@ import { sendExpoPushNotification } from '../../lib/expoPush';
 import { getTestNotificationContent } from '../../lib/notifications';
 import { registerForPushNotificationsAsync } from '../../lib/pushRegistration';
 import { fetchDriverAverageRating } from '../../lib/ratings';
+import { fetchFleetContext, type FleetContext } from '../../lib/fleet';
+import { withCacheBust } from '../../lib/mediaUpload';
+import { isHiredDriver } from '../../lib/role';
+import {
+  vehicleClassLabel,
+  vehicleTypeLabel,
+} from '../../lib/vehicleCatalog';
+import type { VehicleRow } from '../../lib/vehicles';
 import { useAuth } from '../../contexts/AuthContext';
 
 function formatGel(n: number) {
@@ -84,6 +93,13 @@ export default function DriverDashboardScreen() {
   const [ratingCount, setRatingCount] = useState(0);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [testPushSending, setTestPushSending] = useState(false);
+  const [fleetContext, setFleetContext] = useState<FleetContext>({ kind: 'none' });
+
+  const isHired = isHiredDriver(profile);
+  const isFleetSub = fleetContext.kind === 'sub';
+  const hideOpenPool = isHired || isFleetSub;
+  const assignedVehicle: VehicleRow | null =
+    fleetContext.kind === 'sub' ? fleetContext.vehicle : null;
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -100,9 +116,17 @@ export default function DriverDashboardScreen() {
     setError(null);
     if (mode === 'initial') setLoading(true);
     if (mode === 'refresh') setRefreshing(true);
+
+    const fleetCtx = await fetchFleetContext(userId);
+    setFleetContext(fleetCtx);
+    const isSub = fleetCtx.kind === 'sub';
+    const skipOpenPool = isHiredDriver(profile) || isSub;
+
     const results = await Promise.all([
       fetchBookingsForDriver(userId),
-      fetchOpenPendingBookingsForDriver(userId),
+      skipOpenPool
+        ? Promise.resolve({ data: [] as BookingRow[], error: null, hint: undefined })
+        : fetchOpenPendingBookingsForDriver(userId),
       aggregateDriverStats(userId),
       fetchDriverAverageRating(userId),
     ]);
@@ -137,7 +161,7 @@ export default function DriverDashboardScreen() {
       setRatingAvg(ratingRes.average);
       setRatingCount(ratingRes.count);
     }
-  }, [userId]);
+  }, [userId, profile?.is_hired_driver]);
 
   useEffect(() => {
     void load('initial');
@@ -173,7 +197,12 @@ export default function DriverDashboardScreen() {
     if (!userId) return;
     const ch = subscribeBookingsChanges((payload) => {
       void load('silent');
-      if (Platform.OS !== 'web' && isNewOpenPendingBookingInsert(payload) && userId) {
+      if (
+        Platform.OS !== 'web' &&
+        isNewOpenPendingBookingInsert(payload) &&
+        userId &&
+        !hideOpenPool
+      ) {
         const row = payload.new as BookingRealtimeRecord | undefined;
         void notifyNewOpenBookingIfMatchesDriver(
           userId,
@@ -185,7 +214,7 @@ export default function DriverDashboardScreen() {
       }
     });
     return () => unsubscribeChannel(ch);
-  }, [userId, load]);
+  }, [userId, load, hideOpenPool]);
 
   useEffect(() => {
     if (openCount <= 0) {
@@ -216,6 +245,18 @@ export default function DriverDashboardScreen() {
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] ?? null;
 
   const hasActive = !!activeBooking;
+
+  const myAssignedBookings = assigned
+    .filter((b) => b.status !== 'cancelled')
+    .sort(
+      (a, b) =>
+        new Date(b.pickup_time ?? b.created_at).getTime() -
+        new Date(a.pickup_time ?? a.created_at).getTime(),
+    );
+
+  const vehiclePhotoUri = assignedVehicle?.photo_front
+    ? withCacheBust(assignedVehicle.photo_front) ?? assignedVehicle.photo_front
+    : null;
 
   useEffect(() => {
     if (!hasActive) {
@@ -276,6 +317,63 @@ export default function DriverDashboardScreen() {
         </View>
       </View>
 
+      {hideOpenPool ? (
+        <View style={styles.assignedVehicleCard}>
+          <Text style={styles.assignedVehicleTitle}>{t('fleet.assignedVehicleTitle')}</Text>
+          {fleetContext.kind === 'sub' ? (
+            <Text style={styles.fleetBannerSub}>
+              {t('fleet.subDashboardSub', {
+                host: fleetContext.hostName ?? t('common.driver'),
+              })}
+            </Text>
+          ) : null}
+          {assignedVehicle ? (
+            <View style={styles.assignedVehicleBody}>
+              {vehiclePhotoUri ? (
+                <Image source={{ uri: vehiclePhotoUri }} style={styles.assignedVehiclePhoto} />
+              ) : (
+                <View style={styles.assignedVehiclePhotoPh}>
+                  <Ionicons name="car-outline" size={32} color={COLORS.textMuted} />
+                </View>
+              )}
+              <View style={styles.assignedVehicleMeta}>
+                <Text style={styles.assignedVehicleModel}>
+                  {assignedVehicle.model?.trim() ||
+                    (assignedVehicle.type ? vehicleTypeLabel(assignedVehicle.type) : '—')}
+                </Text>
+                {assignedVehicle.type ? (
+                  <Text style={styles.assignedVehicleDetail}>
+                    {vehicleTypeLabel(assignedVehicle.type)}
+                  </Text>
+                ) : null}
+                {assignedVehicle.class ? (
+                  <Text style={styles.assignedVehicleDetail}>
+                    {vehicleClassLabel(assignedVehicle.class)}
+                  </Text>
+                ) : null}
+                {assignedVehicle.plate?.trim() ? (
+                  <Text style={styles.assignedVehiclePlate}>{assignedVehicle.plate.trim()}</Text>
+                ) : null}
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.noAssignedVehicle}>{t('fleet.noAssignedVehicle')}</Text>
+          )}
+        </View>
+      ) : fleetContext.kind === 'host' ? (
+        <Pressable
+          onPress={() => router.push('/(driver)/fleet')}
+          style={({ pressed }) => [styles.fleetHostLink, pressed && styles.pressed]}
+        >
+          <Ionicons name="people-outline" size={18} color={COLORS.gold} />
+          <Text style={styles.fleetHostLinkText}>
+            {t('fleet.hostDashboardLink', { count: fleetContext.memberCount })}
+          </Text>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.gold} />
+        </Pressable>
+      ) : null}
+
+      {!hideOpenPool ? (
       <Pressable
         onPress={() => router.push('/(driver)/bookings')}
         style={({ pressed }) => [
@@ -300,6 +398,7 @@ export default function DriverDashboardScreen() {
         )}
         <Ionicons name="chevron-forward" size={22} color={COLORS.gold} />
       </Pressable>
+      ) : null}
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -332,6 +431,34 @@ export default function DriverDashboardScreen() {
       ) : (
         <ListEmptyState icon="car-outline" message={t('dashboard.noActiveBooking')} />
       )}
+
+      {hideOpenPool ? (
+        <>
+          <View style={styles.sectionDivider} />
+          <Text style={styles.sectionTitle}>{t('fleet.assignedBookingsTitle')}</Text>
+          {loading ? (
+            <BookingListSkeleton variant="driver" />
+          ) : myAssignedBookings.length === 0 ? (
+            <ListEmptyState icon="calendar-outline" message={t('dashboard.noActiveBooking')} />
+          ) : (
+            myAssignedBookings.map((b) => (
+              <View key={b.id} style={[styles.bookingRow, SHADOWS.card]}>
+                <View style={styles.bookingRowTop}>
+                  <Text style={styles.bookingRowCompany}>
+                    {b.company_name || t('common.company')}
+                  </Text>
+                  <Text style={styles.bookingRowStatus}>{bookingStatusLabel(b.status)}</Text>
+                </View>
+                <Text style={styles.bookingRowRoute}>{routeSummary(b)}</Text>
+                <View style={styles.bookingRowMeta}>
+                  <Text style={styles.meta}>{formatBookingDate(b)}</Text>
+                  <Text style={styles.bookingRowPrice}>{formatGel(Number(b.price_gel))}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </>
+      ) : null}
 
       {__DEV__ && Platform.OS !== 'web' ? (
         <Pressable
@@ -660,4 +787,157 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 18,
   },
+  fleetBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.goldTint,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    borderRadius: RADIUS.card,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  fleetBannerTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  fleetBannerSub: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  fleetVehicleLine: {
+    color: COLORS.goldDark,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: SPACING.xs,
+  },
+  fleetHostLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.card,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.card,
+  },
+  fleetHostLinkText: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  assignedVehicleCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.gold,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.card,
+  },
+  assignedVehicleTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: SPACING.xs,
+  },
+  assignedVehicleBody: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  assignedVehiclePhoto: {
+    width: 96,
+    height: 72,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  assignedVehiclePhotoPh: {
+    width: 96,
+    height: 72,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignedVehicleMeta: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  assignedVehicleModel: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  assignedVehicleDetail: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  assignedVehiclePlate: {
+    color: COLORS.goldDark,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: SPACING.xs,
+    letterSpacing: 0.5,
+  },
+  noAssignedVehicle: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: SPACING.sm,
+  },
+  bookingRow: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  bookingRowTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  bookingRowCompany: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+    paddingRight: SPACING.sm,
+  },
+  bookingRowStatus: {
+    color: COLORS.goldDark,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  bookingRowRoute: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: SPACING.sm,
+  },
+  bookingRowMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bookingRowPrice: {
+    color: COLORS.gold,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  pressed: { opacity: 0.9 },
 });

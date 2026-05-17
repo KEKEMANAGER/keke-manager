@@ -104,6 +104,7 @@ export default function CompanyTabsLayout() {
         <Tabs.Screen name="index"        options={{ href: null }} />
         <Tabs.Screen name="rate-booking" options={{ href: null }} />
         <Tabs.Screen name="admin-verify" options={{ href: null }} />
+        <Tabs.Screen name="admin-panel" options={{ href: null }} />
         <Tabs.Screen name="chat"         options={{ href: null }} />
         <Tabs.Screen name="history"      options={{ href: null }} />
         <Tabs.Screen name="profile"      options={{ href: null }} />
@@ -195,9 +196,9 @@ export default function CompanyTabsLayout() {
               />
               {profile?.role === 'admin' ? (
                 <DrawerItem
-                  icon="map-outline"
-                  label={t('adminTracking.drawerLabel')}
-                  onPress={() => navigate('/(app)/admin-tracking')}
+                  icon="shield-checkmark-outline"
+                  label={t('adminPanel.drawerLabel')}
+                  onPress={() => navigate('/(app)/admin-panel')}
                 />
               ) : null}
             </View>

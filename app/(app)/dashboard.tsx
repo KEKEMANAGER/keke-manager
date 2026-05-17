@@ -316,10 +316,10 @@ export default function CompanyDashboardScreen() {
         <View style={styles.headerRight}>
           {isAdmin ? (
             <Pressable
-              onPress={() => router.push('/(app)/admin-verify')}
+              onPress={() => router.push('/(app)/admin-panel')}
               style={({ pressed }) => [styles.adminBtn, pressed && styles.adminBtnPressed]}
             >
-              <Text style={styles.adminBtnText}>{t('adminVerify.panelEntry')}</Text>
+              <Text style={styles.adminBtnText}>{t('adminPanel.panelEntry')}</Text>
             </Pressable>
           ) : null}
           <View style={styles.subBadge}>

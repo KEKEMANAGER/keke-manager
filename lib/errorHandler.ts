@@ -30,6 +30,12 @@ export function getSupabaseErrorMessage(error: unknown): string {
     return 'წვდომა შეზღუდულია';
   }
   if (lower.includes('duplicate key')) {
+    if (
+      lower.includes('driver_clerk_id') ||
+      lower.includes('vehicles_driver_clerk_id')
+    ) {
+      return 'მეორე მანქანის დამატება ბაზაში არ არის ჩართული. გაუშვით migration: 20260518140000_vehicles_drop_driver_unique.sql';
+    }
     return 'ეს ჩანაწერი უკვე არსებობს';
   }
   if (lower.includes('not found') || lower.includes('no rows')) {

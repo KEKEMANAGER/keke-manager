@@ -15,3 +15,8 @@ export function getUserRole(profile: Profile | null | undefined): KekeRole | nul
 export function hasCompleteRole(profile: Profile | null | undefined): boolean {
   return getUserRole(profile) !== null;
 }
+
+/** Hired driver registered without own vehicle (see `users.is_hired_driver`). */
+export function isHiredDriver(profile: Profile | null | undefined): boolean {
+  return profile?.is_hired_driver === true;
+}

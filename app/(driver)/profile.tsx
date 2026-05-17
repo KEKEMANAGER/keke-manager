@@ -20,6 +20,7 @@ import {
   showValidationAlert,
   validateBioLength,
   validateDriverProfileForm,
+  validateRequired,
 } from '../../lib/validation';
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
@@ -37,6 +38,12 @@ import {
 } from '../../lib/profiles';
 import { supabase } from '../../lib/supabase';
 import { fetchVehicleByDriver } from '../../lib/vehicles';
+import {
+  fetchHiredDriverStatus,
+  updateHiredDriverJobBoardProfile,
+  type HiredDriverStatus,
+} from '../../lib/jobBoard';
+import { isHiredDriver } from '../../lib/role';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import {
   vehicleClassLabel,
@@ -98,6 +105,18 @@ export default function DriverProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [availableForHire, setAvailableForHire] = useState(true);
+  const [hiredStatus, setHiredStatus] = useState<HiredDriverStatus>('looking');
+  const [employerName, setEmployerName] = useState<string | null>(null);
+  const [hireStatusBusy, setHireStatusBusy] = useState(false);
+
+  const isHired = isHiredDriver(profile);
+
+  const hiredStatusLabel = useMemo(() => {
+    if (hiredStatus === 'employed') return t('jobBoard.statusEmployed');
+    if (hiredStatus === 'not_looking') return t('jobBoard.statusNotLooking');
+    return t('jobBoard.statusLookingForWork');
+  }, [hiredStatus, t]);
 
   const loadProfileFields = useCallback(async () => {
     if (!user?.id) return;
@@ -105,7 +124,7 @@ export default function DriverProfileScreen() {
     setSaveError(null);
     const { data, error } = await supabase
       .from('users')
-      .select('full_name, bio, languages, experience_years')
+      .select('full_name, bio, languages, experience_years, available_for_hire')
       .eq('id', user.id)
       .maybeSingle();
     setProfileLoading(false);
@@ -115,6 +134,7 @@ export default function DriverProfileScreen() {
       bio?: string | null;
       languages?: string[] | null;
       experience_years?: number | null;
+      available_for_hire?: boolean | null;
     };
     if (typeof row.full_name === 'string' && row.full_name.trim()) {
       setName(row.full_name.trim());
@@ -126,11 +146,27 @@ export default function DriverProfileScreen() {
         ? String(row.experience_years)
         : '',
     );
+    setAvailableForHire(row.available_for_hire !== false);
   }, [user?.id]);
+
+  const loadHiredStatus = useCallback(async () => {
+    if (!user?.id || !isHired) return;
+    const { status, hostName, error } = await fetchHiredDriverStatus(user.id);
+    if (error && __DEV__) {
+      console.warn('[DriverProfile] fetchHiredDriverStatus', error.message);
+    }
+    setHiredStatus(status);
+    setEmployerName(hostName);
+    setAvailableForHire(status === 'looking');
+  }, [user?.id, isHired]);
 
   useEffect(() => {
     void loadProfileFields();
   }, [loadProfileFields]);
+
+  useEffect(() => {
+    void loadHiredStatus();
+  }, [loadHiredStatus]);
 
   const loadVehiclePreferences = useCallback(async () => {
     if (!user?.id) return;
@@ -210,19 +246,37 @@ export default function DriverProfileScreen() {
     setIsEditing(false);
     setSaveError(null);
     void loadProfileFields();
-    void loadVehiclePreferences();
+    if (isHired) void loadHiredStatus();
+    else void loadVehiclePreferences();
+  }
+
+  async function onSelectHiredAvailability(looking: boolean) {
+    if (!user?.id || hireStatusBusy || hiredStatus === 'employed') return;
+    const nextStatus: HiredDriverStatus = looking ? 'looking' : 'not_looking';
+    setHiredStatus(nextStatus);
+    setAvailableForHire(looking);
+    setHireStatusBusy(true);
+    const { error } = await updateHiredDriverJobBoardProfile(user.id, {
+      available_for_hire: looking,
+    });
+    setHireStatusBusy(false);
+    if (error) {
+      void loadHiredStatus();
+      showErrorAlert(error.message);
+    }
   }
 
   async function onSaveProfile() {
     if (!user?.id) return;
 
-    const validationError =
-      validateDriverProfileForm({
-        name,
-        vehicleType,
-        vehicleClass,
-        experienceYears,
-      }) ?? validateBioLength(bio);
+    const validationError = isHired
+      ? validateRequired(name, t('profilePage.fullName')) ?? validateBioLength(bio)
+      : (validateDriverProfileForm({
+          name,
+          vehicleType,
+          vehicleClass,
+          experienceYears,
+        }) ?? validateBioLength(bio));
     if (validationError) {
       setSaveError(validationError);
       showValidationAlert(validationError);
@@ -232,40 +286,52 @@ export default function DriverProfileScreen() {
     setSaveBusy(true);
     setSaveError(null);
     const years = parseInt(experienceYears.trim(), 10);
-    const prefs: DriverVehiclePreferences = {
-      vehicle_type: vehicleType!,
-      vehicle_class: vehicleClass!,
+    const userPatch = {
+      full_name: name.trim() || null,
+      bio: bio.trim() || null,
+      languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
+      experience_years: Number.isFinite(years) && years > 0 ? years : null,
+      ...(isHired ? { available_for_hire: availableForHire } : {}),
     };
-    const [usersRes, profilesRes] = await Promise.all([
-      supabase
-        .from('users')
-        .update({
-          full_name: name.trim() || null,
-          bio: bio.trim() || null,
-          languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
-          experience_years: Number.isFinite(years) && years > 0 ? years : null,
-        })
-        .eq('id', user.id),
-      saveDriverVehiclePreferences(user.id, prefs),
-    ]);
-    setSaveBusy(false);
-    if (usersRes.error) {
-      const message = mapSupabaseError(usersRes.error);
-      setSaveError(message);
-      showErrorAlert(message);
-      return;
-    }
-    if (!profilesRes.ok) {
-      const message = mapSupabaseError(
-        profilesRes.error ?? new Error(t('profilePage.vehicleSaveFailed')),
-      );
-      setSaveError(message);
-      showErrorAlert(message);
-      return;
+
+    if (isHired) {
+      const usersRes = await supabase.from('users').update(userPatch).eq('id', user.id);
+      setSaveBusy(false);
+      if (usersRes.error) {
+        const message = mapSupabaseError(usersRes.error);
+        setSaveError(message);
+        showErrorAlert(message);
+        return;
+      }
+    } else {
+      const prefs: DriverVehiclePreferences = {
+        vehicle_type: vehicleType!,
+        vehicle_class: vehicleClass!,
+      };
+      const [usersRes, profilesRes] = await Promise.all([
+        supabase.from('users').update(userPatch).eq('id', user.id),
+        saveDriverVehiclePreferences(user.id, prefs),
+      ]);
+      setSaveBusy(false);
+      if (usersRes.error) {
+        const message = mapSupabaseError(usersRes.error);
+        setSaveError(message);
+        showErrorAlert(message);
+        return;
+      }
+      if (!profilesRes.ok) {
+        const message = mapSupabaseError(
+          profilesRes.error ?? new Error(t('profilePage.vehicleSaveFailed')),
+        );
+        setSaveError(message);
+        showErrorAlert(message);
+        return;
+      }
     }
     setIsEditing(false);
     void loadProfileFields();
-    void loadVehiclePreferences();
+    if (isHired) void loadHiredStatus();
+    else void loadVehiclePreferences();
   }
 
   return (
@@ -302,6 +368,101 @@ export default function DriverProfileScreen() {
         {photoError ? <Text style={styles.photoError}>{photoError}</Text> : null}
       </View>
 
+      {isHired ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{t('jobBoard.profileCardTitle')}</Text>
+          <Text style={styles.hireHint}>{t('jobBoard.profileCardHint')}</Text>
+
+          <View
+            style={[
+              styles.statusBadge,
+              hiredStatus === 'employed' && styles.statusBadgeEmployed,
+              hiredStatus === 'looking' && styles.statusBadgeLooking,
+              hiredStatus === 'not_looking' && styles.statusBadgeNotLooking,
+            ]}
+          >
+            <Ionicons
+              name={
+                hiredStatus === 'employed'
+                  ? 'briefcase-outline'
+                  : hiredStatus === 'looking'
+                    ? 'search-outline'
+                    : 'pause-circle-outline'
+              }
+              size={18}
+              color={
+                hiredStatus === 'employed'
+                  ? COLORS.success
+                  : hiredStatus === 'looking'
+                    ? COLORS.goldDark
+                    : COLORS.textMuted
+              }
+            />
+            <Text
+              style={[
+                styles.statusBadgeText,
+                hiredStatus === 'employed' && styles.statusBadgeTextEmployed,
+                hiredStatus === 'looking' && styles.statusBadgeTextLooking,
+                hiredStatus === 'not_looking' && styles.statusBadgeTextNotLooking,
+              ]}
+            >
+              {hiredStatusLabel}
+            </Text>
+          </View>
+
+          {hiredStatus === 'employed' && employerName ? (
+            <Text style={styles.employerLine}>
+              {t('jobBoard.employedUnder', { host: employerName })}
+            </Text>
+          ) : null}
+
+          {hiredStatus !== 'employed' ? (
+            <View style={styles.statusChoices}>
+              <Pressable
+                onPress={() => void onSelectHiredAvailability(true)}
+                disabled={hireStatusBusy || hiredStatus === 'looking'}
+                style={({ pressed }) => [
+                  styles.statusChip,
+                  hiredStatus === 'looking' && styles.statusChipActive,
+                  pressed && styles.statusChipPressed,
+                  hireStatusBusy && styles.statusChipDisabled,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    hiredStatus === 'looking' && styles.statusChipTextActive,
+                  ]}
+                >
+                  {t('jobBoard.statusLookingForWork')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void onSelectHiredAvailability(false)}
+                disabled={hireStatusBusy || hiredStatus === 'not_looking'}
+                style={({ pressed }) => [
+                  styles.statusChip,
+                  hiredStatus === 'not_looking' && styles.statusChipActiveMuted,
+                  pressed && styles.statusChipPressed,
+                  hireStatusBusy && styles.statusChipDisabled,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    hiredStatus === 'not_looking' && styles.statusChipTextActiveMuted,
+                  ]}
+                >
+                  {t('jobBoard.statusNotLooking')}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Text style={styles.employedHint}>{t('jobBoard.employedHint')}</Text>
+          )}
+        </View>
+      ) : null}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('profilePage.personalInfo')}</Text>
         <EditModeButtons
@@ -333,45 +494,57 @@ export default function DriverProfileScreen() {
               onChangeText={setExperienceYears}
               keyboardType="number-pad"
             />
-            <OptionChips
-              label={t('profilePage.vehicleTypeLabel')}
-              options={vehicleTypeOptions}
-              value={vehicleType}
-              onChange={setVehicleType}
-              disabled={saveBusy}
-            />
-            <OptionChips
-              label={t('profilePage.vehicleClassLabel')}
-              options={vehicleClassOptions}
-              value={vehicleClass}
-              onChange={setVehicleClass}
-              disabled={saveBusy}
-            />
+            {!isHired ? (
+              <>
+                <OptionChips
+                  label={t('profilePage.vehicleTypeLabel')}
+                  options={vehicleTypeOptions}
+                  value={vehicleType}
+                  onChange={setVehicleType}
+                  disabled={saveBusy}
+                />
+                <OptionChips
+                  label={t('profilePage.vehicleClassLabel')}
+                  options={vehicleClassOptions}
+                  value={vehicleClass}
+                  onChange={setVehicleClass}
+                  disabled={saveBusy}
+                />
+              </>
+            ) : null}
           </>
         ) : (
           <>
             <ViewField label={t('profilePage.fullName')} value={name || '—'} />
             <ViewField label={t('profilePage.bio')} value={bio || '—'} />
             <ViewField label={t('profilePage.languages')} value={languages || '—'} />
-            <ViewField label={t('profilePage.experience')} value={experienceYears || '—'} />
-            <ViewField
-              label={t('profilePage.vehicleTypeLabel')}
-              value={vehicleType ? vehicleTypeLabel(vehicleType) : '—'}
-            />
-            <ViewField
-              label={t('profilePage.vehicleClassLabel')}
-              value={vehicleClass ? vehicleClassLabel(vehicleClass) : '—'}
-            />
+            {!isHired ? (
+              <>
+                <ViewField label={t('profilePage.experience')} value={experienceYears || '—'} />
+                <ViewField
+                  label={t('profilePage.vehicleTypeLabel')}
+                  value={vehicleType ? vehicleTypeLabel(vehicleType) : '—'}
+                />
+                <ViewField
+                  label={t('profilePage.vehicleClassLabel')}
+                  value={vehicleClass ? vehicleClassLabel(vehicleClass) : '—'}
+                />
+              </>
+            ) : (
+              <ViewField label={t('jobBoard.statusLabel')} value={hiredStatusLabel} />
+            )}
           </>
         )}
         {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>{t('profilePage.vehicleCard')}</Text>
-        <ViewField label={t('vehicleScreen.model')} value={vehicleModel || '—'} />
-        <ViewField label={t('profilePage.plate')} value={vehiclePlate || '—'} />
-      </View>
+      {!isHired ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{t('profilePage.vehicleCard')}</Text>
+          <ViewField label={t('vehicleScreen.model')} value={vehicleModel || '—'} />
+          <ViewField label={t('profilePage.plate')} value={vehiclePlate || '—'} />
+        </View>
+      ) : null}
 
       <ProfileFeedbackEntry />
 
@@ -582,6 +755,85 @@ const styles = StyleSheet.create({
     marginTop: -SPACING.sm,
     marginBottom: SPACING.sm,
   },
+  hireHint: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: SPACING.md,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  statusBadgeLooking: {
+    backgroundColor: COLORS.goldTint,
+    borderColor: COLORS.gold,
+  },
+  statusBadgeEmployed: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderColor: COLORS.success,
+  },
+  statusBadgeNotLooking: {
+    backgroundColor: COLORS.surfaceAlt,
+    borderColor: COLORS.border,
+  },
+  statusBadgeText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  statusBadgeTextLooking: { color: COLORS.goldDark },
+  statusBadgeTextEmployed: { color: COLORS.success },
+  statusBadgeTextNotLooking: { color: COLORS.textMuted },
+  employerLine: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: SPACING.md,
+  },
+  employedHint: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  statusChoices: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  statusChip: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.button,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.sm,
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+  },
+  statusChipActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  statusChipActiveMuted: {
+    borderColor: COLORS.textMuted,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  statusChipPressed: { opacity: 0.9 },
+  statusChipDisabled: { opacity: 0.55 },
+  statusChipText: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  statusChipTextActive: { color: COLORS.goldDark },
+  statusChipTextActiveMuted: { color: COLORS.text },
   input: {
     backgroundColor: COLORS.white,
     borderWidth: 1,
