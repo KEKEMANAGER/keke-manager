@@ -1,6 +1,7 @@
 import type { KekeRole } from '../contexts/AuthContext';
 import type { BookingRow } from './bookings';
 import type { MessageRow } from './messages';
+import { getSupabaseAdmin } from './supabaseAdmin';
 import { supabase } from './supabase';
 
 export type AdminUserRow = {
@@ -39,21 +40,107 @@ export async function fetchAdminUsers(): Promise<{ data: AdminUserRow[]; error: 
   return { data: (data ?? []) as AdminUserRow[], error: null };
 }
 
-export async function updateAdminUser(
-  userId: string,
-  patch: Partial<{
-    role: KekeRole;
-    is_blocked: boolean;
-  }>,
-): Promise<{ error: Error | null }> {
-  const { error } = await supabase.from('users').update(patch).eq('id', userId);
-  return { error: error ? new Error(error.message) : null };
+function updateError(
+  error: { message: string } | null,
+  data: { id: string }[] | null,
+): Error | null {
+  if (error) return new Error(error.message);
+  if (!data?.length) {
+    return new Error('Update failed — user not found or permission denied');
+  }
+  return null;
 }
 
-export async function deleteAdminUser(userId: string): Promise<{ error: Error | null }> {
-  const { error } = await supabase.from('users').delete().eq('id', userId);
-  return { error: error ? new Error(error.message) : null };
-}
+export const setAdminUserBlocked = async (
+  userId: string,
+  isBlocked: boolean,
+): Promise<{ error: Error | null }> => {
+  const id = userId.trim();
+  if (!id) return { error: new Error('user id missing') };
+
+  const { data, error } = await supabase
+    .from('users')
+    .update({ is_blocked: isBlocked })
+    .eq('id', id)
+    .select('id');
+
+  return { error: updateError(error, data as { id: string }[] | null) };
+};
+
+export const setAdminUserRole = async (
+  userId: string,
+  role: KekeRole,
+): Promise<{ error: Error | null }> => {
+  const id = userId.trim();
+  if (!id) return { error: new Error('user id missing') };
+
+  const { data, error } = await supabase
+    .from('users')
+    .update({ role })
+    .eq('id', id)
+    .select('id');
+
+  return { error: updateError(error, data as { id: string }[] | null) };
+};
+
+export const setAdminUserVerified = async (
+  userId: string,
+  isVerified: boolean,
+): Promise<{ error: Error | null }> => {
+  const id = userId.trim();
+  if (!id) return { error: new Error('user id missing') };
+
+  const patch = isVerified
+    ? { is_verified: true, verification_status: 'approved' as const }
+    : { is_verified: false, verification_status: 'rejected' as const };
+
+  const { data, error } = await supabase.from('users').update(patch).eq('id', id).select('id');
+  const rowErr = updateError(error, data as { id: string }[] | null);
+  if (rowErr) return { error: rowErr };
+
+  const { error: profileErr } = await supabase
+    .from('profiles')
+    .update({ is_verified: isVerified })
+    .eq('id', id);
+  if (profileErr) return { error: new Error(profileErr.message) };
+  return { error: null };
+};
+
+export const deleteAdminUser = async (userId: string): Promise<{ error: Error | null }> => {
+  const id = userId.trim();
+  if (!id) return { error: new Error('user id missing') };
+
+  const supabaseAdmin = getSupabaseAdmin();
+  if (!supabaseAdmin) {
+    return {
+      error: new Error(
+        'SUPABASE_SERVICE_ROLE_KEY is not set. Add it to .env and restart Expo (npx expo start --clear).',
+      ),
+    };
+  }
+
+  const { error: publicErr } = await supabase.from('users').delete().eq('id', id);
+  if (publicErr) return { error: new Error(publicErr.message) };
+
+  const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(id);
+  if (authErr) return { error: new Error(authErr.message) };
+
+  return { error: null };
+};
+
+/** @deprecated Use setAdminUserBlocked / setAdminUserRole */
+export const updateAdminUser = async (
+  userId: string,
+  patch: Partial<{ role: KekeRole; is_blocked: boolean }>,
+): Promise<{ error: Error | null }> => {
+  if (patch.is_blocked !== undefined) {
+    return setAdminUserBlocked(userId, patch.is_blocked);
+  }
+  if (patch.role !== undefined) {
+    return setAdminUserRole(userId, patch.role);
+  }
+  return { error: null };
+};
 
 export async function fetchAdminStats(): Promise<{ data: AdminStats; error: Error | null }> {
   const [usersRes, bookingsRes] = await Promise.all([

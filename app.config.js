@@ -88,6 +88,7 @@ module.exports = {
     ],
     extra: {
       ...(appJson.expo.extra ?? {}),
+      supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '',
       eas: {
         ...(appJson.expo.extra?.eas ?? {}),
         projectId:

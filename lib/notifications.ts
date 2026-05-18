@@ -135,14 +135,12 @@ export type NotifyMatchingDriversResult = {
   message: string | null;
 };
 
-type ProfilePushRow = {
+type DriverPushRow = {
   id: string;
   push_token: string | null;
-  vehicle_type: string | null;
-  vehicle_class: string | null;
 };
 
-/** Canonical lowercase codes; used for `.eq()` on `profiles`. */
+/** Canonical lowercase codes for vehicle matching. */
 export function normalizeBookingVehicleFilters(
   rawType: string,
   rawClass: string,
@@ -154,9 +152,8 @@ export function normalizeBookingVehicleFilters(
 }
 
 /**
- * Fetch Expo push tokens from `profiles`.
- * Filters by `vehicle_type` always; adds `vehicle_class` only when the booking specifies a class.
- * Booking `kind` is never used for recipient selection.
+ * Drivers with an active vehicle matching booking type AND class (same rules as open job board).
+ * Push tokens are read from `profiles`; verification from `profiles` + `users`.
  */
 export async function fetchMatchingDriverPushTokens(
   bookingVehicleType: string,
@@ -177,33 +174,65 @@ export async function fetchMatchingDriverPushTokens(
     };
   }
 
-  let query = supabase
-    .from('profiles')
-    .select('push_token, vehicle_type, vehicle_class, id')
-    .eq('vehicle_type', vehicleType)
-    .eq('is_verified', true)
-    .not('push_token', 'is', null);
-
-  if (vehicleClass) {
-    query = query.eq('vehicle_class', vehicleClass);
+  if (!vehicleClass) {
+    return {
+      tokens: [],
+      error: new Error('ჯავშნის vehicle_class არასწორია'),
+      vehicleType,
+      vehicleClass: null,
+    };
   }
 
-  const { data, error } = await query;
+  const { data: vehicleRows, error: vehiclesError } = await supabase
+    .from('vehicles')
+    .select('driver_id')
+    .eq('is_active', true)
+    .eq('type', vehicleType)
+    .eq('class', vehicleClass);
 
-  if (error) {
-    if (__DEV__) console.warn('[notify] profiles filter query failed:', error.message);
-    return { tokens: [], error: new Error(error.message), vehicleType, vehicleClass };
+  if (vehiclesError) {
+    if (__DEV__) console.warn('[notify] vehicles filter query failed:', vehiclesError.message);
+    return { tokens: [], error: new Error(vehiclesError.message), vehicleType, vehicleClass };
   }
 
-  let matchedRows = (data ?? []).map((row) => row as ProfilePushRow);
+  let driverIds = [
+    ...new Set(
+      (vehicleRows ?? [])
+        .map((row) => String((row as { driver_id?: string }).driver_id ?? '').trim())
+        .filter((id) => id.length > 0),
+    ),
+  ];
 
-  matchedRows = matchedRows.filter((row) => {
-    const rowType = normalizeVehicleType(row.vehicle_type);
-    if (rowType !== vehicleType) return false;
-    if (!vehicleClass) return true;
-    const rowClass = normalizeVehicleClass(row.vehicle_class);
-    return rowClass === vehicleClass;
-  });
+  if (driverIds.length === 0) {
+    return { tokens: [], error: null, vehicleType, vehicleClass };
+  }
+
+  const [profilesRes, usersRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, push_token, is_verified')
+      .in('id', driverIds)
+      .not('push_token', 'is', null),
+    supabase.from('users').select('id, is_verified').in('id', driverIds),
+  ]);
+
+  if (profilesRes.error) {
+    if (__DEV__) console.warn('[notify] profiles push query failed:', profilesRes.error.message);
+    return { tokens: [], error: new Error(profilesRes.error.message), vehicleType, vehicleClass };
+  }
+
+  const usersVerified = new Map<string, boolean>();
+  for (const row of usersRes.data ?? []) {
+    const u = row as { id: string; is_verified?: boolean | null };
+    usersVerified.set(String(u.id), u.is_verified === true);
+  }
+
+  let matchedRows = (profilesRes.data ?? [])
+    .map((row) => row as DriverPushRow & { is_verified?: boolean | null })
+    .filter((row) => {
+      const verified = row.is_verified === true || usersVerified.get(row.id) === true;
+      return verified;
+    });
 
   const busyWindow = availability ? estimateBookingBusyWindow(availability) : null;
   if (busyWindow && matchedRows.length > 0) {
@@ -270,7 +299,7 @@ export async function fetchDriverPushTokenById(
 }
 
 /**
- * Push to drivers whose `profiles.vehicle_type` (and `vehicle_class` when set on the booking) match.
+ * Push to drivers with an active `vehicles` row matching booking type and class.
  * Booking service `kind` does not affect which drivers are notified.
  */
 export async function notifyMatchingDriversOfNewBooking(params: {
@@ -307,8 +336,8 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     return emptyResult(message);
   }
 
-  const kindLog = String(params.kind ?? '').trim() || 'booking';
-  const classLog = vehicleClass ? String(vehicleClass) : 'any';
+  const kindLog = (String(params.kind ?? '').trim() || 'booking');
+  const classLog = String(vehicleClass);
   if (__DEV__) {
     console.log(
       `Sending ${kindLog} request to drivers with ${String(vehicleType)} ${classLog}`,

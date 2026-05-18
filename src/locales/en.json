@@ -482,6 +482,11 @@
       "name": "name"
     }
   },
+  "authPending": {
+    "title": "Pending verification",
+    "subtitle": "Your account is waiting for admin approval. You will get full access once verification is complete.",
+    "statusLabel": "Status"
+  },
   "authScreen": {
     "signIn": "Sign in",
     "signUp": "Register",
@@ -502,6 +507,10 @@
     "selectRole": "Choose account type",
     "fullName": "Full name",
     "companyName": "Company name",
+    "companyEmail": "Company email",
+    "companyPhone": "Company phone",
+    "companyIdCode": "Identification code",
+    "companyDirector": "Director / manager",
     "haveAccount": "Already have an account?",
     "signUpSuccess": "Registration successful",
     "checkEmail": "Check your email to confirm your account.",
@@ -532,7 +541,8 @@
     "companyName": "Company name",
     "email": "Email",
     "phone": "Phone",
-    "taxId": "Tax ID",
+    "taxId": "Identification code",
+    "director": "Director / manager",
     "subscription": "Subscription",
     "members": "Members",
     "addMember": "Add",
@@ -713,6 +723,7 @@
     "statusPending": "Pending",
     "statusSubmitted": "Submitted",
     "documentsSection": "Documents",
+    "companyInfoSection": "Company Information",
     "vehiclePhotos": "Vehicle photos",
     "viewDocument": "View",
     "noDocument": "Missing",

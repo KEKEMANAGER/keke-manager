@@ -9,6 +9,7 @@ import {
 import { notifyMatchingDriversOfNewBooking } from './notifications';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
+import { trimUserId } from './userId';
 import {
   normalizeVehicleClass,
   normalizeVehicleType,
@@ -78,6 +79,45 @@ function hydrateBookingRow(raw: Record<string, unknown>): BookingRow {
 
 function hydrateBookingRows(rows: unknown[]): BookingRow[] {
   return rows.map((r) => hydrateBookingRow(r as Record<string, unknown>));
+}
+
+async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<BookingRow[]> {
+  if (rows.length === 0) return rows;
+
+  const ids = new Set<string>();
+  for (const row of rows) {
+    const driverId = trimUserId(row.driver_id);
+    const companyId = trimUserId(row.company_id);
+    if (driverId) ids.add(driverId);
+    if (companyId) ids.add(companyId);
+  }
+  if (ids.size === 0) return rows;
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, is_verified')
+    .in('id', [...ids]);
+
+  if (error) {
+    if (__DEV__) {
+      console.warn('[bookings] enrichBookingsWithUserVerification', error.message);
+    }
+    return rows;
+  }
+
+  const verifiedById = new Map<string, boolean>();
+  for (const row of data ?? []) {
+    const u = row as { id: string; is_verified?: boolean | null };
+    verifiedById.set(String(u.id), !!u.is_verified);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    driver_is_verified: row.driver_id
+      ? (verifiedById.get(trimUserId(row.driver_id)) ?? false)
+      : null,
+    company_is_verified: verifiedById.get(trimUserId(row.company_id)) ?? false,
+  }));
 }
 
 /** Legacy DBs still use `confirmed` in `bookings_status_check`; new migrations use `accepted`. */
@@ -184,10 +224,13 @@ export type BookingRow = {
   voucher_code?: string | null;
   /** Tour operator / staff name who created the booking. */
   created_by_name?: string | null;
+  /** Populated by `enrichBookingsWithUserVerification` when listing bookings. */
+  driver_is_verified?: boolean | null;
+  company_is_verified?: boolean | null;
 };
 
 export type InsertBookingInput = {
-  /** Clerk `users.id` for the company (text, e.g. `user_...`). Maps to column `company_id`. */
+  /** Supabase Auth user id — maps to column `company_id`. */
   company_id: string;
   company_name: string | null;
   kind: BookingType;
@@ -259,18 +302,38 @@ export function formatBookingDate(row: BookingRow): string {
 const BOOKING_ROW_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Primary key of `bookings` row (Postgres uuid), not a Clerk id. */
+/** Primary key of `bookings` row (Postgres uuid), not a user id. */
 export function isBookingRowUuid(value: string): boolean {
   return BOOKING_ROW_UUID_RE.test(String(value).trim());
 }
 
-function clerkId(value: string | undefined | null): string {
-  return String(value ?? '').trim();
+/** Single booking row; optional `companyUserId` scopes to that company's bookings. */
+export async function fetchBookingById(
+  bookingId: string,
+  companyUserId?: string,
+): Promise<{ data: BookingRow | null; error: Error | null }> {
+  const id = String(bookingId ?? '').trim();
+  if (!isBookingRowUuid(id)) {
+    return { data: null, error: new Error('invalid booking id') };
+  }
+  let query = supabase.from('bookings').select('*').eq('id', id);
+  const companyId = trimUserId(companyUserId);
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    return { data: null, error: new Error(error.message) };
+  }
+  if (!data) {
+    return { data: null, error: null };
+  }
+  return { data: hydrateBookingRow(data as Record<string, unknown>), error: null };
 }
 
-/** All rows for this company. Filters `company_id` (text) = Clerk company user id. */
-export async function fetchBookingsByCompanyId(companyClerkId: string) {
-  const id = clerkId(companyClerkId);
+/** All rows for this company. Filters `company_id` = Supabase user id. */
+export async function fetchBookingsByCompanyId(companyUserId: string) {
+  const id = trimUserId(companyUserId);
   if (!id) {
     return { data: [] as BookingRow[], error: null };
   }
@@ -279,12 +342,15 @@ export async function fetchBookingsByCompanyId(companyClerkId: string) {
     .select('*')
     .eq('company_id', id)
     .order('created_at', { ascending: false });
-  return { data: hydrateBookingRows(data ?? []), error };
+  return {
+    data: await enrichBookingsWithUserVerification(hydrateBookingRows(data ?? [])),
+    error,
+  };
 }
 
-/** Rows assigned to this driver. Filters `driver_id` (text) = Clerk driver user id. */
-export async function fetchBookingsForDriver(driverClerkId: string) {
-  const id = clerkId(driverClerkId);
+/** Rows assigned to this driver. Filters `driver_id` = Supabase user id. */
+export async function fetchBookingsForDriver(driverUserId: string) {
+  const id = trimUserId(driverUserId);
   if (!id) {
     return { data: [] as BookingRow[], error: null };
   }
@@ -293,7 +359,10 @@ export async function fetchBookingsForDriver(driverClerkId: string) {
     .select('*')
     .eq('driver_id', id)
     .order('updated_at', { ascending: false });
-  return { data: hydrateBookingRows(data ?? []), error };
+  return {
+    data: await enrichBookingsWithUserVerification(hydrateBookingRows(data ?? [])),
+    error,
+  };
 }
 
 /** Open jobs: waiting for a driver (unfiltered — prefer `fetchOpenPendingBookingsForDriver`). */
@@ -404,9 +473,9 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
 }
 
 export async function insertBooking(row: InsertBookingInput) {
-  const companyClerkId = clerkId(row.company_id);
-  if (!companyClerkId) {
-    return { id: undefined, error: new Error('company_id (Clerk) არ არის მითითებული') };
+  const companyUserId = trimUserId(row.company_id);
+  if (!companyUserId) {
+    return { id: undefined, error: new Error('company_id არ არის მითითებული') };
   }
 
   const kind = normalizeBookingKind(row.kind);
@@ -417,7 +486,7 @@ export async function insertBooking(row: InsertBookingInput) {
   }
 
   const voucherCode = `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`;
-  const assignedDriverId = clerkId(row.driver_id);
+  const assignedDriverId = trimUserId(row.driver_id);
 
   function buildBookingInsertBody(
     routeCol: 'route' | 'route_description',
@@ -425,7 +494,7 @@ export async function insertBooking(row: InsertBookingInput) {
     opts: { includeTourColumns: boolean; includeKindColumn: boolean },
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
-      company_id: companyClerkId,
+      company_id: companyUserId,
       voucher_code: voucherCode,
       company_name: row.company_name,
       booking_type: bookingKindForDb,
@@ -563,10 +632,10 @@ export async function insertBooking(row: InsertBookingInput) {
 }
 
 export async function acceptBooking(
-  /** `bookings.id` (uuid), not a Clerk user id */
+  /** `bookings.id` (uuid) */
   bookingRowId: string,
   driver: {
-    clerkId: string;
+    driverId: string;
     displayName: string;
     phone: string;
     plate: string;
@@ -576,19 +645,19 @@ export async function acceptBooking(
   if (!isBookingRowUuid(rowId)) {
     return {
       ok: false as const,
-      error: new Error('booking id უნდა იყოს ჯავშნის uuid, არა Clerk id'),
+      error: new Error('booking id უნდა იყოს ჯავშნის uuid'),
     };
   }
-  const driverClerkId = clerkId(driver.clerkId);
-  if (!driverClerkId) {
-    return { ok: false as const, error: new Error('მძღოლის Clerk id არ არის') };
+  const driverUserId = trimUserId(driver.driverId);
+  if (!driverUserId) {
+    return { ok: false as const, error: new Error('მძღოლის id არ არის') };
   }
 
   const runAccept = (assignStatus: 'accepted' | 'confirmed') =>
     supabase
       .from('bookings')
       .update({
-        driver_id: driverClerkId,
+        driver_id: driverUserId,
         status: assignStatus,
         driver_display_name: driver.displayName,
         driver_phone: driver.phone || null,
@@ -596,7 +665,7 @@ export async function acceptBooking(
       })
       .eq('id', rowId)
       .eq('status', 'pending')
-      .or(`driver_id.is.null,driver_id.eq.${driverClerkId}`)
+      .or(`driver_id.is.null,driver_id.eq.${driverUserId}`)
       .select('id')
       .maybeSingle();
 
@@ -609,20 +678,20 @@ export async function acceptBooking(
   if (!data) {
     return { ok: false as const, error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია') };
   }
-  void createScheduleForAcceptedBooking(rowId, driverClerkId);
+  void createScheduleForAcceptedBooking(rowId, driverUserId);
   void notifyBookingConfirmed();
   return { ok: true as const, error: null };
 }
 
 export async function rejectBooking(
-  /** `bookings.id` (uuid), not a Clerk user id */
+  /** `bookings.id` (uuid) */
   bookingRowId: string,
 ) {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
     return {
       ok: false as const,
-      error: new Error('booking id უნდა იყოს ჯავშნის uuid, არა Clerk id'),
+      error: new Error('booking id უნდა იყოს ჯავშნის uuid'),
     };
   }
   const { data, error } = await supabase
@@ -650,12 +719,12 @@ export async function rejectBooking(
   return { ok: true as const, error: null };
 }
 
-export async function completeBooking(bookingRowId: string, driverClerkId: string) {
+export async function completeBooking(bookingRowId: string, driverUserId: string) {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
     return { ok: false as const, error: new Error('invalid booking id') };
   }
-  const drv = clerkId(driverClerkId);
+  const drv = trimUserId(driverUserId);
   if (!drv) {
     return { ok: false as const, error: new Error('მძღოლის id არ არის') };
   }
@@ -678,12 +747,12 @@ export async function completeBooking(bookingRowId: string, driverClerkId: strin
 }
 
 /** Driver starts trip after accepting (accepted → in_progress). */
-export async function startBookingTrip(bookingRowId: string, driverClerkId: string) {
+export async function startBookingTrip(bookingRowId: string, driverUserId: string) {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
     return { ok: false as const, error: new Error('invalid booking id') };
   }
-  const drv = clerkId(driverClerkId);
+  const drv = trimUserId(driverUserId);
   if (!drv) {
     return { ok: false as const, error: new Error('მძღოლის id არ არის') };
   }
@@ -711,12 +780,12 @@ export async function cancelBooking(bookingId: string, companyId: string) {
 }
 
 /** Company cancels only while still pending (no driver assigned). */
-export async function cancelBookingByCompany(bookingRowId: string, companyClerkId: string) {
+export async function cancelBookingByCompany(bookingRowId: string, companyUserId: string) {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
     return { ok: false as const, error: new Error('invalid booking id') };
   }
-  const companyId = clerkId(companyClerkId);
+  const companyId = trimUserId(companyUserId);
   if (!companyId) {
     return { ok: false as const, error: new Error('company id არ არის') };
   }
@@ -738,8 +807,8 @@ export async function cancelBookingByCompany(bookingRowId: string, companyClerkI
   return { ok: true as const, error: null };
 }
 
-export async function aggregateCompanyStats(companyClerkId: string) {
-  const id = clerkId(companyClerkId);
+export async function aggregateCompanyStats(companyUserId: string) {
+  const id = trimUserId(companyUserId);
   if (!id) {
     return { total: 0, spent: 0, error: null };
   }
@@ -756,8 +825,8 @@ export async function aggregateCompanyStats(companyClerkId: string) {
   return { total, spent, error: null };
 }
 
-export async function aggregateDriverStats(driverClerkId: string) {
-  const id = clerkId(driverClerkId);
+export async function aggregateDriverStats(driverUserId: string) {
+  const id = trimUserId(driverUserId);
   if (!id) {
     return { completed: 0, earnings: 0, error: null };
   }

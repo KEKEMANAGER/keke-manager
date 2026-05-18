@@ -1,5 +1,6 @@
 import { Redirect } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { PendingVerificationScreen } from '../components/PendingVerificationScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../constants/theme';
 import { getUserRole } from '../lib/role';
@@ -17,13 +18,13 @@ export default function Index() {
 
   if (user) {
     const role = getUserRole(profile);
-    if (!role) {
-      return <Redirect href="/sign-up" />;
-    }
     if (role === 'driver') {
       return <Redirect href="/(driver)/dashboard" />;
     }
-    return <Redirect href="/(app)/dashboard" />;
+    if (role === 'company' || role === 'admin') {
+      return <Redirect href="/(app)/dashboard" />;
+    }
+    return <PendingVerificationScreen />;
   }
 
   return <Redirect href="/sign-in" />;

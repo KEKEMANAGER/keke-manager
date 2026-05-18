@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { EditModeButtons } from '../../components/EditModeButtons';
+import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -65,6 +66,7 @@ export default function CompanyProfileScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [taxId, setTaxId] = useState('');
+  const [companyDirector, setCompanyDirector] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [members, setMembers] = useState<CompanyMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -84,21 +86,28 @@ export default function CompanyProfileScreen() {
     setSaveError(null);
     const { data, error } = await supabase
       .from('users')
-      .select('full_name, email, phone, tax_id')
+      .select(
+        'full_name, email, company_email, company_phone, company_id_code, company_director, phone, tax_id',
+      )
       .eq('id', user.id)
       .maybeSingle();
     setProfileLoading(false);
     if (error || !data) {
       const fallbackName = companyDisplayName(profile, user, defaultCompany);
       setCompanyName(fallbackName === defaultCompany ? '' : fallbackName);
-      setEmail(profile?.email ?? user?.email ?? '');
-      setPhone(profile?.phone ?? '');
-      setTaxId('');
+      setEmail(profile?.company_email ?? profile?.email ?? user?.email ?? '');
+      setPhone(profile?.company_phone ?? profile?.phone ?? '');
+      setTaxId(profile?.company_id_code ?? '');
+      setCompanyDirector(profile?.company_director ?? '');
       return;
     }
     const row = data as {
       full_name?: string | null;
       email?: string | null;
+      company_email?: string | null;
+      company_phone?: string | null;
+      company_id_code?: string | null;
+      company_director?: string | null;
       phone?: string | null;
       tax_id?: string | null;
     };
@@ -108,9 +117,17 @@ export default function CompanyProfileScreen() {
       const fallbackName = companyDisplayName(profile, user, defaultCompany);
       setCompanyName(fallbackName === defaultCompany ? '' : fallbackName);
     }
-    setEmail(row.email?.trim() ?? profile?.email ?? user?.email ?? '');
-    setPhone(row.phone?.trim() ?? profile?.phone ?? '');
-    setTaxId(row.tax_id?.trim() ?? '');
+    setEmail(
+      row.company_email?.trim() ??
+        row.email?.trim() ??
+        profile?.company_email ??
+        profile?.email ??
+        user?.email ??
+        '',
+    );
+    setPhone(row.company_phone?.trim() ?? row.phone?.trim() ?? profile?.company_phone ?? profile?.phone ?? '');
+    setTaxId(row.company_id_code?.trim() ?? row.tax_id?.trim() ?? profile?.company_id_code ?? '');
+    setCompanyDirector(row.company_director?.trim() ?? profile?.company_director ?? '');
   }, [user?.id, profile, user]);
 
   const loadMembers = useCallback(async () => {
@@ -236,13 +253,16 @@ export default function CompanyProfileScreen() {
 
     setSaveBusy(true);
     setSaveError(null);
+    const trimmedEmail = email.trim();
     const { error } = await supabase
       .from('users')
       .update({
         full_name: companyName.trim() || null,
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-        tax_id: taxId.trim() || null,
+        email: trimmedEmail || null,
+        company_email: trimmedEmail || null,
+        company_phone: phone.trim() || null,
+        company_id_code: taxId.trim() || null,
+        company_director: companyDirector.trim() || null,
       })
       .eq('id', user.id);
     setSaveBusy(false);
@@ -347,7 +367,11 @@ export default function CompanyProfileScreen() {
       </View>
 
       <View style={styles.nameBlock}>
-        <Text style={styles.name}>{displayName}</Text>
+        <NameWithVerifiedBadge
+          name={displayName}
+          verified={profile?.is_verified}
+          textStyle={styles.name}
+        />
         <Text style={styles.email}>{email.trim() || '—'}</Text>
       </View>
 
@@ -380,6 +404,11 @@ export default function CompanyProfileScreen() {
               autoCapitalize="none"
             />
             <EditField label={t('companyProfile.taxId')} value={taxId} onChangeText={setTaxId} />
+            <EditField
+              label={t('companyProfile.director')}
+              value={companyDirector}
+              onChangeText={setCompanyDirector}
+            />
           </>
         ) : (
           <>
@@ -387,6 +416,7 @@ export default function CompanyProfileScreen() {
             <Row label={t('companyProfile.phone')} value={phone.trim() || '—'} />
             <Row label={t('companyProfile.email')} value={email.trim() || '—'} />
             <Row label={t('companyProfile.taxId')} value={taxId.trim() || '—'} />
+            <Row label={t('companyProfile.director')} value={companyDirector.trim() || '—'} />
           </>
         )}
         {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}

@@ -93,7 +93,8 @@ export default function AdminPanelScreen() {
         styles.inner,
         { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + SPACING.xl },
       ]}
-      keyboardShouldPersistTaps="handled"
+      keyboardShouldPersistTaps="always"
+      nestedScrollEnabled
     >
       <Pressable onPress={() => router.back()} style={styles.backLink}>
         <Text style={styles.backLinkText}>← {t('common.back')}</Text>

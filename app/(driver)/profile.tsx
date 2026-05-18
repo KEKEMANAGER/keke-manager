@@ -25,6 +25,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { EditModeButtons } from '../../components/EditModeButtons';
+import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
@@ -111,6 +112,7 @@ export default function DriverProfileScreen() {
   const [hireStatusBusy, setHireStatusBusy] = useState(false);
 
   const isHired = isHiredDriver(profile);
+  const displayName = name.trim() || profile?.full_name?.trim() || '';
 
   const hiredStatusLabel = useMemo(() => {
     if (hiredStatus === 'employed') return t('jobBoard.statusEmployed');
@@ -367,6 +369,16 @@ export default function DriverProfileScreen() {
         <Text style={styles.photoHint}>{t('profilePage.photoHint')}</Text>
         {photoError ? <Text style={styles.photoError}>{photoError}</Text> : null}
       </View>
+
+      {displayName ? (
+        <View style={styles.nameBlock}>
+          <NameWithVerifiedBadge
+            name={displayName}
+            verified={profile?.is_verified}
+            textStyle={styles.displayName}
+          />
+        </View>
+      ) : null}
 
       {isHired ? (
         <View style={styles.card}>
@@ -695,6 +707,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: SPACING.sm,
     textAlign: 'center',
+  },
+  nameBlock: {
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  displayName: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '700',
   },
   photoBusy: {
     ...StyleSheet.absoluteFillObject,

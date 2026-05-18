@@ -482,6 +482,11 @@
       "name": "имя"
     }
   },
+  "authPending": {
+    "title": "Ожидание верификации",
+    "subtitle": "Ваш аккаунт ожидает подтверждения администратором. Полный доступ откроется после верификации.",
+    "statusLabel": "Статус"
+  },
   "authScreen": {
     "signIn": "Вход",
     "signUp": "Регистрация",
@@ -502,6 +507,10 @@
     "selectRole": "Выберите тип аккаунта",
     "fullName": "Полное имя",
     "companyName": "Название компании",
+    "companyEmail": "Email компании",
+    "companyPhone": "Телефон компании",
+    "companyIdCode": "Идентификационный код",
+    "companyDirector": "Директор / менеджер",
     "haveAccount": "Уже есть аккаунт?",
     "signUpSuccess": "Регистрация успешна",
     "checkEmail": "Проверьте email для подтверждения.",
@@ -532,7 +541,8 @@
     "companyName": "Название компании",
     "email": "Email",
     "phone": "Телефон",
-    "taxId": "ИНН",
+    "taxId": "Идентификационный код",
+    "director": "Директор / менеджер",
     "subscription": "Подписка",
     "members": "Участники",
     "addMember": "Добавить",
@@ -713,6 +723,7 @@
     "statusPending": "Ожидание",
     "statusSubmitted": "Отправлено",
     "documentsSection": "Документы",
+    "companyInfoSection": "Информация о компании",
     "vehiclePhotos": "Фото автомобиля",
     "viewDocument": "Открыть",
     "noDocument": "Нет",

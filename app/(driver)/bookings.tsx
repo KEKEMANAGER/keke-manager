@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../../components/EmptyState';
+import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { BookingRealtimeRecord, BookingRow, BookingStatus } from '../../lib/bookings';
@@ -252,7 +253,7 @@ export default function DriverBookingsScreen() {
     if (!user) return;
     setActingId(item.id);
     const res = await acceptBooking(item.id, {
-      clerkId: user.id,
+      driverId: user.id,
       displayName: driverDisplayName(user, profile, t('driver.defaultName')),
       phone: driverPhone(user, profile),
       plate: driverPlateFromMeta(user),
@@ -422,9 +423,11 @@ export default function DriverBookingsScreen() {
                 </View>
               </View>
               <Text style={styles.kind}>{bookingTypeLabel(item.kind, item.flight_direction)}</Text>
-              <Text style={styles.company}>
-                {item.company_name || t('common.companyDefault')}
-              </Text>
+              <NameWithVerifiedBadge
+                name={item.company_name || t('common.companyDefault')}
+                verified={item.company_is_verified}
+                textStyle={styles.company}
+              />
               {item.created_by_name?.trim() ? (
                 <Text style={styles.operator}>
                   {t('bookings.operatorLine', { name: item.created_by_name.trim() })}

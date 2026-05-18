@@ -68,8 +68,8 @@ export function AdminBookingsSection() {
         rows.map((b) => (
           <View key={String(b.id)} style={adminStyles.card}>
             <Text style={adminStyles.cardTitle} numberOfLines={2}>
-              {b.route ??
-                [b.from_location, b.to_location].filter(Boolean).join(' → ') ||
+              {(b.route ??
+                [b.from_location, b.to_location].filter(Boolean).join(' → ')) ||
                 t('adminPanel.bookingUntitled')}
             </Text>
             <Text style={adminStyles.cardMeta}>

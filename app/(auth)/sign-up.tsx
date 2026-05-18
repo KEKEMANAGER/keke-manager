@@ -64,6 +64,10 @@ export default function SignUpScreen() {
   const insets = useSafeAreaInsets();
   const [accountType, setAccountType] = useState<SignUpAccountType | null>(null);
   const [fullName, setFullName] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyIdCode, setCompanyIdCode] = useState('');
+  const [companyDirector, setCompanyDirector] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,8 +89,21 @@ export default function SignUpScreen() {
     );
   }
 
+  const isCompany = accountType === 'company';
+  const authEmail = isCompany ? companyEmail.trim() : email.trim();
+  const companyFieldsReady =
+    !isCompany ||
+    (!!companyEmail.trim() &&
+      !!companyPhone.trim() &&
+      !!companyIdCode.trim() &&
+      !!companyDirector.trim());
   const formReady =
-    !!accountType && !!fullName.trim() && !!email.trim() && !!password && !isSubmitting;
+    !!accountType &&
+    !!fullName.trim() &&
+    !!authEmail &&
+    !!password &&
+    companyFieldsReady &&
+    !isSubmitting;
 
   async function onRegister() {
     if (isSubmitting) return;
@@ -96,11 +113,32 @@ export default function SignUpScreen() {
       fullName,
       email,
       password,
+      companyEmail,
+      companyPhone,
+      companyIdCode,
+      companyDirector,
     });
     setFieldErrors(fields);
-    if (fields.accountType || fields.fullName || fields.email || fields.password) {
+    if (
+      fields.accountType ||
+      fields.fullName ||
+      fields.email ||
+      fields.password ||
+      fields.companyEmail ||
+      fields.companyPhone ||
+      fields.companyIdCode ||
+      fields.companyDirector
+    ) {
       const first =
-        fields.accountType ?? fields.fullName ?? fields.email ?? fields.password ?? '';
+        fields.accountType ??
+        fields.fullName ??
+        fields.companyEmail ??
+        fields.companyPhone ??
+        fields.companyIdCode ??
+        fields.companyDirector ??
+        fields.email ??
+        fields.password ??
+        '';
       setError(first);
       showValidationAlert(first);
       return;
@@ -111,8 +149,17 @@ export default function SignUpScreen() {
     try {
       const type = accountType!;
       const role = accountTypeToRole(type);
-      const { error: signUpError } = await signUp(email.trim(), password, fullName.trim(), role, {
+      const { error: signUpError } = await signUp(authEmail, password, fullName.trim(), role, {
         isHiredDriver: type === 'hired_driver',
+        company:
+          type === 'company'
+            ? {
+                company_email: authEmail,
+                company_phone: companyPhone.trim(),
+                company_id_code: companyIdCode.trim(),
+                company_director: companyDirector.trim(),
+              }
+            : undefined,
       });
       if (signUpError) {
         const message = getSupabaseErrorMessage(signUpError);
@@ -181,14 +228,49 @@ export default function SignUpScreen() {
             onChangeText={setFullName}
             error={fieldErrors.fullName}
           />
-          <AuthInput
-            label={t('auth.email')}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-            error={fieldErrors.email}
-          />
+
+          {accountType === 'company' ? (
+            <View key="company-signup-fields">
+              <AuthInput
+                label={t('authScreen.companyEmail')}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={companyEmail}
+                onChangeText={setCompanyEmail}
+                error={fieldErrors.companyEmail}
+              />
+              <AuthInput
+                label={t('authScreen.companyPhone')}
+                keyboardType="phone-pad"
+                value={companyPhone}
+                onChangeText={setCompanyPhone}
+                error={fieldErrors.companyPhone}
+              />
+              <AuthInput
+                label={t('authScreen.companyIdCode')}
+                value={companyIdCode}
+                onChangeText={setCompanyIdCode}
+                error={fieldErrors.companyIdCode}
+              />
+              <AuthInput
+                label={t('authScreen.companyDirector')}
+                value={companyDirector}
+                onChangeText={setCompanyDirector}
+                error={fieldErrors.companyDirector}
+              />
+            </View>
+          ) : null}
+
+          {!isCompany ? (
+            <AuthInput
+              label={t('auth.email')}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              error={fieldErrors.email}
+            />
+          ) : null}
           <AuthInput
             label={t('auth.password')}
             secureTextEntry

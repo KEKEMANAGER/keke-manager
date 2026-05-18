@@ -6,6 +6,7 @@ import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 export type DriverProfile = {
   user_id: string;
   full_name: string | null;
+  is_verified: boolean;
   avatar_url: string | null;
   bio: string | null;
   languages: string[] | null;
@@ -28,11 +29,13 @@ type UserProfileRow = {
   bio?: string | null;
   languages?: string[] | null;
   experience_years?: number | null;
+  is_verified?: boolean | null;
 };
 
 export type MatchingDriver = {
   id: string;
   full_name: string | null;
+  is_verified: boolean;
   avatar_url: string | null;
   languages: string[];
   experience_years: number;
@@ -61,6 +64,7 @@ type UserRow = {
   languages?: string[] | null;
   experience_years?: number | null;
   role?: string | null;
+  is_verified?: boolean | null;
 };
 
 function computeRatingAverages(
@@ -129,7 +133,7 @@ export async function fetchMatchingDrivers(
   const [usersRes, vehiclesRes, ratingsRes] = await Promise.all([
     supabase
       .from('users')
-      .select('id, full_name, avatar_url, languages, experience_years, role')
+      .select('id, full_name, avatar_url, languages, experience_years, role, is_verified')
       .in('id', ids),
     supabase
       .from('vehicles')
@@ -211,6 +215,7 @@ export async function fetchMatchingDrivers(
     drivers.push({
       id: driverId,
       full_name,
+      is_verified: !!user?.is_verified,
       avatar_url,
       languages: user?.languages ?? [],
       experience_years: user?.experience_years ?? 0,
@@ -234,12 +239,12 @@ export async function fetchMatchingDrivers(
 }
 
 export async function fetchDriverProfile(
-  driverClerkId: string,
+  driverUserId: string,
 ): Promise<{ data: DriverProfile | null; error: Error | null }> {
   const [userRes, vehicleRes, ratingRes] = await Promise.all([
-    supabase.from('users').select('*').eq('id', driverClerkId).maybeSingle(),
-    supabase.from('vehicles').select('*').eq('driver_id', driverClerkId).maybeSingle(),
-    fetchDriverAverageRating(driverClerkId),
+    supabase.from('users').select('*').eq('id', driverUserId).maybeSingle(),
+    supabase.from('vehicles').select('*').eq('driver_id', driverUserId).maybeSingle(),
+    fetchDriverAverageRating(driverUserId),
   ]);
 
   if (userRes.error) {
@@ -259,8 +264,9 @@ export async function fetchDriverProfile(
 
   return {
     data: {
-      user_id: driverClerkId,
+      user_id: driverUserId,
       full_name: user?.full_name ?? null,
+      is_verified: !!user?.is_verified,
       avatar_url: user?.avatar_url ?? null,
       bio: user?.bio ?? null,
       languages: user?.languages ?? null,

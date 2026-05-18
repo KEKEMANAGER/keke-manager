@@ -24,10 +24,14 @@ export type AdminVerificationUser = {
   license_photo: string | null;
   id_photo: string | null;
   vehicle_registration_photo: string | null;
+  company_email: string | null;
+  company_phone: string | null;
+  company_id_code: string | null;
+  company_director: string | null;
   vehicle: VehicleRow | null;
 };
 
-const USER_SELECT = `id, full_name, role, email, is_hired_driver, ${VERIFICATION_DOC_COLUMNS}, license_photo, id_photo, vehicle_registration_photo, verification_status`;
+const USER_SELECT = `id, full_name, role, email, is_hired_driver, company_email, company_phone, company_id_code, company_director, ${VERIFICATION_DOC_COLUMNS}, license_photo, id_photo, vehicle_registration_photo, verification_status`;
 
 /** Users awaiting admin review (drivers who submitted, or still pending with docs). */
 export async function fetchAdminVerificationQueue(): Promise<{

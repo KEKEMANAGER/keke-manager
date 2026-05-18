@@ -69,7 +69,9 @@ function DriverCard({
 }) {
   const { t } = useTranslation();
   const name = driver.full_name?.trim() || driver.email || t('common.driver');
-  const avatarUri = driver.avatar_url ? withCacheBust(driver.avatar_url) ?? driver.avatar_url : null;
+  const avatarUri = driver.avatar_url
+    ? (withCacheBust(driver.avatar_url) ?? driver.avatar_url)
+    : null;
 
   return (
     <View style={styles.card}>

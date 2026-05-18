@@ -249,7 +249,7 @@ export default function CompanyHistoryScreen() {
               <Pressable onPress={() => void shareVoucherPDF(r)} style={styles.voucherBtn}>
                 <Text style={styles.voucherBtnText}>📄 {t('historyPage.voucher')}</Text>
               </Pressable>
-              {/* rate-booking: bookingId = booking.id (uuid), driverClerkId = driver (text). Query URL + rate-booking normalizer handle Expo web param order. */}
+              {/* rate-booking: bookingId = booking.id (uuid), driverId = driver user id. */}
               {r.status === 'completed' && r.driver_id ? (
                 <Pressable
                   onPress={() => {
@@ -258,7 +258,7 @@ export default function CompanyHistoryScreen() {
                     if (!driverId) return;
                     // Query string avoids web/Expo Router param mix-ups vs object `params`.
                     router.push(
-                      `/(app)/rate-booking?bookingId=${encodeURIComponent(booking.id)}&driverClerkId=${encodeURIComponent(driverId)}`,
+                      `/(app)/rate-booking?bookingId=${encodeURIComponent(booking.id)}&driverId=${encodeURIComponent(driverId)}`,
                     );
                   }}
                   style={({ pressed }) => [styles.rateBtn, pressed && styles.rateBtnPressed]}

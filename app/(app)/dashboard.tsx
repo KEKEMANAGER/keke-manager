@@ -31,6 +31,7 @@ import {
   unsubscribeChannel,
 } from '../../lib/bookings';
 import { AppLogo } from '../../components/AppLogo';
+import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
@@ -311,7 +312,11 @@ export default function CompanyDashboardScreen() {
         <AppLogo size="header" />
         <View style={styles.headerText}>
           <Text style={styles.greeting}>{t('company.greeting')}</Text>
-          <Text style={styles.name}>{name}</Text>
+          <NameWithVerifiedBadge
+            name={name}
+            verified={profile?.is_verified}
+            textStyle={styles.name}
+          />
         </View>
         <View style={styles.headerRight}>
           {isAdmin ? (
@@ -426,7 +431,11 @@ export default function CompanyDashboardScreen() {
               <Text style={styles.driverLabel}>{t('company.driverLabel')}</Text>
               {b.driver_display_name ? (
                 <>
-                  <Text style={styles.driverName}>{b.driver_display_name}</Text>
+                  <NameWithVerifiedBadge
+                    name={b.driver_display_name}
+                    verified={b.driver_is_verified}
+                    textStyle={styles.driverName}
+                  />
                   <Text style={styles.driverMeta}>
                     {[b.driver_phone, b.driver_plate, b.vehicle_class ? vehicleClassLabel(b.vehicle_class) : null]
                       .filter(Boolean)
@@ -491,7 +500,7 @@ export default function CompanyDashboardScreen() {
               <Pressable
                 onPress={() =>
                   router.push(
-                    `/(app)/rate-booking?bookingId=${encodeURIComponent(b.id)}&driverClerkId=${encodeURIComponent(b.driver_id!)}`,
+                    `/(app)/rate-booking?bookingId=${encodeURIComponent(b.id)}&driverId=${encodeURIComponent(b.driver_id!)}`,
                   )
                 }
                 style={({ pressed }) => [styles.rateBtn, pressed && styles.pressed]}
@@ -582,11 +591,15 @@ export default function CompanyDashboardScreen() {
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.driverNameModal}>
-                      {driverProfile.full_name ||
+                    <NameWithVerifiedBadge
+                      name={
+                        driverProfile.full_name ||
                         driverModal?.driver_display_name ||
-                        t('company.driverDefault')}
-                    </Text>
+                        t('company.driverDefault')
+                      }
+                      verified={driverProfile.is_verified}
+                      textStyle={styles.driverNameModal}
+                    />
                     <Text style={styles.ratingText}>
                       ⭐{' '}
                       {driverProfile.rating.count > 0

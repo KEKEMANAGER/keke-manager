@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -58,6 +59,7 @@ export default function CompanyChatScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [otherVerified, setOtherVerified] = useState(false);
   const listRef = useRef<FlatList<MessageRow>>(null);
 
   const scrollToBottom = useCallback((animated: boolean) => {
@@ -76,6 +78,21 @@ export default function CompanyChatScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!otherUserId) {
+      setOtherVerified(false);
+      return;
+    }
+    void (async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('is_verified')
+        .eq('id', otherUserId)
+        .maybeSingle();
+      setOtherVerified(!!(data as { is_verified?: boolean | null } | null)?.is_verified);
+    })();
+  }, [otherUserId]);
 
   useEffect(() => {
     if (!user?.id || !otherUserId) return;
@@ -119,9 +136,13 @@ export default function CompanyChatScreen() {
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
         </Pressable>
         <AvatarCircle name={otherName} />
-        <Text style={styles.headerName} numberOfLines={1}>
-          {otherName}
-        </Text>
+        <NameWithVerifiedBadge
+          name={otherName}
+          verified={otherVerified}
+          style={styles.headerNameWrap}
+          textStyle={styles.headerName}
+          numberOfLines={1}
+        />
       </View>
 
       {loading ? (
@@ -226,8 +247,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 13,
   },
-  headerName: {
+  headerNameWrap: {
     flex: 1,
+  },
+  headerName: {
+    flexShrink: 1,
     color: COLORS.text,
     fontSize: 17,
     fontWeight: '700',

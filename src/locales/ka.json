@@ -482,6 +482,11 @@
       "name": "სახელი"
     }
   },
+  "authPending": {
+    "title": "ვერიფიკაციის მოლოდინში",
+    "subtitle": "თქვენი ანგარიში ადმინის დადასტურების მოლოდინშია. სრული წვდომა მიიღება ვერიფიკაციის შემდეგ.",
+    "statusLabel": "სტატუსი"
+  },
   "authScreen": {
     "signIn": "შესვლა",
     "signUp": "რეგისტრაცია",
@@ -502,6 +507,10 @@
     "selectRole": "აირჩიეთ ანგარიშის ტიპი",
     "fullName": "სრული სახელი",
     "companyName": "კომპანიის სახელი",
+    "companyEmail": "კომპანიის მეილი",
+    "companyPhone": "კომპანიის ტელეფონი",
+    "companyIdCode": "საიდენტიფიკაციო კოდი",
+    "companyDirector": "დირექტორი / მენეჯერი",
     "haveAccount": "უკვე გაქვთ ანგარიში?",
     "signUpSuccess": "რეგისტრაცია წარმატებულია",
     "checkEmail": "შეამოწმეთ ელფოსტა დადასტურებისთვის.",
@@ -533,6 +542,7 @@
     "email": "ელფოსტა",
     "phone": "ტელეფონი",
     "taxId": "საიდენტიფიკაციო კოდი",
+    "director": "დირექტორი / მენეჯერი",
     "subscription": "გამოწერა",
     "members": "წევრები",
     "addMember": "დამატება",
@@ -713,6 +723,7 @@
     "statusPending": "მოლოდინში",
     "statusSubmitted": "გაგზავნილი",
     "documentsSection": "დოკუმენტები",
+    "companyInfoSection": "კომპანიის ინფორმაცია",
     "vehiclePhotos": "ავტომობილის ფოტოები",
     "viewDocument": "ნახვა",
     "noDocument": "არ არის",

@@ -23,6 +23,7 @@ import {
   toIsoString,
 } from '../../lib/dateTime';
 import { AppLogo } from '../../components/AppLogo';
+import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   insertBooking,
@@ -526,9 +527,12 @@ function MatchingDriversSection({
                         </View>
                       )}
                       <View style={styles.driverCardMain}>
-                        <Text style={styles.driverName} numberOfLines={1}>
-                          {driver.full_name || t('driver.defaultName')}
-                        </Text>
+                        <NameWithVerifiedBadge
+                          name={driver.full_name || t('driver.defaultName')}
+                          verified={driver.is_verified}
+                          textStyle={styles.driverName}
+                          numberOfLines={1}
+                        />
                         {vehicleLine ? (
                           <Text style={styles.driverVehicleLine}>🚗 {vehicleLine}</Text>
                         ) : (

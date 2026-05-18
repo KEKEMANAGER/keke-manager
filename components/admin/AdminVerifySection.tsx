@@ -14,15 +14,15 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { setAdminUserVerified } from '../../lib/adminPanel';
 import {
-  approveUserVerification,
   documentUrlFor,
   fetchAdminVerificationQueue,
-  rejectUserVerification,
   verificationDocSlotsForAdmin,
   type AdminDocumentKey,
   type AdminVerificationUser,
 } from '../../lib/adminVerification';
+import { supabase } from '../../lib/supabase';
 import { adminStyles } from './adminStyles';
 
 type DocSlot = { key: AdminDocumentKey; labelKey: string };
@@ -53,11 +53,11 @@ export function AdminVerifySection() {
   const [rejectReason, setRejectReason] = useState('');
   const rejectResolveRef = useRef<((value: string | null) => void) | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     const { data, error: err } = await fetchAdminVerificationQueue();
-    setLoading(false);
+    if (!silent) setLoading(false);
     if (err) {
       setError(err.message);
       setRows([]);
@@ -122,28 +122,36 @@ export function AdminVerifySection() {
 
   async function onApprove(targetUserId: string) {
     setActingId(targetUserId);
-    const { error: err } = await approveUserVerification(targetUserId);
+    const { error: err } = await setAdminUserVerified(targetUserId, true);
     setActingId(null);
     if (err) {
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
+    setRows((prev) => prev.filter((r) => r.id !== targetUserId));
     Alert.alert(t('common.success'), t('adminVerify.approveSuccess'));
-    await load();
+    void load(true);
   }
 
   async function onReject(targetUserId: string) {
     const reason = await promptRejectReason();
     if (reason == null) return;
     setActingId(targetUserId);
-    const { error: err } = await rejectUserVerification(targetUserId, reason);
+    const { error: verifyErr } = await setAdminUserVerified(targetUserId, false);
+    if (!verifyErr && reason.trim()) {
+      await supabase
+        .from('users')
+        .update({ rejection_reason: reason.trim() })
+        .eq('id', targetUserId);
+    }
     setActingId(null);
-    if (err) {
-      Alert.alert(t('system.errorTitle'), err.message);
+    if (verifyErr) {
+      Alert.alert(t('system.errorTitle'), verifyErr.message);
       return;
     }
+    setRows((prev) => prev.filter((r) => r.id !== targetUserId));
     Alert.alert(t('common.success'), t('adminVerify.rejectSuccess'));
-    await load();
+    void load(true);
   }
 
   function roleLabel(role: string | null): string {
@@ -157,6 +165,25 @@ export function AdminVerifySection() {
     if (status === 'pending') return t('adminVerify.statusPending');
     if (status === 'submitted') return t('adminVerify.statusSubmitted');
     return status ?? '—';
+  }
+
+  function renderCompanyInfo(user: AdminVerificationUser) {
+    const fields: { labelKey: string; value: string | null | undefined }[] = [
+      { labelKey: 'authScreen.companyEmail', value: user.company_email ?? user.email },
+      { labelKey: 'authScreen.companyPhone', value: user.company_phone },
+      { labelKey: 'authScreen.companyIdCode', value: user.company_id_code },
+      { labelKey: 'authScreen.companyDirector', value: user.company_director },
+    ];
+    return (
+      <View style={styles.companyInfoBlock}>
+        {fields.map((field) => (
+          <View key={field.labelKey} style={styles.companyRow}>
+            <Text style={styles.companyLabel}>{t(field.labelKey)}</Text>
+            <Text style={styles.companyValue}>{field.value?.trim() || '—'}</Text>
+          </View>
+        ))}
+      </View>
+    );
   }
 
   function renderDocButton(user: AdminVerificationUser, slot: DocSlot) {
@@ -209,31 +236,44 @@ export function AdminVerifySection() {
               <Text style={adminStyles.cardMeta}>
                 {t('adminVerify.status')}: {statusLabel(u.verification_status)}
               </Text>
-              <Text style={styles.sectionLabel}>{t('adminVerify.documentsSection')}</Text>
-              <View style={styles.docGrid}>
-                {idDocSlotsForUser(u).map((slot) => renderDocButton(u, slot))}
-              </View>
-              {u.role === 'driver' && !u.is_hired_driver ? (
+              {u.role === 'company' ? (
                 <>
-                  <Text style={styles.sectionLabel}>{t('adminVerify.vehiclePhotos')}</Text>
+                  <Text style={styles.sectionLabel}>{t('adminVerify.companyInfoSection')}</Text>
+                  {renderCompanyInfo(u)}
+                </>
+              ) : u.role === 'driver' ? (
+                <>
+                  <Text style={styles.sectionLabel}>{t('adminVerify.documentsSection')}</Text>
                   <View style={styles.docGrid}>
-                    {VEHICLE_PHOTO_SLOTS.map((slot) => renderDocButton(u, slot))}
+                    {idDocSlotsForUser(u).map((slot) => renderDocButton(u, slot))}
                   </View>
-                  <View style={styles.thumbRow}>
-                    {VEHICLE_PHOTO_SLOTS.map((slot) => {
-                      const url = documentUrlFor(u, slot.key);
-                      return url ? (
-                        <Pressable
-                          key={slot.key}
-                          onPress={() => setPreview({ url, title: t(slot.labelKey) })}
-                        >
-                          <Image source={{ uri: url }} style={styles.thumb} resizeMode="cover" />
-                        </Pressable>
-                      ) : (
-                        <View key={slot.key} style={[styles.thumb, styles.thumbPh]} />
-                      );
-                    })}
-                  </View>
+                  {!u.is_hired_driver ? (
+                    <>
+                      <Text style={styles.sectionLabel}>{t('adminVerify.vehiclePhotos')}</Text>
+                      <View style={styles.docGrid}>
+                        {VEHICLE_PHOTO_SLOTS.map((slot) => renderDocButton(u, slot))}
+                      </View>
+                      <View style={styles.thumbRow}>
+                        {VEHICLE_PHOTO_SLOTS.map((slot) => {
+                          const url = documentUrlFor(u, slot.key);
+                          return url ? (
+                            <Pressable
+                              key={slot.key}
+                              onPress={() => setPreview({ url, title: t(slot.labelKey) })}
+                            >
+                              <Image
+                                source={{ uri: url }}
+                                style={styles.thumb}
+                                resizeMode="cover"
+                              />
+                            </Pressable>
+                          ) : (
+                            <View key={slot.key} style={[styles.thumb, styles.thumbPh]} />
+                          );
+                        })}
+                      </View>
+                    </>
+                  ) : null}
                 </>
               ) : null}
               <View style={adminStyles.btnRow}>
@@ -315,6 +355,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: SPACING.sm,
     marginTop: SPACING.xs,
+  },
+  companyInfoBlock: {
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  companyRow: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.surface,
+  },
+  companyLabel: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  companyValue: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '600',
   },
   docGrid: {
     flexDirection: 'row',

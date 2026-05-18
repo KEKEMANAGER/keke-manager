@@ -133,6 +133,10 @@ export type SignUpFormInput = {
   fullName: string;
   email: string;
   password: string;
+  companyEmail?: string;
+  companyPhone?: string;
+  companyIdCode?: string;
+  companyDirector?: string;
 };
 
 export type SignUpFieldErrors = {
@@ -140,6 +144,10 @@ export type SignUpFieldErrors = {
   fullName?: string;
   email?: string;
   password?: string;
+  companyEmail?: string;
+  companyPhone?: string;
+  companyIdCode?: string;
+  companyDirector?: string;
 };
 
 export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors {
@@ -150,10 +158,34 @@ export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors 
   if (!input.fullName.trim()) {
     errors.fullName = t('validation.nameRequired');
   }
-  const emailErr = validateEmail(input.email);
-  if (emailErr) errors.email = emailErr.replace(/\.$/, '');
   const passErr = validatePassword(input.password);
   if (passErr) errors.password = passErr.replace(/\.$/, '');
+
+  if (input.accountType === 'company') {
+    const companyEmailErr = validateEmail(input.companyEmail ?? '', true);
+    if (companyEmailErr) errors.companyEmail = companyEmailErr.replace(/\.$/, '');
+    const phoneErr = validateOptionalPhone(input.companyPhone ?? '');
+    if (phoneErr) errors.companyPhone = phoneErr;
+    else if (!(input.companyPhone ?? '').trim()) {
+      errors.companyPhone = t('validation.required', {
+        field: t('authScreen.companyPhone'),
+      });
+    }
+    if (!(input.companyIdCode ?? '').trim()) {
+      errors.companyIdCode = t('validation.required', {
+        field: t('authScreen.companyIdCode'),
+      });
+    }
+    if (!(input.companyDirector ?? '').trim()) {
+      errors.companyDirector = t('validation.required', {
+        field: t('authScreen.companyDirector'),
+      });
+    }
+  } else {
+    const emailErr = validateEmail(input.email);
+    if (emailErr) errors.email = emailErr.replace(/\.$/, '');
+  }
+
   return errors;
 }
 

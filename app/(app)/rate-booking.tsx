@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,37 +12,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
-import { isBookingRowUuid } from '../../lib/bookings';
+import { fetchBookingById, isBookingRowUuid } from '../../lib/bookings';
 import { insertRating } from '../../lib/ratings';
+import { trimUserId } from '../../lib/userId';
 import { useAuth } from '../../contexts/AuthContext';
 
 function pickSearchParam(v: string | string[] | undefined): string {
   if (Array.isArray(v)) return String(v[0] ?? '').trim();
   return typeof v === 'string' ? v.trim() : '';
-}
-
-/** Clerk user ids commonly look like `user_...`; used only as extra swap hint. */
-function looksLikeClerkUserId(value: string): boolean {
-  return /^user_[a-zA-Z0-9]+$/.test(value.trim());
-}
-
-/**
- * Ensures `bookingId` is the booking row UUID and `driverClerkId` is the driver's Clerk id.
- * Some Expo Router / web builds deliver the two search params reversed.
- */
-function normalizeRatingRouteParams(
-  bookingIdRaw: string,
-  driverClerkIdRaw: string,
-): { bookingId: string; driverClerkId: string } {
-  const p = bookingIdRaw.trim();
-  const q = driverClerkIdRaw.trim();
-  const pUuid = isBookingRowUuid(p);
-  const qUuid = isBookingRowUuid(q);
-  if (pUuid && !qUuid) return { bookingId: p, driverClerkId: q };
-  if (!pUuid && qUuid) return { bookingId: q, driverClerkId: p };
-  if (looksLikeClerkUserId(p) && qUuid) return { bookingId: q, driverClerkId: p };
-  if (looksLikeClerkUserId(q) && pUuid) return { bookingId: p, driverClerkId: q };
-  return { bookingId: p, driverClerkId: q };
 }
 
 export default function RateBookingScreen() {
@@ -52,15 +29,13 @@ export default function RateBookingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const params = searchParams as {
-    bookingId?: string | string[];
-    driverClerkId?: string | string[];
-  };
-  const { bookingId, driverClerkId } = normalizeRatingRouteParams(
-    pickSearchParam(params.bookingId),
-    pickSearchParam(params.driverClerkId),
-  );
+  const params = searchParams as Record<string, string | string[] | undefined>;
+  const bookingId = pickSearchParam(params.bookingId);
   const companyId = user?.id ?? '';
+
+  const [driverId, setDriverId] = useState('');
+  const [loadingBooking, setLoadingBooking] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   /** 1–5; persisted as `ratings.overall`. */
   const [overall, setOverall] = useState(0);
@@ -68,17 +43,61 @@ export default function RateBookingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadBooking = useCallback(async () => {
+    setLoadError(null);
+    setDriverId('');
+    if (!bookingId || !companyId) {
+      setLoadError(t('rateBookingScreen.errorLoad'));
+      setLoadingBooking(false);
+      return;
+    }
+    if (!isBookingRowUuid(bookingId)) {
+      setLoadError(t('rateBookingScreen.errorLoad'));
+      setLoadingBooking(false);
+      return;
+    }
+    setLoadingBooking(true);
+    const { data, error: fetchErr } = await fetchBookingById(bookingId, companyId);
+    setLoadingBooking(false);
+    if (fetchErr || !data) {
+      setLoadError(t('rateBookingScreen.errorLoad'));
+      return;
+    }
+    if (data.status !== 'completed') {
+      setLoadError(t('rateBookingScreen.errorLoad'));
+      return;
+    }
+    const assignedDriverId = trimUserId(data.driver_id);
+    if (!assignedDriverId) {
+      setLoadError(t('rateBookingScreen.errorLoad'));
+      return;
+    }
+    const driverIdFromUrl = trimUserId(pickSearchParam(params.driverId));
+    if (driverIdFromUrl && driverIdFromUrl !== assignedDriverId) {
+      setLoadError(t('rateBookingScreen.errorLoad'));
+      return;
+    }
+    setDriverId(assignedDriverId);
+  }, [bookingId, companyId, params.driverId, t]);
+
+  useEffect(() => {
+    void loadBooking();
+  }, [loadBooking]);
+
   function skip() {
     router.back();
   }
 
   async function submit() {
     setError(null);
-    if (!bookingId || !driverClerkId || !companyId) {
+    if (loadError || loadingBooking) {
+      return;
+    }
+    if (!bookingId || !driverId || !companyId) {
       setError(t('rateBookingScreen.errorLoad'));
       return;
     }
-    if (!isBookingRowUuid(bookingId) || !driverClerkId || isBookingRowUuid(driverClerkId)) {
+    if (!isBookingRowUuid(bookingId)) {
       setError(t('rateBookingScreen.errorLoad'));
       return;
     }
@@ -90,7 +109,7 @@ export default function RateBookingScreen() {
     const { error: err } = await insertRating(
       bookingId,
       companyId,
-      driverClerkId,
+      driverId,
       overall,
       comment.trim() || null,
     );
@@ -101,6 +120,9 @@ export default function RateBookingScreen() {
     }
     router.replace('/(app)/dashboard');
   }
+
+  const screenError = loadError ?? error;
+  const formDisabled = loadingBooking || !!loadError || submitting;
 
   return (
     <ScrollView
@@ -114,38 +136,52 @@ export default function RateBookingScreen() {
       <Text style={styles.title}>{t('rateBookingScreen.title')}</Text>
       <Text style={styles.sub}>{t('rateBookingScreen.subtitle')}</Text>
 
-      <View style={styles.starsRow}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <Pressable key={n} onPress={() => setOverall(n)} style={styles.starHit}>
-            <Text style={[styles.star, n <= overall ? styles.starOn : styles.starOff]}>★</Text>
-          </Pressable>
-        ))}
-      </View>
+      {loadingBooking ? (
+        <View style={styles.loading}>
+          <ActivityIndicator color={COLORS.gold} size="large" />
+        </View>
+      ) : (
+        <>
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Pressable
+                key={n}
+                onPress={() => setOverall(n)}
+                style={styles.starHit}
+                disabled={formDisabled}
+              >
+                <Text style={[styles.star, n <= overall ? styles.starOn : styles.starOff]}>★</Text>
+              </Pressable>
+            ))}
+          </View>
 
-      <Text style={styles.label}>{t('rateBookingScreen.comment')}</Text>
-      <TextInput
-        value={comment}
-        onChangeText={setComment}
-        placeholder={t('rateBookingScreen.comment')}
-        placeholderTextColor={COLORS.gray}
-        style={styles.input}
-        multiline
-        textAlignVertical="top"
-      />
+          <Text style={styles.label}>{t('rateBookingScreen.comment')}</Text>
+          <TextInput
+            value={comment}
+            onChangeText={setComment}
+            placeholder={t('rateBookingScreen.comment')}
+            placeholderTextColor={COLORS.gray}
+            style={styles.input}
+            multiline
+            textAlignVertical="top"
+            editable={!formDisabled}
+          />
+        </>
+      )}
 
-      {error ? (
+      {screenError ? (
         <View style={styles.errBox}>
-          <Text style={styles.errText}>{error}</Text>
+          <Text style={styles.errText}>{screenError}</Text>
         </View>
       ) : null}
 
       <Pressable
         onPress={() => void submit()}
-        disabled={submitting}
+        disabled={formDisabled}
         style={({ pressed }) => [
           styles.primary,
           (pressed || submitting) && styles.primaryPressed,
-          submitting && styles.primaryDisabled,
+          formDisabled && styles.primaryDisabled,
         ]}
       >
         {submitting ? (
@@ -169,6 +205,11 @@ const styles = StyleSheet.create({
   },
   inner: {
     paddingHorizontal: SPACING.lg,
+  },
+  loading: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    marginBottom: SPACING.xl,
   },
   title: {
     color: COLORS.text,

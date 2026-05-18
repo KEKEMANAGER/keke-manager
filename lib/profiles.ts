@@ -158,33 +158,32 @@ export async function clearProfilePushToken(userId: string): Promise<{ ok: boole
   return { ok: true, error: null };
 }
 
-/** Whether this driver's saved profile matches a booking's vehicle requirements. */
+/** Whether this driver has an active vehicle matching the booking type and class. */
 export async function driverProfileMatchesBooking(
   userId: string,
   bookingVehicleType: string,
   bookingVehicleClass: string | null | undefined,
 ): Promise<boolean> {
   const bookingType = normalizeVehicleType(bookingVehicleType);
-  if (!bookingType) return false;
+  const bookingClass = normalizeVehicleClass(bookingVehicleClass ?? '');
+  if (!bookingType || !bookingClass) return false;
 
-  const rawCls = bookingVehicleClass;
-  const hasExplicitBookingClass =
-    rawCls != null && String(rawCls).trim() !== '';
+  const id = userId.trim();
+  if (!id) return false;
 
-  const bookingClass = hasExplicitBookingClass ? normalizeVehicleClass(String(rawCls)) : null;
-  if (hasExplicitBookingClass && !bookingClass) {
+  const { data, error } = await supabase
+    .from('vehicles')
+    .select('id')
+    .eq('driver_id', id)
+    .eq('is_active', true)
+    .eq('type', bookingType)
+    .eq('class', bookingClass)
+    .limit(1);
+
+  if (error) {
+    if (__DEV__) console.warn('[driverProfileMatchesBooking]', error.message);
     return false;
   }
 
-  const { data: profile } = await fetchDriverProfile(userId);
-  if (!profile?.vehicle_type || !profile?.vehicle_class) {
-    return false;
-  }
-
-  const profileType = normalizeVehicleType(profile.vehicle_type);
-  const profileClass = normalizeVehicleClass(profile.vehicle_class);
-  if (!profileType || !profileClass || profileType !== bookingType) return false;
-
-  if (!bookingClass) return true;
-  return profileClass === bookingClass;
+  return (data?.length ?? 0) > 0;
 }

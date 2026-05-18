@@ -3,7 +3,10 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
   Pressable,
+  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -12,10 +15,11 @@ import type { KekeRole } from '../../contexts/AuthContext';
 import {
   deleteAdminUser,
   fetchAdminUsers,
-  updateAdminUser,
+  setAdminUserBlocked,
+  setAdminUserRole,
   type AdminUserRow,
 } from '../../lib/adminPanel';
-import { COLORS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 
 export function AdminUsersSection() {
@@ -24,12 +28,14 @@ export function AdminUsersSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [roleTarget, setRoleTarget] = useState<AdminUserRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     const { data, error: err } = await fetchAdminUsers();
-    setLoading(false);
+    if (!silent) setLoading(false);
     if (err) {
       setError(err.message);
       setRows([]);
@@ -53,51 +59,66 @@ export function AdminUsersSection() {
   }
 
   async function toggleBlock(u: AdminUserRow) {
+    const nextBlocked = !u.is_blocked;
     setActingId(u.id);
-    const { error: err } = await updateAdminUser(u.id, { is_blocked: !u.is_blocked });
+    const { error: err } = await setAdminUserBlocked(u.id, nextBlocked);
     setActingId(null);
     if (err) {
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
-    await load();
+    setRows((prev) =>
+      prev.map((r) => (r.id === u.id ? { ...r, is_blocked: nextBlocked } : r)),
+    );
+    void load(true);
+  }
+
+  async function applyRoleForUser(userId: string, role: KekeRole) {
+    setActingId(userId);
+    const { error: err } = await setAdminUserRole(userId, role);
+    setActingId(null);
+    if (err) {
+      Alert.alert(t('system.errorTitle'), err.message);
+      return;
+    }
+    setRows((prev) => prev.map((r) => (r.id === userId ? { ...r, role } : r)));
+    void load(true);
   }
 
   function changeRole(u: AdminUserRow) {
-    const apply = (role: KekeRole) => {
-      void (async () => {
-        setActingId(u.id);
-        const { error: err } = await updateAdminUser(u.id, { role });
-        setActingId(null);
-        if (err) Alert.alert(t('system.errorTitle'), err.message);
-        else await load();
-      })();
-    };
+    if (Platform.OS === 'web') {
+      setRoleTarget(u);
+      return;
+    }
     Alert.alert(t('adminPanel.changeRole'), u.email ?? u.full_name ?? '—', [
-      { text: t('adminPanel.typeDriver'), onPress: () => apply('driver') },
-      { text: t('adminPanel.typeCompany'), onPress: () => apply('company') },
-      { text: t('common.admin'), onPress: () => apply('admin') },
+      { text: t('adminPanel.typeDriver'), onPress: () => void applyRoleForUser(u.id, 'driver') },
+      { text: t('adminPanel.typeCompany'), onPress: () => void applyRoleForUser(u.id, 'company') },
+      { text: t('common.admin'), onPress: () => void applyRoleForUser(u.id, 'admin') },
       { text: t('common.cancel'), style: 'cancel' },
     ]);
   }
 
+  function applyRoleFromModal(role: KekeRole) {
+    if (!roleTarget) return;
+    const userId = roleTarget.id;
+    setRoleTarget(null);
+    void applyRoleForUser(userId, role);
+  }
+
   function confirmDelete(u: AdminUserRow) {
-    Alert.alert(t('adminPanel.deleteTitle'), t('adminPanel.deleteMessage'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('adminPanel.deleteConfirm'),
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setActingId(u.id);
-            const { error: err } = await deleteAdminUser(u.id);
-            setActingId(null);
-            if (err) Alert.alert(t('system.errorTitle'), err.message);
-            else await load();
-          })();
-        },
-      },
-    ]);
+    setDeleteTarget(u);
+  }
+
+  async function runDelete(userId: string) {
+    setDeleteTarget(null);
+    setActingId(userId);
+    const { error: err } = await deleteAdminUser(userId);
+    setActingId(null);
+    if (err) {
+      Alert.alert(t('system.errorTitle'), err.message);
+      return;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== userId));
   }
 
   if (loading) {
@@ -133,9 +154,12 @@ export function AdminUsersSection() {
             ) : null}
             <View style={adminStyles.btnRow}>
               <Pressable
-                onPress={() => void toggleBlock(u)}
+                onPress={() => toggleBlock(u)}
                 disabled={actingId === u.id}
-                style={adminStyles.btnOutline}
+                style={({ pressed }) => [
+                  adminStyles.btnOutline,
+                  pressed && { opacity: 0.88 },
+                ]}
               >
                 <Text style={adminStyles.btnOutlineText}>
                   {u.is_blocked ? t('adminPanel.unblock') : t('adminPanel.block')}
@@ -144,14 +168,14 @@ export function AdminUsersSection() {
               <Pressable
                 onPress={() => changeRole(u)}
                 disabled={actingId === u.id}
-                style={adminStyles.btnGold}
+                style={({ pressed }) => [adminStyles.btnGold, pressed && { opacity: 0.88 }]}
               >
                 <Text style={adminStyles.btnGoldText}>{t('adminPanel.changeRole')}</Text>
               </Pressable>
               <Pressable
                 onPress={() => confirmDelete(u)}
                 disabled={actingId === u.id}
-                style={adminStyles.btnDanger}
+                style={({ pressed }) => [adminStyles.btnDanger, pressed && { opacity: 0.88 }]}
               >
                 <Text style={adminStyles.btnDangerText}>{t('adminPanel.delete')}</Text>
               </Pressable>
@@ -159,6 +183,126 @@ export function AdminUsersSection() {
           </View>
         ))
       )}
+
+      <Modal
+        visible={!!roleTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRoleTarget(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setRoleTarget(null)}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('adminPanel.changeRole')}</Text>
+            <Text style={styles.modalSub}>
+              {roleTarget?.full_name?.trim() || roleTarget?.email || '—'}
+            </Text>
+            {(['driver', 'company', 'admin'] as const).map((role) => (
+              <Pressable
+                key={role}
+                onPress={() => applyRoleFromModal(role)}
+                style={({ pressed }) => [styles.roleBtn, pressed && { opacity: 0.88 }]}
+              >
+                <Text style={styles.roleBtnText}>
+                  {role === 'driver'
+                    ? t('adminPanel.typeDriver')
+                    : role === 'company'
+                      ? t('adminPanel.typeCompany')
+                      : t('common.admin')}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => setRoleTarget(null)} style={styles.modalCancel}>
+              <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={!!deleteTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteTarget(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setDeleteTarget(null)}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('adminPanel.deleteTitle')}</Text>
+            <Text style={styles.modalSub}>{t('adminPanel.deleteMessage')}</Text>
+            <Text style={styles.modalSub}>
+              {deleteTarget?.full_name?.trim() || deleteTarget?.email || '—'}
+            </Text>
+            <Pressable
+              onPress={() => deleteTarget && void runDelete(deleteTarget.id)}
+              style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.88 }]}
+            >
+              <Text style={styles.deleteBtnText}>{t('adminPanel.deleteConfirm')}</Text>
+            </Pressable>
+            <Pressable onPress={() => setDeleteTarget(null)} style={styles.modalCancel}>
+              <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  modalCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: SPACING.sm,
+  },
+  modalTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: SPACING.xs,
+  },
+  modalSub: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    marginBottom: SPACING.sm,
+  },
+  roleBtn: {
+    backgroundColor: COLORS.gold,
+    borderRadius: RADIUS.button,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  roleBtnText: {
+    color: '#0f0f0f',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  modalCancel: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: SPACING.xs,
+  },
+  modalCancelText: {
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  deleteBtn: {
+    backgroundColor: COLORS.error,
+    borderRadius: RADIUS.button,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+  },
+  deleteBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+});

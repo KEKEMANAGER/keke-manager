@@ -1,15 +1,15 @@
 import { supabase } from './supabase';
 
 /**
- * Inserts a rating row. DB columns `booking_id`, `company_id`, `driver_id` are **text**
- * (booking uuid as string + Clerk user ids), not Postgres uuid.
+ * Inserts a rating row. DB columns `booking_id`, `company_id`, `driver_id` are text
+ * (booking uuid as string + Supabase user ids), not Postgres uuid.
  */
 export async function insertRating(
   /** `bookings.id` (uuid as string). */
   bookingId: string,
-  /** Clerk company user id (text). */
+  /** Company Supabase user id. */
   companyId: string,
-  /** Clerk driver user id (text). */
+  /** Driver Supabase user id. */
   driverId: string,
   overall: number,
   comment: string | null,
@@ -24,7 +24,7 @@ export async function insertRating(
   return { error };
 }
 
-export async function fetchDriverAverageRating(driverClerkId: string): Promise<{
+export async function fetchDriverAverageRating(driverUserId: string): Promise<{
   average: number;
   count: number;
   error: Error | null;
@@ -32,7 +32,7 @@ export async function fetchDriverAverageRating(driverClerkId: string): Promise<{
   const { data, error } = await supabase
     .from('ratings')
     .select('overall')
-    .eq('driver_id', driverClerkId);
+    .eq('driver_id', driverUserId);
   if (error || !data?.length) {
     return { average: 0, count: 0, error: error ? new Error(error.message) : null };
   }

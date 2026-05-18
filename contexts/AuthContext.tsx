@@ -43,6 +43,17 @@ export type Profile = {
   rejection_reason: string | null;
   is_hired_driver: boolean | null;
   available_for_hire: boolean | null;
+  company_email: string | null;
+  company_phone: string | null;
+  company_id_code: string | null;
+  company_director: string | null;
+};
+
+export type CompanySignUpMeta = {
+  company_email: string;
+  company_phone: string;
+  company_id_code: string;
+  company_director: string;
 };
 
 type AuthContextValue = {
@@ -57,22 +68,48 @@ type AuthContextValue = {
     password: string,
     fullName: string,
     role: KekeRole,
-    options?: { isHiredDriver?: boolean },
+    options?: { isHiredDriver?: boolean; company?: CompanySignUpMeta },
   ) => ReturnType<typeof supabase.auth.signUp>;
   signOut: () => ReturnType<typeof supabase.auth.signOut>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const USER_PROFILE_SELECT =
+  'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, available_for_hire, company_email, company_phone, company_id_code, company_director';
+
 async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data, error } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
-  if (error) {
+  const [usersRes, profilesRes] = await Promise.all([
+    supabase.from('users').select(USER_PROFILE_SELECT).eq('id', userId).maybeSingle(),
+    supabase.from('profiles').select('is_verified').eq('id', userId).maybeSingle(),
+  ]);
+
+  if (usersRes.error) {
     if (__DEV__) {
-      console.warn('[AuthContext] fetchProfile', error.message);
+      console.warn('[AuthContext] fetchProfile users', usersRes.error.message);
     }
     return null;
   }
-  return data as Profile | null;
+  if (!usersRes.data) return null;
+
+  const row = usersRes.data as Profile;
+  const profilesVerified = (profilesRes.data as { is_verified?: boolean | null } | null)?.is_verified;
+  const isVerified = row.is_verified === true || profilesVerified === true;
+
+  return { ...row, is_verified: isVerified };
+}
+
+async function waitForUserRow(
+  client: typeof supabase,
+  userId: string,
+  maxRetries = 10,
+): Promise<boolean> {
+  for (let i = 0; i < maxRetries; i++) {
+    const { data } = await client.from('users').select('id').eq('id', userId).single();
+    if (data) return true;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return false;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -208,9 +245,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string,
       fullName: string,
       role: KekeRole,
-      options?: { isHiredDriver?: boolean },
+      options?: { isHiredDriver?: boolean; company?: CompanySignUpMeta },
     ) => {
     const isHiredDriver = role === 'driver' && !!options?.isHiredDriver;
+    const companyMeta = role === 'company' ? options?.company : undefined;
     const result = await supabase.auth.signUp({
       email,
       password,
@@ -219,19 +257,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           role,
           is_hired_driver: isHiredDriver,
+          ...(companyMeta
+            ? {
+                company_email: companyMeta.company_email,
+                company_phone: companyMeta.company_phone,
+                company_id_code: companyMeta.company_id_code,
+                company_director: companyMeta.company_director,
+              }
+            : {}),
         },
       },
     });
     if (!result.error && result.data.user?.id) {
       const userId = result.data.user.id;
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ role, is_hired_driver: isHiredDriver })
-        .eq('id', userId);
-      if (updateError && __DEV__) {
-        console.warn('[AuthContext] signUp role update', updateError.message);
-      } else {
-        const row = await fetchProfile(userId);
+      const userPatch: Record<string, unknown> = {
+        role,
+        is_hired_driver: isHiredDriver,
+        full_name: fullName,
+        email: email.trim(),
+      };
+      if (companyMeta) {
+        userPatch.company_email = companyMeta.company_email;
+        userPatch.company_phone = companyMeta.company_phone;
+        userPatch.company_id_code = companyMeta.company_id_code;
+        userPatch.company_director = companyMeta.company_director;
+      }
+      const rowReady = await waitForUserRow(supabase, userId);
+      if (rowReady) {
+        const { error: updateError } = await supabase.from('users').update(userPatch).eq('id', userId);
+        if (updateError && __DEV__) {
+          console.warn('[AuthContext] signUp role update', updateError.message);
+        }
+      } else if (__DEV__) {
+        console.warn('[AuthContext] signUp: public.users row not ready after retries', userId);
+      }
+      const row = await fetchProfile(userId);
+      if (row) {
         setProfile(row);
         setUser(result.data.user);
         setSession(result.data.session ?? null);
