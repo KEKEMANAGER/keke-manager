@@ -45,3 +45,6 @@ yarn-error.*
 .env.local
 .env.production
 .env.development
+
+# Cursor / Claude local settings
+.claude/

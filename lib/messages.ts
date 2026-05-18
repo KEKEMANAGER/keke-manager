@@ -1,4 +1,8 @@
 import { supabase } from './supabase';
+import { trimUserId } from './userId';
+
+/** Bookings where company and driver may chat (assigned driver required). */
+const CHAT_BOOKING_STATUSES = ['accepted', 'confirmed', 'in_progress', 'completed'] as const;
 
 export type MessageRow = {
   id: string;
@@ -65,14 +69,51 @@ export async function markMessagesRead(
     .eq('is_read', false);
 }
 
+async function mergeChatPartnersFromBookings(
+  userId: string,
+  seen: Map<string, { last_text: string; last_at: string; unread_count: number }>,
+): Promise<Error | null> {
+  const id = trimUserId(userId);
+  if (!id) return null;
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('company_id, driver_id, updated_at')
+    .or(`company_id.eq.${id},driver_id.eq.${id}`)
+    .in('status', [...CHAT_BOOKING_STATUSES])
+    .not('driver_id', 'is', null);
+
+  if (error) return new Error(error.message);
+
+  for (const row of data ?? []) {
+    const companyId = trimUserId((row as { company_id: string }).company_id);
+    const driverId = trimUserId((row as { driver_id: string | null }).driver_id);
+    const otherId = companyId === id ? driverId : companyId;
+    if (!otherId || otherId === id) continue;
+
+    const at = String((row as { updated_at?: string }).updated_at ?? '').trim() || new Date().toISOString();
+    const existing = seen.get(otherId);
+    if (!existing) {
+      seen.set(otherId, { last_text: '', last_at: at, unread_count: 0 });
+    } else if (at > existing.last_at) {
+      existing.last_at = at;
+    }
+  }
+
+  return null;
+}
+
 export async function fetchConversations(userId: string): Promise<{
   data: ConversationRow[];
   error: Error | null;
 }> {
+  const id = trimUserId(userId);
+  if (!id) return { data: [], error: null };
+
   const { data, error } = await supabase
     .from('messages')
     .select('sender_id, receiver_id, text, is_read, created_at')
-    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    .or(`sender_id.eq.${id},receiver_id.eq.${id}`)
     .order('created_at', { ascending: false });
 
   if (error) return { data: [], error: new Error(error.message) };
@@ -82,18 +123,21 @@ export async function fetchConversations(userId: string): Promise<{
 
   const seen = new Map<string, { last_text: string; last_at: string; unread_count: number }>();
   for (const msg of rows) {
-    const otherId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+    const otherId = msg.sender_id === id ? msg.receiver_id : msg.sender_id;
     if (!seen.has(otherId)) {
       seen.set(otherId, {
         last_text: msg.text,
         last_at: msg.created_at,
-        unread_count: msg.receiver_id === userId && !msg.is_read ? 1 : 0,
+        unread_count: msg.receiver_id === id && !msg.is_read ? 1 : 0,
       });
     } else {
       const c = seen.get(otherId)!;
-      if (msg.receiver_id === userId && !msg.is_read) c.unread_count++;
+      if (msg.receiver_id === id && !msg.is_read) c.unread_count++;
     }
   }
+
+  const bookingErr = await mergeChatPartnersFromBookings(id, seen);
+  if (bookingErr) return { data: [], error: bookingErr };
 
   const otherIds = Array.from(seen.keys());
   if (otherIds.length === 0) return { data: [], error: null };
@@ -107,14 +151,15 @@ export async function fetchConversations(userId: string): Promise<{
     ((users ?? []) as { id: string; full_name: string | null }[]).map((u) => [u.id, u.full_name]),
   );
 
-  return {
-    data: Array.from(seen.entries()).map(([otherId, c]) => ({
+  const conversations: ConversationRow[] = Array.from(seen.entries())
+    .map(([otherId, c]) => ({
       other_user_id: otherId,
       other_user_name: nameMap.get(otherId) ?? null,
       ...c,
-    })),
-    error: null,
-  };
+    }))
+    .sort((a, b) => b.last_at.localeCompare(a.last_at));
+
+  return { data: conversations, error: null };
 }
 
 export function subscribeToMessages(
