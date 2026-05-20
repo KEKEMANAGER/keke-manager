@@ -1,0 +1,10 @@
+
+D:\keke-manager-app\lib\driverSchedules.ts
+  12:1  warning  Import in body of module; reorder to top  import/first
+
+D:\keke-manager-app\lib\notifications.ts
+  150:9  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+✖ 2 problems (0 errors, 2 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+

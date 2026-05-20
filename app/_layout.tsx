@@ -16,7 +16,8 @@ import AnimatedSplash from '../components/AnimatedSplash';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { LogoutButton } from '../components/LogoutButton';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
-import { COLORS, SPACING } from '../constants/theme';
+import { COLORS } from '../constants/theme';
+import '../lib/backgroundLocation';
 import {
   configureNotificationHandler,
   ensureAndroidNotificationChannel,
@@ -51,6 +52,7 @@ function PushNotificationRegistration() {
 type BookingPushTapPayload = {
   type?: string;
   booking_id?: string;
+  sender_id?: string;
 };
 
 function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | undefined): boolean {
@@ -60,6 +62,10 @@ function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | unde
     payloadType === 'booking_confirmed' ||
     payloadType === 'test'
   );
+}
+
+function isChatTapPayload(data: BookingPushTapPayload | undefined): boolean {
+  return data?.type === 'chat_message' && !!data?.sender_id;
 }
 
 function PushNotificationListeners() {
@@ -74,6 +80,22 @@ function PushNotificationListenersNative() {
   const router = useRouter();
   const role = getUserRole(profile);
   const handledOpenRef = useRef<string | null>(null);
+
+  const navigateChatFromTap = useCallback(
+    (response: Notifications.NotificationResponse) => {
+      if (!role) return;
+      const data = response.notification.request.content.data as BookingPushTapPayload | undefined;
+      if (!isChatTapPayload(data)) return;
+      const id = response.notification.request.identifier;
+      if (handledOpenRef.current === id) return;
+      handledOpenRef.current = id;
+      const senderId = String(data?.sender_id ?? '').trim();
+      if (!senderId) return;
+      const pathname = role === 'driver' ? '/(driver)/chat' : '/(app)/chat';
+      router.push({ pathname, params: { uid: senderId, name: '' } });
+    },
+    [role, router],
+  );
 
   const navigateDriverBookingFromTap = useCallback(
     (response: Notifications.NotificationResponse) => {
@@ -96,9 +118,16 @@ function PushNotificationListenersNative() {
   const lastOpenedFromNotification = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
-    if (!lastOpenedFromNotification || role !== 'driver') return;
-    navigateDriverBookingFromTap(lastOpenedFromNotification);
-  }, [lastOpenedFromNotification, role, navigateDriverBookingFromTap]);
+    if (!lastOpenedFromNotification) return;
+    const data = lastOpenedFromNotification.notification.request.content.data as
+      | BookingPushTapPayload
+      | undefined;
+    if (isChatTapPayload(data)) {
+      navigateChatFromTap(lastOpenedFromNotification);
+    } else if (role === 'driver') {
+      navigateDriverBookingFromTap(lastOpenedFromNotification);
+    }
+  }, [lastOpenedFromNotification, role, navigateChatFromTap, navigateDriverBookingFromTap]);
 
   useEffect(() => {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
@@ -151,14 +180,19 @@ function PushNotificationListenersNative() {
     });
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      navigateDriverBookingFromTap(response);
+      const data = response.notification.request.content.data as BookingPushTapPayload | undefined;
+      if (isChatTapPayload(data)) {
+        navigateChatFromTap(response);
+      } else {
+        navigateDriverBookingFromTap(response);
+      }
     });
 
     return () => {
       receivedSub.remove();
       responseSub.remove();
     };
-  }, [navigateDriverBookingFromTap, role, router, t, user?.id]);
+  }, [navigateChatFromTap, navigateDriverBookingFromTap, role, router, t, user?.id]);
 
   return null;
 }

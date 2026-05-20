@@ -29,7 +29,6 @@ import {
   insertBooking,
   normalizeBookingKind,
   type BookingType as DbBookingType,
-  type FlightDirection,
   type ItineraryDay,
   type TourTransferLeg,
 } from '../../lib/bookings';
@@ -810,10 +809,6 @@ export default function NewBookingScreen() {
       return null;
     }
     return t('newBooking.validation.kind');
-  }
-
-  function canAdvanceFrom2(): boolean {
-    return validateStep2() === null;
   }
 
   function resetWizard() {

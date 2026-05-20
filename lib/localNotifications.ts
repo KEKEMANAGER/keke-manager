@@ -4,9 +4,11 @@ import { driverProfileMatchesBooking } from './profiles';
 import {
   BOOKINGS_CHANNEL_ID,
   getBookingConfirmedNotificationContent,
+  getChatMessageNotificationContent,
   getNewBookingNotificationContent,
   normalizePushBookingKind,
 } from './notifications';
+import { supabase } from './supabase';
 
 const isWeb = Platform.OS === 'web';
 
@@ -76,4 +78,47 @@ export async function notifyNewOpenBookingIfMatchesDriver(
   }
 
   await notifyNewOpenBooking(bookingKind);
+}
+
+let lastChatLocalNotifyAt = 0;
+
+/**
+ * Local banner for an incoming chat message (foreground / app open but not on that chat).
+ * `senderName` falls back to a lookup on `users` when omitted.
+ */
+export async function notifyIncomingChatMessageLocally(params: {
+  senderUserId: string;
+  senderName?: string | null;
+  text: string;
+}): Promise<void> {
+  if (isWeb) return;
+  const now = Date.now();
+  if (now - lastChatLocalNotifyAt < 1500) return;
+  lastChatLocalNotifyAt = now;
+
+  let name = String(params.senderName ?? '').trim();
+  if (!name) {
+    const senderId = String(params.senderUserId ?? '').trim();
+    if (senderId) {
+      const { data } = await supabase
+        .from('users')
+        .select('full_name')
+        .eq('id', senderId)
+        .maybeSingle();
+      name = (data as { full_name?: string | null } | null)?.full_name?.trim() ?? '';
+    }
+  }
+
+  const { title, body } = getChatMessageNotificationContent(name, params.text);
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: 'default',
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      data: { type: 'chat_message', sender_id: String(params.senderUserId ?? '') },
+      ...androidChannel(),
+    },
+    trigger: null,
+  });
 }

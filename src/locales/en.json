@@ -419,7 +419,9 @@
     "noToken": "No push token — allow notifications and use a physical device",
     "matchingVehicleInvalid": "Could not resolve the booking vehicle type.",
     "anyVehicleClass": "any class",
-    "matchingNoDrivers": "No matching drivers ({{type}}, {{class}})."
+    "matchingNoDrivers": "No matching drivers ({{type}}, {{class}}).",
+    "newChatTitle": "{{name}}",
+    "newChatBody": "You have a new message"
   },
   "booking": {
     "status": {
@@ -636,7 +638,11 @@
     "active": "GPS active 🟢",
     "inactive": "GPS off",
     "endTour": "End tour",
-    "startTour": "Start tour"
+    "startTour": "Start tour",
+    "bgServiceTitle": "KEKE · GPS active",
+    "bgServiceBody": "Sharing your location with the company while the trip is active.",
+    "bgPermissionDeniedTitle": "Background location needed",
+    "bgPermissionDeniedBody": "To keep tracking the trip when the app is closed, allow location access \"Always\" in system settings."
   },
   "tracking": {
     "title": "Driver Tracking",

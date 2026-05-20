@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Platform,
@@ -14,7 +14,10 @@ import { useTranslation } from 'react-i18next';
 import { TabBarIcon } from '../../components/TabBarIcon';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
+import { subscribeToConversationList } from '../../lib/messages';
 import { isHiredDriver } from '../../lib/role';
+import { supabase } from '../../lib/supabase';
 
 const DRAWER_WIDTH = 280;
 
@@ -53,6 +56,21 @@ export default function DriverTabsLayout() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const drawerAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = subscribeToConversationList(user.id, (msg) => {
+      if (msg && msg.sender_id !== user.id) {
+        void notifyIncomingChatMessageLocally({
+          senderUserId: msg.sender_id,
+          text: msg.text,
+        });
+      }
+    });
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   function openDrawer() {
     setDrawerVisible(true);

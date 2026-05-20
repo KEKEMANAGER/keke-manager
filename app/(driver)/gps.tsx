@@ -1,11 +1,17 @@
 import * as Location from 'expo-location';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+  isBackgroundLocationRunning,
+  startBackgroundLocation,
+  stopBackgroundLocation,
+} from '../../lib/backgroundLocation';
 import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
 
 const TBILISI: Region = {
@@ -19,8 +25,10 @@ export default function DriverGpsScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ autoStart?: string; bookingId?: string }>();
   const mapRef = useRef<MapView | null>(null);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
+  const autoStartHandledRef = useRef(false);
 
   const [isTracking, setIsTracking] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(
@@ -34,9 +42,84 @@ export default function DriverGpsScreen() {
     }
   }, []);
 
+  /** Smooth foreground subscription for the visible map. Background task handles DB upserts when minimized. */
+  const attachForegroundWatch = useCallback(async () => {
+    if (Platform.OS === 'web') return;
+    if (watchRef.current) return;
+    const sub = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 4000,
+        distanceInterval: 10,
+      },
+      (loc) => {
+        const { latitude, longitude } = loc.coords;
+        setCurrentLocation({ latitude, longitude });
+        if (user?.id) {
+          void upsertDriverLocation(user.id, latitude, longitude).then(({ error }) => {
+            if (error && __DEV__) console.warn('[gps] upsertDriverLocation:', error.message);
+          });
+        }
+      },
+    );
+    watchRef.current = sub;
+  }, [user?.id]);
+
+  const startTracking = useCallback(async () => {
+    if (Platform.OS === 'web') return;
+    if (!user?.id) return;
+
+    const result = await startBackgroundLocation({
+      driverId: user.id,
+      bookingId: params.bookingId ?? null,
+      notificationTitle: t('gpsScreen.bgServiceTitle'),
+      notificationBody: t('gpsScreen.bgServiceBody'),
+    });
+
+    if (!result.ok) {
+      if (result.reason === 'foreground_denied') {
+        Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
+      }
+      return;
+    }
+
+    if (!result.backgroundGranted) {
+      Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
+    }
+
+    setIsTracking(true);
+    await attachForegroundWatch();
+  }, [user?.id, params.bookingId, t, attachForegroundWatch]);
+
   useEffect(() => {
     void Location.requestForegroundPermissionsAsync();
   }, []);
+
+  /** Restore tracking state if background task is already running (e.g. screen re-mounted mid-trip). */
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let cancelled = false;
+    void (async () => {
+      const running = await isBackgroundLocationRunning();
+      if (cancelled) return;
+      if (running) {
+        setIsTracking(true);
+        await attachForegroundWatch();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [attachForegroundWatch]);
+
+  useEffect(() => {
+    if (autoStartHandledRef.current) return;
+    if (params.autoStart !== '1') return;
+    if (isTracking) return;
+    if (Platform.OS === 'web') return;
+    autoStartHandledRef.current = true;
+    void startTracking();
+  }, [params.autoStart, isTracking, startTracking]);
 
   useEffect(() => {
     if (!isTracking || !currentLocation || Platform.OS === 'web') return;
@@ -48,40 +131,20 @@ export default function DriverGpsScreen() {
     });
   }, [isTracking, currentLocation]);
 
+  /** Unmount cleanup: detach the foreground watch only. Leave the background task running. */
   useEffect(() => {
     return () => {
       stopWatch();
     };
   }, [stopWatch]);
 
-  async function startTracking() {
-    if (Platform.OS === 'web') return;
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return;
-
-    setIsTracking(true);
-    const sub = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 4000,
-        distanceInterval: 10,
-      },
-      (loc) => {
-        const { latitude, longitude } = loc.coords;
-        setCurrentLocation({ latitude, longitude });
-        if (user?.id) {
-          void upsertDriverLocation(user.id, latitude, longitude);
-        }
-      },
-    );
-    watchRef.current = sub;
-  }
-
-  function endTour() {
+  async function endTour() {
     stopWatch();
+    await stopBackgroundLocation();
     setIsTracking(false);
     if (user?.id) {
-      void clearDriverLocation(user.id);
+      const { error } = await clearDriverLocation(user.id);
+      if (error && __DEV__) console.warn('[gps] clearDriverLocation:', error.message);
     }
   }
 
@@ -118,7 +181,13 @@ export default function DriverGpsScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.md }]}>
         <Pressable
-          onPress={() => void (isTracking ? endTour() : startTracking())}
+          onPress={() => {
+            if (isTracking) {
+              void endTour();
+            } else {
+              void startTracking();
+            }
+          }}
           style={({ pressed }) => [
             styles.toggle,
             isTracking ? styles.toggleEnd : styles.toggleStart,

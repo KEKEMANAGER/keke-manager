@@ -32,6 +32,7 @@ import {
 } from '../../lib/bookings';
 import { AppLogo } from '../../components/AppLogo';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { UserAvatar } from '../../components/UserAvatar';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
@@ -215,7 +216,9 @@ export default function CompanyDashboardScreen() {
   }, [bookings]);
 
   async function handleCancelBooking(b: BookingRow) {
-    console.log('Cancelling booking ID:', b.id);
+    if (__DEV__) {
+      console.log('Cancelling booking ID:', b.id);
+    }
 
     if (!userId) {
       if (Platform.OS === 'web') {
@@ -236,7 +239,9 @@ export default function CompanyDashboardScreen() {
     }
 
     const run = async () => {
-      console.log('Cancelling booking ID (confirmed):', b.id);
+      if (__DEV__) {
+        console.log('Cancelling booking ID (confirmed):', b.id);
+      }
       setCancellingId(b.id);
       try {
         const res = await cancelBookingByCompany(b.id, userId);
@@ -430,18 +435,25 @@ export default function CompanyDashboardScreen() {
             <View style={styles.driverBlock}>
               <Text style={styles.driverLabel}>{t('company.driverLabel')}</Text>
               {b.driver_display_name ? (
-                <>
-                  <NameWithVerifiedBadge
+                <View style={styles.driverNameRow}>
+                  <UserAvatar
                     name={b.driver_display_name}
-                    verified={b.driver_is_verified}
-                    textStyle={styles.driverName}
+                    uri={b.driver_avatar_url ?? null}
+                    size={36}
                   />
-                  <Text style={styles.driverMeta}>
-                    {[b.driver_phone, b.driver_plate, b.vehicle_class ? vehicleClassLabel(b.vehicle_class) : null]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
-                </>
+                  <View style={styles.driverNameInfo}>
+                    <NameWithVerifiedBadge
+                      name={b.driver_display_name}
+                      verified={b.driver_is_verified}
+                      textStyle={styles.driverName}
+                    />
+                    <Text style={styles.driverMeta}>
+                      {[b.driver_phone, b.driver_plate, b.vehicle_class ? vehicleClassLabel(b.vehicle_class) : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  </View>
+                </View>
               ) : (
                 <Text style={styles.driverPending}>{t('common.selectingDriver')}</Text>
               )}
@@ -947,6 +959,15 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontSize: 12,
     marginBottom: 4,
+  },
+  driverNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  driverNameInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   driverName: {
     color: COLORS.text,

@@ -419,7 +419,9 @@
     "noToken": "Push token არ არის — ჩართეთ შეტყობინებები ფიზიკურ მოწყობილობაზე",
     "matchingVehicleInvalid": "ჯავშნის ავტომობილის ტიპი ვერ განიშლა.",
     "anyVehicleClass": "ნებისმიერი კლასი",
-    "matchingNoDrivers": "შესაბამისი მძღოლი ვერ მოიძებნა ({{type}}, {{class}})."
+    "matchingNoDrivers": "შესაბამისი მძღოლი ვერ მოიძებნა ({{type}}, {{class}}).",
+    "newChatTitle": "{{name}}",
+    "newChatBody": "ახალი შეტყობინება"
   },
   "booking": {
     "status": {
@@ -636,7 +638,11 @@
     "active": "GPS აქტიურია 🟢",
     "inactive": "GPS გამორთულია",
     "endTour": "ტური დასრულება",
-    "startTour": "ტური დაწყება"
+    "startTour": "ტური დაწყება",
+    "bgServiceTitle": "KEKE · GPS აქტიურია",
+    "bgServiceBody": "ტურის მიმდინარეობისას შენი პოზიცია გადაეცემა კომპანიას.",
+    "bgPermissionDeniedTitle": "საჭიროა ფონური ლოკაცია",
+    "bgPermissionDeniedBody": "რომ აპის დახურვის შემდეგაც გაგრძელდეს ტრეკინგი, პარამეტრებში დართე ლოკაცია „ყოველთვის“."
   },
   "tracking": {
     "title": "მძღოლის თვალყურება",

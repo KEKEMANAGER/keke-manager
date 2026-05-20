@@ -35,7 +35,6 @@ export default function DriverCalendarScreen() {
   const [saving, setSaving] = useState(false);
 
   function scheduleTitle(row: DriverScheduleRow): string {
-    if (row.label?.trim()) return row.label.trim();
     if (row.source === 'booking') return t('calendarScreen.booking');
     return t('calendarScreen.busyLabel');
   }

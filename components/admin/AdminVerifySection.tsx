@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { setAdminUserVerified } from '../../lib/adminPanel';
 import {
   documentUrlFor,

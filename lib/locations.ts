@@ -21,15 +21,17 @@ export async function upsertDriverLocation(
   driverId: string,
   latitude: number,
   longitude: number,
-): Promise<void> {
-  await supabase.from('driver_locations').upsert(
+): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from('driver_locations').upsert(
     { driver_id: driverId, latitude, longitude, updated_at: new Date().toISOString() },
     { onConflict: 'driver_id' },
   );
+  return { error: error ? new Error(error.message) : null };
 }
 
-export async function clearDriverLocation(driverId: string): Promise<void> {
-  await supabase.from('driver_locations').delete().eq('driver_id', driverId);
+export async function clearDriverLocation(driverId: string): Promise<{ error: Error | null }> {
+  const { error } = await supabase.from('driver_locations').delete().eq('driver_id', driverId);
+  return { error: error ? new Error(error.message) : null };
 }
 
 // ─── Company: single driver ──────────────────────────────────────────────────

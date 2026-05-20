@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -35,6 +35,8 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
+import { stopBackgroundLocation } from '../../lib/backgroundLocation';
+import { clearDriverLocation } from '../../lib/locations';
 import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
 import i18n from '../../src/lib/i18n';
 
@@ -124,6 +126,7 @@ function statusPillTextColor(status: BookingStatus): { color: string } {
 
 export default function DriverBookingsScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
 
@@ -295,6 +298,11 @@ export default function DriverBookingsScreen() {
       void load('silent');
       return;
     }
+    if (Platform.OS !== 'web') {
+      await stopBackgroundLocation();
+      const { error: clearErr } = await clearDriverLocation(user.id);
+      if (clearErr && __DEV__) console.warn('[bookings] clearDriverLocation:', clearErr.message);
+    }
     crossInfoAlert(t('common.success'), t('bookings.completeSuccess'));
     void load('silent');
     setTab('completed');
@@ -314,6 +322,12 @@ export default function DriverBookingsScreen() {
       return;
     }
     void load('silent');
+    if (Platform.OS !== 'web') {
+      router.push({
+        pathname: '/(driver)/gps',
+        params: { autoStart: '1', bookingId: item.id },
+      });
+    }
   }
 
   const emptyForTab = useMemo(() => {

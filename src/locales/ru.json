@@ -419,7 +419,9 @@
     "noToken": "Нет push-токена — разрешите уведомления на реальном устройстве",
     "matchingVehicleInvalid": "Не удалось определить тип авто для бронирования.",
     "anyVehicleClass": "любой класс",
-    "matchingNoDrivers": "Подходящий водитель не найден ({{type}}, {{class}})."
+    "matchingNoDrivers": "Подходящий водитель не найден ({{type}}, {{class}}).",
+    "newChatTitle": "{{name}}",
+    "newChatBody": "Новое сообщение"
   },
   "booking": {
     "status": {
@@ -636,7 +638,11 @@
     "active": "GPS активен 🟢",
     "inactive": "GPS выключен",
     "endTour": "Завершить тур",
-    "startTour": "Начать тур"
+    "startTour": "Начать тур",
+    "bgServiceTitle": "KEKE · GPS активен",
+    "bgServiceBody": "Во время поездки ваша геолокация передаётся компании.",
+    "bgPermissionDeniedTitle": "Нужен доступ к геолокации в фоне",
+    "bgPermissionDeniedBody": "Чтобы отслеживание работало при закрытом приложении, разрешите доступ к геолокации «Всегда» в настройках."
   },
   "tracking": {
     "title": "Отслеживание водителя",

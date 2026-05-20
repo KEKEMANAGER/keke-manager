@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { UserAvatar } from '../../components/UserAvatar';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -19,6 +20,7 @@ import {
   subscribeToConversationList,
   type ConversationRow,
 } from '../../lib/messages';
+import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { supabase } from '../../lib/supabase';
 
 function formatListTime(iso: string, yesterday: string): string {
@@ -33,19 +35,6 @@ function formatListTime(iso: string, yesterday: string): string {
   return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
-function AvatarCircle({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .map((w) => w[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  return (
-    <View style={styles.avatar}>
-      <Text style={styles.avatarText}>{initials || '?'}</Text>
-    </View>
-  );
-}
 
 export default function CompanyChatListScreen() {
   const { t } = useTranslation();
@@ -87,7 +76,15 @@ export default function CompanyChatListScreen() {
 
   useEffect(() => {
     if (!user?.id) return;
-    const ch = subscribeToConversationList(user.id, () => void load('silent'));
+    const ch = subscribeToConversationList(user.id, (msg) => {
+      void load('silent');
+      if (msg && msg.sender_id !== user.id) {
+        void notifyIncomingChatMessageLocally({
+          senderUserId: msg.sender_id,
+          text: msg.text,
+        });
+      }
+    });
     return () => {
       void supabase.removeChannel(ch);
     };
@@ -96,7 +93,11 @@ export default function CompanyChatListScreen() {
   function openChat(item: ConversationRow) {
     router.push({
       pathname: '/(app)/chat',
-      params: { uid: item.other_user_id, name: item.other_user_name ?? '' },
+      params: {
+        uid: item.other_user_id,
+        name: item.other_user_name ?? '',
+        avatar: item.other_user_avatar_url ?? '',
+      },
     });
   }
 
@@ -145,7 +146,7 @@ export default function CompanyChatListScreen() {
               onPress={() => openChat(item)}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             >
-              <AvatarCircle name={item.other_user_name ?? '?'} />
+              <UserAvatar name={item.other_user_name} uri={item.other_user_avatar_url} />
               <View style={styles.rowBody}>
                 <View style={styles.rowTop}>
                   <Text style={styles.rowName} numberOfLines={1}>

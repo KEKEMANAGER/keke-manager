@@ -6,7 +6,7 @@ import {
   createScheduleForAcceptedBooking,
   releaseDriverScheduleForBooking,
 } from './driverSchedules';
-import { notifyMatchingDriversOfNewBooking } from './notifications';
+import { notifyCompanyBookingAccepted, notifyMatchingDriversOfNewBooking } from './notifications';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
@@ -95,7 +95,7 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
 
   const { data, error } = await supabase
     .from('users')
-    .select('id, is_verified')
+    .select('id, is_verified, avatar_url')
     .in('id', [...ids]);
 
   if (error) {
@@ -106,9 +106,12 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
   }
 
   const verifiedById = new Map<string, boolean>();
+  const avatarById = new Map<string, string | null>();
   for (const row of data ?? []) {
-    const u = row as { id: string; is_verified?: boolean | null };
+    const u = row as { id: string; is_verified?: boolean | null; avatar_url?: string | null };
     verifiedById.set(String(u.id), !!u.is_verified);
+    const url = u.avatar_url?.trim() ?? '';
+    avatarById.set(String(u.id), url || null);
   }
 
   return rows.map((row) => ({
@@ -117,6 +120,10 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
       ? (verifiedById.get(trimUserId(row.driver_id)) ?? false)
       : null,
     company_is_verified: verifiedById.get(trimUserId(row.company_id)) ?? false,
+    driver_avatar_url: row.driver_id
+      ? (avatarById.get(trimUserId(row.driver_id)) ?? null)
+      : null,
+    company_avatar_url: avatarById.get(trimUserId(row.company_id)) ?? null,
   }));
 }
 
@@ -227,6 +234,8 @@ export type BookingRow = {
   /** Populated by `enrichBookingsWithUserVerification` when listing bookings. */
   driver_is_verified?: boolean | null;
   company_is_verified?: boolean | null;
+  driver_avatar_url?: string | null;
+  company_avatar_url?: string | null;
 };
 
 export type InsertBookingInput = {
@@ -397,12 +406,22 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     return { data: [] as BookingRow[], error: null };
   }
 
-  // Always check verification from profiles.
+  // Verification: accept `profiles.is_verified` OR `users.is_verified`
+  // (admin verification may only land on `users`; notifications use the same OR rule).
   const { data: profileRow, error: profileError } = await fetchDriverProfile(id);
   if (profileError) {
     return { data: [] as BookingRow[], error: profileError };
   }
-  if (!profileRow?.is_verified) {
+  let verified = profileRow?.is_verified === true;
+  if (!verified) {
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('is_verified')
+      .eq('id', id)
+      .maybeSingle();
+    verified = (userRow as { is_verified?: boolean | null } | null)?.is_verified === true;
+  }
+  if (!verified) {
     return { data: [] as BookingRow[], error: null };
   }
 
@@ -680,6 +699,13 @@ export async function acceptBooking(
   }
   void createScheduleForAcceptedBooking(rowId, driverUserId);
   void notifyBookingConfirmed();
+  const { data: companyRow } = await supabase
+    .from('bookings')
+    .select('company_id')
+    .eq('id', rowId)
+    .maybeSingle();
+  const companyUid = String((companyRow as { company_id?: string | null } | null)?.company_id ?? '').trim();
+  if (companyUid) void notifyCompanyBookingAccepted({ companyUserId: companyUid, bookingId: rowId });
   return { ok: true as const, error: null };
 }
 

@@ -1,7 +1,6 @@
 import type { KekeRole } from '../contexts/AuthContext';
 import type { BookingRow } from './bookings';
 import type { MessageRow } from './messages';
-import { getSupabaseAdmin } from './supabaseAdmin';
 import { supabase } from './supabase';
 
 export type AdminUserRow = {
@@ -106,24 +105,23 @@ export const setAdminUserVerified = async (
   return { error: null };
 };
 
+type AdminDeleteUserResponse = { ok?: boolean; error?: string };
+
 export const deleteAdminUser = async (userId: string): Promise<{ error: Error | null }> => {
   const id = userId.trim();
   if (!id) return { error: new Error('user id missing') };
 
-  const supabaseAdmin = getSupabaseAdmin();
-  if (!supabaseAdmin) {
-    return {
-      error: new Error(
-        'SUPABASE_SERVICE_ROLE_KEY is not set. Add it to .env and restart Expo (npx expo start --clear).',
-      ),
-    };
+  const { data, error: fnError } = await supabase.functions.invoke<AdminDeleteUserResponse>(
+    'admin-delete-user',
+    { body: { userId: id } },
+  );
+
+  if (fnError) {
+    return { error: new Error(fnError.message) };
   }
-
-  const { error: publicErr } = await supabase.from('users').delete().eq('id', id);
-  if (publicErr) return { error: new Error(publicErr.message) };
-
-  const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(id);
-  if (authErr) return { error: new Error(authErr.message) };
+  if (data && typeof data === 'object' && 'error' in data && data.error) {
+    return { error: new Error(String(data.error)) };
+  }
 
   return { error: null };
 };

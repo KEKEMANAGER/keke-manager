@@ -75,7 +75,6 @@ export function DateTimeField({
         </Text>
       </Pressable>
       {/* Web-only native picker; hidden visually */}
-      {/* eslint-disable-next-line jsx-a11y/control-has-associated-label */}
       <input
         ref={inputRef}
         type={mode === 'time' ? 'time' : 'datetime-local'}

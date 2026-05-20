@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { UserAvatar } from '../../components/UserAvatar';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -30,26 +31,16 @@ function formatMsgTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function AvatarCircle({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .map((w) => w[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  return (
-    <View style={styles.avatar}>
-      <Text style={styles.avatarText}>{initials || '?'}</Text>
-    </View>
-  );
-}
-
 export default function DriverChatScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
-  const { uid, name } = useLocalSearchParams<{ uid: string; name: string }>();
+  const { user, profile } = useAuth();
+  const { uid, name, avatar } = useLocalSearchParams<{
+    uid: string;
+    name: string;
+    avatar?: string;
+  }>();
 
   const otherUserId = uid ?? '';
   const otherName = name?.trim() || t('common.company');
@@ -60,6 +51,7 @@ export default function DriverChatScreen() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [otherVerified, setOtherVerified] = useState(false);
+  const [otherAvatarUrl, setOtherAvatarUrl] = useState<string | null>(avatar?.trim() || null);
   const listRef = useRef<FlatList<MessageRow>>(null);
 
   const scrollToBottom = useCallback((animated: boolean) => {
@@ -82,15 +74,19 @@ export default function DriverChatScreen() {
   useEffect(() => {
     if (!otherUserId) {
       setOtherVerified(false);
+      setOtherAvatarUrl(null);
       return;
     }
     void (async () => {
       const { data } = await supabase
         .from('users')
-        .select('is_verified')
+        .select('is_verified, avatar_url')
         .eq('id', otherUserId)
         .maybeSingle();
-      setOtherVerified(!!(data as { is_verified?: boolean | null } | null)?.is_verified);
+      const row = data as { is_verified?: boolean | null; avatar_url?: string | null } | null;
+      setOtherVerified(!!row?.is_verified);
+      const url = row?.avatar_url?.trim() ?? '';
+      if (url) setOtherAvatarUrl(url);
     })();
   }, [otherUserId]);
 
@@ -116,6 +112,7 @@ export default function DriverChatScreen() {
       senderId: user.id,
       receiverId: otherUserId,
       text: draft,
+      senderName: profile?.full_name?.trim() || '',
     });
     setSending(false);
     if (error || !sent) {
@@ -135,7 +132,7 @@ export default function DriverChatScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
         </Pressable>
-        <AvatarCircle name={otherName} />
+        <UserAvatar name={otherName} uri={otherAvatarUrl} size={42} />
         <NameWithVerifiedBadge
           name={otherName}
           verified={otherVerified}

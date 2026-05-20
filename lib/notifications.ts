@@ -8,7 +8,7 @@ import {
   SCHEDULE_OVERLAP_BUFFER_MS,
 } from './driverSchedules';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
-import { sendExpoPushToMany } from './expoPush';
+import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
 import { supabase } from './supabase';
 import {
   normalizeVehicleClass,
@@ -135,10 +135,32 @@ export type NotifyMatchingDriversResult = {
   message: string | null;
 };
 
+type DriverPushRecipient = {
+  userId: string;
+  token: string;
+};
+
 type DriverPushRow = {
   id: string;
   push_token: string | null;
 };
+
+/** Persist rows in `public.notifications` for in-app history (parallel to pushes). */
+async function insertInAppNotifications(
+  rows: {
+    user_id: string;
+    type: string;
+    title: string;
+    body: string;
+    data: Record<string, unknown>;
+  }[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('notifications').insert(rows);
+  if (error && __DEV__) {
+    console.warn('[notifications] insert public.notifications:', error.message);
+  }
+}
 
 /** Canonical lowercase codes for vehicle matching. */
 export function normalizeBookingVehicleFilters(
@@ -155,11 +177,16 @@ export function normalizeBookingVehicleFilters(
  * Drivers with an active vehicle matching booking type AND class (same rules as open job board).
  * Push tokens are read from `profiles`; verification from `profiles` + `users`.
  */
-export async function fetchMatchingDriverPushTokens(
+export async function fetchMatchingDriverPushRecipients(
   bookingVehicleType: string,
   bookingVehicleClass: string | null | undefined,
   availability?: BookingScheduleInput | null,
-): Promise<{ tokens: string[]; error: Error | null; vehicleType: VehicleTypeCode | null; vehicleClass: VehicleClassCode | null }> {
+): Promise<{
+  recipients: DriverPushRecipient[];
+  error: Error | null;
+  vehicleType: VehicleTypeCode | null;
+  vehicleClass: VehicleClassCode | null;
+}> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     bookingVehicleType,
     bookingVehicleClass ?? '',
@@ -167,7 +194,7 @@ export async function fetchMatchingDriverPushTokens(
 
   if (!vehicleType) {
     return {
-      tokens: [],
+      recipients: [],
       error: new Error('ჯავშნის vehicle_type არასწორია'),
       vehicleType: null,
       vehicleClass,
@@ -176,7 +203,7 @@ export async function fetchMatchingDriverPushTokens(
 
   if (!vehicleClass) {
     return {
-      tokens: [],
+      recipients: [],
       error: new Error('ჯავშნის vehicle_class არასწორია'),
       vehicleType,
       vehicleClass: null,
@@ -192,7 +219,7 @@ export async function fetchMatchingDriverPushTokens(
 
   if (vehiclesError) {
     if (__DEV__) console.warn('[notify] vehicles filter query failed:', vehiclesError.message);
-    return { tokens: [], error: new Error(vehiclesError.message), vehicleType, vehicleClass };
+    return { recipients: [], error: new Error(vehiclesError.message), vehicleType, vehicleClass };
   }
 
   let driverIds = [
@@ -204,7 +231,7 @@ export async function fetchMatchingDriverPushTokens(
   ];
 
   if (driverIds.length === 0) {
-    return { tokens: [], error: null, vehicleType, vehicleClass };
+    return { recipients: [], error: null, vehicleType, vehicleClass };
   }
 
   const [profilesRes, usersRes] = await Promise.all([
@@ -218,7 +245,7 @@ export async function fetchMatchingDriverPushTokens(
 
   if (profilesRes.error) {
     if (__DEV__) console.warn('[notify] profiles push query failed:', profilesRes.error.message);
-    return { tokens: [], error: new Error(profilesRes.error.message), vehicleType, vehicleClass };
+    return { recipients: [], error: new Error(profilesRes.error.message), vehicleType, vehicleClass };
   }
 
   const usersVerified = new Map<string, boolean>();
@@ -249,39 +276,56 @@ export async function fetchMatchingDriverPushTokens(
     }
   }
 
-  const tokens = matchedRows
-    .map((row) => row.push_token?.trim() ?? '')
-    .filter((token) => token.length > 0);
+  const byUser = new Map<string, string>();
+  for (const row of matchedRows) {
+    const t = row.push_token?.trim() ?? '';
+    if (t.length > 0 && !byUser.has(row.id)) {
+      byUser.set(row.id, t);
+    }
+  }
 
-  const uniqueTokens = [...new Set(tokens)];
+  const recipients: DriverPushRecipient[] = [...byUser.entries()].map(([userId, token]) => ({
+    userId,
+    token,
+  }));
 
-  return { tokens: uniqueTokens, error: null, vehicleType, vehicleClass };
+  return { recipients, error: null, vehicleType, vehicleClass };
 }
 
-/** Push token for one driver (targeted booking assignment). */
-export async function fetchDriverPushTokenById(
+/** Push recipients for targeted booking assignment (single driver). */
+export async function fetchDriverPushRecipientsById(
   driverId: string,
   availability?: BookingScheduleInput | null,
-): Promise<{ tokens: string[]; error: Error | null }> {
+): Promise<{ recipients: DriverPushRecipient[]; error: Error | null }> {
   const id = String(driverId ?? '').trim();
   if (!id) {
-    return { tokens: [], error: new Error('მძღოლის id არ არის') };
+    return { recipients: [], error: new Error('მძღოლის id არ არის') };
   }
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('push_token, is_verified')
-    .eq('id', id)
-    .maybeSingle();
+  const [profileRes, userRes] = await Promise.all([
+    supabase.from('profiles').select('push_token, is_verified').eq('id', id).maybeSingle(),
+    supabase.from('users').select('is_verified').eq('id', id).maybeSingle(),
+  ]);
 
-  if (error) {
-    return { tokens: [], error: new Error(error.message) };
+  if (profileRes.error) {
+    return { recipients: [], error: new Error(profileRes.error.message) };
   }
 
-  const row = data as { push_token?: string | null; is_verified?: boolean | null } | null;
-  if (!row?.is_verified) return { tokens: [], error: null };
-  const token = row.push_token?.trim() ?? '';
-  if (!token) return { tokens: [], error: null };
+  const row = profileRes.data as {
+    push_token?: string | null;
+    is_verified?: boolean | null;
+  } | null;
+
+  const userVerified = (userRes.data as { is_verified?: boolean | null } | null)?.is_verified === true;
+  const profileVerified = row?.is_verified === true;
+  if (!profileVerified && !userVerified) {
+    return { recipients: [], error: null };
+  }
+
+  const token = row?.push_token?.trim() ?? '';
+  if (!token) {
+    return { recipients: [], error: null };
+  }
 
   const busyWindow = availability ? estimateBookingBusyWindow(availability) : null;
   if (busyWindow) {
@@ -291,17 +335,13 @@ export async function fetchDriverPushTokenById(
       SCHEDULE_OVERLAP_BUFFER_MS,
     );
     if (!availableIds.includes(id)) {
-      return { tokens: [], error: null };
+      return { recipients: [], error: null };
     }
   }
 
-  return { tokens: [token], error: null };
+  return { recipients: [{ userId: id, token }], error: null };
 }
 
-/**
- * Push to drivers with an active `vehicles` row matching booking type and class.
- * Booking service `kind` does not affect which drivers are notified.
- */
 export async function notifyMatchingDriversOfNewBooking(params: {
   kind: string;
   vehicleType: string;
@@ -345,9 +385,9 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   }
 
   const targetedDriverId = String(params.driverId ?? '').trim();
-  const { tokens, error } = targetedDriverId
-    ? await fetchDriverPushTokenById(targetedDriverId, params.availability)
-    : await fetchMatchingDriverPushTokens(vehicleType, vehicleClass, params.availability);
+  const { recipients, error } = targetedDriverId
+    ? await fetchDriverPushRecipientsById(targetedDriverId, params.availability)
+    : await fetchMatchingDriverPushRecipients(vehicleType, vehicleClass, params.availability);
 
   if (error) {
     if (__DEV__) console.warn('[notifyMatchingDrivers] fetch error:', error.message);
@@ -357,7 +397,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     return emptyResult(error.message);
   }
 
-  if (tokens.length === 0) {
+  if (recipients.length === 0) {
     const classLabel = vehicleClass
       ? vehicleClassLabel(vehicleClass)
       : i18n.t('notifications.anyVehicleClass');
@@ -386,6 +426,18 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     data.booking_id = params.bookingId;
   }
 
+  const dataRecord: Record<string, unknown> = { ...data };
+  await insertInAppNotifications(
+    recipients.map((r) => ({
+      user_id: r.userId,
+      type: 'new_booking',
+      title,
+      body,
+      data: dataRecord,
+    })),
+  );
+
+  const tokens = [...new Set(recipients.map((r) => r.token))];
   const batch = await sendExpoPushToMany(tokens, title, body, data);
 
   return {
@@ -396,4 +448,109 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     vehicleClass,
     message: null,
   };
+}
+
+/**
+ * Booking was accepted / confirmed by a driver: in-app notification + optional push for the company.
+ */
+export async function notifyCompanyBookingAccepted(params: {
+  companyUserId: string;
+  bookingId: string;
+}): Promise<void> {
+  const companyUserId = params.companyUserId.trim();
+  const bookingId = params.bookingId.trim();
+  if (!companyUserId || !bookingId) return;
+
+  const { title, body } = getBookingConfirmedNotificationContent();
+  const pushData: Record<string, string> = {
+    type: 'booking_accepted',
+    booking_id: bookingId,
+  };
+  await insertInAppNotifications([
+    {
+      user_id: companyUserId,
+      type: 'booking_accepted',
+      title,
+      body,
+      data: { ...pushData },
+    },
+  ]);
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('push_token')
+    .eq('id', companyUserId)
+    .maybeSingle();
+
+  const token = (profile as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  if (!token) return;
+
+  const res = await sendExpoPushNotification(token, title, body, pushData);
+  if (!res.ok && __DEV__) console.warn('[notify] booking_accepted push failed:', res.error);
+}
+
+/** Push copy for chat messages. */
+export function getChatMessageNotificationContent(senderName: string, preview: string) {
+  const name = senderName.trim() || notifyT('common.newMessage', 'New message');
+  const titleTpl = notifyT('notifications.newChatTitle', '{{name}}');
+  const title = titleTpl.replace('{{name}}', name);
+  const body = preview.trim() || notifyT('notifications.newChatBody', 'You have a new message');
+  return { title, body };
+}
+
+/**
+ * Push a chat message to the receiver's device.
+ * Chat is universal: skips verification check, only requires a stored push token.
+ */
+export async function notifyChatMessageRecipient(params: {
+  receiverUserId: string;
+  senderUserId: string;
+  senderName: string;
+  messageText: string;
+}): Promise<{ ok: boolean; error: string | null }> {
+  const receiverId = String(params.receiverUserId ?? '').trim();
+  const senderId = String(params.senderUserId ?? '').trim();
+  if (!receiverId || !senderId) {
+    return { ok: false, error: 'invalid_user_id' };
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('push_token')
+    .eq('id', receiverId)
+    .maybeSingle();
+
+  if (error) {
+    if (__DEV__) console.warn('[notifyChat] push_token lookup failed:', error.message);
+    return { ok: false, error: error.message };
+  }
+
+  const preview = params.messageText.trim().slice(0, 120);
+  const { title, body } = getChatMessageNotificationContent(params.senderName, preview);
+  const pushDataStr: Record<string, string> = {
+    type: 'chat_message',
+    sender_id: senderId,
+  };
+  await insertInAppNotifications([
+    {
+      user_id: receiverId,
+      type: 'chat_message',
+      title,
+      body,
+      data: { ...pushDataStr },
+    },
+  ]);
+
+  const token = (data as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  if (!token) {
+    return { ok: true, error: null };
+  }
+
+  const res = await sendExpoPushNotification(token, title, body, pushDataStr);
+
+  if (!res.ok) {
+    if (__DEV__) console.warn('[notifyChat] send failed:', res.error);
+    return { ok: false, error: res.error };
+  }
+  return { ok: true, error: null };
 }

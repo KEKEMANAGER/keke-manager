@@ -1,0 +1,16 @@
+
+D:\keke-manager-app\components\AuthInput.tsx
+  2:18  warning  'RADIUS' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\keke-manager-app\components\DateTimeField.web.tsx
+  78:8  error  Definition for rule 'jsx-a11y/control-has-associated-label' was not found  jsx-a11y/control-has-associated-label
+
+D:\keke-manager-app\components\admin\AdminGpsSection.tsx
+   3:34  warning  'useRef' is defined but never used             @typescript-eslint/no-unused-vars
+  22:10  warning  'vehicleClassLabel' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\keke-manager-app\components\admin\AdminVerifySection.tsx
+  16:26  warning  'SHADOWS' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 5 problems (1 error, 4 warnings)
+

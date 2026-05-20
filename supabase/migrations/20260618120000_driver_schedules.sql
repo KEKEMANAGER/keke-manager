@@ -7,9 +7,7 @@ CREATE TABLE IF NOT EXISTS public.driver_schedules (
   end_time timestamptz NOT NULL,
   source text NOT NULL DEFAULT 'manual'
     CHECK (source IN ('manual', 'booking')),
-  label text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT driver_schedules_time_order CHECK (end_time > start_time)
 );
 

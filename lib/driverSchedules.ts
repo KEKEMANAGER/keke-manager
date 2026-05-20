@@ -1,4 +1,5 @@
 import { parseStoredDateTime, toIsoString } from './dateTime';
+import { supabase } from './supabase';
 
 type ItineraryDay = { day: number; from: string; to: string; stops: string };
 type TourTransferLeg = { date: string; flight: string; passengerName: string };
@@ -9,7 +10,6 @@ function normalizeScheduleKind(kind: string): 'transfer' | 'tour' | 'day_tour' {
   if (k === 'day_tour' || k === 'daytour' || k === 'day tour') return 'day_tour';
   return 'transfer';
 }
-import { supabase } from './supabase';
 
 /** Padding around busy blocks when checking if a new booking overlaps. */
 export const SCHEDULE_OVERLAP_BUFFER_MS = 30 * 60 * 1000;
@@ -26,9 +26,7 @@ export type DriverScheduleRow = {
   start_time: string;
   end_time: string;
   source: 'manual' | 'booking';
-  label: string | null;
   created_at: string;
-  updated_at: string;
 };
 
 export type BusyTimeWindow = {
@@ -125,7 +123,7 @@ export async function fetchOverlappingSchedulesForDrivers(
 
   const { data, error } = await supabase
     .from('driver_schedules')
-    .select('id, driver_id, booking_id, start_time, end_time, source, label')
+    .select('id, driver_id, booking_id, start_time, end_time, source')
     .in('driver_id', ids)
     .lt('start_time', toIsoString(rangeEnd))
     .gt('end_time', toIsoString(rangeStart));
@@ -180,15 +178,12 @@ export async function createBookingScheduleBlock(
     return { ok: false, error: new Error('დროის დიაპაზონი არასწორია') };
   }
 
-  const now = toIsoString(new Date());
   const { error } = await supabase.from('driver_schedules').insert({
     driver_id: drv,
     booking_id: bid,
     start_time: toIsoString(window.start),
     end_time: toIsoString(window.end),
     source: 'booking',
-    label: null,
-    updated_at: now,
   });
 
   if (error) return { ok: false, error: new Error(error.message) };
@@ -203,7 +198,7 @@ export async function releaseDriverScheduleForBooking(bookingId: string): Promis
   const now = toIsoString(new Date());
   await supabase
     .from('driver_schedules')
-    .update({ end_time: now, updated_at: now })
+    .update({ end_time: now })
     .eq('booking_id', bid)
     .eq('source', 'booking')
     .gt('end_time', now);
@@ -212,7 +207,6 @@ export async function releaseDriverScheduleForBooking(bookingId: string): Promis
 export async function createManualDriverSchedule(
   driverId: string,
   window: BusyTimeWindow,
-  label?: string | null,
 ): Promise<{ ok: boolean; error: Error | null }> {
   const drv = driverId.trim();
   if (!drv) return { ok: false, error: new Error('driver id არ არის') };
@@ -220,15 +214,12 @@ export async function createManualDriverSchedule(
     return { ok: false, error: new Error('დასრულების დრო უნდა იყოს დაწყების შემდეგ') };
   }
 
-  const now = toIsoString(new Date());
   const { error } = await supabase.from('driver_schedules').insert({
     driver_id: drv,
     booking_id: null,
     start_time: toIsoString(window.start),
     end_time: toIsoString(window.end),
     source: 'manual',
-    label: label?.trim() || 'დაკავებული',
-    updated_at: now,
   });
 
   if (error) return { ok: false, error: new Error(error.message) };

@@ -1,0 +1,4 @@
+# Minimal config for Edge Functions. Set project_id via `supabase link` if needed.
+
+[functions.admin-delete-user]
+verify_jwt = true

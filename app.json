@@ -16,7 +16,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.akuna.kekemanager",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "fetch"],
+        "NSLocationWhenInUseUsageDescription": "KEKE uses your location to share your live position with the company during an active trip.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
+        "NSLocationAlwaysUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background."
+      }
     },
     "android": {
       "package": "com.akuna.kekemanager",
@@ -26,7 +32,14 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,7 +54,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "აპს სჭირდება ლოკაცია GPS ტრეკინგისთვის."
+          "locationWhenInUsePermission": "აპს სჭირდება ლოკაცია GPS ტრეკინგისთვის.",
+          "locationAlwaysAndWhenInUsePermission": "აპს სჭირდება ფონური ლოკაცია, რომ ტურის მიმდინარეობისას შენი პოზიცია კომპანიას გადასცეს.",
+          "locationAlwaysPermission": "აპს სჭირდება ფონური ლოკაცია, რომ ტურის მიმდინარეობისას შენი პოზიცია კომპანიას გადასცეს.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-notifications",

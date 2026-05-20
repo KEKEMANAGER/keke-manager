@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -19,7 +19,7 @@ import {
   type DriverLocationWithInfo,
 } from '../../lib/locations';
 import { supabase } from '../../lib/supabase';
-import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
+import { vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { adminStyles } from './adminStyles';
 
 const TBILISI: Region = {

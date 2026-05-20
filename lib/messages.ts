@@ -1,3 +1,4 @@
+import { notifyChatMessageRecipient } from './notifications';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
 
@@ -17,6 +18,7 @@ export type MessageRow = {
 export type ConversationRow = {
   other_user_id: string;
   other_user_name: string | null;
+  other_user_avatar_url: string | null;
   last_text: string;
   last_at: string;
   unread_count: number;
@@ -37,23 +39,56 @@ export async function fetchMessages(
   return { data: (data ?? []) as MessageRow[], error: null };
 }
 
+async function resolveSenderDisplayName(senderId: string): Promise<string> {
+  const id = trimUserId(senderId);
+  if (!id) return '';
+  const { data } = await supabase
+    .from('users')
+    .select('full_name')
+    .eq('id', id)
+    .maybeSingle();
+  const name = (data as { full_name?: string | null } | null)?.full_name?.trim() ?? '';
+  return name;
+}
+
 export async function sendMessage(params: {
   senderId: string;
   receiverId: string;
   text: string;
   bookingId?: string | null;
+  /** Display name used in push notification; resolved from `users` when omitted. */
+  senderName?: string;
 }): Promise<{ data: MessageRow | null; error: Error | null }> {
+  const text = params.text.trim();
   const { data, error } = await supabase
     .from('messages')
     .insert({
       sender_id: params.senderId,
       receiver_id: params.receiverId,
-      text: params.text.trim(),
+      text,
       booking_id: params.bookingId ?? null,
     })
     .select()
     .single();
   if (error) return { data: null, error: new Error(error.message) };
+
+  void (async () => {
+    try {
+      const senderName =
+        params.senderName?.trim() || (await resolveSenderDisplayName(params.senderId));
+      await notifyChatMessageRecipient({
+        receiverUserId: params.receiverId,
+        senderUserId: params.senderId,
+        senderName,
+        messageText: text,
+      });
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[sendMessage] push failed:', e instanceof Error ? e.message : e);
+      }
+    }
+  })();
+
   return { data: data as MessageRow, error: null };
 }
 
@@ -144,17 +179,19 @@ export async function fetchConversations(userId: string): Promise<{
 
   const { data: users } = await supabase
     .from('users')
-    .select('id, full_name')
+    .select('id, full_name, avatar_url')
     .in('id', otherIds);
 
-  const nameMap = new Map<string, string | null>(
-    ((users ?? []) as { id: string; full_name: string | null }[]).map((u) => [u.id, u.full_name]),
+  type UserLite = { id: string; full_name: string | null; avatar_url: string | null };
+  const userMap = new Map<string, UserLite>(
+    ((users ?? []) as UserLite[]).map((u) => [u.id, u]),
   );
 
   const conversations: ConversationRow[] = Array.from(seen.entries())
     .map(([otherId, c]) => ({
       other_user_id: otherId,
-      other_user_name: nameMap.get(otherId) ?? null,
+      other_user_name: userMap.get(otherId)?.full_name ?? null,
+      other_user_avatar_url: userMap.get(otherId)?.avatar_url ?? null,
       ...c,
     }))
     .sort((a, b) => b.last_at.localeCompare(a.last_at));
@@ -182,9 +219,15 @@ export function subscribeToMessages(
     .subscribe();
 }
 
-export function subscribeToConversationList(userId: string, onChange: () => void) {
+export function subscribeToConversationList(
+  userId: string,
+  onChange: (msg?: MessageRow) => void,
+) {
+  // Unique channel per subscription — multiple subscribers (e.g. layout + chat-list)
+  // share the same realtime topic without colliding on `supabase.channel(name)` reuse.
+  const channelName = `convlist-${userId}-${Math.random().toString(36).slice(2, 10)}`;
   return supabase
-    .channel(`convlist-${userId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -193,7 +236,10 @@ export function subscribeToConversationList(userId: string, onChange: () => void
         table: 'messages',
         filter: `receiver_id=eq.${userId}`,
       },
-      onChange,
+      (payload) => {
+        const msg = (payload.new as MessageRow | undefined) ?? undefined;
+        onChange(msg);
+      },
     )
     .subscribe();
 }
