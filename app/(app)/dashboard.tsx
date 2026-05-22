@@ -42,6 +42,7 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
+import { fetchActiveAds, type AdCard } from '../../lib/ads';
 import { shareVoucherPDF } from '../../lib/voucher';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 
@@ -135,10 +136,12 @@ export default function CompanyDashboardScreen() {
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [driverLoading, setDriverLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [ads, setAds] = useState<AdCard[]>([]);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
       setBookings([]);
+      setAds([]);
       if (mode === 'initial') setLoading(false);
       if (mode === 'refresh') setRefreshing(false);
       return;
@@ -150,10 +153,12 @@ export default function CompanyDashboardScreen() {
       setRefreshing(true);
     }
 
-    const [bRes, sRes] = await Promise.all([
+    const [bRes, sRes, activeAds] = await Promise.all([
       fetchBookingsByCompanyId(userId),
       aggregateCompanyStats(userId),
+      fetchActiveAds(),
     ]);
+    setAds(activeAds);
 
     if (mode === 'initial') {
       setLoading(false);
