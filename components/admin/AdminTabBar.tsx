@@ -1,7 +1,7 @@
 import { ScrollView, Pressable, StyleSheet, Text } from 'react-native';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
-export type AdminTabId = 'users' | 'verify' | 'chats' | 'bookings' | 'gps' | 'stats';
+export type AdminTabId = 'users' | 'verify' | 'chats' | 'bookings' | 'gps' | 'stats' | 'ads';
 
 type TabDef = { id: AdminTabId; label: string };
 
