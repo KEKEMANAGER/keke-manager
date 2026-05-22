@@ -13,6 +13,7 @@ import {
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { fetchFleetDriverIdsAround } from '../../lib/fleet';
 import {
@@ -171,49 +172,139 @@ export default function CompanyTrackingScreen() {
     booking?.vehicle_class ? vehicleClassLabel(booking.vehicle_class) : null,
   ].filter(Boolean).join(' · ');
 
+  const webSelectedId = selectedPinId ?? driverId;
+  const leafletPins: LeafletMapPin[] = pins.map((pin) => ({
+    driver_id: pin.driver_id,
+    latitude: pin.latitude,
+    longitude: pin.longitude,
+    updated_at: pin.updated_at,
+    full_name: pin.full_name,
+    isHost: pin.driver_id === driverId,
+  }));
+
   if (Platform.OS === 'web') {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
+      <View style={[styles.screen, styles.webScreen, { paddingTop: insets.top }]}>
+        <View style={styles.webHeader}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           </Pressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {isFleet ? t('tracking.fleetTitle') : driverName}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {isFleet ? t('tracking.fleetTitle') : driverName}
+            </Text>
+            {route ? <Text style={styles.headerSub} numberOfLines={1}>{route}</Text> : null}
+            {isFleet ? (
+              <Text style={styles.headerSub}>
+                {t('tracking.fleetDrivers', { count: fleetIds.length })}
+              </Text>
+            ) : null}
+          </View>
+          {booking?.status ? <StatusBadge status={booking.status} t={t} /> : null}
         </View>
-        <View style={styles.webWrap}>
-          <Ionicons name="navigate-circle-outline" size={52} color={COLORS.textMuted} />
-          <Text style={styles.webTitle}>{t('tracking.title')}</Text>
-          <Text style={styles.webBody}>{t('tracking.webFallback')}</Text>
-        </View>
-        <ScrollView style={styles.webList}>
-          {fleetIds.map((id) => {
-            const pin = pins.find((p) => p.driver_id === id);
-            const isHost = id === driverId;
-            const name = pin?.full_name ?? (isHost ? driverName : t('fleet.subDriver'));
-            return (
-              <Pressable
-                key={id}
-                onPress={() => setSelectedPinId(id)}
-                style={[styles.webRow, selectedPinId === id && styles.webRowSelected]}
-              >
-                <View style={[styles.webDot, { backgroundColor: isHost ? COLORS.gold : COLORS.blue }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.webRowName}>
-                    {name}
-                    {isHost ? ` (${t('fleet.host')})` : ` (${t('fleet.subDriver')})`}
-                  </Text>
-                  <Text style={styles.webRowMeta}>
-                    {pin
-                      ? `${formatAgo(pin.updated_at)} ${t('tracking.ago')}`
-                      : t('tracking.noSignal')}
+
+        <View style={styles.webBodyRow}>
+          <View style={styles.webMapPane}>
+            <LeafletDriverMap
+              pins={leafletPins}
+              selectedId={webSelectedId}
+              hostDriverId={driverId}
+              onSelectPin={setSelectedPinId}
+            />
+            <View style={styles.webBadgeOverlay}>
+              {loading ? (
+                <View style={[styles.badge, styles.badgeLoading]}>
+                  <ActivityIndicator size="small" color={COLORS.gold} />
+                </View>
+              ) : isActive ? (
+                <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
+                  <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
+                  <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
+                    {isStale ? t('tracking.weakSignal') : t('tracking.live')}
                   </Text>
                 </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+              ) : (
+                <View style={[styles.badge, styles.badgeOff]}>
+                  <View style={styles.dotOff} />
+                  <Text style={[styles.badgeText, styles.textOff]}>{t('tracking.noSignal')}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          <ScrollView style={styles.webSidebar} showsVerticalScrollIndicator={false}>
+            <Text style={styles.webSidebarTitle}>{t('tracking.driversOnMap')}</Text>
+            {fleetIds.map((id) => {
+              const pin = pins.find((p) => p.driver_id === id);
+              const isHost = id === driverId;
+              const name = pin?.full_name ?? (isHost ? driverName : t('fleet.subDriver'));
+              return (
+                <Pressable
+                  key={id}
+                  onPress={() => setSelectedPinId(id)}
+                  style={[styles.webRow, webSelectedId === id && styles.webRowSelected]}
+                >
+                  <View style={[styles.webDot, { backgroundColor: isHost ? COLORS.gold : COLORS.blue }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.webRowName}>
+                      {name}
+                      {isHost ? ` (${t('fleet.host')})` : ` (${t('fleet.subDriver')})`}
+                    </Text>
+                    <Text style={styles.webRowMeta}>
+                      {pin
+                        ? `${formatAgo(pin.updated_at)} ${t('tracking.ago')}`
+                        : t('tracking.noSignal')}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        <View style={[styles.webInfoCard, { paddingBottom: insets.bottom + SPACING.md }]}>
+          {activePin ? (
+            <>
+              <View style={styles.infoRow}>
+                <Ionicons name="person-outline" size={15} color={COLORS.textSecondary} />
+                <Text style={styles.infoLabel}>{t('tracking.driver')}</Text>
+                <Text style={styles.infoValue} numberOfLines={1}>
+                  {activePin.full_name ?? driverName}
+                </Text>
+              </View>
+              {vehicleLabel ? (
+                <View style={styles.infoRow}>
+                  <Ionicons name="car-outline" size={15} color={COLORS.textSecondary} />
+                  <Text style={styles.infoLabel}>{t('tracking.vehicle')}</Text>
+                  <Text style={styles.infoValue}>{vehicleLabel}</Text>
+                </View>
+              ) : null}
+              <View style={styles.coordRow}>
+                <View style={styles.coordItem}>
+                  <Text style={styles.coordLabel}>LAT</Text>
+                  <Text style={styles.coordValue}>{activePin.latitude.toFixed(6)}</Text>
+                </View>
+                <View style={styles.coordSep} />
+                <View style={styles.coordItem}>
+                  <Text style={styles.coordLabel}>LNG</Text>
+                  <Text style={styles.coordValue}>{activePin.longitude.toFixed(6)}</Text>
+                </View>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="time-outline" size={15} color={COLORS.textSecondary} />
+                <Text style={styles.infoLabel}>{t('tracking.lastUpdated')}</Text>
+                <Text style={[styles.infoValue, isStale && styles.infoValueStale]}>
+                  {formatTime(activePin.updated_at)} · {formatAgo(activePin.updated_at)} {t('tracking.ago')}
+                </Text>
+              </View>
+            </>
+          ) : !loading ? (
+            <View style={styles.noSignalWrap}>
+              <Ionicons name="navigate-outline" size={28} color={COLORS.textMuted} />
+              <Text style={styles.noSignalText}>{t('tracking.noSignalHint')}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     );
   }
@@ -476,15 +567,65 @@ const styles = StyleSheet.create({
   coordValue: { fontSize: 13, fontWeight: '600', color: COLORS.text },
   noSignalWrap: { alignItems: 'center', paddingVertical: SPACING.md, gap: SPACING.sm },
   noSignalText: { color: COLORS.textMuted, fontSize: 14, textAlign: 'center' },
-  webWrap: {
+  webScreen: { minHeight: '100vh' as unknown as number },
+  webHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.md,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.sm,
+    gap: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    zIndex: 10,
+    ...SHADOWS.card,
   },
-  webTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  webBody: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22 },
+  webBodyRow: {
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: 360,
+    overflow: 'hidden',
+  },
+  webMapPane: {
+    flex: 1,
+    position: 'relative',
+    minWidth: 0,
+    padding: SPACING.sm,
+  },
+  webBadgeOverlay: {
+    position: 'absolute',
+    top: SPACING.lg,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 500,
+    pointerEvents: 'none',
+  },
+  webSidebar: {
+    width: 280,
+    maxWidth: '32%',
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+  },
+  webSidebarTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.gold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: SPACING.sm,
+  },
+  webInfoCard: {
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    ...SHADOWS.card,
+  },
   webList: { flex: 1, paddingHorizontal: SPACING.md },
   webRow: {
     flexDirection: 'row',

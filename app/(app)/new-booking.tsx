@@ -569,6 +569,139 @@ function MatchingDriversSection({
   );
 }
 
+// ─── Reusable inline dropdown (no external deps) ───────────────────────────
+function InlineDropdown<T extends string>({
+  label,
+  value,
+  options,
+  labelFor,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: readonly T[];
+  labelFor: (v: T) => string;
+  onChange: (v: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.ddWrapper}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable
+        onPress={() => setOpen((o) => !o)}
+        style={({ pressed }) => [styles.ddTrigger, pressed && styles.pressed]}
+      >
+        <Text style={styles.ddTriggerText}>{labelFor(value)}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.gold} />
+      </Pressable>
+      {open && (
+        <View style={styles.ddList}>
+          {options.map((opt) => {
+            const active = opt === value;
+            return (
+              <Pressable
+                key={opt}
+                onPress={() => { onChange(opt); setOpen(false); }}
+                style={({ pressed }) => [styles.ddItem, active && styles.ddItemActive, pressed && styles.pressed]}
+              >
+                <Text style={[styles.ddItemText, active && styles.ddItemTextActive]}>
+                  {labelFor(opt)}
+                </Text>
+                {active && <Ionicons name="checkmark" size={16} color={COLORS.gold} />}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Passenger stepper ──────────────────────────────────────────────────────
+function PassengerStepper({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  const num = Math.max(1, parseInt(value, 10) || 1);
+  return (
+    <View style={styles.stepperWrapper}>
+      <Text style={styles.fieldLabel}>{t('newBooking.form.passengers')}</Text>
+      <View style={styles.stepperRow}>
+        <Pressable
+          onPress={() => onChange(String(Math.max(1, num - 1)))}
+          style={({ pressed }) => [styles.stepperBtn, pressed && styles.pressed]}
+        >
+          <Ionicons name="remove" size={20} color={COLORS.gold} />
+        </Pressable>
+        <Text style={styles.stepperValue}>{num}</Text>
+        <Pressable
+          onPress={() => onChange(String(Math.min(50, num + 1)))}
+          style={({ pressed }) => [styles.stepperBtn, pressed && styles.pressed]}
+        >
+          <Ionicons name="add" size={20} color={COLORS.gold} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ─── Airport dropdown ───────────────────────────────────────────────────────
+const GEORGIA_AIRPORTS = [
+  'თბილისის აეროპორტი',
+  'ბათუმის აეროპორტი',
+  'ქუთაისის აეროპორტი',
+] as const;
+
+function AirportDropdown({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const isPreset = (GEORGIA_AIRPORTS as readonly string[]).includes(value);
+  return (
+    <View style={styles.ddWrapper}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable
+        onPress={() => setOpen((o) => !o)}
+        style={({ pressed }) => [styles.ddTrigger, pressed && styles.pressed]}
+      >
+        <Text style={[styles.ddTriggerText, !value && styles.ddPlaceholder]}>
+          {value || placeholder || ''}
+        </Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.gold} />
+      </Pressable>
+      {open && (
+        <View style={styles.ddList}>
+          {GEORGIA_AIRPORTS.map((ap) => {
+            const active = value === ap;
+            return (
+              <Pressable
+                key={ap}
+                onPress={() => { onChangeText(ap); setOpen(false); }}
+                style={({ pressed }) => [styles.ddItem, active && styles.ddItemActive, pressed && styles.pressed]}
+              >
+                <Text style={[styles.ddItemText, active && styles.ddItemTextActive]}>{ap}</Text>
+                {active && <Ionicons name="checkmark" size={16} color={COLORS.gold} />}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function VehiclePicker({
   selectedVehicleType,
   onVehicleTypeChange,
@@ -584,34 +717,20 @@ function VehiclePicker({
   return (
     <>
       <Text style={styles.sectionHeader}>{t('newBooking.vehicleSection')}</Text>
-      <Text style={styles.fieldLabel}>{t('newBooking.form.vehicleType')}</Text>
-      <View style={styles.chips}>
-        {VEHICLE_TYPES.map((t) => (
-          <Pressable
-            key={t}
-            onPress={() => onVehicleTypeChange(t)}
-            style={[styles.chip, selectedVehicleType === t && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, selectedVehicleType === t && styles.chipTextActive]}>
-              {vehicleTypeLabel(t)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <Text style={styles.fieldLabel}>{t('newBooking.form.vehicleClass')}</Text>
-      <View style={styles.chips}>
-        {VEHICLE_CLASSES.map((c) => (
-          <Pressable
-            key={c}
-            onPress={() => onVehicleClassChange(c)}
-            style={[styles.chip, vehicleClass === c && styles.chipActive]}
-          >
-            <Text style={[styles.chipText, vehicleClass === c && styles.chipTextActive]}>
-              {vehicleClassLabel(c)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <InlineDropdown
+        label={t('newBooking.form.vehicleType')}
+        value={selectedVehicleType}
+        options={VEHICLE_TYPES}
+        labelFor={vehicleTypeLabel}
+        onChange={onVehicleTypeChange}
+      />
+      <InlineDropdown
+        label={t('newBooking.form.vehicleClass')}
+        value={vehicleClass}
+        options={VEHICLE_CLASSES}
+        labelFor={vehicleClassLabel}
+        onChange={onVehicleClassChange}
+      />
     </>
   );
 }
@@ -1068,7 +1187,7 @@ export default function NewBookingScreen() {
             <View style={styles.accordionPanel}>
               {transferTab === 'arrival' ? (
                 <>
-                  <AuthInput
+                  <AirportDropdown
                     label={t('newBooking.form.airport')}
                     value={arrivalAirport}
                     onChangeText={setArrivalAirport}
@@ -1110,7 +1229,7 @@ export default function NewBookingScreen() {
                     placeholder={t('newBooking.form.placeholders.dateTime')}
                     minimumDate={new Date()}
                   />
-                  <AuthInput
+                  <AirportDropdown
                     label={t('newBooking.form.airport')}
                     value={departureAirport}
                     onChangeText={setDepartureAirport}
@@ -1122,12 +1241,7 @@ export default function NewBookingScreen() {
 
             <View style={styles.compactDivider} />
 
-            <AuthInput
-              label={t('newBooking.form.passengers')}
-              value={passengers}
-              onChangeText={setPassengers}
-              keyboardType="number-pad"
-            />
+            <PassengerStepper value={passengers} onChange={setPassengers} />
             <VehiclePicker
               selectedVehicleType={selectedVehicleType}
               onVehicleTypeChange={setSelectedVehicleType}
@@ -1262,13 +1376,7 @@ export default function NewBookingScreen() {
               placeholder={t('newBooking.form.placeholders.dateTime')}
               minimumDate={new Date()}
             />
-            <AuthInput
-              label={t('newBooking.form.passengers')}
-              value={passengers}
-              onChangeText={setPassengers}
-              keyboardType="number-pad"
-            />
-
+            <PassengerStepper value={passengers} onChange={setPassengers} />
             <View style={styles.dayTourCard}>
               <AuthInput
                 label={t('newBooking.form.from')}
@@ -2440,5 +2548,87 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.9,
+  },
+  // ─── Dropdown styles ───────────────────────────────────────────────────────
+  ddWrapper: {
+    marginBottom: SPACING.md,
+  },
+  ddTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.input,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 14,
+  },
+  ddTriggerText: {
+    fontSize: 15,
+    color: COLORS.text,
+    fontWeight: '500',
+    flex: 1,
+  },
+  ddPlaceholder: {
+    color: COLORS.textMuted,
+    fontWeight: '400',
+  },
+  ddList: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.input,
+    backgroundColor: COLORS.white,
+    overflow: 'hidden',
+    ...SHADOWS.cardStrong,
+    zIndex: 999,
+  },
+  ddItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  ddItemActive: {
+    backgroundColor: COLORS.goldTint,
+  },
+  ddItemText: {
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  ddItemTextActive: {
+    color: COLORS.goldDark,
+    fontWeight: '700',
+  },
+  // ─── Stepper styles ────────────────────────────────────────────────────────
+  stepperWrapper: {
+    marginBottom: SPACING.md,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.input,
+    backgroundColor: COLORS.surface,
+    overflow: 'hidden',
+  },
+  stepperBtn: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+  },
+  stepperValue: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
   },
 });

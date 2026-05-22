@@ -672,6 +672,7 @@
     "statusInProgress": "In progress",
     "statusPending": "Pending",
     "webFallback": "GPS tracking is only available in the iOS and Android app.",
+    "driversOnMap": "Drivers",
     "fleetTitle": "Fleet GPS",
     "fleetDrivers": "{{count}} drivers on map"
   },

@@ -671,6 +671,7 @@
     "statusInProgress": "В пути",
     "statusPending": "Ожидание",
     "webFallback": "GPS-отслеживание доступно только в приложении iOS и Android.",
+    "driversOnMap": "Водители",
     "fleetTitle": "GPS флота",
     "fleetDrivers": "{{count}} водителей на карте"
   },

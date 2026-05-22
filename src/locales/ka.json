@@ -671,6 +671,7 @@
     "statusInProgress": "მიმდინარეობს",
     "statusPending": "მოლოდინში",
     "webFallback": "GPS თვალყურება ხელმისაწვდომია მხოლოდ iOS და Android აპში.",
+    "driversOnMap": "მძღოლები",
     "fleetTitle": "ფლოტის GPS",
     "fleetDrivers": "{{count}} მძღოლი რუკაზე"
   },
