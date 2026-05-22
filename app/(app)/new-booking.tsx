@@ -50,6 +50,8 @@ import {
 import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
 import { bookingKindLabel } from '../../lib/bookingLabels';
 import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
+import { formatSpokenLanguagesList } from '../../lib/spokenLanguages';
+import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
 
@@ -337,8 +339,7 @@ function OperatorPicker({
 type DriverTargetMode = 'all' | 'specific';
 
 function formatDriverLanguages(languages: string[]): string {
-  if (!languages.length) return '';
-  return languages.join(', ');
+  return formatSpokenLanguagesList(languages);
 }
 
 function matchingDriverVehicleLine(vehicle: MatchingDriver['vehicle']): string {
@@ -357,6 +358,7 @@ function MatchingDriversSection({
   active,
   vehicleType,
   vehicleClass,
+  requiredLanguages,
   driverTargetMode,
   onDriverTargetModeChange,
   selectedDriverId,
@@ -366,6 +368,7 @@ function MatchingDriversSection({
   active: boolean;
   vehicleType: VehicleTypeCode;
   vehicleClass: VehicleClassCode;
+  requiredLanguages: string[];
   driverTargetMode: DriverTargetMode;
   onDriverTargetModeChange: (mode: DriverTargetMode) => void;
   selectedDriverId: string | null;
@@ -395,7 +398,7 @@ function MatchingDriversSection({
     setLoading(true);
     setLoadError(null);
 
-    void fetchMatchingDrivers(vehicleType, vehicleClass).then(({ data, error }) => {
+    void fetchMatchingDrivers(vehicleType, vehicleClass, requiredLanguages).then(({ data, error }) => {
       if (cancelled) return;
       setLoading(false);
       if (error) {
@@ -417,7 +420,7 @@ function MatchingDriversSection({
     return () => {
       cancelled = true;
     };
-  }, [active, vehicleType, vehicleClass, normType, normClass]);
+  }, [active, vehicleType, vehicleClass, normType, normClass, requiredLanguages]);
 
   if (!active || !normType || !normClass) {
     return null;
@@ -644,11 +647,12 @@ export default function NewBookingScreen() {
   const [driverTargetMode, setDriverTargetMode] = useState<DriverTargetMode>('all');
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [matchingDrivers, setMatchingDrivers] = useState<MatchingDriver[]>([]);
+  const [requiredLanguages, setRequiredLanguages] = useState<string[]>([]);
 
   useEffect(() => {
     setSelectedDriverId(null);
     setDriverTargetMode('all');
-  }, [selectedVehicleType, vehicleClass]);
+  }, [selectedVehicleType, vehicleClass, requiredLanguages]);
 
   const [meetGreet, setMeetGreet] = useState(false);
   const [signText, setSignText] = useState('');
@@ -828,6 +832,7 @@ export default function NewBookingScreen() {
     setSelectedVehicleType(VEHICLE_TYPES[0]);
     setDriverTargetMode('all');
     setSelectedDriverId(null);
+    setRequiredLanguages([]);
     setMeetGreet(false);
     setSignText('');
     setPassengerName('');
@@ -995,6 +1000,7 @@ export default function NewBookingScreen() {
       created_by_name: operatorName,
       driver_id:
         driverTargetMode === 'specific' && selectedDriverId ? selectedDriverId : null,
+      required_languages: requiredLanguages.length > 0 ? requiredLanguages : null,
     });
     setSubmitting(false);
     if (error) {
@@ -1127,6 +1133,12 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
+            />
+            <LanguageMultiSelect
+              label={t('newBooking.form.requiredLanguages')}
+              hint={t('newBooking.form.requiredLanguagesHint')}
+              value={requiredLanguages}
+              onChange={setRequiredLanguages}
             />
 
             <View style={styles.compactRow}>
@@ -1284,6 +1296,12 @@ export default function NewBookingScreen() {
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
             />
+            <LanguageMultiSelect
+              label={t('newBooking.form.requiredLanguages')}
+              hint={t('newBooking.form.requiredLanguagesHint')}
+              value={requiredLanguages}
+              onChange={setRequiredLanguages}
+            />
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
@@ -1427,6 +1445,12 @@ export default function NewBookingScreen() {
               onVehicleTypeChange={setSelectedVehicleType}
               vehicleClass={vehicleClass}
               onVehicleClassChange={setVehicleClass}
+            />
+            <LanguageMultiSelect
+              label={t('newBooking.form.requiredLanguages')}
+              hint={t('newBooking.form.requiredLanguagesHint')}
+              value={requiredLanguages}
+              onChange={setRequiredLanguages}
             />
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
@@ -1638,6 +1662,7 @@ export default function NewBookingScreen() {
               active
               vehicleType={selectedVehicleType}
               vehicleClass={vehicleClass}
+              requiredLanguages={requiredLanguages}
               driverTargetMode={driverTargetMode}
               onDriverTargetModeChange={setDriverTargetMode}
               selectedDriverId={selectedDriverId}

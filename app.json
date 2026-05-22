@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "keke-manager-app",
+    "name": "KEKE Manager",
     "slug": "keke-manager-app",
     "version": "1.0.0",
     "scheme": "kekemanager",
@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },

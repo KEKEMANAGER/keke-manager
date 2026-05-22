@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { LegalSettingsLinks } from '../../components/LegalSettingsLinks';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -497,6 +498,8 @@ export default function CompanyProfileScreen() {
       ) : null}
 
       <ProfileFeedbackEntry />
+
+      <LegalSettingsLinks />
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('common.language')}</Text>

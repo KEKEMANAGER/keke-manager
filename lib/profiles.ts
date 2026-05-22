@@ -1,3 +1,4 @@
+import { sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
 import {
   normalizeVehicleClass,
@@ -91,6 +92,31 @@ export async function saveDriverVehiclePreferences(
 
   if (error) {
     return { ok: false, error: new Error(error.message) };
+  }
+  return { ok: true, error: null };
+}
+
+/** Persist spoken languages on both `users` and `profiles`. */
+export async function saveDriverLanguages(
+  userId: string,
+  languages: string[],
+): Promise<{ ok: boolean; error: Error | null }> {
+  const id = userId.trim();
+  if (!id) {
+    return { ok: false, error: new Error('user id არ არის') };
+  }
+  const codes = sanitizeLanguageCodes(languages);
+
+  const [usersRes, profilesRes] = await Promise.all([
+    supabase.from('users').update({ languages: codes }).eq('id', id),
+    supabase.from('profiles').upsert({ id, languages: codes }, { onConflict: 'id' }),
+  ]);
+
+  if (usersRes.error) {
+    return { ok: false, error: new Error(usersRes.error.message) };
+  }
+  if (profilesRes.error) {
+    return { ok: false, error: new Error(profilesRes.error.message) };
   }
   return { ok: true, error: null };
 }

@@ -9,6 +9,7 @@ import {
 } from './driverSchedules';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
+import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { supabase } from './supabase';
 import {
   normalizeVehicleClass,
@@ -181,6 +182,7 @@ export async function fetchMatchingDriverPushRecipients(
   bookingVehicleType: string,
   bookingVehicleClass: string | null | undefined,
   availability?: BookingScheduleInput | null,
+  requiredLanguages?: string[] | null,
 ): Promise<{
   recipients: DriverPushRecipient[];
   error: Error | null;
@@ -240,7 +242,7 @@ export async function fetchMatchingDriverPushRecipients(
       .select('id, push_token, is_verified')
       .in('id', driverIds)
       .not('push_token', 'is', null),
-    supabase.from('users').select('id, is_verified').in('id', driverIds),
+    supabase.from('users').select('id, is_verified, languages').in('id', driverIds),
   ]);
 
   if (profilesRes.error) {
@@ -249,16 +251,23 @@ export async function fetchMatchingDriverPushRecipients(
   }
 
   const usersVerified = new Map<string, boolean>();
+  const userLanguages = new Map<string, string[]>();
   for (const row of usersRes.data ?? []) {
-    const u = row as { id: string; is_verified?: boolean | null };
-    usersVerified.set(String(u.id), u.is_verified === true);
+    const u = row as { id: string; is_verified?: boolean | null; languages?: string[] | null };
+    const uid = String(u.id);
+    usersVerified.set(uid, u.is_verified === true);
+    userLanguages.set(
+      uid,
+      Array.isArray(u.languages) ? u.languages.filter((x) => typeof x === 'string') : [],
+    );
   }
 
   let matchedRows = (profilesRes.data ?? [])
     .map((row) => row as DriverPushRow & { is_verified?: boolean | null })
     .filter((row) => {
       const verified = row.is_verified === true || usersVerified.get(row.id) === true;
-      return verified;
+      if (!verified) return false;
+      return driverMatchesRequiredLanguages(userLanguages.get(row.id), requiredLanguages);
     });
 
   const busyWindow = availability ? estimateBookingBusyWindow(availability) : null;
@@ -352,6 +361,8 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   showAlertIfEmpty?: boolean;
   /** Service time window — drivers with overlapping `driver_schedules` are skipped. */
   availability?: BookingScheduleInput | null;
+  /** When set, only drivers who speak at least one of these languages are notified. */
+  requiredLanguages?: string[] | null;
 }): Promise<NotifyMatchingDriversResult> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     params.vehicleType,
@@ -387,7 +398,12 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   const targetedDriverId = String(params.driverId ?? '').trim();
   const { recipients, error } = targetedDriverId
     ? await fetchDriverPushRecipientsById(targetedDriverId, params.availability)
-    : await fetchMatchingDriverPushRecipients(vehicleType, vehicleClass, params.availability);
+    : await fetchMatchingDriverPushRecipients(
+        vehicleType,
+        vehicleClass,
+        params.availability,
+        params.requiredLanguages,
+      );
 
   if (error) {
     if (__DEV__) console.warn('[notifyMatchingDrivers] fetch error:', error.message);

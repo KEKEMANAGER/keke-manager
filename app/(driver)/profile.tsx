@@ -26,7 +26,9 @@ import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { LegalSettingsLinks } from '../../components/LegalSettingsLinks';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
+import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
 import { fetchDriverAverageRating } from '../../lib/ratings';
@@ -34,9 +36,11 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
 import {
   fetchDriverProfile,
+  saveDriverLanguages,
   saveDriverVehiclePreferences,
   type DriverVehiclePreferences,
 } from '../../lib/profiles';
+import { formatSpokenLanguagesList } from '../../lib/spokenLanguages';
 import { supabase } from '../../lib/supabase';
 import { fetchVehicleByDriver } from '../../lib/vehicles';
 import {
@@ -94,7 +98,7 @@ export default function DriverProfileScreen() {
 
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
-  const [languages, setLanguages] = useState('');
+  const [spokenLanguages, setSpokenLanguages] = useState<string[]>([]);
   const [experienceYears, setExperienceYears] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
@@ -142,7 +146,11 @@ export default function DriverProfileScreen() {
       setName(row.full_name.trim());
     }
     setBio(row.bio?.trim() ?? '');
-    setLanguages(row.languages?.length ? row.languages.join(', ') : '');
+    setSpokenLanguages(
+      Array.isArray(row.languages)
+        ? row.languages.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+        : [],
+    );
     setExperienceYears(
       row.experience_years != null && !Number.isNaN(Number(row.experience_years))
         ? String(row.experience_years)
@@ -291,16 +299,24 @@ export default function DriverProfileScreen() {
     const userPatch = {
       full_name: name.trim() || null,
       bio: bio.trim() || null,
-      languages: languages.split(',').map((l) => l.trim()).filter(Boolean),
       experience_years: Number.isFinite(years) && years > 0 ? years : null,
       ...(isHired ? { available_for_hire: availableForHire } : {}),
     };
 
     if (isHired) {
-      const usersRes = await supabase.from('users').update(userPatch).eq('id', user.id);
+      const [usersRes, langRes] = await Promise.all([
+        supabase.from('users').update(userPatch).eq('id', user.id),
+        saveDriverLanguages(user.id, spokenLanguages),
+      ]);
       setSaveBusy(false);
       if (usersRes.error) {
         const message = mapSupabaseError(usersRes.error);
+        setSaveError(message);
+        showErrorAlert(message);
+        return;
+      }
+      if (!langRes.ok) {
+        const message = langRes.error?.message ?? 'Languages save failed';
         setSaveError(message);
         showErrorAlert(message);
         return;
@@ -310,9 +326,10 @@ export default function DriverProfileScreen() {
         vehicle_type: vehicleType!,
         vehicle_class: vehicleClass!,
       };
-      const [usersRes, profilesRes] = await Promise.all([
+      const [usersRes, profilesRes, langRes] = await Promise.all([
         supabase.from('users').update(userPatch).eq('id', user.id),
         saveDriverVehiclePreferences(user.id, prefs),
+        saveDriverLanguages(user.id, spokenLanguages),
       ]);
       setSaveBusy(false);
       if (usersRes.error) {
@@ -325,6 +342,12 @@ export default function DriverProfileScreen() {
         const message = mapSupabaseError(
           profilesRes.error ?? new Error(t('profilePage.vehicleSaveFailed')),
         );
+        setSaveError(message);
+        showErrorAlert(message);
+        return;
+      }
+      if (!langRes.ok) {
+        const message = langRes.error?.message ?? 'Languages save failed';
         setSaveError(message);
         showErrorAlert(message);
         return;
@@ -494,11 +517,12 @@ export default function DriverProfileScreen() {
             <Text style={styles.charCount}>
               {bio.length}/{bioMaxLength()}
             </Text>
-            <Field
+            <LanguageMultiSelect
               label={t('profilePage.languages')}
-              value={languages}
-              onChangeText={setLanguages}
-              placeholder={t('profilePage.languagesPlaceholder')}
+              hint={t('profilePage.languagesHint')}
+              value={spokenLanguages}
+              onChange={setSpokenLanguages}
+              disabled={saveBusy}
             />
             <Field
               label={t('profilePage.experience')}
@@ -529,7 +553,10 @@ export default function DriverProfileScreen() {
           <>
             <ViewField label={t('profilePage.fullName')} value={name || '—'} />
             <ViewField label={t('profilePage.bio')} value={bio || '—'} />
-            <ViewField label={t('profilePage.languages')} value={languages || '—'} />
+            <ViewField
+              label={t('profilePage.languages')}
+              value={formatSpokenLanguagesList(spokenLanguages) || '—'}
+            />
             {!isHired ? (
               <>
                 <ViewField label={t('profilePage.experience')} value={experienceYears || '—'} />
@@ -559,6 +586,8 @@ export default function DriverProfileScreen() {
       ) : null}
 
       <ProfileFeedbackEntry />
+
+      <LegalSettingsLinks />
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('profilePage.availability')}</Text>

@@ -55,7 +55,7 @@ module.exports = {
   expo: {
     ...appJson.expo,
     scheme: appJson.expo.scheme ?? 'kekemanager',
-    icon: './assets/logo.png',
+    icon: './assets/icon.png',
     splash: {
       image: './assets/splash.png',
       resizeMode: 'contain',
@@ -63,13 +63,12 @@ module.exports = {
     },
     ios: {
       ...(appJson.expo.ios ?? {}),
-      icon: './assets/logo.png',
       supportsTablet: true,
     },
     android: {
       ...(appJson.expo.android ?? {}),
       adaptiveIcon: {
-        foregroundImage: './assets/logo.png',
+        foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#FFFFFF',
       },
     },
@@ -88,6 +87,7 @@ module.exports = {
     ],
     extra: {
       ...(appJson.expo.extra ?? {}),
+      expoConnectUrl: process.env.EXPO_PUBLIC_EXPO_CONNECT_URL?.trim() || '',
       eas: {
         ...(appJson.expo.extra?.eas ?? {}),
         projectId:

@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { AuthInput } from '../../components/AuthInput';
+import { LegalConsentNotice } from '../../components/LegalConsentNotice';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../constants/theme';
 import { useAuth, type KekeRole } from '../../contexts/AuthContext';
 import { getUserRole } from '../../lib/role';
@@ -298,6 +299,8 @@ export default function SignUpScreen() {
               <Text style={styles.buttonText}>{t('authScreen.signUp')}</Text>
             )}
           </Pressable>
+
+          <LegalConsentNotice />
         </View>
 
         <View style={styles.footerRow}>

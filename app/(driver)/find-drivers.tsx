@@ -20,12 +20,11 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { assignSubDriverToVehicle } from '../../lib/fleet';
 import {
   fetchHiredDriversForBoard,
-  JOB_BOARD_LANG_CODES,
   languageBadgeLabel,
   notifyJobBoardProfileViewed,
   type HiredDriverListing,
-  type JobBoardLangCode,
 } from '../../lib/jobBoard';
+import { SPOKEN_LANGUAGE_CODES, type SpokenLanguageCode } from '../../lib/spokenLanguages';
 import { withCacheBust } from '../../lib/mediaUpload';
 import { isHiredDriver } from '../../lib/role';
 import { fetchVehiclesByDriver, type VehicleRow } from '../../lib/vehicles';
@@ -169,7 +168,7 @@ export default function FindDriversScreen() {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [profileDriver, setProfileDriver] = useState<HiredDriverListing | null>(null);
 
-  const [langFilters, setLangFilters] = useState<JobBoardLangCode[]>([]);
+  const [langFilters, setLangFilters] = useState<SpokenLanguageCode[]>([]);
   const [minRating, setMinRating] = useState(0);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('looking');
 
@@ -216,7 +215,7 @@ export default function FindDriversScreen() {
     });
   }, [drivers, minRating, langFilters]);
 
-  function toggleLang(code: JobBoardLangCode) {
+  function toggleLang(code: SpokenLanguageCode) {
     setLangFilters((prev) =>
       prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
     );
@@ -323,8 +322,12 @@ export default function FindDriversScreen() {
 
         <View style={styles.filtersCard}>
           <Text style={styles.filterSectionTitle}>{t('jobBoard.filterLanguages')}</Text>
-          <View style={styles.filterRow}>
-            {JOB_BOARD_LANG_CODES.map((code) => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRowScroll}
+          >
+            {SPOKEN_LANGUAGE_CODES.map((code) => (
               <FilterChip
                 key={code}
                 label={languageBadgeLabel(code)}
@@ -332,7 +335,7 @@ export default function FindDriversScreen() {
                 onPress={() => toggleLang(code)}
               />
             ))}
-          </View>
+          </ScrollView>
 
           <Text style={styles.filterSectionTitle}>{t('jobBoard.filterRating')}</Text>
           <View style={styles.filterRow}>
@@ -502,6 +505,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: SPACING.sm,
     marginBottom: SPACING.sm,
+  },
+  filterRowScroll: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    paddingBottom: SPACING.sm,
+    paddingRight: SPACING.md,
   },
   filterChip: {
     paddingVertical: 8,

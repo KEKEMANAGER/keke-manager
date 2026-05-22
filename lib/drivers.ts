@@ -1,5 +1,6 @@
 import { withCacheBust } from './mediaUpload';
 import { fetchDriverAverageRating } from './ratings';
+import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { supabase } from './supabase';
 import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 
@@ -92,6 +93,7 @@ function computeRatingAverages(
 export async function fetchMatchingDrivers(
   vehicleType: string,
   vehicleClass: string,
+  requiredLanguages?: string[] | null,
 ): Promise<{ data: MatchingDriver[]; error: Error | null }> {
   const normType = normalizeVehicleType(vehicleType);
   const normClass = normalizeVehicleClass(vehicleClass);
@@ -188,6 +190,11 @@ export async function fetchMatchingDrivers(
     const user = userById.get(driverId) ?? null;
 
     if (user?.role && user.role !== 'driver') {
+      continue;
+    }
+
+    const driverLangs = user?.languages ?? [];
+    if (!driverMatchesRequiredLanguages(driverLangs, requiredLanguages)) {
       continue;
     }
 

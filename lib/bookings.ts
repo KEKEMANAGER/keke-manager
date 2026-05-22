@@ -7,6 +7,7 @@ import {
   releaseDriverScheduleForBooking,
 } from './driverSchedules';
 import { notifyCompanyBookingAccepted, notifyMatchingDriversOfNewBooking } from './notifications';
+import { sanitizeLanguageCodes } from './spokenLanguages';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
@@ -273,6 +274,8 @@ export type InsertBookingInput = {
   created_by_name?: string | null;
   /** When set, booking is offered only to this driver (pending until they accept). */
   driver_id?: string | null;
+  /** Driver must speak at least one of these language codes (empty = any). */
+  required_languages?: string[] | null;
 };
 
 /** Localized booking status label */
@@ -538,6 +541,10 @@ export async function insertBooking(row: InsertBookingInput) {
       created_by_name: row.created_by_name?.trim() || null,
       status: 'pending',
       driver_id: assignedDriverId || null,
+      required_languages: (() => {
+        const codes = sanitizeLanguageCodes(row.required_languages ?? []);
+        return codes.length > 0 ? codes : null;
+      })(),
     };
 
     if (opts.includeKindColumn) {
@@ -637,6 +644,7 @@ export async function insertBooking(row: InsertBookingInput) {
       driverId: assignedDriverId || undefined,
       bookingId,
       showAlertIfEmpty: true,
+      requiredLanguages: row.required_languages ?? undefined,
       availability: {
         kind,
         date_display: row.date_display,

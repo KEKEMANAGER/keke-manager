@@ -138,6 +138,14 @@ export default function SignInScreen() {
               </Pressable>
             </Link>
           </View>
+
+          {__DEV__ ? (
+            <Link href="/dev-qr" asChild>
+              <Pressable style={styles.devQrLink} hitSlop={8}>
+                <Text style={styles.devQrLinkText}>{t('devQr.openScreen')}</Text>
+              </Pressable>
+            </Link>
+          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -226,5 +234,15 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 15,
     fontWeight: '700',
+  },
+  devQrLink: {
+    marginTop: SPACING.md,
+    alignSelf: 'center',
+  },
+  devQrLinkText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

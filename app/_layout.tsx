@@ -228,6 +228,7 @@ function NavigationShell() {
     const inAuth = root === '(auth)';
     const inApp = root === '(app)';
     const inDriver = root === '(driver)';
+    const inLegal = root === 'legal';
 
     const matchesAuthPath = (slug: string) =>
       pathname === `/${slug}` || pathname.endsWith(`/${slug}`) || segments.includes(slug);
@@ -242,7 +243,7 @@ function NavigationShell() {
       target = '/sign-in';
     } else if (userId && !role && (inApp || inDriver)) {
       target = '/';
-    } else if (userId && inAuth && role && !onPasswordRecoveryRoute) {
+    } else if (userId && inAuth && role && !onPasswordRecoveryRoute && !inLegal) {
       target = role === 'driver' ? '/(driver)/dashboard' : '/(app)/dashboard';
     } else if (userId && role === 'driver' && inApp) {
       target = '/(driver)/dashboard';

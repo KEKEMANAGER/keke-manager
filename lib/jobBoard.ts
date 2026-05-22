@@ -1,10 +1,22 @@
 import i18n from '../src/lib/i18n';
 import { sendExpoPushNotification } from './expoPush';
 import { fetchDriverAverageRating } from './ratings';
+import {
+  JOB_BOARD_LANG_CODES,
+  languageBadgeLabel,
+  languageCodesFromList,
+  normalizeLanguageCode,
+  type JobBoardLangCode,
+} from './spokenLanguages';
 import { supabase } from './supabase';
 
-export const JOB_BOARD_LANG_CODES = ['ka', 'en', 'ru'] as const;
-export type JobBoardLangCode = (typeof JOB_BOARD_LANG_CODES)[number];
+export {
+  JOB_BOARD_LANG_CODES,
+  languageBadgeLabel,
+  languageCodesFromList,
+  normalizeLanguageCode,
+  type JobBoardLangCode,
+};
 
 export type HiredDriverStatus = 'looking' | 'employed' | 'not_looking';
 
@@ -20,30 +32,6 @@ export type HiredDriverListing = {
   ratingAverage: number;
   ratingCount: number;
 };
-
-export function normalizeLanguageCode(raw: string): JobBoardLangCode | null {
-  const s = raw.trim().toLowerCase();
-  if (!s) return null;
-  if (s === 'ka' || s.includes('georg') || s.includes('ქართ')) return 'ka';
-  if (s === 'en' || s.includes('engl') || s.includes('ინგლ')) return 'en';
-  if (s === 'ru' || s.includes('russ') || s.includes('რუს')) return 'ru';
-  return null;
-}
-
-export function languageCodesFromList(languages: string[]): JobBoardLangCode[] {
-  const set = new Set<JobBoardLangCode>();
-  for (const lang of languages) {
-    const code = normalizeLanguageCode(lang);
-    if (code) set.add(code);
-  }
-  return [...set];
-}
-
-export function languageBadgeLabel(code: JobBoardLangCode): string {
-  if (code === 'ka') return i18n.t('jobBoard.langKa');
-  if (code === 'en') return i18n.t('jobBoard.langEn');
-  return i18n.t('jobBoard.langRu');
-}
 
 function parseLanguages(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];

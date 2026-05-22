@@ -4,6 +4,9 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:tunnel": "expo start --tunnel",
+    "icons": "node scripts/generate-store-icons.mjs",
+    "legal:sync": "node scripts/sync-legal-docs.mjs",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
@@ -38,14 +41,18 @@
     "react-i18next": "^17.0.8",
     "react-native": "0.81.5",
     "react-native-maps": "1.20.1",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@expo/ngrok": "^4.1.0",
     "@types/react": "~19.1.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~10.0.0",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.2"
   },
   "private": true
