@@ -53,41 +53,29 @@ export function DateTimeField({
     return mode === 'time' ? formatDisplayTime(value) : formatDisplayDateTime(value);
   }, [value, mode]);
 
-  const openNativePicker = () => {
-    const el = inputRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === 'function') {
-      el.showPicker();
-    } else {
-      el.click();
-    }
-  };
-
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
-      <Pressable
-        onPress={openNativePicker}
-        style={({ pressed }) => [styles.input, pressed && styles.inputPressed]}
-      >
-        <Text style={displayText ? styles.valueText : styles.placeholderText}>
+      <View style={styles.inputWrap}>
+        <Text style={[styles.valueText_abs, displayText ? styles.valueText : styles.placeholderText]}>
           {displayText || resolvedPlaceholder}
         </Text>
-      </Pressable>
-      {/* Web-only native picker; hidden visually */}
-      <input
-        ref={inputRef}
-        type={mode === 'time' ? 'time' : 'datetime-local'}
-        value={toInputValue(value, mode)}
-        onChange={(e) => onChange(fromInputValue(e.target.value, mode))}
-        style={{
-          position: 'absolute',
-          opacity: 0,
-          width: 1,
-          height: 1,
-          pointerEvents: 'none',
-        }}
-      />
+        <input
+          ref={inputRef}
+          type={mode === 'time' ? 'time' : 'datetime-local'}
+          value={toInputValue(value, mode)}
+          onChange={(e) => onChange(fromInputValue(e.target.value, mode))}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            opacity: 0,
+            cursor: 'pointer',
+            zIndex: 1,
+          }}
+        />
+      </View>
     </View>
   );
 }
@@ -118,6 +106,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
     fontWeight: '500',
+  },
+  inputWrap: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 48,
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  valueText_abs: {
+    fontSize: 16,
+    fontWeight: '500',
+    pointerEvents: 'none',
   },
   placeholderText: {
     fontSize: 16,
