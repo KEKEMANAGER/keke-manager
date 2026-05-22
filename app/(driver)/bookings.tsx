@@ -360,6 +360,29 @@ export default function DriverBookingsScreen() {
     }
   }, [tab, openListHint, t]);
 
+  // ── Verification gate ──────────────────────────────────────────────────────
+  const isVerified = profile?.verification_status === 'approved' && profile?.is_verified === true;
+  const isHired = profile?.is_hired_driver === true;
+
+  if (!isVerified || isHired) {
+    return (
+      <View style={[styles.screen, styles.gateWrap, { paddingTop: insets.top + SPACING.xl }]}>
+        <Text style={styles.gateIcon}>🔒</Text>
+        <Text style={styles.gateTitle}>
+          {isHired
+            ? 'წვდომა შეზღუდულია'
+            : 'ვერიფიკაცია საჭიროა'}
+        </Text>
+        <Text style={styles.gateSubtitle}>
+          {isHired
+            ? 'დაქირავებულ მძღოლებს ჯავშნებთან წვდომა არ აქვთ.'
+            : 'ჯავშნების სანახავად ადმინის ვერიფიკაცია გჭირდება. გთხოვ დაელოდო დამტკიცებას.'}
+        </Text>
+      </View>
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top + SPACING.md }]}>
       <Text style={styles.title}>{t('bookings.title')}</Text>
@@ -549,6 +572,29 @@ export default function DriverBookingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  gateWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  gateIcon: {
+    fontSize: 52,
+    marginBottom: 16,
+  },
+  gateTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f0f0f',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  gateSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
