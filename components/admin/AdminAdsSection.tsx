@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,6 +41,7 @@ export function AdminAdsSection() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -51,6 +54,33 @@ export function AdminAdsSection() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  async function pickAndUpload() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const ext = asset.uri.split('.').pop() ?? 'jpg';
+    const fileName = `ad_${Date.now()}.${ext}`;
+    setUploading(true);
+    setError(null);
+    try {
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const { error: upErr } = await supabase.storage
+        .from('ads')
+        .upload(fileName, blob, { contentType: `image/${ext}`, upsert: true });
+      if (upErr) { setError(upErr.message); setUploading(false); return; }
+      const { data: urlData } = supabase.storage.from('ads').getPublicUrl(fileName);
+      setForm((p) => ({ ...p, image_url: urlData.publicUrl }));
+    } catch (e) {
+      setError('ატვირთვა ვერ მოხერხდა');
+    }
+    setUploading(false);
+  }
 
   async function handleSave() {
     if (!form.title.trim()) { setError('სათაური სავალდებულოა'); return; }
@@ -117,15 +147,25 @@ export function AdminAdsSection() {
             placeholderTextColor={COLORS.textMuted}
           />
 
-          <Text style={styles.label}>სურათის URL</Text>
-          <TextInput
-            style={styles.input}
-            value={form.image_url}
-            onChangeText={(v) => setForm((p) => ({ ...p, image_url: v }))}
-            placeholder="https://..."
-            placeholderTextColor={COLORS.textMuted}
-            autoCapitalize="none"
-          />
+          <Text style={styles.label}>სურათი</Text>
+          {form.image_url ? (
+            <Image source={{ uri: form.image_url }} style={styles.previewImage} resizeMode="cover" />
+          ) : null}
+          <Pressable
+            onPress={pickAndUpload}
+            disabled={uploading}
+            style={({ pressed }) => [styles.uploadBtn, pressed && { opacity: 0.8 }]}
+          >
+            {uploading
+              ? <ActivityIndicator color={COLORS.gold} size="small" />
+              : <>
+                  <Ionicons name="image-outline" size={18} color={COLORS.gold} />
+                  <Text style={styles.uploadBtnText}>
+                    {form.image_url ? 'სურათის შეცვლა' : 'სურათის არჩევა'}
+                  </Text>
+                </>
+            }
+          </Pressable>
 
           <Text style={styles.label}>ლინკი</Text>
           <TextInput
@@ -305,6 +345,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleBtnText: { color: COLORS.gold, fontWeight: '700', fontSize: 13 },
+  uploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    borderRadius: RADIUS.button,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    marginTop: 4,
+  },
+  uploadBtnText: { color: COLORS.gold, fontWeight: '700', fontSize: 14 },
+  previewImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: RADIUS.card,
+    marginBottom: 6,
+  },
   deleteBtn: {
     padding: 8,
     borderWidth: 1,
