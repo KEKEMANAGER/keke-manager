@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Alert,
   Dimensions,
   Image,
@@ -36,6 +37,7 @@ import { UserAvatar } from '../../components/UserAvatar';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { EmptyState } from '../../components/EmptyState';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
+import { supabase } from '../../lib/supabase';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
@@ -526,6 +528,46 @@ export default function CompanyDashboardScreen() {
           </View>
         ))
       )}
+
+
+      {ads.length > 0 ? (
+        <>
+          <Text style={styles.sectionTitle}>🤝 პარტნიორები</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.adsRow}
+            style={styles.adsScroll}
+          >
+            {ads.map((ad) => (
+              <Pressable
+                key={ad.id}
+                onPress={() => ad.link_url ? void Linking.openURL(ad.link_url) : null}
+                style={({ pressed }) => [styles.adCard, pressed && { opacity: 0.85 }]}
+              >
+                {ad.image_url ? (
+                  <Image
+                    source={{ uri: ad.image_url }}
+                    style={styles.adImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.adImagePlaceholder}>
+                    <Text style={styles.adImageEmoji}>📢</Text>
+                  </View>
+                )}
+                <View style={styles.adInfo}>
+                  <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
+                  {ad.subtitle ? <Text style={styles.adSubtitle} numberOfLines={1}>{ad.subtitle}</Text> : null}
+                </View>
+                <View style={styles.adBadge}>
+                  <Text style={styles.adBadgeText}>Ad</Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
 
       <Text style={styles.sectionTitle}>{t('common.stats')}</Text>
       <View style={styles.statsRow}>
@@ -1088,6 +1130,62 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     textAlign: 'right',
+  },
+  adsScroll: {
+    marginBottom: SPACING.md,
+  },
+  adsRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    paddingRight: SPACING.md,
+  },
+  adCard: {
+    width: 160,
+    borderRadius: RADIUS.card,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    ...SHADOWS.card,
+  },
+  adImage: {
+    width: '100%',
+    height: 90,
+  },
+  adImagePlaceholder: {
+    width: '100%',
+    height: 90,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adImageEmoji: { fontSize: 32 },
+  adInfo: {
+    padding: SPACING.sm,
+  },
+  adTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  adSubtitle: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  adBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  adBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   statsRow: {
     flexDirection: 'row',
