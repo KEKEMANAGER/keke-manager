@@ -472,12 +472,23 @@ export async function notifyMatchingDriversOfNewBooking(params: {
 export async function notifyCompanyBookingAccepted(params: {
   companyUserId: string;
   bookingId: string;
+  driverName?: string;
+  driverPhone?: string;
+  driverPlate?: string;
 }): Promise<void> {
   const companyUserId = params.companyUserId.trim();
   const bookingId = params.bookingId.trim();
   if (!companyUserId || !bookingId) return;
 
-  const { title, body } = getBookingConfirmedNotificationContent();
+  const { title } = getBookingConfirmedNotificationContent();
+
+  const lines: string[] = [];
+  lines.push(notifyT('notifications.bookingConfirmedBody', 'Booking confirmed ✅'));
+  if (params.driverName?.trim()) lines.push(`👤 ${params.driverName.trim()}`);
+  if (params.driverPhone?.trim()) lines.push(`📞 ${params.driverPhone.trim()}`);
+  if (params.driverPlate?.trim()) lines.push(`🚗 ${params.driverPlate.trim()}`);
+  const body = lines.join('\n');
+
   const pushData: Record<string, string> = {
     type: 'booking_accepted',
     booking_id: bookingId,

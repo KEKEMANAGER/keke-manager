@@ -713,7 +713,13 @@ export async function acceptBooking(
     .eq('id', rowId)
     .maybeSingle();
   const companyUid = String((companyRow as { company_id?: string | null } | null)?.company_id ?? '').trim();
-  if (companyUid) void notifyCompanyBookingAccepted({ companyUserId: companyUid, bookingId: rowId });
+  if (companyUid) void notifyCompanyBookingAccepted({
+    companyUserId: companyUid,
+    bookingId: rowId,
+    driverName: driver.displayName || undefined,
+    driverPhone: driver.phone || undefined,
+    driverPlate: driver.plate || undefined,
+  });
   return { ok: true as const, error: null };
 }
 
