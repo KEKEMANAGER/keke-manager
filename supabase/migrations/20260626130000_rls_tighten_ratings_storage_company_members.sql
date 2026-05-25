@@ -1,4 +1,5 @@
 -- Tighten RLS: ratings, storage bucket media, company_members
+-- company_id may be uuid or text in production — compare via ::text on both sides.
 
 -- ---------------------------------------------------------------------------
 -- public.ratings — authenticated only; company inserts for own completed bookings
@@ -15,15 +16,15 @@ DROP POLICY IF EXISTS "ratings_company_insert" ON public.ratings;
 CREATE POLICY "ratings_company_insert" ON public.ratings
   FOR INSERT TO authenticated
   WITH CHECK (
-    company_id = (auth.uid())::text
+    company_id::text = (auth.uid())::text
     AND EXISTS (
       SELECT 1 FROM public.users u
       WHERE u.id = auth.uid() AND u.role = 'company'
     )
     AND EXISTS (
       SELECT 1 FROM public.bookings b
-      WHERE b.id::text = booking_id
-        AND b.company_id = (auth.uid())::text
+      WHERE b.id::text = booking_id::text
+        AND b.company_id::text = (auth.uid())::text
         AND b.status = 'completed'
     )
   );
@@ -108,14 +109,14 @@ DROP POLICY IF EXISTS "company_members_authenticated_delete" ON public.company_m
 CREATE POLICY "company_members_select_scope" ON public.company_members
   FOR SELECT TO authenticated
   USING (
-    company_id = (auth.uid())::text
+    company_id::text = (auth.uid())::text
     OR EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin')
   );
 
 CREATE POLICY "company_members_insert_own" ON public.company_members
   FOR INSERT TO authenticated
   WITH CHECK (
-    company_id = (auth.uid())::text
+    company_id::text = (auth.uid())::text
     AND EXISTS (
       SELECT 1 FROM public.users u
       WHERE u.id = auth.uid() AND u.role = 'company'
@@ -125,7 +126,7 @@ CREATE POLICY "company_members_insert_own" ON public.company_members
 CREATE POLICY "company_members_delete_own" ON public.company_members
   FOR DELETE TO authenticated
   USING (
-    company_id = (auth.uid())::text
+    company_id::text = (auth.uid())::text
     OR EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'admin')
   );
 
