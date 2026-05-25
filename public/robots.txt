@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /admin-panel
+Disallow: /admin-user
+Disallow: /chat
+Disallow: /chat-list
+Disallow: /profile
+Disallow: /settings
+Disallow: /new-booking
+Disallow: /edit-booking
+Disallow: /history
+Disallow: /drivers
+Disallow: /company-voucher
+Disallow: /vehicle
+Disallow: /vehicles
+Disallow: /bookings
+Disallow: /my-host
+Disallow: /hired-drivers
+Disallow: /ratings
+Disallow: /assigned-vehicle
+Disallow: /fleet-map
+Disallow: /gps
+Disallow: /find-drivers
+
+Sitemap: https://kekemanager.com/sitemap.xml

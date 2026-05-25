@@ -13,6 +13,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLandingCopy } from '../../lib/landingCopy';
 import {
+  isSeoLang,
+  OG_IMAGE_URL,
+  resolveSeoLang,
+  SITE_URL,
+} from '../../lib/seoMeta';
+import {
   APP_SYNCED_LANDING_LANGS,
   LANDING_LANGUAGES,
   type LandingLangCode} from '../../lib/landingLanguages';
@@ -127,7 +133,7 @@ export function LandingPage() {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const copy = useMemo(() => getLandingCopy(lang), [lang]);
 
-  useLandingMeta(copy);
+  useLandingMeta(lang, copy);
 
   useEffect(() => {
     const useNativeDriver = Platform.OS !== 'web';
@@ -293,6 +299,9 @@ export function LandingPage() {
                     source={LOGO}
                     style={{ width: heroLogoSize, height: heroLogoSize, marginBottom: 8 }}
                     resizeMode="contain"
+                    {...(Platform.OS === 'web'
+                      ? ({ loading: 'lazy' } as { loading?: 'lazy' | 'eager' })
+                      : {})}
                   />
                   <Text
                     style={sx(
