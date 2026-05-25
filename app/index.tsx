@@ -1,5 +1,6 @@
 import { Redirect } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { LandingPage } from '../components/landing/LandingPage';
 import { PendingVerificationScreen } from '../components/PendingVerificationScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../constants/theme';
@@ -25,6 +26,10 @@ export default function Index() {
       return <Redirect href="/(app)/dashboard" />;
     }
     return <PendingVerificationScreen />;
+  }
+
+  if (Platform.OS === 'web') {
+    return <LandingPage />;
   }
 
   return <Redirect href="/sign-in" />;
