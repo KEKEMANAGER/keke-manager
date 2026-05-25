@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { StarRow } from '../../components/StarRow';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
-import { assignSubDriverToVehicle } from '../../lib/fleet';
+import { sendFleetInvite } from '../../lib/fleet';
 import {
   fetchHiredDriversForBoard,
   languageBadgeLabel,
@@ -145,7 +145,7 @@ function DriverCard({
           ) : (
             <>
               <Ionicons name="person-add-outline" size={17} color={COLORS.black} />
-              <Text style={styles.btnGoldText}>{t('jobBoard.addToFleet')}</Text>
+              <Text style={styles.btnGoldText}>{t('jobBoard.sendInvite')}</Text>
             </>
           )}
         </Pressable>
@@ -232,13 +232,13 @@ export default function FindDriversScreen() {
   async function assignToVehicle(subDriverId: string, vehicleId: string) {
     if (!userId) return;
     setAddingId(subDriverId);
-    const { error: err } = await assignSubDriverToVehicle(userId, vehicleId, subDriverId);
+    const { error: err } = await sendFleetInvite(userId, vehicleId, subDriverId);
     setAddingId(null);
     if (err) {
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
-    Alert.alert(t('common.success'), t('jobBoard.addSuccess'), [
+    Alert.alert(t('common.success'), t('jobBoard.inviteSent'), [
       { text: t('jobBoard.viewFleet'), onPress: () => router.push('/(driver)/fleet') },
       { text: t('common.cancel'), style: 'cancel' },
     ]);
@@ -461,7 +461,7 @@ export default function FindDriversScreen() {
                 style={({ pressed }) => [styles.btnGold, SHADOWS.button, pressed && styles.btnPressed]}
               >
                 <Ionicons name="person-add-outline" size={18} color={COLORS.black} />
-                <Text style={styles.btnGoldText}>{t('jobBoard.addToFleet')}</Text>
+                <Text style={styles.btnGoldText}>{t('jobBoard.sendInvite')}</Text>
               </Pressable>
             ) : null}
           </View>

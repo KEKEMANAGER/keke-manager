@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BookingChangedBadge } from '../../components/BookingChangedBadge';
+import { BookingVoucherModal } from '../../components/BookingVoucherModal';
 import { EmptyState } from '../../components/EmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -24,10 +26,13 @@ import {
   acceptBooking,
   bookingStatusLabel,
   bookingTypeLabel,
+  cancelBookingByDriver,
   completeBooking,
   fetchBookingsForDriver,
+  fetchBookingsForHost,
   fetchOpenPendingBookingsForDriver,
   formatBookingDate,
+  hostAcceptBookingForSub,
   isNewOpenPendingBookingInsert,
   rejectBooking,
   routeSummary,
@@ -35,6 +40,8 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
+import { fetchAcceptedFleetMembersForHost, fetchFleetContext } from '../../lib/fleet';
+import type { FleetMemberView } from '../../lib/fleet';
 import { stopBackgroundLocation } from '../../lib/backgroundLocation';
 import { clearDriverLocation } from '../../lib/locations';
 import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
@@ -155,6 +162,7 @@ export default function DriverBookingsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [openListHint, setOpenListHint] = useState<'profile_vehicle_required' | null>(null);
+  const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -169,12 +177,15 @@ export default function DriverBookingsScreen() {
     if (mode === 'initial') setLoading(true);
     if (mode === 'refresh') setRefreshing(true);
 
+    const fleetCtx = await fetchFleetContext(userId);
     const results = await Promise.all([
       fetchOpenPendingBookingsForDriver(userId),
       fetchBookingsForDriver(userId),
+      fleetCtx.kind === 'host' ? fetchBookingsForHost(userId) : Promise.resolve({ data: [], error: null }),
     ]);
     const openRes = results[0]!;
     const mineRes = results[1]!;
+    const hostRes = results[2]!;
 
     if (mode === 'initial') setLoading(false);
     if (mode === 'refresh') setRefreshing(false);
@@ -187,11 +198,18 @@ export default function DriverBookingsScreen() {
       setOpenJobs(openRes.data);
       setOpenListHint(openRes.hint ?? null);
     }
-    if (mineRes.error) {
+    if (mineRes.error && hostRes.error) {
       if (!openRes.error) setError(mineRes.error.message);
       setAssigned([]);
     } else {
-      setAssigned(mineRes.data);
+      const merged = [...mineRes.data];
+      for (const row of hostRes.data) {
+        if (!merged.some((b) => b.id === row.id)) merged.push(row);
+      }
+      merged.sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+      );
+      setAssigned(merged);
     }
   }, [userId]);
 
@@ -252,8 +270,58 @@ export default function DriverBookingsScreen() {
     return () => cancelAnimationFrame(frame);
   }, [highlightBookingId, loading, data, tab]);
 
+  async function acceptAsSub(item: BookingRow, member: FleetMemberView) {
+    if (!user) return;
+    setActingId(item.id);
+    const subName =
+      member.sub_full_name?.trim() || member.sub_email?.trim() || t('common.driver');
+    const plate = member.vehicle?.plate?.trim() ?? '';
+    const res = await hostAcceptBookingForSub(item.id, user.id, member.sub_driver_id, {
+      displayName: subName,
+      phone: '',
+      plate,
+    });
+    setActingId(null);
+    if (!res.ok) {
+      crossInfoAlert(t('common.error'), res.error?.message || t('bookings.acceptFailed'));
+      void load('silent');
+      return;
+    }
+    void load('silent');
+    setTab('active');
+  }
+
   async function onAccept(item: BookingRow) {
     if (!user) return;
+
+    const { data: fleetMembers } = await fetchAcceptedFleetMembersForHost(user.id);
+    if (fleetMembers.length > 0) {
+      const pickSub = (member: FleetMemberView) => void acceptAsSub(item, member);
+      if (Platform.OS === 'web') {
+        const label = fleetMembers.map(
+          (m) => m.sub_full_name?.trim() || m.sub_email || m.sub_driver_id.slice(0, 8),
+        );
+        const idx = window.prompt(
+          `${t('fleet.pickSubForBooking')}\n${label.map((l, i) => `${i + 1}. ${l}`).join('\n')}`,
+        );
+        const n = Number(idx);
+        if (n >= 1 && n <= fleetMembers.length) pickSub(fleetMembers[n - 1]!);
+        return;
+      }
+      Alert.alert(
+        t('fleet.pickSubForBooking'),
+        t('fleet.pickSubForBookingSub'),
+        [
+          ...fleetMembers.map((m) => ({
+            text: m.sub_full_name?.trim() || m.sub_email || t('common.driver'),
+            onPress: () => pickSub(m),
+          })),
+          { text: t('common.cancel'), style: 'cancel' as const },
+        ],
+      );
+      return;
+    }
+
     setActingId(item.id);
     const res = await acceptBooking(item.id, {
       driverId: user.id,
@@ -306,6 +374,32 @@ export default function DriverBookingsScreen() {
     crossInfoAlert(t('common.success'), t('bookings.completeSuccess'));
     void load('silent');
     setTab('completed');
+  }
+
+  async function handleCancel(item: BookingRow) {
+    if (!user?.id) return;
+    setActingId(item.id);
+    const res = await cancelBookingByDriver(item.id, user.id);
+    setActingId(null);
+    if (!res.ok) {
+      crossInfoAlert(
+        t('common.error'),
+        getSupabaseErrorMessage(res.error) || t('bookings.cancelFailed'),
+      );
+      void load('silent');
+      return;
+    }
+    crossInfoAlert(t('common.success'), t('bookings.cancelSuccess'));
+    void load('silent');
+  }
+
+  function confirmCancel(item: BookingRow) {
+    crossAlert(
+      t('bookings.cancelConfirmTitle'),
+      t('bookings.cancelConfirmMessage'),
+      () => void handleCancel(item),
+      t('bookings.cancel'),
+    );
   }
 
   async function onStartTrip(item: BookingRow) {
@@ -375,9 +469,14 @@ export default function DriverBookingsScreen() {
         </Text>
         <Text style={styles.gateSubtitle}>
           {isHired
-            ? 'დაქირავებულ მძღოლებს ჯავშნებთან წვდომა არ აქვთ.'
+            ? t('hiredDriver.bookingsGateHint')
             : 'ჯავშნების სანახავად ადმინის ვერიფიკაცია გჭირდება. გთხოვ დაელოდო დამტკიცებას.'}
         </Text>
+        {isHired ? (
+          <Pressable onPress={() => router.replace('/(driver)/dashboard')} style={styles.gateBtn}>
+            <Text style={styles.gateBtnText}>{t('hiredDriver.goDashboard')}</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }
@@ -472,30 +571,27 @@ export default function DriverBookingsScreen() {
               ) : null}
               <Text style={styles.date}>{formatBookingDate(item)}</Text>
               <Text style={styles.route}>{routeSummary(item)}</Text>
+              <BookingChangedBadge booking={item} onAcknowledged={() => void load('silent')} />
+              <Pressable
+                onPress={() => setVoucherBooking(item)}
+                style={({ pressed }) => [styles.voucherBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.voucherBtnText}>📄 {t('common.voucher')}</Text>
+              </Pressable>
+
               <View style={styles.footer}>
                 <Text style={styles.price}>{Number(item.price_gel).toLocaleString('ka-GE')} ₾</Text>
-                {tab === 'open' ? (
+                {item.status === 'pending' ? (
                   <View style={styles.actions}>
                     <Pressable
-                      onPress={() => {
-                        if (Platform.OS === 'web') {
-                          crossAlert(
-                            t('bookings.rejectTitle'),
-                            t('bookings.rejectMessage'),
-                            () => void handleReject(item),
-                            t('bookings.decline'),
-                          );
-                          return;
-                        }
-                        Alert.alert(t('bookings.rejectTitle'), t('bookings.rejectMessage'), [
-                          { text: t('common.no'), style: 'cancel' },
-                          {
-                            text: t('bookings.decline'),
-                            style: 'destructive',
-                            onPress: () => void handleReject(item),
-                          },
-                        ]);
-                      }}
+                      onPress={() =>
+                        crossAlert(
+                          t('bookings.rejectTitle'),
+                          t('bookings.rejectMessage'),
+                          () => void handleReject(item),
+                          t('bookings.decline'),
+                        )
+                      }
                       disabled={actingId === item.id}
                       style={({ pressed }) => [styles.btnGhost, pressed && styles.pressed]}
                     >
@@ -524,49 +620,62 @@ export default function DriverBookingsScreen() {
                       )}
                     </Pressable>
                   </View>
-                ) : tab === 'completed' ? (
-                  <Text style={styles.completedLabel}>{t('bookings.completedLabel')}</Text>
-                ) : tab === 'active' ? (
+                ) : item.status === 'accepted' ? (
                   <View style={styles.actions}>
-                    {item.status === 'accepted' ? (
-                      <Pressable
-                        onPress={() => void onStartTrip(item)}
-                        disabled={actingId === item.id}
-                        style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
-                      >
-                        {actingId === item.id ? (
-                          <ActivityIndicator color={COLORS.white} size="small" />
-                        ) : (
-                          <Text style={styles.btnGoldText}>{t('bookings.startTrip')}</Text>
-                        )}
-                      </Pressable>
-                    ) : item.status === 'in_progress' ? (
-                      <Pressable
-                        onPress={() =>
-                          crossAlert(
-                            t('bookings.completeTitle'),
-                            t('bookings.completeMessage'),
-                            () => void onComplete(item),
-                            t('bookings.complete'),
-                          )
-                        }
-                        disabled={actingId === item.id}
-                        style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
-                      >
-                        {actingId === item.id ? (
-                          <ActivityIndicator color={COLORS.white} size="small" />
-                        ) : (
-                          <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
-                        )}
-                      </Pressable>
-                    ) : null}
+                    <Pressable
+                      onPress={() => confirmCancel(item)}
+                      disabled={actingId === item.id}
+                      style={({ pressed }) => [styles.btnGhost, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.btnGhostText}>{t('bookings.cancel')}</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void onStartTrip(item)}
+                      disabled={actingId === item.id}
+                      style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
+                    >
+                      {actingId === item.id ? (
+                        <ActivityIndicator color={COLORS.white} size="small" />
+                      ) : (
+                        <Text style={styles.btnGoldText}>{t('bookings.startTrip')}</Text>
+                      )}
+                    </Pressable>
                   </View>
+                ) : item.status === 'in_progress' ? (
+                  <View style={styles.actions}>
+                    <Pressable
+                      onPress={() =>
+                        crossAlert(
+                          t('bookings.completeTitle'),
+                          t('bookings.completeMessage'),
+                          () => void onComplete(item),
+                          t('bookings.complete'),
+                        )
+                      }
+                      disabled={actingId === item.id}
+                      style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
+                    >
+                      {actingId === item.id ? (
+                        <ActivityIndicator color={COLORS.white} size="small" />
+                      ) : (
+                        <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                ) : item.status === 'completed' ? (
+                  <Text style={styles.completedLabel}>{t('bookings.completedLabel')}</Text>
                 ) : null}
               </View>
             </View>
           )}
         />
       )}
+
+      <BookingVoucherModal
+        booking={voucherBooking}
+        visible={!!voucherBooking}
+        onClose={() => setVoucherBooking(null)}
+      />
     </View>
   );
 }
@@ -594,6 +703,18 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  gateBtn: {
+    marginTop: SPACING.lg,
+    backgroundColor: COLORS.gold,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: 12,
+  },
+  gateBtnText: {
+    color: '#000',
+    fontWeight: '800',
+    fontSize: 15,
   },
   screen: {
     flex: 1,
@@ -728,7 +849,22 @@ const styles = StyleSheet.create({
     color: COLORS.grayLight,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  voucherBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+    marginBottom: SPACING.sm,
+  },
+  voucherBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.goldDark,
   },
   footer: {
     flexDirection: 'row',

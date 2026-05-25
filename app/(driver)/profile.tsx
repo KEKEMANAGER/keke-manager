@@ -29,6 +29,8 @@ import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { LegalSettingsLinks } from '../../components/LegalSettingsLinks';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
+import { SearchableCitySelect } from '../../components/SearchableCitySelect';
+import { isValidGeorgianCity } from '../../lib/georgianCities';
 import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
 import { fetchDriverAverageRating } from '../../lib/ratings';
@@ -97,6 +99,7 @@ export default function DriverProfileScreen() {
   }, [loadAvatar]);
 
   const [name, setName] = useState('');
+  const [city, setCity] = useState<string | null>(null);
   const [bio, setBio] = useState('');
   const [spokenLanguages, setSpokenLanguages] = useState<string[]>([]);
   const [experienceYears, setExperienceYears] = useState('');
@@ -130,13 +133,14 @@ export default function DriverProfileScreen() {
     setSaveError(null);
     const { data, error } = await supabase
       .from('users')
-      .select('full_name, bio, languages, experience_years, available_for_hire')
+      .select('full_name, city, bio, languages, experience_years, available_for_hire')
       .eq('id', user.id)
       .maybeSingle();
     setProfileLoading(false);
     if (error || !data) return;
     const row = data as {
       full_name?: string | null;
+      city?: string | null;
       bio?: string | null;
       languages?: string[] | null;
       experience_years?: number | null;
@@ -145,6 +149,8 @@ export default function DriverProfileScreen() {
     if (typeof row.full_name === 'string' && row.full_name.trim()) {
       setName(row.full_name.trim());
     }
+    const cityVal = row.city?.trim();
+    setCity(cityVal && isValidGeorgianCity(cityVal) ? cityVal : null);
     setBio(row.bio?.trim() ?? '');
     setSpokenLanguages(
       Array.isArray(row.languages)
@@ -292,12 +298,19 @@ export default function DriverProfileScreen() {
       showValidationAlert(validationError);
       return;
     }
+    if (!city || !isValidGeorgianCity(city)) {
+      const msg = t('validation.cityRequired');
+      setSaveError(msg);
+      showValidationAlert(msg);
+      return;
+    }
 
     setSaveBusy(true);
     setSaveError(null);
     const years = parseInt(experienceYears.trim(), 10);
     const userPatch = {
       full_name: name.trim() || null,
+      city,
       bio: bio.trim() || null,
       experience_years: Number.isFinite(years) && years > 0 ? years : null,
       ...(isHired ? { available_for_hire: availableForHire } : {}),
@@ -398,6 +411,7 @@ export default function DriverProfileScreen() {
           <NameWithVerifiedBadge
             name={displayName}
             verified={profile?.is_verified}
+            isGuide={profile?.is_guide_driver}
             textStyle={styles.displayName}
           />
         </View>
@@ -513,6 +527,12 @@ export default function DriverProfileScreen() {
         {isEditing ? (
           <>
             <Field label={t('profilePage.fullName')} value={name} onChangeText={setName} />
+            <SearchableCitySelect
+              label={t('profilePage.city')}
+              value={city}
+              onChange={setCity}
+              disabled={saveBusy}
+            />
             <Field label={t('profilePage.bio')} value={bio} onChangeText={setBio} multiline />
             <Text style={styles.charCount}>
               {bio.length}/{bioMaxLength()}
@@ -552,6 +572,7 @@ export default function DriverProfileScreen() {
         ) : (
           <>
             <ViewField label={t('profilePage.fullName')} value={name || '—'} />
+            <ViewField label={t('profilePage.city')} value={city || '—'} />
             <ViewField label={t('profilePage.bio')} value={bio || '—'} />
             <ViewField
               label={t('profilePage.languages')}

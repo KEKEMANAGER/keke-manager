@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
@@ -14,7 +14,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
 import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
@@ -38,7 +38,16 @@ import { sendExpoPushNotification } from '../../lib/expoPush';
 import { getTestNotificationContent } from '../../lib/notifications';
 import { registerForPushNotificationsAsync } from '../../lib/pushRegistration';
 import { fetchDriverAverageRating } from '../../lib/ratings';
-import { fetchFleetContext, type FleetContext } from '../../lib/fleet';
+import { FleetInvitePanel } from '../../components/FleetInvitePanel';
+import { HostMyDriverPanel } from '../../components/HostMyDriverPanel';
+import {
+  fetchAcceptedFleetMembersForHost,
+  fetchFleetContext,
+  fetchPendingFleetInvitesForSub,
+  type FleetContext,
+  type FleetInviteView,
+  type FleetMemberView,
+} from '../../lib/fleet';
 import { withCacheBust } from '../../lib/mediaUpload';
 import { isHiredDriver } from '../../lib/role';
 import {
@@ -47,6 +56,10 @@ import {
 } from '../../lib/vehicleCatalog';
 import type { VehicleRow } from '../../lib/vehicles';
 import { useAuth } from '../../contexts/AuthContext';
+import { fetchActiveAds, type AdCard } from '../../lib/ads';
+import { PartnersAdsSection } from '../../components/PartnersAdsSection';
+import { HiredDriverActivePanel } from '../../components/HiredDriverActivePanel';
+import { supabase } from '../../lib/supabase';
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -72,7 +85,7 @@ export default function DriverDashboardScreen() {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const layout = useAppLayoutInsets();
   const firstName =
     profile?.full_name?.trim()?.split(/\s+/)[0] ??
     user?.email?.split('@')[0] ??
@@ -94,6 +107,10 @@ export default function DriverDashboardScreen() {
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [testPushSending, setTestPushSending] = useState(false);
   const [fleetContext, setFleetContext] = useState<FleetContext>({ kind: 'none' });
+  const [fleetInvites, setFleetInvites] = useState<FleetInviteView[]>([]);
+  const [fleetInvitesError, setFleetInvitesError] = useState<string | null>(null);
+  const [acceptedFleetMembers, setAcceptedFleetMembers] = useState<FleetMemberView[]>([]);
+  const [ads, setAds] = useState<AdCard[]>([]);
 
   const isHired = isHiredDriver(profile);
   const isFleetSub = fleetContext.kind === 'sub';
@@ -109,6 +126,7 @@ export default function DriverDashboardScreen() {
       setEarnings(0);
       setRatingAvg(0);
       setRatingCount(0);
+      setAds([]);
       if (mode === 'initial') setLoading(false);
       if (mode === 'refresh') setRefreshing(false);
       return;
@@ -129,11 +147,28 @@ export default function DriverDashboardScreen() {
         : fetchOpenPendingBookingsForDriver(userId),
       aggregateDriverStats(userId),
       fetchDriverAverageRating(userId),
+      fetchActiveAds(),
+      fetchPendingFleetInvitesForSub(userId),
+      fetchAcceptedFleetMembersForHost(userId),
     ]);
     const mine = results[0]!;
     const open = results[1]!;
     const stats = results[2]!;
     const ratingRes = results[3]!;
+    setAds(results[4]!);
+    const invitesRes = results[5]!;
+    if (invitesRes.error) {
+      setFleetInvitesError(invitesRes.error.message);
+      setFleetInvites([]);
+      if (__DEV__) console.warn('[dashboard] fleet invites', invitesRes.error.message);
+    } else {
+      setFleetInvitesError(null);
+      setFleetInvites(invitesRes.data ?? []);
+    }
+    const fleetMembersRes = results[6]!;
+    if (!fleetMembersRes.error) {
+      setAcceptedFleetMembers(fleetMembersRes.data);
+    }
     if (mode === 'initial') setLoading(false);
     if (mode === 'refresh') setRefreshing(false);
     if (mine.error) {
@@ -166,6 +201,50 @@ export default function DriverDashboardScreen() {
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) void load('silent');
+    }, [userId, load]),
+  );
+
+  useEffect(() => {
+    if (!userId) return;
+    const chSub = supabase
+      .channel(`driver-fleet-invites-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'driver_fleet',
+          filter: `sub_driver_id=eq.${userId}`,
+        },
+        () => {
+          void load('silent');
+        },
+      )
+      .subscribe();
+    const chHost = supabase
+      .channel(`driver-fleet-host-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'driver_fleet',
+          filter: `host_driver_id=eq.${userId}`,
+        },
+        () => {
+          void load('silent');
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(chSub);
+      void supabase.removeChannel(chHost);
+    };
+  }, [userId, load]);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !userId) return;
@@ -239,20 +318,16 @@ export default function DriverDashboardScreen() {
     return () => loop.stop();
   }, [openCount, pendingPulse]);
 
+  const activeStatuses = hideOpenPool
+    ? (['pending', 'accepted', 'confirmed', 'in_progress'] as const)
+    : (['accepted', 'confirmed', 'in_progress'] as const);
+
   const activeBooking =
     assigned
-      .filter((b) => b.status === 'accepted' || b.status === 'in_progress')
+      .filter((b) => (activeStatuses as readonly string[]).includes(b.status))
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] ?? null;
 
   const hasActive = !!activeBooking;
-
-  const myAssignedBookings = assigned
-    .filter((b) => b.status !== 'cancelled')
-    .sort(
-      (a, b) =>
-        new Date(b.pickup_time ?? b.created_at).getTime() -
-        new Date(a.pickup_time ?? a.created_at).getTime(),
-    );
 
   const vehiclePhotoUri = assignedVehicle?.photo_front
     ? withCacheBust(assignedVehicle.photo_front) ?? assignedVehicle.photo_front
@@ -286,7 +361,7 @@ export default function DriverDashboardScreen() {
       style={styles.screen}
       contentContainerStyle={[
         styles.scroll,
-        { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + 100 },
+        { paddingTop: SPACING.md, paddingBottom: layout.paddingBottom },
       ]}
       showsVerticalScrollIndicator={false}
       refreshControl={
@@ -316,6 +391,24 @@ export default function DriverDashboardScreen() {
           <Text style={styles.balanceValue}>{formatGel(earnings)}</Text>
         </View>
       </View>
+
+      {fleetInvitesError ? (
+        <View style={styles.inviteErrorBanner}>
+          <Ionicons name="warning-outline" size={18} color={COLORS.error} />
+          <Text style={styles.inviteErrorText}>{fleetInvitesError}</Text>
+        </View>
+      ) : null}
+
+      {fleetInvites.length > 0 && userId ? (
+        <FleetInvitePanel
+          invites={fleetInvites}
+          subDriverId={userId}
+          variant="banner"
+          onUpdated={() => void load('silent')}
+        />
+      ) : null}
+
+      <PartnersAdsSection ads={ads} />
 
       {hideOpenPool ? (
         <View style={styles.assignedVehicleCard}>
@@ -360,15 +453,20 @@ export default function DriverDashboardScreen() {
             <Text style={styles.noAssignedVehicle}>{t('fleet.noAssignedVehicle')}</Text>
           )}
         </View>
+      ) : null}
+
+      {acceptedFleetMembers.length > 0 ? (
+        <HostMyDriverPanel
+          members={acceptedFleetMembers}
+          onOpenFleet={() => router.push('/(driver)/fleet')}
+        />
       ) : fleetContext.kind === 'host' ? (
         <Pressable
-          onPress={() => router.push('/(driver)/fleet')}
+          onPress={() => router.push('/(driver)/find-drivers')}
           style={({ pressed }) => [styles.fleetHostLink, pressed && styles.pressed]}
         >
-          <Ionicons name="people-outline" size={18} color={COLORS.gold} />
-          <Text style={styles.fleetHostLinkText}>
-            {t('fleet.hostDashboardLink', { count: fleetContext.memberCount })}
-          </Text>
+          <Ionicons name="person-add-outline" size={18} color={COLORS.gold} />
+          <Text style={styles.fleetHostLinkText}>{t('fleet.inviteDriverHint')}</Text>
           <Ionicons name="chevron-forward" size={18} color={COLORS.gold} />
         </Pressable>
       ) : null}
@@ -410,9 +508,17 @@ export default function DriverDashboardScreen() {
       ) : null}
 
       <View style={styles.sectionDivider} />
-      <Text style={styles.sectionTitle}>{t('driver.activeBooking')}</Text>
+      <Text style={styles.sectionTitle}>
+        {hideOpenPool ? t('hiredDriver.assignedTripTitle') : t('driver.activeBooking')}
+      </Text>
       {loading ? (
         <BookingListSkeleton variant="driver" />
+      ) : hideOpenPool && userId ? (
+        <HiredDriverActivePanel
+          booking={activeBooking}
+          driverUserId={userId}
+          onTripUpdated={() => void load('silent')}
+        />
       ) : hasActive && activeBooking ? (
         <View style={[styles.activeCard, SHADOWS.card]}>
           <View style={styles.activeBadge}>
@@ -431,34 +537,6 @@ export default function DriverDashboardScreen() {
       ) : (
         <ListEmptyState icon="car-outline" message={t('dashboard.noActiveBooking')} />
       )}
-
-      {hideOpenPool ? (
-        <>
-          <View style={styles.sectionDivider} />
-          <Text style={styles.sectionTitle}>{t('fleet.assignedBookingsTitle')}</Text>
-          {loading ? (
-            <BookingListSkeleton variant="driver" />
-          ) : myAssignedBookings.length === 0 ? (
-            <ListEmptyState icon="calendar-outline" message={t('dashboard.noActiveBooking')} />
-          ) : (
-            myAssignedBookings.map((b) => (
-              <View key={b.id} style={[styles.bookingRow, SHADOWS.card]}>
-                <View style={styles.bookingRowTop}>
-                  <Text style={styles.bookingRowCompany}>
-                    {b.company_name || t('common.company')}
-                  </Text>
-                  <Text style={styles.bookingRowStatus}>{bookingStatusLabel(b.status)}</Text>
-                </View>
-                <Text style={styles.bookingRowRoute}>{routeSummary(b)}</Text>
-                <View style={styles.bookingRowMeta}>
-                  <Text style={styles.meta}>{formatBookingDate(b)}</Text>
-                  <Text style={styles.bookingRowPrice}>{formatGel(Number(b.price_gel))}</Text>
-                </View>
-              </View>
-            ))
-          )}
-        </>
-      ) : null}
 
       {__DEV__ && Platform.OS !== 'web' ? (
         <Pressable
@@ -608,6 +686,23 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.error,
+  },
+  inviteErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    backgroundColor: 'rgba(244,67,54,0.1)',
+    borderRadius: RADIUS.card,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  inviteErrorText: {
+    flex: 1,
+    color: COLORS.error,
+    fontSize: 13,
+    lineHeight: 18,
   },
   errorText: {
     color: COLORS.error,

@@ -48,6 +48,18 @@ import {
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
+import {
+  TYPE_TO_MAKE_CATEGORY,
+  fetchVehicleMakeById,
+  fetchVehicleModelById,
+  type VehicleMakeRow,
+  type VehicleModelRow,
+} from '../../lib/vehicleData';
+import {
+  VehicleMakeSelect,
+  VehicleModelSelect,
+  VehicleYearSelect,
+} from '../../components/driver/VehicleCatalogSelect';
 import { assignSubDriverToVehicle, resolveDriverUserId } from '../../lib/fleet';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { showValidationAlert, validateVehicleSave } from '../../lib/validation';
@@ -356,7 +368,7 @@ function VehicleListCard({
 export default function DriverVehiclePhotosScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshVehicles } = useAuth();
   const insets = useSafeAreaInsets();
   const userId = user?.id;
 
@@ -375,10 +387,11 @@ export default function DriverVehiclePhotosScreen() {
   const [formMode, setFormMode]   = useState<FormMode>('view');
   const [editType, setEditType]   = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
   const [editClass, setEditClass] = useState<VehicleClassCode>(VEHICLE_CLASSES[0]);
-  const [editModel, setEditModel] = useState('');
   const [editColor, setEditColor] = useState('');
-  const [editYear, setEditYear]   = useState('');
+  const [editYearNum, setEditYearNum] = useState<number | null>(null);
   const [editPlate, setEditPlate] = useState('');
+  const [selectedMake, setSelectedMake] = useState<VehicleMakeRow | null>(null);
+  const [selectedModel, setSelectedModel] = useState<VehicleModelRow | null>(null);
   const [subDriverRef, setSubDriverRef] = useState('');
   const [saveBusy, setSaveBusy]   = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -408,11 +421,12 @@ export default function DriverVehiclePhotosScreen() {
     setListLoading(false);
     if (error) { setListError(error.message); return; }
     setVehicles(data);
+    void refreshVehicles();
     setSelectedId((prev) => {
       if (prev && data.some((v) => v.id === prev)) return prev;
       return data.find((v) => v.is_active)?.id ?? data[0]?.id ?? null;
     });
-  }, [userId, authLoading]);
+  }, [userId, authLoading, refreshVehicles]);
 
   useEffect(() => { void loadVehicles(); }, [loadVehicles]);
 
@@ -420,11 +434,37 @@ export default function DriverVehiclePhotosScreen() {
   function populateFormFrom(v: VehicleRow) {
     setEditType(normalizeStoredVehicleType(v.type)   ?? VEHICLE_TYPES[0]);
     setEditClass(normalizeStoredVehicleClass(v.class) ?? VEHICLE_CLASSES[0]);
-    setEditModel(v.model?.trim()  ?? '');
     setEditColor(v.color?.trim()  ?? '');
-    setEditYear(v.year != null ? String(v.year) : '');
+    setEditYearNum(v.year != null ? v.year : null);
     setEditPlate(v.plate?.trim()  ?? '');
+    setSelectedMake(null);
+    setSelectedModel(null);
     setSaveError(null);
+    void (async () => {
+      if (v.make_id) {
+        const make = await fetchVehicleMakeById(v.make_id);
+        if (make) setSelectedMake(make);
+      }
+      if (v.model_id) {
+        const model = await fetchVehicleModelById(v.model_id);
+        if (model) setSelectedModel(model);
+      }
+    })();
+  }
+
+  const makeCategory = TYPE_TO_MAKE_CATEGORY[editType];
+
+  function catalogPayload() {
+    const modelLabel =
+      selectedMake && selectedModel
+        ? `${selectedMake.name} ${selectedModel.name}`.trim()
+        : null;
+    return {
+      make_id: selectedMake?.id ?? null,
+      model_id: selectedModel?.id ?? null,
+      model: modelLabel,
+      year: editYearNum,
+    };
   }
 
   function handleEdit(vehicle: VehicleRow) {
@@ -444,10 +484,11 @@ export default function DriverVehiclePhotosScreen() {
     if (!userId) return;
     setEditType(VEHICLE_TYPES[0]);
     setEditClass(VEHICLE_CLASSES[0]);
-    setEditModel('');
     setEditColor('');
-    setEditYear('');
+    setEditYearNum(null);
     setEditPlate('');
+    setSelectedMake(null);
+    setSelectedModel(null);
     setSubDriverRef('');
     setSaveError(null);
     setSaveBusy(true);
@@ -492,13 +533,12 @@ export default function DriverVehiclePhotosScreen() {
     const err = validateVehicleSave(editType, editClass);
     if (err) { setSaveError(err); showValidationAlert(err); return; }
     setSaveBusy(true); setSaveError(null);
-    const yearNum = parseInt(editYear.trim(), 10);
     const { error } = await saveVehicleDetails(selectedId, userId, {
-      type: editType, class: editClass,
-      model:  editModel.trim()  || null,
-      color:  editColor.trim()  || null,
-      year:   Number.isFinite(yearNum) && yearNum > 1900 ? yearNum : null,
-      plate:  editPlate.trim()  || null,
+      type: editType,
+      class: editClass,
+      color: editColor.trim() || null,
+      plate: editPlate.trim() || null,
+      ...catalogPayload(),
     });
     setSaveBusy(false);
     if (error) { setSaveError(getSupabaseErrorMessage(error)); return; }
@@ -513,14 +553,12 @@ export default function DriverVehiclePhotosScreen() {
     if (err) { setSaveError(err); showValidationAlert(err); return; }
     setSaveBusy(true);
     setSaveError(null);
-    const yearNum = parseInt(editYear.trim(), 10);
     const { error } = await saveVehicleDetails(selectedId, userId, {
       type: editType,
       class: editClass,
-      model: editModel.trim() || null,
       color: editColor.trim() || null,
-      year: Number.isFinite(yearNum) && yearNum > 1900 ? yearNum : null,
       plate: editPlate.trim() || null,
+      ...catalogPayload(),
     });
     if (error) {
       setSaveBusy(false);
@@ -795,12 +833,35 @@ export default function DriverVehiclePhotosScreen() {
                 saveBusy={saveBusy}
               />
 
+              <VehiclePhotosAccordion
+                vehicleId={selectedId}
+                localUrls={localUrls}
+                uploadingKey={uploadingKey}
+                expandedSlots={expandedPhotoSlots}
+                onToggleSlot={togglePhotoSlot}
+                onDeletePhoto={confirmDeletePhoto}
+                onPickNative={pickNativeAndUpload}
+                webFileInputRefs={webFileInputRefs}
+                onWebFileChange={(slot) =>
+                  handleWebFileInputChange(
+                    slot.column,
+                    slot.angle,
+                    t(`vehicleScreen.${slot.labelKey}`),
+                  )
+                }
+                disabled={saveBusy}
+              />
+
               <Text style={styles.sectionLabel}>{t('vehicleScreen.type')}</Text>
               <View style={styles.chipRow}>
                 {VEHICLE_TYPES.map((vt) => (
                   <Pressable
                     key={vt}
-                    onPress={() => setEditType(vt)}
+                    onPress={() => {
+                      setEditType(vt);
+                      setSelectedMake(null);
+                      setSelectedModel(null);
+                    }}
                     style={[styles.typeChip, editType === vt && styles.typeChipActive]}
                   >
                     <Text style={[styles.typeChipText, editType === vt && styles.typeChipTextActive]}>
@@ -825,9 +886,28 @@ export default function DriverVehiclePhotosScreen() {
                 ))}
               </View>
 
-              <VehicleField label={t('vehicleScreen.model')}      value={editModel} onChangeText={setEditModel} />
-              <VehicleField label={t('vehicleScreen.color')}      value={editColor} onChangeText={setEditColor} />
-              <VehicleField label={t('vehicleScreen.year')}       value={editYear}  onChangeText={setEditYear}  keyboardType="number-pad" />
+              <Text style={styles.sectionLabel}>{t('vehicleScreen.catalogSection')}</Text>
+              <VehicleMakeSelect
+                category={makeCategory}
+                value={selectedMake}
+                onChange={(make) => {
+                  setSelectedMake(make);
+                  setSelectedModel(null);
+                }}
+                disabled={saveBusy}
+              />
+              <VehicleModelSelect
+                makeId={selectedMake?.id ?? null}
+                value={selectedModel}
+                onChange={setSelectedModel}
+                disabled={saveBusy}
+              />
+              <VehicleYearSelect
+                value={editYearNum}
+                onChange={setEditYearNum}
+                disabled={saveBusy}
+              />
+              <VehicleField label={t('vehicleScreen.color')} value={editColor} onChangeText={setEditColor} />
               <VehicleField label={t('vehicleScreen.plateLabel')} value={editPlate} onChangeText={setEditPlate} />
 
               {formMode === 'add' ? (
@@ -837,27 +917,6 @@ export default function DriverVehiclePhotosScreen() {
                   onChangeText={setSubDriverRef}
                   placeholder={t('fleet.assignSubDriverHint')}
                   autoCapitalize="none"
-                />
-              ) : null}
-
-              {selectedId ? (
-                <VehiclePhotosAccordion
-                  vehicleId={selectedId}
-                  localUrls={localUrls}
-                  uploadingKey={uploadingKey}
-                  expandedSlots={expandedPhotoSlots}
-                  onToggleSlot={togglePhotoSlot}
-                  onDeletePhoto={confirmDeletePhoto}
-                  onPickNative={(slot) => void pickNativeAndUpload(slot)}
-                  webFileInputRefs={webFileInputRefs}
-                  onWebFileChange={(slot) =>
-                    handleWebFileInputChange(
-                      slot.column,
-                      slot.angle,
-                      t(`vehicleScreen.${slot.labelKey}`),
-                    )
-                  }
-                  disabled={saveBusy}
                 />
               ) : null}
 
@@ -1041,6 +1100,15 @@ const styles = StyleSheet.create({
   },
 
   // ── Form fields ───────────────────────────────────────────────────────────
+  catalogDivider: {
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.goldDark,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   sectionLabel: {
     color: COLORS.goldLight, fontSize: 13, fontWeight: '700',
     marginBottom: SPACING.sm, marginTop: SPACING.sm,

@@ -63,6 +63,7 @@ function FleetMemberCard({
         .join(' · ')
     : '—';
   const gps = gpsStatus(member.location, t);
+  const isPending = member.status === 'pending';
 
   return (
     <View style={styles.card}>
@@ -78,11 +79,16 @@ function FleetMemberCard({
             <Text style={styles.cardEmail} numberOfLines={1}>{member.sub_email}</Text>
           ) : null}
           <Text style={styles.cardVehicle} numberOfLines={2}>{vehicleLine}</Text>
+          {isPending ? (
+            <Text style={styles.pendingBadge}>{t('fleet.statusPending')}</Text>
+          ) : null}
         </View>
-        <View style={[styles.gpsPill, { borderColor: gps.color }]}>
-          <View style={[styles.gpsDot, { backgroundColor: gps.color }]} />
-          <Text style={[styles.gpsPillText, { color: gps.color }]}>{gps.label}</Text>
-        </View>
+        {!isPending ? (
+          <View style={[styles.gpsPill, { borderColor: gps.color }]}>
+            <View style={[styles.gpsDot, { backgroundColor: gps.color }]} />
+            <Text style={[styles.gpsPillText, { color: gps.color }]}>{gps.label}</Text>
+          </View>
+        ) : null}
       </View>
 
       {member.location ? (
@@ -136,7 +142,7 @@ export default function DriverFleetScreen() {
       if (mode === 'refresh') setRefreshing(true);
       setError(null);
 
-      const { data, error: err } = await fetchFleetForHost(userId);
+      const { data, error: err } = await fetchFleetForHost(userId, { includePending: true });
       if (mode === 'initial') setLoading(false);
       if (mode === 'refresh') setRefreshing(false);
       if (err) {
@@ -286,6 +292,18 @@ const styles = StyleSheet.create({
   cardMain: { flex: 1, minWidth: 0 },
   cardName: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
   cardEmail: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  pendingBadge: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.goldDark,
+    backgroundColor: COLORS.goldTint,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
   cardVehicle: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 18 },
   gpsPill: {
     flexDirection: 'row',

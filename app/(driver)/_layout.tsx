@@ -1,61 +1,28 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Tabs, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Tabs, useSegments } from 'expo-router';
+import { useEffect } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { AppDrawer } from '../../components/layout/AppDrawer';
+import { AppHeader } from '../../components/layout/AppHeader';
 import { TabBarIcon } from '../../components/TabBarIcon';
+import { APP_HEADER_BODY_HEIGHT, tabBarMinHeight, Z_INDEX } from '../../constants/layout';
 import { COLORS, SPACING } from '../../constants/theme';
+import { AppMenuProvider } from '../../contexts/AppMenuContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { subscribeToConversationList } from '../../lib/messages';
-import { isHiredDriver } from '../../lib/role';
 import { supabase } from '../../lib/supabase';
 
-const DRAWER_WIDTH = 280;
-
-function nameInitials(name: string | null | undefined): string {
-  if (!name?.trim()) return '?';
-  return name.trim().split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
-}
-
-function DrawerItem({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.drawerItem, pressed && styles.drawerItemPressed]}
-    >
-      <Ionicons name={icon} size={20} color={COLORS.text} />
-      <Text style={styles.drawerItemLabel}>{label}</Text>
-    </Pressable>
-  );
-}
-
-export default function DriverTabsLayout() {
+function DriverTabs() {
   const { t } = useTranslation();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, profile, signOut } = useAuth();
+  const segments = useSegments();
+  const { user } = useAuth();
   const bottomPad = Math.max(insets.bottom, SPACING.sm);
-
-  const [drawerVisible, setDrawerVisible] = useState(false);
-  const drawerAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
-  const backdropAnim = useRef(new Animated.Value(0)).current;
+  const tabMinH = tabBarMinHeight(bottomPad);
+  const onChat = segments[segments.length - 1] === 'chat';
+  const scenePadTop = onChat ? 0 : insets.top + APP_HEADER_BODY_HEIGHT + 8;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -72,47 +39,23 @@ export default function DriverTabsLayout() {
     };
   }, [user?.id]);
 
-  function openDrawer() {
-    setDrawerVisible(true);
-    Animated.parallel([
-      Animated.timing(drawerAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
-      Animated.timing(backdropAnim, { toValue: 1, duration: 260, useNativeDriver: true }),
-    ]).start();
-  }
-
-  function closeDrawer(cb?: () => void) {
-    Animated.parallel([
-      Animated.timing(drawerAnim, { toValue: DRAWER_WIDTH, duration: 220, useNativeDriver: true }),
-      Animated.timing(backdropAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => {
-      setDrawerVisible(false);
-      cb?.();
-    });
-  }
-
-  function navigate(path: string) {
-    closeDrawer(() => router.push(path as never));
-  }
-
-  const displayName = profile?.full_name?.trim() || user?.email?.split('@')[0] || '';
-  const email = user?.email || '';
-  const hideVehicleAndFleet = isHiredDriver(profile);
-
   return (
     <View style={styles.root}>
+      <AppHeader />
       <Tabs
         initialRouteName="bookings"
         screenOptions={{
           headerShown: false,
+          sceneStyle: { paddingTop: scenePadTop },
           tabBarStyle: {
             backgroundColor: COLORS.white,
             borderTopColor: COLORS.border,
             borderTopWidth: 1,
             paddingTop: SPACING.xs,
             paddingBottom: bottomPad,
-            minHeight: Platform.OS === 'web' ? 72 + bottomPad : 64 + bottomPad,
+            minHeight: tabMinH,
             ...(Platform.OS === 'web'
-              ? { position: 'relative' as const, zIndex: 20, width: '100%' as const }
+              ? { position: 'relative' as const, zIndex: Z_INDEX.tabBar, width: '100%' as const }
               : {}),
           },
           tabBarActiveTintColor: COLORS.gold,
@@ -121,15 +64,28 @@ export default function DriverTabsLayout() {
           tabBarItemStyle: styles.tabItem,
         }}
       >
-        <Tabs.Screen name="index"        options={{ href: null }} />
-        <Tabs.Screen name="calendar"     options={{ href: null }} />
-        <Tabs.Screen name="chat"         options={{ href: null }} />
-        <Tabs.Screen name="dashboard"    options={{ href: null }} />
-        <Tabs.Screen name="vehicle"      options={{ href: null }} />
+        <Tabs.Screen name="index" options={{ href: null }} />
+        <Tabs.Screen name="calendar" options={{ href: null }} />
+        <Tabs.Screen
+          name="chat"
+          options={{
+            href: null,
+            tabBarStyle: { display: 'none' },
+          }}
+        />
+        <Tabs.Screen name="dashboard" options={{ href: null }} />
+        <Tabs.Screen name="vehicle" options={{ href: null }} />
+        <Tabs.Screen name="vehicles" options={{ href: null }} />
         <Tabs.Screen name="verification" options={{ href: null }} />
-        <Tabs.Screen name="profile"      options={{ href: null }} />
-        <Tabs.Screen name="fleet"        options={{ href: null }} />
+        <Tabs.Screen name="profile" options={{ href: null }} />
+        <Tabs.Screen name="fleet" options={{ href: null }} />
+        <Tabs.Screen name="hired-drivers" options={{ href: null }} />
+        <Tabs.Screen name="fleet-map" options={{ href: null }} />
         <Tabs.Screen name="find-drivers" options={{ href: null }} />
+        <Tabs.Screen name="settings" options={{ href: null }} />
+        <Tabs.Screen name="ratings" options={{ href: null }} />
+        <Tabs.Screen name="my-host" options={{ href: null }} />
+        <Tabs.Screen name="assigned-vehicle" options={{ href: null }} />
 
         <Tabs.Screen
           name="bookings"
@@ -159,103 +115,16 @@ export default function DriverTabsLayout() {
           }}
         />
       </Tabs>
-
-      {/* Hamburger button */}
-      <Pressable
-        onPress={openDrawer}
-        hitSlop={8}
-        style={[styles.menuBtn, { top: insets.top + 10 }]}
-      >
-        <Ionicons name="menu-outline" size={22} color={COLORS.text} />
-      </Pressable>
-
-      {/* Drawer */}
-      {drawerVisible ? (
-        <>
-          <Animated.View style={[styles.backdrop, { opacity: backdropAnim }]}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={() => closeDrawer()} />
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.drawer,
-              {
-                paddingTop: insets.top + SPACING.xl,
-                paddingBottom: insets.bottom + SPACING.lg,
-                transform: [{ translateX: drawerAnim }],
-              },
-            ]}
-          >
-            {/* User info */}
-            <View style={styles.drawerUser}>
-              <View style={styles.drawerAvatar}>
-                <Text style={styles.drawerAvatarText}>{nameInitials(displayName)}</Text>
-              </View>
-              <View style={styles.drawerUserText}>
-                <Text style={styles.drawerUserName} numberOfLines={1}>
-                  {displayName || '—'}
-                </Text>
-                <Text style={styles.drawerUserEmail} numberOfLines={1}>
-                  {email}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.drawerItems}>
-              <DrawerItem
-                icon="home-outline"
-                label={t('tabs.dashboard')}
-                onPress={() => navigate('/(driver)/dashboard')}
-              />
-              <DrawerItem
-                icon="person-outline"
-                label={t('tabs.profile')}
-                onPress={() => navigate('/(driver)/profile')}
-              />
-              {!hideVehicleAndFleet ? (
-                <DrawerItem
-                  icon="car-outline"
-                  label={t('tabs.vehicle')}
-                  onPress={() => navigate('/(driver)/vehicle')}
-                />
-              ) : null}
-              {!hideVehicleAndFleet ? (
-                <DrawerItem
-                  icon="people-outline"
-                  label={t('tabs.fleet')}
-                  onPress={() => navigate('/(driver)/fleet')}
-                />
-              ) : null}
-              {!hideVehicleAndFleet ? (
-                <DrawerItem
-                  icon="search-outline"
-                  label={t('tabs.findDrivers')}
-                  onPress={() => navigate('/(driver)/find-drivers')}
-                />
-              ) : null}
-              <DrawerItem
-                icon="shield-checkmark-outline"
-                label={t('tabs.verification')}
-                onPress={() => navigate('/(driver)/verification')}
-              />
-            </View>
-
-            <View style={{ flex: 1 }} />
-            <View style={styles.divider} />
-
-            <Pressable
-              onPress={() => closeDrawer(() => void signOut())}
-              style={({ pressed }) => [styles.logoutBtn, pressed && styles.logoutBtnPressed]}
-            >
-              <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
-              <Text style={styles.logoutText}>{t('common.logout')}</Text>
-            </Pressable>
-          </Animated.View>
-        </>
-      ) : null}
+      <AppDrawer />
     </View>
+  );
+}
+
+export default function DriverTabsLayout() {
+  return (
+    <AppMenuProvider>
+      <DriverTabs />
+    </AppMenuProvider>
   );
 }
 
@@ -272,116 +141,5 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     paddingBottom: SPACING.xs,
-  },
-  menuBtn: {
-    position: 'absolute',
-    right: SPACING.md,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.38)',
-    zIndex: 200,
-  },
-  drawer: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: DRAWER_WIDTH,
-    backgroundColor: COLORS.background,
-    paddingHorizontal: SPACING.lg,
-    zIndex: 300,
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    shadowOffset: { width: -6, height: 0 },
-    elevation: 16,
-  },
-  drawerUser: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  drawerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  drawerAvatarText: {
-    color: '#0f0f0f',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  drawerUserText: {
-    flex: 1,
-  },
-  drawerUserName: {
-    color: COLORS.text,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  drawerUserEmail: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: SPACING.md,
-  },
-  drawerItems: {
-    gap: SPACING.xs,
-  },
-  drawerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    paddingVertical: 11,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: 10,
-  },
-  drawerItemPressed: {
-    backgroundColor: COLORS.surfaceAlt,
-  },
-  drawerItemLabel: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    paddingVertical: 11,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: 10,
-  },
-  logoutBtnPressed: {
-    backgroundColor: 'rgba(239,68,68,0.08)',
-  },
-  logoutText: {
-    color: COLORS.error,
-    fontSize: 15,
-    fontWeight: '600',
   },
 });
