@@ -24,14 +24,21 @@ import {
 } from '../../lib/dateTime';
 import { AppLogo } from '../../components/AppLogo';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { UserAvatar } from '../../components/UserAvatar';
+import { SearchableCitySelect } from '../../components/SearchableCitySelect';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   insertBooking,
   normalizeBookingKind,
+  setBookingPickupSignLogoUrl,
+  uploadPickupSignLogo,
   type BookingType as DbBookingType,
   type ItineraryDay,
+  type PickupSignLogoFile,
   type TourTransferLeg,
 } from '../../lib/bookings';
+import { PickupSignLogoField } from '../../components/PickupSignLogoField';
+import { isPickupSignLogoPdf } from '../../lib/pickupSignLogo';
 import {
   normalizeVehicleClass,
   normalizeVehicleType,
@@ -48,8 +55,20 @@ import {
   showValidationAlert,
 } from '../../lib/validation';
 import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
+import {
+  buildTourRouteText,
+  countTourOvernights,
+  generateTourDaysFromRange,
+  itineraryFromTourDays,
+  persistTourDaysForDb,
+  tourBookingPrimaryDateIso,
+  tourEndpointsFromDays,
+  type TourDayForm,
+} from '../../lib/tourDays';
 import { bookingKindLabel } from '../../lib/bookingLabels';
+import { DriverCategorySelect } from '../../components/DriverCategorySelect';
 import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
+import type { RequestedDriverCategory } from '../../lib/driverCategory';
 import { formatSpokenLanguagesList } from '../../lib/spokenLanguages';
 import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
@@ -80,6 +99,18 @@ function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): strin
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
+}
+
+function mapPickupSignLogoError(
+  err: Error | null | undefined,
+  t: (key: string) => string,
+): string {
+  if (!err) return t('newBooking.pickupSignLogo.uploadFailed');
+  const msg = err.message;
+  if (msg === 'pickupSignLogo.invalidType') return t('newBooking.pickupSignLogo.invalidType');
+  if (msg === 'pickupSignLogo.tooLarge') return t('newBooking.pickupSignLogo.tooLarge');
+  if (msg.startsWith('pickupSignLogo.')) return t('newBooking.pickupSignLogo.uploadFailed');
+  return msg;
 }
 
 function mapBookingType(t: BookingKindUi): DbBookingType {
@@ -174,21 +205,6 @@ function tourEndpoints(days: ItineraryDay[]): { from: string | null; to: string 
   return {
     from: firstFrom || null,
     to: lastTo || null,
-  };
-}
-
-function tourBookingDateIso(tinAt: Date | null, toutAt: Date | null): string | null {
-  if (tinAt) return toIsoString(tinAt);
-  if (toutAt) return toIsoString(toutAt);
-  return null;
-}
-
-function transferLegOrNull(leg: TourTransferLeg): TourTransferLeg | null {
-  if (!leg.date.trim() && !leg.flight.trim() && !leg.passengerName.trim()) return null;
-  return {
-    date: leg.date.trim(),
-    flight: leg.flight.trim(),
-    passengerName: leg.passengerName.trim(),
   };
 }
 
@@ -359,6 +375,7 @@ function MatchingDriversSection({
   vehicleType,
   vehicleClass,
   requiredLanguages,
+  driverCategory,
   driverTargetMode,
   onDriverTargetModeChange,
   selectedDriverId,
@@ -369,6 +386,7 @@ function MatchingDriversSection({
   vehicleType: VehicleTypeCode;
   vehicleClass: VehicleClassCode;
   requiredLanguages: string[];
+  driverCategory: RequestedDriverCategory;
   driverTargetMode: DriverTargetMode;
   onDriverTargetModeChange: (mode: DriverTargetMode) => void;
   selectedDriverId: string | null;
@@ -377,6 +395,7 @@ function MatchingDriversSection({
 }) {
   const { t } = useTranslation();
   const [drivers, setDrivers] = useState<MatchingDriver[]>([]);
+  const [cityFilter, setCityFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -398,7 +417,13 @@ function MatchingDriversSection({
     setLoading(true);
     setLoadError(null);
 
-    void fetchMatchingDrivers(vehicleType, vehicleClass, requiredLanguages).then(({ data, error }) => {
+    void fetchMatchingDrivers(
+      vehicleType,
+      vehicleClass,
+      requiredLanguages,
+      cityFilter,
+      driverCategory,
+    ).then(({ data, error }) => {
       if (cancelled) return;
       setLoading(false);
       if (error) {
@@ -420,7 +445,16 @@ function MatchingDriversSection({
     return () => {
       cancelled = true;
     };
-  }, [active, vehicleType, vehicleClass, normType, normClass, requiredLanguages]);
+  }, [
+    active,
+    vehicleType,
+    vehicleClass,
+    normType,
+    normClass,
+    requiredLanguages,
+    cityFilter,
+    driverCategory,
+  ]);
 
   if (!active || !normType || !normClass) {
     return null;
@@ -431,6 +465,13 @@ function MatchingDriversSection({
   return (
     <View style={styles.matchingDriversBlock}>
       <Text style={styles.driversSectionTitle}>{t('newBooking.drivers')}</Text>
+
+      <SearchableCitySelect
+        label={t('newBooking.filterByCity')}
+        value={cityFilter}
+        onChange={setCityFilter}
+        allowEmpty
+      />
 
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={styles.matchingDriversLoader} />
@@ -521,17 +562,21 @@ function MatchingDriversSection({
                     ]}
                   >
                     <View style={styles.driverCardTop}>
-                      {driver.avatar_url ? (
-                        <Image source={{ uri: driver.avatar_url }} style={styles.driverAvatar} />
-                      ) : (
-                        <View style={[styles.driverAvatar, styles.driverAvatarPlaceholder]}>
-                          <Ionicons name="person" size={28} color={COLORS.textMuted} />
-                        </View>
-                      )}
+                      <View style={styles.driverCardPhotos}>
+                        <UserAvatar name={driver.full_name} uri={driver.avatar_url} size={52} />
+                        {driver.vehicle?.photo_front ? (
+                          <Image
+                            source={{ uri: driver.vehicle.photo_front }}
+                            style={styles.driverVehicleThumb}
+                            resizeMode="cover"
+                          />
+                        ) : null}
+                      </View>
                       <View style={styles.driverCardMain}>
                         <NameWithVerifiedBadge
                           name={driver.full_name || t('driver.defaultName')}
                           verified={driver.is_verified}
+                          isGuide={driver.is_guide_driver}
                           textStyle={styles.driverName}
                           numberOfLines={1}
                         />
@@ -540,6 +585,9 @@ function MatchingDriversSection({
                         ) : (
                           <Text style={styles.driverVehicleLineMuted}>{t('newBooking.noVehicle')}</Text>
                         )}
+                        {driver.city ? (
+                          <Text style={styles.driverMetaLine}>📍 {driver.city}</Text>
+                        ) : null}
                         <Text style={styles.driverMetaLine}>{ratingLine}</Text>
                         {langs ? <Text style={styles.driverMetaLine}>🗣 {langs}</Text> : null}
                         {experienceLine ? (
@@ -767,14 +815,16 @@ export default function NewBookingScreen() {
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [matchingDrivers, setMatchingDrivers] = useState<MatchingDriver[]>([]);
   const [requiredLanguages, setRequiredLanguages] = useState<string[]>([]);
+  const [driverCategory, setDriverCategory] = useState<RequestedDriverCategory>('all');
 
   useEffect(() => {
     setSelectedDriverId(null);
     setDriverTargetMode('all');
-  }, [selectedVehicleType, vehicleClass, requiredLanguages]);
+  }, [selectedVehicleType, vehicleClass, requiredLanguages, driverCategory]);
 
   const [meetGreet, setMeetGreet] = useState(false);
   const [signText, setSignText] = useState('');
+  const [pickupSignLogo, setPickupSignLogo] = useState<PickupSignLogoFile | null>(null);
   const [passengerName, setPassengerName] = useState('');
   const [passengerPhone, setPassengerPhone] = useState('');
   const [clientPriceStr, setClientPriceStr] = useState('');
@@ -790,6 +840,13 @@ export default function NewBookingScreen() {
   const [transferOutDateTime, setTransferOutDateTime] = useState<Date | null>(null);
   const [hasArrivalTransfer, setHasArrivalTransfer] = useState(false);
   const [hasDepartureTransfer, setHasDepartureTransfer] = useState(false);
+  const [tourStartDate, setTourStartDate] = useState<Date | null>(null);
+  const [tourEndDate, setTourEndDate] = useState<Date | null>(null);
+  const [tourDays, setTourDays] = useState<TourDayForm[]>([]);
+  const [transferInAirport, setTransferInAirport] = useState('');
+  const [transferInHotel, setTransferInHotel] = useState('');
+  const [transferOutAirport, setTransferOutAirport] = useState('');
+  const [transferOutHotel, setTransferOutHotel] = useState('');
 
   const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('now');
   const [operators, setOperators] = useState<CompanyMember[]>([]);
@@ -839,6 +896,20 @@ export default function NewBookingScreen() {
     }
   }, [booking_kind, days.length]);
 
+  useEffect(() => {
+    if (booking_kind !== 'tour') return;
+    if (!tourStartDate || !tourEndDate) {
+      setTourDays([]);
+      return;
+    }
+    setTourDays((prev) => generateTourDaysFromRange(tourStartDate, tourEndDate, prev));
+  }, [booking_kind, tourStartDate, tourEndDate]);
+
+  const tourOvernightCount = useMemo(
+    () => countTourOvernights(tourDays.length),
+    [tourDays.length],
+  );
+
   const pax = Math.max(1, parseInt(passengers, 10) || 1);
   const price = useMemo(
     () => calcMockPrice({ type: booking_kind, passengers: pax, vehicleClass }),
@@ -879,6 +950,10 @@ export default function NewBookingScreen() {
     setDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   }
 
+  function patchTourDay(index: number, patch: Partial<TourDayForm>) {
+    setTourDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  }
+
   function addDay() {
     if (booking_kind === 'dayTour') return;
     setDays((prev) => [...prev, initialItineraryDay(prev.length + 1)]);
@@ -914,20 +989,24 @@ export default function NewBookingScreen() {
       return null;
     }
     if (booking_kind === 'tour') {
-      const desc = tourRouteDescription.trim();
-      const hasStructured = days.some((d) => d.from.trim());
-      if (!desc && !hasStructured) {
+      if (!tourStartDate || !tourEndDate) {
+        return t('newBooking.validation.tourDates');
+      }
+      if (tourEndDate.getTime() < tourStartDate.getTime()) {
+        return t('newBooking.validation.tourEndBeforeStart');
+      }
+      if (!tourDays.length || !tourDays.some((d) => d.from.trim())) {
         return t('newBooking.validation.tourDays');
       }
       if (hasArrivalTransfer) {
         if (!transferInDateTime) return t('newBooking.validation.dateTime');
-        if (!transferIn.flight.trim()) return t('newBooking.validation.flightNo');
-        if (!transferIn.passengerName.trim()) return t('newBooking.validation.passengerName');
+        if (!transferInAirport.trim()) return t('newBooking.validation.airport');
+        if (!transferInHotel.trim()) return t('newBooking.validation.destination');
       }
       if (hasDepartureTransfer) {
         if (!transferOutDateTime) return t('newBooking.validation.departureDate');
-        if (!transferOut.flight.trim()) return t('newBooking.validation.flightNo');
-        if (!transferOut.passengerName.trim()) return t('newBooking.validation.passengerName');
+        if (!transferOutHotel.trim()) return t('newBooking.validation.hotel');
+        if (!transferOutAirport.trim()) return t('newBooking.validation.airport');
       }
       return null;
     }
@@ -954,6 +1033,7 @@ export default function NewBookingScreen() {
     setRequiredLanguages([]);
     setMeetGreet(false);
     setSignText('');
+    setPickupSignLogo(null);
     setPassengerName('');
     setPassengerPhone('');
     setClientPriceStr('');
@@ -968,6 +1048,13 @@ export default function NewBookingScreen() {
     setTransferOutDateTime(null);
     setHasArrivalTransfer(false);
     setHasDepartureTransfer(false);
+    setTourStartDate(null);
+    setTourEndDate(null);
+    setTourDays([]);
+    setTransferInAirport('');
+    setTransferInHotel('');
+    setTransferOutAirport('');
+    setTransferOutHotel('');
     setPaymentWhen('now');
     setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
@@ -1028,32 +1115,47 @@ export default function NewBookingScreen() {
     const isMultiDayTour = booking_kind === 'tour';
     const isDayTour = booking_kind === 'dayTour';
     const isTour = isMultiDayTour || isDayTour;
-    const itineraryDb = isTour ? persistItineraryForDb(days) : null;
-    const tourEnds = isTour ? tourEndpoints(itineraryDb ?? []) : { from: null, to: null };
+    const tourDaysDb = isMultiDayTour ? persistTourDaysForDb(tourDays) : null;
+    const itineraryDb = isMultiDayTour
+      ? itineraryFromTourDays(tourDaysDb ?? [])
+      : isDayTour
+        ? persistItineraryForDb(days)
+        : null;
+    const tourEnds = isMultiDayTour
+      ? tourEndpointsFromDays(tourDaysDb ?? [])
+      : isDayTour
+        ? tourEndpoints(itineraryDb ?? [])
+        : { from: null, to: null };
     const transferInDb: TourTransferLeg | null =
-      isMultiDayTour && hasArrivalTransfer
-        ? transferLegOrNull({
-            ...transferIn,
-            date: transferInDateTime ? toIsoString(transferInDateTime) : '',
-          })
+      isMultiDayTour && hasArrivalTransfer && transferInDateTime
+        ? {
+            date: toIsoString(transferInDateTime),
+            airport: transferInAirport.trim(),
+            hotel: transferInHotel.trim(),
+          }
         : null;
     const transferOutDb: TourTransferLeg | null =
-      isMultiDayTour && hasDepartureTransfer
-        ? transferLegOrNull({
-            ...transferOut,
-            date: transferOutDateTime ? toIsoString(transferOutDateTime) : '',
-          })
+      isMultiDayTour && hasDepartureTransfer && transferOutDateTime
+        ? {
+            date: toIsoString(transferOutDateTime),
+            hotel: transferOutHotel.trim(),
+            airport: transferOutAirport.trim(),
+          }
         : null;
-    const structuredRoute = isTour
-      ? buildTourRouteDescription(days, (day, from, to) =>
+    const structuredRoute = isMultiDayTour
+      ? buildTourRouteText(tourDaysDb ?? [], (day, from, to) =>
           t('newBooking.dayLine', { day, from, to }),
         )
-      : null;
-    const descPart = tourRouteDescription.trim();
+      : isDayTour
+        ? buildTourRouteDescription(days, (day, from, to) =>
+            t('newBooking.dayLine', { day, from, to }),
+          )
+        : null;
+    const descPart = isDayTour ? tourRouteDescription.trim() : '';
     const routeForDb =
       isTour ? [descPart, structuredRoute].filter(Boolean).join('\n\n') || null : null;
 
-    const { error } = await insertBooking({
+    const { id: bookingId, error } = await insertBooking({
       company_id: user.id,
       company_name: companyDisplayName(profile, user) ?? t('common.companyDefault'),
       kind: dbKind,
@@ -1075,7 +1177,8 @@ export default function NewBookingScreen() {
           ? toIsoString(bookingDateTime)
           : null
         : isMultiDayTour
-          ? tourBookingDateIso(
+          ? tourBookingPrimaryDateIso(
+              tourStartDate,
               hasArrivalTransfer ? transferInDateTime : null,
               hasDepartureTransfer ? transferOutDateTime : null,
             )
@@ -1109,7 +1212,7 @@ export default function NewBookingScreen() {
         booking_kind === 'transfer' && commissionGelDb !== null && commissionGelDb > 0
           ? commissionGelDb
           : null,
-      tour_days: null,
+      tour_days: tourDaysDb,
       itinerary: itineraryDb,
       transfer_in: transferInDb,
       transfer_out: transferOutDb,
@@ -1120,14 +1223,30 @@ export default function NewBookingScreen() {
       driver_id:
         driverTargetMode === 'specific' && selectedDriverId ? selectedDriverId : null,
       required_languages: requiredLanguages.length > 0 ? requiredLanguages : null,
+      requested_driver_category: driverCategory,
     });
-    setSubmitting(false);
     if (error) {
+      setSubmitting(false);
       const message = mapSupabaseError(error);
       setSubmitError(message);
       showErrorAlert(message);
       return;
     }
+
+    if (bookingId && pickupSignLogo) {
+      const { url, error: uploadErr } = await uploadPickupSignLogo(bookingId, pickupSignLogo);
+      if (uploadErr || !url) {
+        const uploadMsg = mapPickupSignLogoError(uploadErr, t);
+        showErrorAlert(uploadMsg);
+      } else {
+        const { error: logoDbErr } = await setBookingPickupSignLogoUrl(bookingId, url);
+        if (logoDbErr) {
+          showErrorAlert(mapSupabaseError(logoDbErr));
+        }
+      }
+    }
+
+    setSubmitting(false);
     router.replace('/(app)/dashboard');
     resetWizard();
   }
@@ -1288,6 +1407,14 @@ export default function NewBookingScreen() {
                 placeholder={t('newBooking.form.placeholders.signName')}
               />
             ) : null}
+            {meetGreet ? (
+              <Text style={styles.orDivider}>{t('newBooking.pickupSignLogo.orAnd')}</Text>
+            ) : null}
+            <PickupSignLogoField
+              value={pickupSignLogo}
+              onChange={setPickupSignLogo}
+              disabled={submitting}
+            />
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
             <AuthInput
@@ -1411,6 +1538,12 @@ export default function NewBookingScreen() {
               onChange={setRequiredLanguages}
             />
 
+            <PickupSignLogoField
+              value={pickupSignLogo}
+              onChange={setPickupSignLogo}
+              disabled={submitting}
+            />
+
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
               label={t('newBooking.form.comment')}
@@ -1424,15 +1557,6 @@ export default function NewBookingScreen() {
 
         {step === 2 && booking_kind === 'tour' && (
           <View style={styles.block}>
-            <AuthInput
-              label={t('newBooking.form.tourDescription')}
-              value={tourRouteDescription}
-              onChangeText={setTourRouteDescription}
-              multiline
-              style={styles.textArea}
-              placeholder={t('newBooking.form.placeholders.multiDayTourDesc')}
-            />
-
             <OptionalTransferToggle
               label={t('newBooking.form.optionalArrivalTransfer')}
               value={hasArrivalTransfer}
@@ -1449,67 +1573,86 @@ export default function NewBookingScreen() {
                   minimumDate={new Date()}
                 />
                 <AuthInput
-                  label={t('newBooking.form.flightNo')}
-                  value={transferIn.flight}
-                  onChangeText={(text) => setTransferIn((p) => ({ ...p, flight: text }))}
-                  autoCapitalize="characters"
-                  placeholder={t('newBooking.form.placeholders.flightExample')}
+                  label={t('newBooking.form.airport')}
+                  value={transferInAirport}
+                  onChangeText={setTransferInAirport}
+                  placeholder={t('newBooking.form.placeholders.airportExample')}
                 />
                 <AuthInput
-                  label={t('newBooking.form.passengerFullName')}
-                  value={transferIn.passengerName}
-                  onChangeText={(text) => setTransferIn((p) => ({ ...p, passengerName: text }))}
-                  placeholder={t('newBooking.form.placeholders.signName')}
+                  label={t('newBooking.form.destination')}
+                  value={transferInHotel}
+                  onChangeText={setTransferInHotel}
+                  placeholder={t('newBooking.form.placeholders.destinationExample')}
                 />
               </>
             ) : null}
 
-            <Text style={styles.sectionHeader}>{t('newBooking.form.tourDays')}</Text>
-            {days.map((day, dayIndex) => (
-              <View key={`day-${day.day}-${dayIndex}`} style={styles.tourDayBlock}>
-                <View style={styles.tourDayHeaderRow}>
+            <Text style={styles.sectionHeader}>{t('newBooking.form.tourCalendar')}</Text>
+            <DateTimeField
+              label={t('newBooking.form.tourStartDate')}
+              value={tourStartDate}
+              onChange={setTourStartDate}
+              placeholder={t('newBooking.form.placeholders.dateTime')}
+              minimumDate={new Date()}
+            />
+            <DateTimeField
+              label={t('newBooking.form.tourEndDate')}
+              value={tourEndDate}
+              onChange={setTourEndDate}
+              placeholder={t('newBooking.form.placeholders.dateTime')}
+              minimumDate={tourStartDate ?? new Date()}
+            />
+            {tourDays.length > 0 ? (
+              <Text style={styles.tourOvernightSummary}>
+                {t('newBooking.form.totalOvernights', { count: tourOvernightCount })}
+              </Text>
+            ) : null}
+            {tourDays.map((day, dayIndex) => {
+              const isLastDay = dayIndex === tourDays.length - 1;
+              return (
+                <View key={`tour-day-${day.date}-${dayIndex}`} style={styles.tourDayBlock}>
                   <Text style={styles.tourDayTitle}>
                     {t('newBooking.form.dayN', { n: day.day })}
                   </Text>
-                  {dayIndex > 0 ? (
-                    <Pressable
-                      onPress={() => removeDay(dayIndex)}
-                      hitSlop={10}
-                      accessibilityLabel={t('newBooking.form.removeDayA11y')}
-                      style={({ pressed }) => [styles.tourDayRemoveBtn, pressed && styles.pressed]}
-                    >
-                      <Text style={styles.tourDayRemoveText}>{t('newBooking.form.removeDay')}</Text>
-                    </Pressable>
+                  <AuthInput
+                    label={t('newBooking.form.from')}
+                    value={day.from}
+                    onChangeText={(text) => patchTourDay(dayIndex, { from: text })}
+                  />
+                  <AuthInput
+                    label={t('newBooking.form.to')}
+                    value={day.to}
+                    onChangeText={(text) => patchTourDay(dayIndex, { to: text })}
+                  />
+                  <AuthInput
+                    label={t('newBooking.form.stops')}
+                    value={day.stops}
+                    onChangeText={(text) => patchTourDay(dayIndex, { stops: text })}
+                    placeholder={t('newBooking.form.placeholders.stopsExample')}
+                    multiline
+                    style={styles.textArea}
+                  />
+                  {!isLastDay ? (
+                    <>
+                      <AuthInput
+                        label={t('newBooking.form.touristHotel')}
+                        value={day.touristHotel}
+                        onChangeText={(text) => patchTourDay(dayIndex, { touristHotel: text })}
+                        placeholder={t('newBooking.form.placeholders.touristHotel')}
+                      />
+                      <Text style={styles.fieldHint}>{t('newBooking.form.touristHotelHint')}</Text>
+                      <AuthInput
+                        label={t('newBooking.form.driverOvernight')}
+                        value={day.driverOvernight}
+                        onChangeText={(text) => patchTourDay(dayIndex, { driverOvernight: text })}
+                        placeholder={t('newBooking.form.placeholders.driverOvernight')}
+                      />
+                      <Text style={styles.fieldHint}>{t('newBooking.form.driverOvernightHint')}</Text>
+                    </>
                   ) : null}
                 </View>
-                <AuthInput
-                  label={t('newBooking.form.from')}
-                  value={day.from}
-                  onChangeText={(text) => patchDay(dayIndex, { from: text })}
-                />
-                <AuthInput
-                  label={t('newBooking.form.to')}
-                  value={day.to}
-                  onChangeText={(text) => patchDay(dayIndex, { to: text })}
-                />
-                <AuthInput
-                  label={t('newBooking.form.stops')}
-                  value={day.stops}
-                  onChangeText={(text) => patchDay(dayIndex, { stops: text })}
-                  placeholder={t('newBooking.form.placeholders.stopsExample')}
-                  multiline
-                  style={styles.textArea}
-                />
-              </View>
-            ))}
-            {booking_kind === 'tour' ? (
-              <Pressable
-                onPress={addDay}
-                style={({ pressed }) => [styles.addDayOutline, pressed && styles.pressed]}
-              >
-                <Text style={styles.addDayOutlineText}>{t('newBooking.form.addDay')}</Text>
-              </Pressable>
-            ) : null}
+              );
+            })}
 
             <OptionalTransferToggle
               label={t('newBooking.form.optionalDepartureTransfer')}
@@ -1527,17 +1670,16 @@ export default function NewBookingScreen() {
                   minimumDate={new Date()}
                 />
                 <AuthInput
-                  label={t('newBooking.form.flightNo')}
-                  value={transferOut.flight}
-                  onChangeText={(text) => setTransferOut((p) => ({ ...p, flight: text }))}
-                  autoCapitalize="characters"
-                  placeholder={t('newBooking.form.placeholders.flightExample')}
+                  label={t('newBooking.form.hotelAddress')}
+                  value={transferOutHotel}
+                  onChangeText={setTransferOutHotel}
+                  placeholder={t('newBooking.form.pickupPlace')}
                 />
                 <AuthInput
-                  label={t('newBooking.form.passengerFullName')}
-                  value={transferOut.passengerName}
-                  onChangeText={(text) => setTransferOut((p) => ({ ...p, passengerName: text }))}
-                  placeholder={t('newBooking.form.placeholders.signName')}
+                  label={t('newBooking.form.airport')}
+                  value={transferOutAirport}
+                  onChangeText={setTransferOutAirport}
+                  placeholder={t('newBooking.form.placeholders.airportExample')}
                 />
               </>
             ) : null}
@@ -1559,6 +1701,12 @@ export default function NewBookingScreen() {
               hint={t('newBooking.form.requiredLanguagesHint')}
               value={requiredLanguages}
               onChange={setRequiredLanguages}
+            />
+
+            <PickupSignLogoField
+              value={pickupSignLogo}
+              onChange={setPickupSignLogo}
+              disabled={submitting}
             />
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
@@ -1649,8 +1797,7 @@ export default function NewBookingScreen() {
               <Text style={styles.vLine}>
                 {t('newBooking.form.voucherClass')}: {vehicleClassLabel(vehicleClass)}
               </Text>
-              {(booking_kind === 'tour' || booking_kind === 'dayTour') &&
-              tourRouteDescription.trim() ? (
+              {booking_kind === 'dayTour' && tourRouteDescription.trim() ? (
                 <Text style={styles.vLineMuted}>
                   {t('newBooking.form.voucherTourDesc')}: {tourRouteDescription.trim()}
                 </Text>
@@ -1683,6 +1830,27 @@ export default function NewBookingScreen() {
                       {t('newBooking.form.voucherPassenger')}: {passengerName.trim()}
                     </Text>
                   ) : null}
+                  {meetGreet && signText.trim() ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('bookings.voucherPickupSignName')}: {signText.trim()}
+                    </Text>
+                  ) : null}
+                  {pickupSignLogo ? (
+                    <View style={styles.voucherLogoPreview}>
+                      <Text style={styles.vLineMuted}>{t('bookings.voucherPickupSignMark')}</Text>
+                      {isPickupSignLogoPdf(pickupSignLogo) ? (
+                        <Text style={styles.vLineMuted}>
+                          {t('newBooking.pickupSignLogo.pdfReady')}
+                        </Text>
+                      ) : (
+                        <Image
+                          source={{ uri: pickupSignLogo.uri }}
+                          style={styles.voucherLogoImage}
+                          resizeMode="contain"
+                        />
+                      )}
+                    </View>
+                  ) : null}
                 </>
               ) : booking_kind === 'dayTour' ? (
                 <>
@@ -1700,46 +1868,82 @@ export default function NewBookingScreen() {
                 </>
               ) : (
                 <>
-                  {hasArrivalTransfer && (
+                  {hasArrivalTransfer ? (
                     <Text style={styles.vLineMuted}>
-                      {t('newBooking.form.voucherTransferInDetail', {
+                      {t('newBooking.form.voucherTransferInRoute', {
                         datetime: transferInDateTime
                           ? formatDisplayDateTime(transferInDateTime)
                           : '—',
-                        flight: transferIn.flight.trim() || '—',
-                        passenger: transferIn.passengerName.trim() || '—',
+                        from: transferInAirport.trim() || '—',
+                        to: transferInHotel.trim() || '—',
                       })}
                     </Text>
-                  )}
-                  {days.map((d) => (
-                    <Text key={`preview-day-${d.day}`} style={styles.vLineMuted}>
-                      {d.stops.trim()
-                        ? t('newBooking.form.voucherDayRouteWithStops', {
-                            day: d.day,
-                            from: d.from.trim() || '—',
-                            to: d.to.trim() || '—',
-                            stops: d.stops.trim(),
-                          })
-                        : t('newBooking.dayLine', {
-                            day: d.day,
-                            from: d.from.trim() || '—',
-                            to: d.to.trim() || '—',
-                          })}
-                    </Text>
-                  ))}
-                  {hasDepartureTransfer && (
+                  ) : null}
+                  {tourStartDate && tourEndDate ? (
                     <Text style={styles.vLineMuted}>
-                      {t('newBooking.form.voucherTransferOutDetail', {
+                      {t('newBooking.form.voucherTourRange', {
+                        from: formatDisplayDateTime(tourStartDate),
+                        to: formatDisplayDateTime(tourEndDate),
+                      })}
+                    </Text>
+                  ) : null}
+                  {tourDays.map((d, idx) => {
+                    const isLast = idx === tourDays.length - 1;
+                    return (
+                      <Text key={`preview-tour-day-${d.day}`} style={styles.vLineMuted}>
+                        {d.stops.trim()
+                          ? t('newBooking.form.voucherDayRouteWithStops', {
+                              day: d.day,
+                              from: d.from.trim() || '—',
+                              to: d.to.trim() || '—',
+                              stops: d.stops.trim(),
+                            })
+                          : t('newBooking.dayLine', {
+                              day: d.day,
+                              from: d.from.trim() || '—',
+                              to: d.to.trim() || '—',
+                            })}
+                        {!isLast && d.touristHotel.trim()
+                          ? ` · ${t('newBooking.form.touristHotel')}: ${d.touristHotel.trim()}`
+                          : ''}
+                        {!isLast && d.driverOvernight.trim()
+                          ? ` · ${t('newBooking.form.driverOvernight')}: ${d.driverOvernight.trim()}`
+                          : ''}
+                      </Text>
+                    );
+                  })}
+                  {tourOvernightCount > 0 ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.totalOvernights', { count: tourOvernightCount })}
+                    </Text>
+                  ) : null}
+                  {hasDepartureTransfer ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherTransferOutRoute', {
                         datetime: transferOutDateTime
                           ? formatDisplayDateTime(transferOutDateTime)
                           : '—',
-                        flight: transferOut.flight.trim() || '—',
-                        passenger: transferOut.passengerName.trim() || '—',
+                        from: transferOutHotel.trim() || '—',
+                        to: transferOutAirport.trim() || '—',
                       })}
                     </Text>
-                  )}
+                  ) : null}
                 </>
               )}
+              {pickupSignLogo && booking_kind !== 'transfer' ? (
+                <View style={styles.voucherLogoPreview}>
+                  <Text style={styles.vLineMuted}>{t('bookings.voucherPickupSignMark')}</Text>
+                  {isPickupSignLogoPdf(pickupSignLogo) ? (
+                    <Text style={styles.vLineMuted}>{t('newBooking.pickupSignLogo.pdfReady')}</Text>
+                  ) : (
+                    <Image
+                      source={{ uri: pickupSignLogo.uri }}
+                      style={styles.voucherLogoImage}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              ) : null}
               <Text style={styles.vLine}>
                 {t('newBooking.form.voucherPassengers')}: {pax}
               </Text>
@@ -1766,11 +1970,14 @@ export default function NewBookingScreen() {
               </Text>
             </View>
 
+            <DriverCategorySelect value={driverCategory} onChange={setDriverCategory} />
+
             <MatchingDriversSection
               active
               vehicleType={selectedVehicleType}
               vehicleClass={vehicleClass}
               requiredLanguages={requiredLanguages}
+              driverCategory={driverCategory}
               driverTargetMode={driverTargetMode}
               onDriverTargetModeChange={setDriverTargetMode}
               selectedDriverId={selectedDriverId}
@@ -1893,6 +2100,25 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: SPACING.sm,
     marginTop: SPACING.lg,
+  },
+  orDivider: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginVertical: SPACING.sm,
+    fontWeight: '600',
+  },
+  voucherLogoPreview: {
+    marginTop: SPACING.sm,
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  voucherLogoImage: {
+    width: '100%',
+    maxWidth: 400,
+    height: 120,
+    borderRadius: RADIUS.button,
+    backgroundColor: COLORS.surfaceAlt,
   },
   sectionHeaderFirst: {
     marginTop: 0,
@@ -2027,6 +2253,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: SPACING.sm,
   },
+  fieldHint: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: -6,
+    marginBottom: SPACING.sm,
+  },
   driverPayNote: {
     color: COLORS.gray,
     fontSize: 12,
@@ -2067,6 +2300,13 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 16,
     fontWeight: '800',
+    marginBottom: SPACING.sm,
+  },
+  tourOvernightSummary: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: SPACING.md,
   },
   tourDayRemoveBtn: {
     paddingHorizontal: SPACING.sm,
@@ -2292,22 +2532,16 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     marginBottom: SPACING.sm,
   },
-  driverAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.surfaceAlt,
-  },
-  driverAvatarPlaceholder: {
+  driverCardPhotos: {
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    gap: 6,
+    flexShrink: 0,
   },
-  driverAvatarInitial: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.gold,
+  driverVehicleThumb: {
+    width: 52,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: COLORS.surfaceAlt,
   },
   driverCardMain: {
     flex: 1,

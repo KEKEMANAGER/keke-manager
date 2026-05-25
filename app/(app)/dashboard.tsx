@@ -7,7 +7,6 @@ import {
   Linking,
   Alert,
   Dimensions,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -17,7 +16,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import type { BookingRow, BookingStatus } from '../../lib/bookings';
 import {
@@ -31,8 +29,9 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
-import { AppLogo } from '../../components/AppLogo';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { BookingChatThreads } from '../../components/BookingChatThreads';
+import { DriverProfileCard } from '../../components/DriverProfileCard';
 import { UserAvatar } from '../../components/UserAvatar';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { EmptyState } from '../../components/EmptyState';
@@ -43,8 +42,13 @@ import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { fetchActiveAds, type AdCard } from '../../lib/ads';
-import { shareVoucherPDF } from '../../lib/voucher';
+import { PartnersAdsSection } from '../../components/PartnersAdsSection';
+import {
+  CompanyBookingVoucherModal,
+  openCompanyVoucher,
+} from '../../components/CompanyBookingVoucher';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
+import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -121,10 +125,9 @@ export default function CompanyDashboardScreen() {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const layout = useAppLayoutInsets();
   const name = companyDisplayName(profile, user, t('common.company'));
   const userId = user?.id;
-  const isAdmin = profile?.role === 'admin';
 
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -137,6 +140,7 @@ export default function CompanyDashboardScreen() {
   const [driverLoading, setDriverLoading] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [ads, setAds] = useState<AdCard[]>([]);
+  const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -307,7 +311,7 @@ export default function CompanyDashboardScreen() {
       style={styles.screen}
       contentContainerStyle={[
         styles.scroll,
-        { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + 100 },
+        { paddingTop: SPACING.md, paddingBottom: layout.paddingBottom },
       ]}
       showsVerticalScrollIndicator={false}
       refreshControl={
@@ -321,7 +325,6 @@ export default function CompanyDashboardScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.headerRow}>
-        <AppLogo size="header" />
         <View style={styles.headerText}>
           <Text style={styles.greeting}>{t('company.greeting')}</Text>
           <NameWithVerifiedBadge
@@ -331,14 +334,6 @@ export default function CompanyDashboardScreen() {
           />
         </View>
         <View style={styles.headerRight}>
-          {isAdmin ? (
-            <Pressable
-              onPress={() => router.push('/(app)/admin-panel')}
-              style={({ pressed }) => [styles.adminBtn, pressed && styles.adminBtnPressed]}
-            >
-              <Text style={styles.adminBtnText}>{t('adminPanel.panelEntry')}</Text>
-            </Pressable>
-          ) : null}
           <View style={styles.subBadge}>
             <Text style={styles.subBadgeLabel}>{t('company.bookingsBadge')}</Text>
             <Text style={styles.subBadgeTier}>
@@ -440,25 +435,37 @@ export default function CompanyDashboardScreen() {
             <Text style={styles.route}>{routeSummary(b)}</Text>
             <Text style={styles.date}>{formatBookingDate(b)}</Text>
             <View style={styles.driverBlock}>
-              <Text style={styles.driverLabel}>{t('company.driverLabel')}</Text>
+              <Text style={styles.driverLabel}>{t('company.operatorsOnTrip')}</Text>
+              {b.host_display_name ? (
+                <View style={styles.operatorRow}>
+                  <Text style={styles.operatorRole}>{t('company.hostLabel')}</Text>
+                  <Text style={styles.operatorName}>{b.host_display_name}</Text>
+                </View>
+              ) : null}
               {b.driver_display_name ? (
-                <View style={styles.driverNameRow}>
-                  <UserAvatar
-                    name={b.driver_display_name}
-                    uri={b.driver_avatar_url ?? null}
-                    size={36}
-                  />
-                  <View style={styles.driverNameInfo}>
-                    <NameWithVerifiedBadge
+                <View style={styles.driverBlockInner}>
+                  {b.host_display_name ? (
+                    <Text style={styles.operatorRole}>{t('company.driverLabel')}</Text>
+                  ) : null}
+                  <View style={styles.driverNameRow}>
+                    <UserAvatar
                       name={b.driver_display_name}
-                      verified={b.driver_is_verified}
-                      textStyle={styles.driverName}
+                      uri={b.driver_avatar_url ?? null}
+                      size={36}
                     />
-                    <Text style={styles.driverMeta}>
-                      {[b.driver_phone, b.driver_plate, b.vehicle_class ? vehicleClassLabel(b.vehicle_class) : null]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
+                    <View style={styles.driverNameInfo}>
+                      <NameWithVerifiedBadge
+                        name={b.driver_display_name}
+                        verified={b.driver_is_verified}
+                        isGuide={b.driver_is_guide_driver}
+                        textStyle={styles.driverName}
+                      />
+                      <Text style={styles.driverMeta}>
+                        {[b.driver_phone, b.driver_plate, b.vehicle_class ? vehicleClassLabel(b.vehicle_class) : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               ) : (
@@ -527,7 +534,10 @@ export default function CompanyDashboardScreen() {
                 <Text style={styles.rateBtnText}>{t('companyDashboard.rateDriver')}</Text>
               </Pressable>
             ) : null}
-            <Pressable onPress={() => void shareVoucherPDF(b)} style={styles.voucherBtn}>
+            <Pressable
+              onPress={() => openCompanyVoucher(router, b.id, setVoucherBooking, b)}
+              style={styles.voucherBtn}
+            >
               <Text style={styles.voucherBtnText}>📄 {t('common.voucher')}</Text>
             </Pressable>
           </View>
@@ -535,44 +545,7 @@ export default function CompanyDashboardScreen() {
       )}
 
 
-      {ads.length > 0 ? (
-        <>
-          <Text style={styles.sectionTitle}>🤝 პარტნიორები</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.adsRow}
-            style={styles.adsScroll}
-          >
-            {ads.map((ad) => (
-              <Pressable
-                key={ad.id}
-                onPress={() => ad.link_url ? void Linking.openURL(ad.link_url) : null}
-                style={({ pressed }) => [styles.adCard, pressed && { opacity: 0.85 }]}
-              >
-                {ad.image_url ? (
-                  <Image
-                    source={{ uri: ad.image_url }}
-                    style={styles.adImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.adImagePlaceholder}>
-                    <Text style={styles.adImageEmoji}>📢</Text>
-                  </View>
-                )}
-                <View style={styles.adInfo}>
-                  <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
-                  {ad.subtitle ? <Text style={styles.adSubtitle} numberOfLines={1}>{ad.subtitle}</Text> : null}
-                </View>
-                <View style={styles.adBadge}>
-                  <Text style={styles.adBadgeText}>Ad</Text>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </>
-      ) : null}
+      <PartnersAdsSection ads={ads} />
 
       <Text style={styles.sectionTitle}>{t('common.stats')}</Text>
       <View style={styles.statsRow}>
@@ -603,53 +576,35 @@ export default function CompanyDashboardScreen() {
               <ActivityIndicator color={COLORS.gold} size="large" style={{ margin: 32 }} />
             ) : driverProfile ? (
               <>
-                {driverProfile.vehicle?.photo_front ? (
-                  <Image
-                    source={{ uri: driverProfile.vehicle.photo_front }}
-                    style={styles.vehiclePhoto}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.vehiclePhotoPlaceholder}>
-                    <Text style={{ fontSize: 48 }}>🚗</Text>
-                  </View>
-                )}
-
-                {driverProfile.vehicle ? (
-                  <View style={styles.vehicleInfo}>
-                    <Text style={styles.vehicleTitle}>
-                      {[driverProfile.vehicle.model, driverProfile.vehicle.year, driverProfile.vehicle.color]
-                        .filter((x) => x !== null && x !== undefined && x !== '')
-                        .join(' • ')}
-                    </Text>
-                    <View style={styles.chipRow}>
-                      {driverProfile.vehicle.type ? (
-                        <View style={styles.chip}>
-                          <Text style={styles.chipText}>{vehicleTypeLabel(driverProfile.vehicle.type)}</Text>
-                        </View>
-                      ) : null}
-                      {driverProfile.vehicle.class ? (
-                        <View style={styles.chip}>
-                          <Text style={styles.chipText}>{vehicleClassLabel(driverProfile.vehicle.class)}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                ) : null}
-
-                <View style={styles.divider} />
-
-                <View style={styles.driverInfo}>
-                  {driverProfile.avatar_url ? (
-                    <Image source={{ uri: driverProfile.avatar_url }} style={styles.avatar} />
-                  ) : (
-                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                      <Text style={{ color: COLORS.gold, fontWeight: '800' }}>
-                        {(driverProfile.full_name || driverModal?.driver_display_name || '?')[0]}
+              <DriverProfileCard
+                fullName={driverProfile.full_name || driverModal?.driver_display_name}
+                avatarUrl={driverProfile.avatar_url}
+                vehiclePhotoUrl={driverProfile.vehicle?.photo_front ?? null}
+                vehicleInfo={
+                  driverProfile.vehicle ? (
+                    <>
+                      <Text style={styles.vehicleTitle}>
+                        {[driverProfile.vehicle.model, driverProfile.vehicle.year, driverProfile.vehicle.color]
+                          .filter((x) => x !== null && x !== undefined && x !== '')
+                          .join(' • ')}
                       </Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
+                      <View style={styles.chipRow}>
+                        {driverProfile.vehicle.type ? (
+                          <View style={styles.chip}>
+                            <Text style={styles.chipText}>{vehicleTypeLabel(driverProfile.vehicle.type)}</Text>
+                          </View>
+                        ) : null}
+                        {driverProfile.vehicle.class ? (
+                          <View style={styles.chip}>
+                            <Text style={styles.chipText}>{vehicleClassLabel(driverProfile.vehicle.class)}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </>
+                  ) : null
+                }
+                driverDetails={
+                  <>
                     <NameWithVerifiedBadge
                       name={
                         driverProfile.full_name ||
@@ -657,6 +612,7 @@ export default function CompanyDashboardScreen() {
                         t('company.driverDefault')
                       }
                       verified={driverProfile.is_verified}
+                      isGuide={driverProfile.is_guide_driver}
                       textStyle={styles.driverNameModal}
                     />
                     <Text style={styles.ratingText}>
@@ -668,27 +624,36 @@ export default function CompanyDashboardScreen() {
                           })
                         : t('company.noRatings')}
                     </Text>
-                  </View>
-                </View>
-
-                {driverProfile.experience_years != null && driverProfile.experience_years > 0 ? (
-                  <Text style={styles.infoText}>
-                    🕐{' '}
-                    {t('company.experienceYears', { years: driverProfile.experience_years })}
-                  </Text>
-                ) : null}
-
-                {driverProfile.languages && driverProfile.languages.length > 0 ? (
-                  <View style={styles.chipRow}>
-                    {driverProfile.languages.map((lang) => (
-                      <View key={lang} style={styles.chip}>
-                        <Text style={styles.chipText}>{lang}</Text>
+                  </>
+                }
+                footer={
+                  <>
+                    {driverProfile.experience_years != null && driverProfile.experience_years > 0 ? (
+                      <Text style={styles.infoText}>
+                        🕐{' '}
+                        {t('company.experienceYears', { years: driverProfile.experience_years })}
+                      </Text>
+                    ) : null}
+                    {driverProfile.languages && driverProfile.languages.length > 0 ? (
+                      <View style={styles.chipRow}>
+                        {driverProfile.languages.map((lang) => (
+                          <View key={lang} style={styles.chip}>
+                            <Text style={styles.chipText}>{lang}</Text>
+                          </View>
+                        ))}
                       </View>
-                    ))}
-                  </View>
-                ) : null}
-
-                {driverProfile.bio ? <Text style={styles.bioText}>{driverProfile.bio}</Text> : null}
+                    ) : null}
+                    {driverProfile.bio ? <Text style={styles.bioText}>{driverProfile.bio}</Text> : null}
+                  </>
+                }
+              />
+            {driverModal?.driver_id && user?.id ? (
+              <BookingChatThreads
+                bookingId={driverModal.id}
+                viewerUserId={user.id}
+                chatStack="app"
+              />
+            ) : null}
               </>
             ) : (
               <Text style={styles.modalEmptyText}>{t('company.driverInfoNotFound')}</Text>
@@ -707,6 +672,12 @@ export default function CompanyDashboardScreen() {
         </View>
       </View>
     </Modal>
+
+    <CompanyBookingVoucherModal
+      booking={voucherBooking}
+      visible={!!voucherBooking}
+      onClose={() => setVoucherBooking(null)}
+    />
     </>
   );
 }
@@ -1026,6 +997,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
+  hostMeta: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  driverBlockInner: {
+    gap: 4,
+    marginTop: 4,
+  },
+  operatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  operatorRole: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  operatorName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
   driverPending: {
     color: COLORS.gray,
     fontSize: 14,
@@ -1136,62 +1134,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'right',
   },
-  adsScroll: {
-    marginBottom: SPACING.md,
-  },
-  adsRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    paddingRight: SPACING.md,
-  },
-  adCard: {
-    width: 160,
-    borderRadius: RADIUS.card,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-    ...SHADOWS.card,
-  },
-  adImage: {
-    width: '100%',
-    height: 90,
-  },
-  adImagePlaceholder: {
-    width: '100%',
-    height: 90,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  adImageEmoji: { fontSize: 32 },
-  adInfo: {
-    padding: SPACING.sm,
-  },
-  adTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  adSubtitle: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  adBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  adBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
   statsRow: {
     flexDirection: 'row',
     gap: SPACING.md,
@@ -1229,24 +1171,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: SPACING.lg,
   },
-  vehiclePhoto: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: SPACING.md,
-  },
-  vehiclePhotoPlaceholder: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.md,
-  },
-  vehicleInfo: {
-    marginBottom: SPACING.md,
-  },
   vehicleTitle: {
     color: COLORS.text,
     fontSize: 16,
@@ -1270,27 +1194,6 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 13,
     fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: SPACING.md,
-  },
-  driverInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  avatarPlaceholder: {
-    backgroundColor: COLORS.surfaceHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   driverNameModal: {
     color: COLORS.text,

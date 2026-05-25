@@ -20,7 +20,7 @@ import {
   validateCompanyProfileForm,
   validateRequired,
 } from '../../lib/validation';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { EditModeButtons } from '../../components/EditModeButtons';
@@ -59,9 +59,8 @@ export default function CompanyProfileScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
-  const insets = useSafeAreaInsets();
+  const layout = useAppLayoutInsets();
   const defaultCompany = t('companyProfile.defaultCompany');
-  const isAdmin = profile?.role === 'admin';
 
   const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
@@ -323,7 +322,7 @@ export default function CompanyProfileScreen() {
       style={styles.screen}
       contentContainerStyle={[
         styles.scroll,
-        { paddingTop: insets.top + SPACING.lg, paddingBottom: insets.bottom + SPACING.xl + 72 },
+        { paddingTop: SPACING.lg, paddingBottom: layout.paddingBottom },
       ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
@@ -485,17 +484,6 @@ export default function CompanyProfileScreen() {
         </View>
         {memberError ? <Text style={styles.saveError}>{memberError}</Text> : null}
       </View>
-
-      {isAdmin ? (
-        <Pressable
-          onPress={() => router.push('/(app)/admin-panel')}
-          style={({ pressed }) => [styles.adminPanelBtn, pressed && styles.adminPanelBtnPressed]}
-        >
-          <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.goldDark} />
-          <Text style={styles.adminPanelBtnText}>{t('adminPanel.panelEntry')}</Text>
-          <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-        </Pressable>
-      ) : null}
 
       <ProfileFeedbackEntry />
 

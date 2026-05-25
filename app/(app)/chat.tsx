@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,10 +14,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
-import { UserAvatar } from '../../components/UserAvatar';
+import { ChatScreenHeader } from '../../components/layout/ChatScreenHeader';
+import { CONTENT_PADDING_BOTTOM } from '../../constants/layout';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import type { ChatThreadType, ParticipantRole } from '../../lib/bookingChat';
 import {
   fetchMessages,
   markMessagesRead,
@@ -33,14 +34,23 @@ function formatMsgTime(iso: string): string {
 
 export default function CompanyChatScreen() {
   const { t } = useTranslation();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
-  const { uid, name, avatar } = useLocalSearchParams<{
-    uid: string;
-    name: string;
-    avatar?: string;
-  }>();
+  const { uid, name, avatar, bookingId, threadType, senderRole, receiverRole } =
+    useLocalSearchParams<{
+      uid: string;
+      name: string;
+      avatar?: string;
+      bookingId?: string;
+      threadType?: ChatThreadType;
+      senderRole?: ParticipantRole;
+      receiverRole?: ParticipantRole;
+    }>();
+
+  const threadOpts =
+    bookingId?.trim() && threadType
+      ? { bookingId: bookingId.trim(), threadType }
+      : undefined;
 
   const otherUserId = uid ?? '';
   const otherName = name?.trim() || t('common.driver');
@@ -60,12 +70,12 @@ export default function CompanyChatScreen() {
 
   const load = useCallback(async () => {
     if (!user?.id || !otherUserId) return;
-    const { data } = await fetchMessages(user.id, otherUserId);
+    const { data } = await fetchMessages(user.id, otherUserId, threadOpts);
     setMessages(data);
     setLoading(false);
     scrollToBottom(false);
-    void markMessagesRead(user.id, otherUserId);
-  }, [user?.id, otherUserId, scrollToBottom]);
+    void markMessagesRead(user.id, otherUserId, threadOpts);
+  }, [user?.id, otherUserId, scrollToBottom, threadOpts?.bookingId, threadOpts?.threadType]);
 
   useEffect(() => {
     void load();
@@ -92,15 +102,20 @@ export default function CompanyChatScreen() {
 
   useEffect(() => {
     if (!user?.id || !otherUserId) return;
-    const ch = subscribeToMessages(user.id, otherUserId, (msg) => {
-      setMessages((prev) => [...prev, msg]);
-      scrollToBottom(true);
-      void markMessagesRead(user.id!, otherUserId);
-    });
+    const ch = subscribeToMessages(
+      user.id,
+      otherUserId,
+      (msg) => {
+        setMessages((prev) => [...prev, msg]);
+        scrollToBottom(true);
+        void markMessagesRead(user.id!, otherUserId, threadOpts);
+      },
+      threadOpts,
+    );
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [user?.id, otherUserId, scrollToBottom]);
+  }, [user?.id, otherUserId, scrollToBottom, threadOpts?.bookingId, threadOpts?.threadType]);
 
   async function onSend() {
     if (!user?.id || !text.trim() || sending) return;
@@ -112,6 +127,10 @@ export default function CompanyChatScreen() {
       senderId: user.id,
       receiverId: otherUserId,
       text: draft,
+      bookingId: threadOpts?.bookingId ?? null,
+      threadType: threadOpts?.threadType ?? null,
+      senderRole: senderRole ?? null,
+      receiverRole: receiverRole ?? null,
       senderName: profile?.full_name?.trim() || '',
     });
     setSending(false);
@@ -125,22 +144,15 @@ export default function CompanyChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.screen, { paddingTop: insets.top }]}
+      style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
     >
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-        </Pressable>
-        <UserAvatar name={otherName} uri={otherAvatarUrl} size={42} />
-        <NameWithVerifiedBadge
-          name={otherName}
-          verified={otherVerified}
-          style={styles.headerNameWrap}
-          textStyle={styles.headerName}
-          numberOfLines={1}
-        />
-      </View>
+      <ChatScreenHeader
+        otherName={otherName}
+        otherAvatarUrl={otherAvatarUrl}
+        otherVerified={otherVerified}
+      />
 
       {loading ? (
         <View style={styles.center}>
@@ -154,7 +166,7 @@ export default function CompanyChatScreen() {
           contentContainerStyle={[
             styles.msgList,
             messages.length === 0 && styles.msgListEmpty,
-            { paddingBottom: SPACING.md },
+            { paddingBottom: CONTENT_PADDING_BOTTOM },
           ]}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
@@ -182,7 +194,7 @@ export default function CompanyChatScreen() {
 
       {sendError ? <Text style={styles.sendErr}>{sendError}</Text> : null}
 
-      <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, SPACING.md) }]}>
+      <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, SPACING.md) + SPACING.sm }]}>
         <TextInput
           style={styles.input}
           value={text}
@@ -217,41 +229,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: SPACING.sm,
-    backgroundColor: COLORS.background,
-  },
-  backBtn: {
-    padding: SPACING.xs,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#0f0f0f',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  headerNameWrap: {
-    flex: 1,
-  },
-  headerName: {
-    flexShrink: 1,
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: '700',
   },
   center: {
     flex: 1,

@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,7 +12,6 @@ import {
 import MapView, { Callout, Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   fetchAllLocationsWithInfo,
@@ -92,102 +90,6 @@ export default function AdminTrackingScreen() {
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, []);
-
-  const adminLeafletPins: LeafletMapPin[] = locations.map((loc) => ({
-    driver_id: loc.driver_id,
-    latitude: loc.latitude,
-    longitude: loc.longitude,
-    updated_at: loc.updated_at,
-    full_name: loc.full_name,
-    color: markerColor(loc),
-  }));
-
-  if (Platform.OS === 'web') {
-    return (
-      <View style={[styles.screen, styles.webScreen, { paddingTop: insets.top }]}>
-        <View style={styles.webHeader}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-          </Pressable>
-          <Text style={styles.headerTitle}>{t('adminTracking.title')}</Text>
-          <View style={styles.countBadge}>
-            {loading ? (
-              <ActivityIndicator size="small" color={COLORS.gold} />
-            ) : (
-              <Text style={styles.countText}>{locations.length}</Text>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.webLegend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.gold }]} />
-            <Text style={styles.legendLabel}>{t('tracking.statusInProgress')}</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.blue }]} />
-            <Text style={styles.legendLabel}>{t('tracking.statusAccepted')}</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.textMuted }]} />
-            <Text style={styles.legendLabel}>{t('adminTracking.stale')}</Text>
-          </View>
-        </View>
-
-        <View style={styles.webBodyRow}>
-          <View style={styles.webMapPane}>
-            <LeafletDriverMap
-              pins={adminLeafletPins}
-              selectedId={selected?.driver_id ?? null}
-              onSelectPin={(id) => {
-                const loc = locations.find((l) => l.driver_id === id);
-                if (loc) setSelected(loc);
-              }}
-            />
-          </View>
-          <ScrollView style={styles.webSidebar} showsVerticalScrollIndicator={false}>
-            <Text style={styles.webSidebarTitle}>{t('tracking.driversOnMap')}</Text>
-            {locations.map((loc) => (
-              <Pressable
-                key={loc.driver_id}
-                onPress={() => setSelected(loc)}
-                style={[styles.webRow, selected?.driver_id === loc.driver_id && styles.webRowSelected]}
-              >
-                <View style={[styles.webDot, { backgroundColor: markerColor(loc) }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.webRowName}>{loc.full_name ?? t('common.driver')}</Text>
-                  <Text style={styles.webRowMeta}>
-                    {statusLabel(loc.booking_status, t)}
-                    {loc.vehicle_type ? ` · ${vehicleTypeLabel(loc.vehicle_type)}` : ''}
-                    {` · ${formatAgo(loc.updated_at)} ${t('tracking.ago')}`}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-
-        {selected ? (
-          <View style={[styles.webPanel, { paddingBottom: insets.bottom + SPACING.md }]}>
-            <Text style={styles.panelName}>{selected.full_name ?? t('common.driver')}</Text>
-            <Text style={styles.panelStatus}>{statusLabel(selected.booking_status, t)}</Text>
-            <Pressable
-              onPress={() => {
-                router.push({
-                  pathname: '/(app)/tracking',
-                  params: { driverId: selected.driver_id, driverName: selected.full_name ?? '' },
-                });
-              }}
-              style={styles.panelTrackBtn}
-            >
-              <Ionicons name="navigate" size={16} color="#0f0f0f" />
-              <Text style={styles.panelTrackBtnText}>{t('adminTracking.openTracking')}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-    );
-  }
 
   const selectedColor = selected ? markerColor(selected) : COLORS.gold;
   const selectedVehicle = [

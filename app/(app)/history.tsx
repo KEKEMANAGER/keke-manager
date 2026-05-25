@@ -23,8 +23,12 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
-import { shareVoucherPDF } from '../../lib/voucher';
+import {
+  CompanyBookingVoucherModal,
+  openCompanyVoucher,
+} from '../../components/CompanyBookingVoucher';
 import { useAuth } from '../../contexts/AuthContext';
+import { canCompanyEditBooking } from '../../lib/bookingUpdate';
 
 type FilterKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
@@ -81,6 +85,7 @@ export default function CompanyHistoryScreen() {
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [rows, setRows] = useState<BookingRow[]>([]);
+  const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -246,7 +251,18 @@ export default function CompanyHistoryScreen() {
                 <Text style={styles.date}>{formatBookingDate(r)}</Text>
                 <Text style={styles.price}>{formatGel(Number(r.price_gel))}</Text>
               </View>
-              <Pressable onPress={() => void shareVoucherPDF(r)} style={styles.voucherBtn}>
+              {canCompanyEditBooking(r.status).allowed ? (
+                <Pressable
+                  onPress={() => router.push(`/(app)/edit-booking/${r.id}` as never)}
+                  style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                >
+                  <Text style={styles.editBtnText}>✏️ {t('editBooking.edit')}</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => openCompanyVoucher(router, r.id, setVoucherBooking, r)}
+                style={styles.voucherBtn}
+              >
                 <Text style={styles.voucherBtnText}>📄 {t('historyPage.voucher')}</Text>
               </Pressable>
               {/* rate-booking: bookingId = booking.id (uuid), driverId = driver user id. */}
@@ -270,6 +286,12 @@ export default function CompanyHistoryScreen() {
           ))
         )}
       </ScrollView>
+
+      <CompanyBookingVoucherModal
+        booking={voucherBooking}
+        visible={!!voucherBooking}
+        onClose={() => setVoucherBooking(null)}
+      />
     </View>
   );
 }
@@ -397,6 +419,22 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 17,
     fontWeight: '800',
+  },
+  editBtn: {
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    backgroundColor: COLORS.goldTint,
+  },
+  editBtnPressed: { opacity: 0.88 },
+  editBtnText: {
+    color: COLORS.goldDark,
+    fontSize: 13,
+    fontWeight: '700',
   },
   voucherBtn: {
     borderWidth: 1,

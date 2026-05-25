@@ -10,8 +10,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserAvatar } from '../../components/UserAvatar';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,8 +38,8 @@ function formatListTime(iso: string, yesterday: string): string {
 
 export default function CompanyChatListScreen() {
   const { t } = useTranslation();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user } = useAuth();
 
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
@@ -102,7 +102,7 @@ export default function CompanyChatListScreen() {
   }
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + SPACING.md }]}>
+    <View style={[styles.screen, { paddingTop: SPACING.md }]}>
       <Text style={styles.title}>{t('chat.listTitle')}</Text>
 
       {error ? (
