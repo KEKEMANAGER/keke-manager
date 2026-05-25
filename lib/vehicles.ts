@@ -26,12 +26,13 @@ export type VehicleRow = {
   plate: string | null;
   make_id: number | null;
   model_id: number | null;
+  passenger_capacity: number | null;
   is_verified: boolean | null;
   updated_at: string;
 };
 
 const VEHICLE_SELECT =
-  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id,is_verified,updated_at';
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id,passenger_capacity,is_verified,updated_at';
 
 /** All vehicles for this driver, active first. */
 export async function fetchVehiclesByDriver(driverId: string): Promise<{
@@ -135,6 +136,7 @@ export async function insertVehicle(
     plate?: string | null;
     make_id?: number | null;
     model_id?: number | null;
+    passenger_capacity?: number | null;
   },
 ): Promise<{ data: VehicleRow | null; error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
@@ -276,8 +278,16 @@ function normalizeVehicleDbFields(fields: {
   plate?: string | null;
   make_id?: number | null;
   model_id?: number | null;
+  passenger_capacity?: number | null;
 }): { fields: typeof fields; error: Error | null } {
   const out = { ...fields };
+  if (fields.passenger_capacity != null) {
+    const cap = Number(fields.passenger_capacity);
+    if (!Number.isInteger(cap) || cap < 1 || cap > 100) {
+      return { fields: out, error: new Error('სავარძლების რაოდენობა 1–100 უნდა იყოს') };
+    }
+    out.passenger_capacity = cap;
+  }
   if (fields.type != null) {
     const n = normalizeVehicleType(fields.type);
     if (!n) return { fields: out, error: new Error('აირჩიეთ ტრანსპორტის ტიპი') };
@@ -304,6 +314,7 @@ export async function saveVehicleDetails(
     plate?: string | null;
     make_id?: number | null;
     model_id?: number | null;
+    passenger_capacity?: number | null;
   },
 ): Promise<{ error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);

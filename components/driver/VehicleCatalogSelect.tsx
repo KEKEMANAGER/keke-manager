@@ -225,6 +225,45 @@ type YearProps = {
   disabled?: boolean;
 };
 
+type PassengerCapacityProps = {
+  value: string;
+  onChange: (value: string) => void;
+  error?: string | null;
+  disabled?: boolean;
+};
+
+/** Required seat count (1–100) for driver vehicle registration. */
+export function VehiclePassengerCapacityInput({
+  value,
+  onChange,
+  error,
+  disabled,
+}: PassengerCapacityProps) {
+  const { t } = useTranslation();
+
+  return (
+    <View style={styles.wrap}>
+      <Text style={styles.label}>{t('vehicleScreen.passengerCapacity')}</Text>
+      <TextInput
+        value={value}
+        onChangeText={(text) => onChange(text.replace(/[^\d]/g, ''))}
+        keyboardType="number-pad"
+        maxLength={3}
+        editable={!disabled}
+        placeholder={t('vehicleScreen.passengerCapacityPlaceholder')}
+        placeholderTextColor={COLORS.textMuted}
+        style={[
+          styles.input,
+          styles.capacityInput,
+          error ? styles.inputError : null,
+          disabled && styles.inputDisabled,
+        ]}
+      />
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+    </View>
+  );
+}
+
 export function VehicleYearSelect({ value, onChange, disabled }: YearProps) {
   const { t } = useTranslation();
   const years = useMemo(() => vehicleYearsDescending(), []);
@@ -265,6 +304,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   inputDisabled: { opacity: 0.55 },
+  inputError: {
+    borderColor: COLORS.error,
+  },
+  capacityInput: {
+    borderColor: '#EF9F27',
+  },
+  fieldError: {
+    color: COLORS.error,
+    fontSize: 12,
+    marginTop: 4,
+  },
   trigger: {
     borderWidth: 1,
     borderColor: COLORS.border,

@@ -122,6 +122,27 @@ export function bioMaxLength(): number {
   return BIO_MAX_LENGTH;
 }
 
+export function validatePassengerCapacity(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return t('validation.passengerCapacityRequired');
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return t('validation.passengerCapacityInvalid');
+  }
+  const n = parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 100) {
+    return t('validation.passengerCapacityRange');
+  }
+  return null;
+}
+
+export function parsePassengerCapacity(raw: string): number | null {
+  const err = validatePassengerCapacity(raw);
+  if (err) return null;
+  return parseInt(raw.trim(), 10);
+}
+
 export function validateVehicleSave(type: string | null, vehicleClass: string | null): string | null {
   if (!type) return t('validation.vehicleTypeRequired');
   if (!vehicleClass) return t('validation.vehicleClassRequired');

@@ -62,6 +62,7 @@ export type MatchingDriver = {
     year: number | null;
     color: string | null;
     plate: string | null;
+    passenger_capacity: number | null;
     photo_front: string | null;
   } | null;
 };
@@ -115,6 +116,7 @@ export async function fetchMatchingDrivers(
   requiredLanguages?: string[] | null,
   cityFilter?: string | null,
   driverCategory?: RequestedDriverCategory | null,
+  minPassengerCapacity?: number | null,
 ): Promise<{ data: MatchingDriver[]; error: Error | null }> {
   const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
   const cityNorm = cityFilter?.trim() || null;
@@ -163,7 +165,7 @@ export async function fetchMatchingDrivers(
     supabase
       .from('vehicles')
       .select(
-        'driver_id, type, class, model, year, color, plate, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active',
+        'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active',
       )
       .in('driver_id', ids)
       .order('is_active', { ascending: false }),
@@ -194,6 +196,7 @@ export async function fetchMatchingDrivers(
       year?: number | null;
       color?: string | null;
       plate?: string | null;
+      passenger_capacity?: number | null;
       photo_front?: string | null;
       photo_left?: string | null;
       photo_right?: string | null;
@@ -210,6 +213,7 @@ export async function fetchMatchingDrivers(
     year?: number | null;
     color?: string | null;
     plate?: string | null;
+    passenger_capacity?: number | null;
     photo_front?: string | null;
     photo_left?: string | null;
     photo_right?: string | null;
@@ -305,6 +309,8 @@ export async function fetchMatchingDrivers(
             year: vehicle.year ?? null,
             color: vehicle.color ?? null,
             plate: vehicle.plate ?? null,
+            passenger_capacity:
+              vehicle.passenger_capacity != null ? Number(vehicle.passenger_capacity) : null,
             photo_front: firstVehiclePhotoUrl(vehicle),
           }
         : null,

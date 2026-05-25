@@ -358,7 +358,10 @@ function formatDriverLanguages(languages: string[]): string {
   return formatSpokenLanguagesList(languages);
 }
 
-function matchingDriverVehicleLine(vehicle: MatchingDriver['vehicle']): string {
+function matchingDriverVehicleLine(
+  vehicle: MatchingDriver['vehicle'],
+  seatsLabel: (count: number) => string,
+): string {
   if (!vehicle) return '';
   const typeClass = [
     vehicle.type ? vehicleTypeLabel(normalizeVehicleType(vehicle.type)) : null,
@@ -368,6 +371,9 @@ function matchingDriverVehicleLine(vehicle: MatchingDriver['vehicle']): string {
     .join(' · ');
   const parts: string[] = [];
   if (typeClass) parts.push(typeClass);
+  if (vehicle.passenger_capacity != null && vehicle.passenger_capacity > 0) {
+    parts.push(seatsLabel(vehicle.passenger_capacity));
+  }
   if (vehicle.model?.trim()) parts.push(vehicle.model.trim());
   if (vehicle.year != null) parts.push(String(vehicle.year));
   if (vehicle.plate?.trim()) parts.push(vehicle.plate.trim());
@@ -390,6 +396,9 @@ function MatchingDriversSection({
   selectedDriverVehicleId,
   onSelectDriver,
   onDriversLoaded,
+  minPassengerCapacity,
+  filterByMinSeats,
+  onFilterByMinSeatsChange,
 }: {
   active: boolean;
   vehicleType: VehicleTypeCode;
@@ -402,6 +411,9 @@ function MatchingDriversSection({
   selectedDriverVehicleId: string | null;
   onSelectDriver: (id: string | null, vehicleId: string | null) => void;
   onDriversLoaded?: (drivers: MatchingDriver[]) => void;
+  minPassengerCapacity: number;
+  filterByMinSeats: boolean;
+  onFilterByMinSeatsChange: (value: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [drivers, setDrivers] = useState<MatchingDriver[]>([]);
@@ -433,6 +445,7 @@ function MatchingDriversSection({
       requiredLanguages,
       cityFilter,
       driverCategory,
+      filterByMinSeats && minPassengerCapacity > 0 ? minPassengerCapacity : null,
     ).then(({ data, error }) => {
       if (cancelled) return;
       setLoading(false);
@@ -464,6 +477,8 @@ function MatchingDriversSection({
     requiredLanguages,
     cityFilter,
     driverCategory,
+    minPassengerCapacity,
+    filterByMinSeats,
   ]);
 
   if (!active || !normType || !normClass) {
@@ -482,6 +497,24 @@ function MatchingDriversSection({
         onChange={setCityFilter}
         allowEmpty
       />
+
+      {minPassengerCapacity > 0 ? (
+        <Pressable
+          onPress={() => onFilterByMinSeatsChange(!filterByMinSeats)}
+          style={({ pressed }) => [
+            styles.minSeatsFilterRow,
+            filterByMinSeats && styles.minSeatsFilterRowActive,
+            pressed && styles.pressed,
+          ]}
+        >
+          <View style={[styles.radioOuter, filterByMinSeats && styles.radioOuterActive]}>
+            {filterByMinSeats ? <View style={styles.radioInner} /> : null}
+          </View>
+          <Text style={styles.minSeatsFilterLabel}>
+            {t('newBooking.filterMinSeats', { count: minPassengerCapacity })}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={styles.matchingDriversLoader} />
@@ -551,7 +584,9 @@ function MatchingDriversSection({
           {driverTargetMode === 'specific'
             ? drivers.map((driver) => {
                 const selected = selectedDriverId === driver.id;
-                const vehicleLine = matchingDriverVehicleLine(driver.vehicle);
+                const vehicleLine = matchingDriverVehicleLine(driver.vehicle, (count) =>
+                  t('newBooking.vehicleSeats', { count }),
+                );
                 const langs = formatDriverLanguages(driver.languages);
                 const experienceLine =
                   driver.experience_years > 0
@@ -831,6 +866,7 @@ export default function NewBookingScreen() {
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [selectedDriverVehicleId, setSelectedDriverVehicleId] = useState<string | null>(null);
   const [matchingDrivers, setMatchingDrivers] = useState<MatchingDriver[]>([]);
+  const [filterByMinSeats, setFilterByMinSeats] = useState(true);
   const [requiredLanguages, setRequiredLanguages] = useState<string[]>([]);
   const [driverCategory, setDriverCategory] = useState<RequestedDriverCategory>('all');
 
@@ -1971,6 +2007,9 @@ export default function NewBookingScreen() {
               selectedDriverVehicleId={selectedDriverVehicleId}
               onSelectDriver={selectDriver}
               onDriversLoaded={setMatchingDrivers}
+              minPassengerCapacity={pax}
+              filterByMinSeats={filterByMinSeats}
+              onFilterByMinSeatsChange={setFilterByMinSeats}
             />
 
             {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
@@ -2454,6 +2493,28 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 20,
     marginBottom: SPACING.sm,
+  },
+  minSeatsFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.input,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    marginBottom: SPACING.md,
+  },
+  minSeatsFilterRowActive: {
+    borderColor: '#EF9F27',
+    backgroundColor: COLORS.goldTint,
+  },
+  minSeatsFilterLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
   },
   driverTargetRow: {
     gap: SPACING.sm,

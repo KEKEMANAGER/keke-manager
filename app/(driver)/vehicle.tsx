@@ -58,11 +58,17 @@ import {
 import {
   VehicleMakeSelect,
   VehicleModelSelect,
+  VehiclePassengerCapacityInput,
   VehicleYearSelect,
 } from '../../components/driver/VehicleCatalogSelect';
 import { assignSubDriverToVehicle, resolveDriverUserId } from '../../lib/fleet';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
-import { showValidationAlert, validateVehicleSave } from '../../lib/validation';
+import {
+  parsePassengerCapacity,
+  showValidationAlert,
+  validatePassengerCapacity,
+  validateVehicleSave,
+} from '../../lib/validation';
 import { useAuth } from '../../contexts/AuthContext';
 
 const SLOTS: {
@@ -390,6 +396,7 @@ export default function DriverVehiclePhotosScreen() {
   const [editColor, setEditColor] = useState('');
   const [editYearNum, setEditYearNum] = useState<number | null>(null);
   const [editPlate, setEditPlate] = useState('');
+  const [editPassengerCapacity, setEditPassengerCapacity] = useState('');
   const [selectedMake, setSelectedMake] = useState<VehicleMakeRow | null>(null);
   const [selectedModel, setSelectedModel] = useState<VehicleModelRow | null>(null);
   const [subDriverRef, setSubDriverRef] = useState('');
@@ -437,6 +444,11 @@ export default function DriverVehiclePhotosScreen() {
     setEditColor(v.color?.trim()  ?? '');
     setEditYearNum(v.year != null ? v.year : null);
     setEditPlate(v.plate?.trim()  ?? '');
+    setEditPassengerCapacity(
+      v.passenger_capacity != null && v.passenger_capacity > 0
+        ? String(v.passenger_capacity)
+        : '',
+    );
     setSelectedMake(null);
     setSelectedModel(null);
     setSaveError(null);
@@ -487,6 +499,7 @@ export default function DriverVehiclePhotosScreen() {
     setEditColor('');
     setEditYearNum(null);
     setEditPlate('');
+    setEditPassengerCapacity('');
     setSelectedMake(null);
     setSelectedModel(null);
     setSubDriverRef('');
@@ -528,16 +541,30 @@ export default function DriverVehiclePhotosScreen() {
   }
 
   // ── Save edit ─────────────────────────────────────────────────────────────
+  function validateForm(): string | null {
+    const typeErr = validateVehicleSave(editType, editClass);
+    if (typeErr) return typeErr;
+    return validatePassengerCapacity(editPassengerCapacity);
+  }
+
   async function onSaveEdit() {
     if (!userId || !selectedId) return;
-    const err = validateVehicleSave(editType, editClass);
+    const err = validateForm();
     if (err) { setSaveError(err); showValidationAlert(err); return; }
+    const capacity = parsePassengerCapacity(editPassengerCapacity);
+    if (capacity == null) {
+      const capErr = validatePassengerCapacity(editPassengerCapacity) ?? t('validation.passengerCapacityRequired');
+      setSaveError(capErr);
+      showValidationAlert(capErr);
+      return;
+    }
     setSaveBusy(true); setSaveError(null);
     const { error } = await saveVehicleDetails(selectedId, userId, {
       type: editType,
       class: editClass,
       color: editColor.trim() || null,
       plate: editPlate.trim() || null,
+      passenger_capacity: capacity,
       ...catalogPayload(),
     });
     setSaveBusy(false);
@@ -549,8 +576,15 @@ export default function DriverVehiclePhotosScreen() {
   // ── Save add ──────────────────────────────────────────────────────────────
   async function onSaveAdd() {
     if (!userId || !selectedId) return;
-    const err = validateVehicleSave(editType, editClass);
+    const err = validateForm();
     if (err) { setSaveError(err); showValidationAlert(err); return; }
+    const capacity = parsePassengerCapacity(editPassengerCapacity);
+    if (capacity == null) {
+      const capErr = validatePassengerCapacity(editPassengerCapacity) ?? t('validation.passengerCapacityRequired');
+      setSaveError(capErr);
+      showValidationAlert(capErr);
+      return;
+    }
     setSaveBusy(true);
     setSaveError(null);
     const { error } = await saveVehicleDetails(selectedId, userId, {
@@ -558,6 +592,7 @@ export default function DriverVehiclePhotosScreen() {
       class: editClass,
       color: editColor.trim() || null,
       plate: editPlate.trim() || null,
+      passenger_capacity: capacity,
       ...catalogPayload(),
     });
     if (error) {
@@ -905,6 +940,12 @@ export default function DriverVehiclePhotosScreen() {
               <VehicleYearSelect
                 value={editYearNum}
                 onChange={setEditYearNum}
+                disabled={saveBusy}
+              />
+              <VehiclePassengerCapacityInput
+                value={editPassengerCapacity}
+                onChange={setEditPassengerCapacity}
+                error={validatePassengerCapacity(editPassengerCapacity)}
                 disabled={saveBusy}
               />
               <VehicleField label={t('vehicleScreen.color')} value={editColor} onChangeText={setEditColor} />
