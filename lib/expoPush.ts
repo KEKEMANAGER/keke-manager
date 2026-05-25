@@ -1,8 +1,5 @@
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 
-/** Log push diagnostics in dev or when explicitly enabled (e.g. EXPO_PUBLIC_DEBUG_PUSH=1). */
-const DEBUG_PUSH = __DEV__ || process.env.EXPO_PUBLIC_DEBUG_PUSH === '1';
-
 function maskToken(token: string): string {
   const t = token.trim();
   if (t.length <= 28) return t;
@@ -50,7 +47,7 @@ export async function sendExpoPushNotification(
   };
 
   try {
-    if (DEBUG_PUSH) {
+    if (__DEV__) {
       console.log('[push] Attempting to send to token:', maskToken(token));
       console.log('[push] Notification Payload:', JSON.stringify(payload));
     }
@@ -70,7 +67,7 @@ export async function sendExpoPushNotification(
       errors?: { message?: string }[];
     };
 
-    if (DEBUG_PUSH) {
+    if (__DEV__) {
       console.log('[push] Expo Server Response:', JSON.stringify(json));
     }
 
@@ -111,7 +108,7 @@ export async function sendExpoPushToMany(
   const tokens = uniqueRaw.filter(acceptableExpoPushToken);
   const dropped = uniqueRaw.filter((t) => !acceptableExpoPushToken(t));
 
-  if (DEBUG_PUSH && dropped.length > 0) {
+  if (__DEV__ && dropped.length > 0) {
     console.warn('[push] Dropped non-Expo tokens:', dropped.map(maskToken));
   }
 
@@ -130,7 +127,7 @@ export async function sendExpoPushToMany(
     data: sharedData,
   }));
 
-  if (DEBUG_PUSH) {
+  if (__DEV__) {
     for (const to of tokens) {
       console.log('[push] Attempting to send to token:', maskToken(to));
     }
@@ -153,7 +150,7 @@ export async function sendExpoPushToMany(
       errors?: { message?: string }[];
     };
 
-    if (DEBUG_PUSH) {
+    if (__DEV__) {
       console.log('[push] Expo Server Response:', JSON.stringify(json));
     }
 
