@@ -111,6 +111,9 @@
     "bio": "О себе",
     "languages": "Языки",
     "experience": "Опыт (лет)",
+    "birthDate": "Дата рождения",
+    "birthDatePlaceholder": "Выберите дату",
+    "birthDateSaveFailed": "Не удалось сохранить дату рождения",
     "vehiclePrefs": "Автомобиль (соответствие заказам)",
     "vehicleType": "Тип",
     "vehicleClass": "Класс",
@@ -639,7 +642,15 @@
     "id_back": "Удостоверение — обратная сторона",
     "id_backHint": "Загрузите обратную сторону удостоверения личности",
     "upload": "Загрузить",
+    "uploadBtn": "Загрузить",
     "replace": "Заменить",
+    "doc_id": "Удостоверение личности",
+    "doc_license": "Водительское удостоверение",
+    "doc_registration": "Регистрация ТС",
+    "docUploaded": "Загружено",
+    "docMissing": "Не загружено",
+    "screenSubFreelanceSimple": "Загрузите удостоверение, права и регистрацию",
+    "screenSubHiredSimple": "Загрузите удостоверение и права",
     "next": "Далее",
     "submit": "Отправить",
     "pending": "На проверке",
@@ -889,6 +900,9 @@
       "recentBookings": "Последние бронирования (10)",
       "verifyToggle": "Верификация"
     }
+  },
+  "dateOnlyField": {
+    "default": "Выберите дату"
   },
   "dateTimeField": {
     "pickDate": "Выберите дату",

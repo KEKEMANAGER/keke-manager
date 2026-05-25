@@ -1,3 +1,11 @@
+/** Display: 15/05/2026 */
+export function formatDisplayDate(date: Date): string {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}/${m}/${y}`;
+}
+
 /** Display: 15.05.2026, 14:30 */
 export function formatDisplayDateTime(date: Date): string {
   const d = String(date.getDate()).padStart(2, '0');
@@ -33,9 +41,38 @@ export function mergeDateAndTime(datePart: Date, timePart: Date): Date {
   return merged;
 }
 
+/** Parse `profiles.birth_date` (YYYY-MM-DD) or ISO datetime. */
+export function parseBirthDate(value: string | null | undefined): Date | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const y = parseInt(m[1]!, 10);
+    const mo = parseInt(m[2]!, 10) - 1;
+    const d = parseInt(m[3]!, 10);
+    const dt = new Date(y, mo, d);
+    if (!Number.isNaN(dt.getTime())) return dt;
+  }
+  return parseStoredDateTime(value);
+}
+
+/** Persist as PostgreSQL DATE (YYYY-MM-DD). */
+export function toBirthDateIso(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 /** Format DB value for UI (ISO or legacy text). */
 export function formatStoredDateForDisplay(value: string | null | undefined): string {
   const parsed = parseStoredDateTime(value);
   if (parsed) return formatDisplayDateTime(parsed);
+  return value?.trim() || '—';
+}
+
+export function formatStoredBirthDateForDisplay(value: string | null | undefined): string {
+  const parsed = parseBirthDate(value);
+  if (parsed) return formatDisplayDate(parsed);
   return value?.trim() || '—';
 }

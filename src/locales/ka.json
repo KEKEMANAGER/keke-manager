@@ -137,6 +137,9 @@
     "bio": "ბიო",
     "languages": "ენები",
     "experience": "გამოცდილება (წლები)",
+    "birthDate": "დაბადების თარიღი",
+    "birthDatePlaceholder": "აირჩიეთ თარიღი",
+    "birthDateSaveFailed": "დაბადების თარიღის შენახვა ვერ მოხერხდა",
     "vehiclePrefs": "ავტომობილი (შეკვეთების შესაბამისობა)",
     "vehicleType": "ტიპი",
     "vehicleClass": "კლასი",
@@ -724,7 +727,15 @@
     "id_back": "პირადობა — უკანა მხარე",
     "id_backHint": "ატვირთეთ პირადობის უკანა მხარის ფოტო",
     "upload": "ატვირთვა",
+    "uploadBtn": "ატვირთე",
     "replace": "შეცვლა",
+    "doc_id": "პირადობა",
+    "doc_license": "მართვის მოწმობა",
+    "doc_registration": "ტექ პასპორტი / რეგისტრაცია",
+    "docUploaded": "ატვირთულია",
+    "docMissing": "არ არის ატვირთული",
+    "screenSubFreelanceSimple": "ატვირთეთ პირადობა, მართვის მოწმობა და რეგისტრაცია",
+    "screenSubHiredSimple": "ატვირთეთ პირადობა და მართვის მოწმობა",
     "next": "შემდეგი",
     "submit": "გაგზავნა",
     "pending": "მიმდინარეობს შემოწმება",
@@ -991,6 +1002,9 @@
       "recentBookings": "ბოლო ჯავშნები (10)",
       "verifyToggle": "ვერიფიკაცია"
     }
+  },
+  "dateOnlyField": {
+    "default": "აირჩიეთ თარიღი"
   },
   "dateTimeField": {
     "pickDate": "აირჩიეთ თარიღი",

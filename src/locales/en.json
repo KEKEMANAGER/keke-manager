@@ -139,6 +139,9 @@
     "bio": "Bio",
     "languages": "Languages",
     "experience": "Experience (years)",
+    "birthDate": "Date of birth",
+    "birthDatePlaceholder": "Select date",
+    "birthDateSaveFailed": "Could not save date of birth",
     "vehiclePrefs": "Vehicle (order matching)",
     "vehicleType": "Type",
     "vehicleClass": "Class",
@@ -727,7 +730,15 @@
     "id_back": "ID — back",
     "id_backHint": "Upload the back of your ID",
     "upload": "Upload",
+    "uploadBtn": "Upload",
     "replace": "Replace",
+    "doc_id": "ID",
+    "doc_license": "Driver license",
+    "doc_registration": "Vehicle registration",
+    "docUploaded": "Uploaded",
+    "docMissing": "Not uploaded",
+    "screenSubFreelanceSimple": "Upload ID, driver license, and registration",
+    "screenSubHiredSimple": "Upload ID and driver license",
     "next": "Next",
     "submit": "Submit",
     "pending": "Under review",
@@ -994,6 +1005,9 @@
       "recentBookings": "Last bookings (10)",
       "verifyToggle": "Verification"
     }
+  },
+  "dateOnlyField": {
+    "default": "Select date"
   },
   "dateTimeField": {
     "pickDate": "Select date",

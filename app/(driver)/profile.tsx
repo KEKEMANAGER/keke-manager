@@ -26,6 +26,7 @@ import {
 } from '../../lib/validation';
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
+import { DateOnlyField } from '../../components/DateOnlyField';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { LegalSettingsLinks } from '../../components/LegalSettingsLinks';
@@ -38,8 +39,11 @@ import { StarRow } from '../../components/StarRow';
 import { fetchDriverAverageRating } from '../../lib/ratings';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
+import { formatStoredBirthDateForDisplay, parseBirthDate, toBirthDateIso } from '../../lib/dateTime';
 import {
+  fetchDriverBirthDate,
   fetchDriverProfile,
+  saveDriverBirthDate,
   saveDriverLanguages,
   saveDriverVehiclePreferences,
   type DriverVehiclePreferences,
@@ -106,6 +110,8 @@ export default function DriverProfileScreen() {
   const [bio, setBio] = useState('');
   const [spokenLanguages, setSpokenLanguages] = useState<string[]>([]);
   const [experienceYears, setExperienceYears] = useState('');
+  const [birthDate, setBirthDate] = useState<Date | null>(null);
+  const [birthDateLoaded, setBirthDateLoaded] = useState<string | null>(null);
   const [vehicleModel, setVehicleModel] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [vehicleType, setVehicleType] = useState<VehicleTypeCode | null>(null);
@@ -168,7 +174,12 @@ export default function DriverProfileScreen() {
         : '',
     );
     setAvailableForHire(row.available_for_hire !== false);
-  }, [user?.id]);
+    const { birthDate: bd, error: bdErr } = await fetchDriverBirthDate(user.id);
+    if (!bdErr) {
+      setBirthDateLoaded(bd);
+      setBirthDate(parseBirthDate(bd));
+    }
+  }, [user?.id, profile?.phone]);
 
   const loadHiredStatus = useCallback(async () => {
     if (!user?.id || !isHired) return;
@@ -323,10 +334,12 @@ export default function DriverProfileScreen() {
       ...(isHired ? { available_for_hire: availableForHire } : {}),
     };
 
+    const birthIso = birthDate ? toBirthDateIso(birthDate) : null;
     if (isHired) {
-      const [usersRes, langRes] = await Promise.all([
+      const [usersRes, langRes, birthRes] = await Promise.all([
         supabase.from('users').update(userPatch).eq('id', user.id),
         saveDriverLanguages(user.id, spokenLanguages),
+        saveDriverBirthDate(user.id, birthIso),
       ]);
       setSaveBusy(false);
       if (usersRes.error) {
@@ -341,15 +354,22 @@ export default function DriverProfileScreen() {
         showErrorAlert(message);
         return;
       }
+      if (!birthRes.ok) {
+        const message = mapSupabaseError(birthRes.error ?? new Error(t('profilePage.birthDateSaveFailed')));
+        setSaveError(message);
+        showErrorAlert(message);
+        return;
+      }
     } else {
       const prefs: DriverVehiclePreferences = {
         vehicle_type: vehicleType!,
         vehicle_class: vehicleClass!,
       };
-      const [usersRes, profilesRes, langRes] = await Promise.all([
+      const [usersRes, profilesRes, langRes, birthRes] = await Promise.all([
         supabase.from('users').update(userPatch).eq('id', user.id),
         saveDriverVehiclePreferences(user.id, prefs),
         saveDriverLanguages(user.id, spokenLanguages),
+        saveDriverBirthDate(user.id, birthIso),
       ]);
       setSaveBusy(false);
       if (usersRes.error) {
@@ -372,7 +392,14 @@ export default function DriverProfileScreen() {
         showErrorAlert(message);
         return;
       }
+      if (!birthRes.ok) {
+        const message = mapSupabaseError(birthRes.error ?? new Error(t('profilePage.birthDateSaveFailed')));
+        setSaveError(message);
+        showErrorAlert(message);
+        return;
+      }
     }
+    setBirthDateLoaded(birthIso);
     setIsEditing(false);
     void loadProfileFields();
     if (isHired) void loadHiredStatus();
@@ -547,6 +574,13 @@ export default function DriverProfileScreen() {
               onChange={setCity}
               disabled={saveBusy}
             />
+            <DateOnlyField
+              label={t('profilePage.birthDate')}
+              value={birthDate}
+              onChange={setBirthDate}
+              placeholder={t('profilePage.birthDatePlaceholder')}
+              maximumDate={new Date()}
+            />
             <Field label={t('profilePage.bio')} value={bio} onChangeText={setBio} multiline />
             <Text style={styles.charCount}>
               {bio.length}/{bioMaxLength()}
@@ -597,6 +631,10 @@ export default function DriverProfileScreen() {
               <ViewField label={t('profilePage.phone')} value="—" />
             )}
             <ViewField label={t('profilePage.city')} value={city || '—'} />
+            <ViewField
+              label={t('profilePage.birthDate')}
+              value={formatStoredBirthDateForDisplay(birthDateLoaded)}
+            />
             <ViewField label={t('profilePage.bio')} value={bio || '—'} />
             <ViewField
               label={t('profilePage.languages')}

@@ -1,4 +1,29 @@
-/** Storage object name under `verifications/[user_id]/`. */
+/** Simplified verification groups (storage: verification/{user_id}/id|license|registration.jpg). */
+export type VerificationSimpleDoc = 'id' | 'license' | 'registration';
+
+export function verificationSimpleDocsForHired(isHired: boolean): VerificationSimpleDoc[] {
+  if (isHired) return ['id', 'license'];
+  return ['id', 'license', 'registration'];
+}
+
+export function simpleDocPrimarySlot(doc: VerificationSimpleDoc): VerificationDocSlot {
+  if (doc === 'id') return 'id_front';
+  if (doc === 'license') return 'license_front';
+  return 'tech_passport_front';
+}
+
+export function isSimpleDocUploaded(photos: VerificationPhotos, doc: VerificationSimpleDoc): boolean {
+  return !!photos[simpleDocPrimarySlot(doc)]?.trim();
+}
+
+export function photoUrlForSimpleDoc(
+  photos: VerificationPhotos,
+  doc: VerificationSimpleDoc,
+): string | null {
+  return photos[simpleDocPrimarySlot(doc)];
+}
+
+/** Storage object name under `verification/[user_id]/`. */
 export type VerificationDocSlot =
   | 'license_front'
   | 'license_back'

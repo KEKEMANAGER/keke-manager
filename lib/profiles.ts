@@ -184,6 +184,42 @@ export async function clearProfilePushToken(userId: string): Promise<{ ok: boole
   return { ok: true, error: null };
 }
 
+export async function fetchDriverBirthDate(
+  userId: string,
+): Promise<{ birthDate: string | null; error: Error | null }> {
+  const id = userId.trim();
+  if (!id) {
+    return { birthDate: null, error: new Error('user id არ არის') };
+  }
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('birth_date')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) {
+    return { birthDate: null, error: new Error(error.message) };
+  }
+  const raw = (data as { birth_date?: string | null } | null)?.birth_date;
+  return { birthDate: typeof raw === 'string' && raw.trim() ? raw.trim() : null, error: null };
+}
+
+export async function saveDriverBirthDate(
+  userId: string,
+  birthDateIso: string | null,
+): Promise<{ ok: boolean; error: Error | null }> {
+  const id = userId.trim();
+  if (!id) {
+    return { ok: false, error: new Error('user id არ არის') };
+  }
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({ id, birth_date: birthDateIso }, { onConflict: 'id' });
+  if (error) {
+    return { ok: false, error: new Error(error.message) };
+  }
+  return { ok: true, error: null };
+}
+
 /** Whether this driver has an active vehicle matching the booking type and class. */
 export async function driverProfileMatchesBooking(
   userId: string,

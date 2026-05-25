@@ -1,6 +1,16 @@
 import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
-import { type VerificationDocSlot, VERIFICATION_DOC_COLUMNS } from './verificationDocs';
+import {
+  type VerificationDocSlot,
+  type VerificationSimpleDoc,
+  VERIFICATION_DOC_COLUMNS,
+} from './verificationDocs';
+
+const SIMPLE_DOC_SLOTS: Record<VerificationSimpleDoc, VerificationDocSlot[]> = {
+  id: ['id_front', 'id_back'],
+  license: ['license_front', 'license_back'],
+  registration: ['tech_passport_front', 'tech_passport_back'],
+};
 
 export type VerificationStatus = 'pending' | 'submitted' | 'approved' | 'rejected';
 
@@ -41,6 +51,25 @@ export async function submitVerification(userId: string, photos: SubmitVerificat
   payload.license_photo = payload.license_front;
   payload.id_photo = payload.id_front;
   payload.vehicle_registration_photo = payload.tech_passport_front;
+
+  const { error } = await supabase.from('users').update(payload).eq('id', userId);
+  return { error };
+}
+
+/** Upload one document group and mirror URL to front/back + legacy columns. */
+export async function saveSingleVerificationDocument(
+  userId: string,
+  doc: VerificationSimpleDoc,
+  publicUrl: string,
+) {
+  const url = storagePublicUrlBase(publicUrl);
+  const payload: Record<string, string | null> = {};
+  for (const slot of SIMPLE_DOC_SLOTS[doc]) {
+    payload[slot] = url;
+  }
+  if (doc === 'id') payload.id_photo = url;
+  if (doc === 'license') payload.license_photo = url;
+  if (doc === 'registration') payload.vehicle_registration_photo = url;
 
   const { error } = await supabase.from('users').update(payload).eq('id', userId);
   return { error };
