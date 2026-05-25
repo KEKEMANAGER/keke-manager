@@ -19,6 +19,7 @@ import {
   notifyCompanyDriverCancelledBooking,
   notifyMatchingDriversOfNewBooking,
 } from './notifications';
+import { resolveVehicleIdForBooking } from './bookingVehicle';
 import { formatTourBookingNotificationBody } from './tourDays';
 import { sanitizeLanguageCodes } from './spokenLanguages';
 import { fetchDriverProfile } from './profiles';
@@ -302,6 +303,8 @@ export type BookingRow = {
   updated_at: string;
   company_id: string;
   driver_id: string | null;
+  /** Vehicle assigned for this booking (voucher / plate). */
+  vehicle_id?: string | null;
   status: BookingStatus;
   kind: BookingType;
   from_location: string | null;
@@ -386,6 +389,8 @@ export type InsertBookingInput = {
   created_by_name?: string | null;
   /** When set, booking is offered only to this driver (pending until they accept). */
   driver_id?: string | null;
+  /** Resolved on insert/accept from booking vehicle_type/class. */
+  vehicle_id?: string | null;
   /** Driver must speak at least one of these language codes (empty = any). */
   required_languages?: string[] | null;
   /** Open-job driver category filter (`all` | `guide` | `own_vehicle`). */
@@ -665,6 +670,14 @@ export async function insertBooking(row: InsertBookingInput) {
 
   const voucherCode = `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`;
   const assignedDriverId = trimUserId(row.driver_id);
+  let assignedVehicleId: string | null = row.vehicle_id?.trim() || null;
+  if (assignedDriverId && !assignedVehicleId) {
+    assignedVehicleId = await resolveVehicleIdForBooking({
+      driverId: assignedDriverId,
+      vehicleType,
+      vehicleClass,
+    });
+  }
 
   function buildBookingInsertBody(
     routeCol: 'route' | 'route_description',
@@ -697,6 +710,7 @@ export async function insertBooking(row: InsertBookingInput) {
       created_by_name: row.created_by_name?.trim() || null,
       status: 'pending',
       driver_id: assignedDriverId || null,
+      vehicle_id: assignedDriverId ? assignedVehicleId : null,
       required_languages: (() => {
         const codes = sanitizeLanguageCodes(row.required_languages ?? []);
         return codes.length > 0 ? codes : null;
@@ -895,6 +909,7 @@ async function maybeAutoAcceptHiredAssignedBooking(
     displayName,
     phone: '',
     plate,
+    vehicleId: fleetVehicleId || null,
   });
 }
 
@@ -906,6 +921,8 @@ export async function acceptBooking(
     displayName: string;
     phone: string;
     plate: string;
+    /** Fleet-assigned vehicle or explicit pick. */
+    vehicleId?: string | null;
   },
 ) {
   const rowId = String(bookingRowId).trim();
@@ -920,6 +937,25 @@ export async function acceptBooking(
     return { ok: false as const, error: new Error('მძღოლის id არ არის') };
   }
 
+  const { data: pendingRow } = await supabase
+    .from('bookings')
+    .select('vehicle_type, vehicle_class, vehicle_id')
+    .eq('id', rowId)
+    .maybeSingle();
+
+  const pending = pendingRow as {
+    vehicle_type?: string | null;
+    vehicle_class?: string | null;
+    vehicle_id?: string | null;
+  } | null;
+
+  const acceptVehicleId = await resolveVehicleIdForBooking({
+    driverId: driverUserId,
+    vehicleType: pending?.vehicle_type ?? null,
+    vehicleClass: pending?.vehicle_class ?? null,
+    preferredVehicleId: driver.vehicleId ?? pending?.vehicle_id ?? null,
+  });
+
   const runAccept = (assignStatus: 'accepted' | 'confirmed') =>
     supabase
       .from('bookings')
@@ -929,6 +965,7 @@ export async function acceptBooking(
         driver_display_name: driver.displayName,
         driver_phone: driver.phone || null,
         driver_plate: driver.plate || null,
+        vehicle_id: acceptVehicleId,
       })
       .eq('id', rowId)
       .eq('status', 'pending')

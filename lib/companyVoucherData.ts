@@ -13,7 +13,8 @@ import {
   vehicleClassLabel,
   vehicleTypeLabel,
 } from './vehicleCatalog';
-import type { VehicleRow } from './vehicles';
+import { resolveVehicleIdForBooking } from './bookingVehicle';
+import { fetchActiveVehiclesByDriver, type VehicleRow } from './vehicles';
 
 export type CompanyVoucherDriver = {
   userId: string;
@@ -67,13 +68,37 @@ function joinName(
   return name || null;
 }
 
-async function fetchActiveVehicleForDriver(driverId: string): Promise<VehicleJoinRow | null> {
-  const selectWithJoin =
-    'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id,vehicle_makes(name),vehicle_models(name)';
+const VEHICLE_JOIN_SELECT =
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id,vehicle_makes(name),vehicle_models(name)';
 
+const VEHICLE_PLAIN_SELECT =
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id';
+
+async function fetchVehicleJoinById(vehicleId: string): Promise<VehicleJoinRow | null> {
   const joined = await supabase
     .from('vehicles')
-    .select(selectWithJoin)
+    .select(VEHICLE_JOIN_SELECT)
+    .eq('id', vehicleId)
+    .maybeSingle();
+
+  if (!joined.error && joined.data) {
+    return joined.data as VehicleJoinRow;
+  }
+
+  const plain = await supabase
+    .from('vehicles')
+    .select(VEHICLE_PLAIN_SELECT)
+    .eq('id', vehicleId)
+    .maybeSingle();
+
+  if (plain.error || !plain.data) return null;
+  return plain.data as VehicleJoinRow;
+}
+
+async function fetchActiveVehicleForDriver(driverId: string): Promise<VehicleJoinRow | null> {
+  const joined = await supabase
+    .from('vehicles')
+    .select(VEHICLE_JOIN_SELECT)
     .eq('driver_id', driverId)
     .eq('is_active', true)
     .order('updated_at', { ascending: false })
@@ -86,9 +111,7 @@ async function fetchActiveVehicleForDriver(driverId: string): Promise<VehicleJoi
 
   const plain = await supabase
     .from('vehicles')
-    .select(
-      'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id',
-    )
+    .select(VEHICLE_PLAIN_SELECT)
     .eq('driver_id', driverId)
     .eq('is_active', true)
     .order('updated_at', { ascending: false })
@@ -97,6 +120,51 @@ async function fetchActiveVehicleForDriver(driverId: string): Promise<VehicleJoi
 
   if (plain.error || !plain.data) return null;
   return plain.data as VehicleJoinRow;
+}
+
+/** Booking vehicle_id → row; else type/class match; else latest active. */
+async function fetchVehicleForBooking(
+  booking: BookingRow,
+  driverId: string | null,
+): Promise<VehicleJoinRow | null> {
+  const pinnedId = booking.vehicle_id?.trim();
+  if (pinnedId) {
+    const pinned = await fetchVehicleJoinById(pinnedId);
+    if (pinned) return pinned;
+  }
+
+  if (!driverId) return null;
+
+  const bookingType = normalizeVehicleType(booking.vehicle_type ?? '');
+  const bookingClass = normalizeVehicleClass(booking.vehicle_class ?? '');
+
+  if (bookingType) {
+    const { data: vehicles } = await fetchActiveVehiclesByDriver(driverId);
+    const matching = vehicles.filter((v) => {
+      const vt = normalizeVehicleType(v.type ?? '');
+      if (vt !== bookingType) return false;
+      const vc = normalizeVehicleClass(v.class ?? '');
+      if (bookingClass && vc && vc !== bookingClass) return false;
+      return true;
+    });
+    if (matching[0]?.id) {
+      const row = await fetchVehicleJoinById(matching[0].id);
+      if (row) return row;
+    }
+  }
+
+  const resolvedId = await resolveVehicleIdForBooking({
+    driverId,
+    vehicleType: booking.vehicle_type,
+    vehicleClass: booking.vehicle_class,
+    preferredVehicleId: pinnedId,
+  });
+  if (resolvedId) {
+    const row = await fetchVehicleJoinById(resolvedId);
+    if (row) return row;
+  }
+
+  return fetchActiveVehicleForDriver(driverId);
 }
 
 async function resolveVehicleLabels(v: VehicleJoinRow): Promise<{
@@ -151,7 +219,7 @@ async function fetchDriverBlock(
       .maybeSingle(),
     supabase.from('profiles').select('full_name, avatar_url').eq('id', driverId).maybeSingle(),
     fetchDriverAverageRating(driverId),
-    fetchActiveVehicleForDriver(driverId),
+    fetchVehicleForBooking(booking, driverId),
   ]);
 
   const user = userRes.data as {

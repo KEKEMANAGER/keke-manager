@@ -1,3 +1,5 @@
+import { bookingOfferedPriceGel } from './bookingPrice';
+import { formatBookingDisplayNumber, formatVoucherPriceGel } from './bookingVoucherDisplay';
 import type { CompanyVoucherData } from './companyVoucherData';
 import { vehicleMakeModelYearLine } from './companyVoucherData';
 import { bookingKindLabel } from './bookingLabels';
@@ -29,6 +31,8 @@ const VOUCHER_STYLES = `
   .subtitle { color: #666; font-size: 13px; margin-top: 4px; }
   .voucher-box { border: 3px dashed #F5A623; border-radius: 16px; padding: 24px; }
   .voucher-id { font-size: 22px; font-weight: 900; color: #F5A623; margin: 8px 0 16px; }
+  .booking-number { font-size: 15px; font-weight: 800; color: #111; margin: 12px 0 6px; }
+  .price-offer { font-size: 20px; font-weight: 900; color: #16a34a; margin: 0 0 14px; }
   .status { display: inline-block; background: #F5A623; color: #000;
     padding: 4px 14px; border-radius: 20px; font-weight: 700; font-size: 12px; }
   .updated-badge { display: inline-block; background: #FEE2E2; color: #B91C1C;
@@ -69,15 +73,17 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ? `<span class="updated-badge">📝 განახლდა ${escapeHtml(formatStoredDateForDisplay(booking.updated_at.slice(0, 10)))}</span>`
       : '';
 
+  const bookingNumber = formatBookingDisplayNumber(booking.id);
+  const offeredGel = bookingOfferedPriceGel(booking);
+  const priceLine = formatVoucherPriceGel(offeredGel);
+
   const bookingSection = [
-    row('Booking ID', booking.id),
     row('ტიპი', bookingKindLabel(booking.kind, booking.flight_direction)),
     row('თარიღი', formatStoredDateForDisplay(booking.date_display)),
     row('მარშრუტი', route),
     booking.from_location ? row('საიდან', booking.from_location) : '',
     booking.to_location ? row('სად', booking.to_location) : '',
     row('მგზავრები', String(booking.passengers ?? 1)),
-    row('ფასი', `${Number(booking.price_gel).toLocaleString('ka-GE')} ₾`),
     booking.sign_text?.trim() ? row('დასახვედრი სახელი', booking.sign_text.trim()) : '',
     pickupSignVoucherHtmlSection(booking),
     booking.comment?.trim() ? row('შენიშვნა', booking.comment.trim()) : '',
@@ -113,7 +119,7 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
           <div class="driver-name">${escapeHtml(driver.fullName ?? '—')}</div>
           <div>${badges}</div>
           <div style="font-size:12px;margin-top:4px">${escapeHtml(ratingLine)}</div>
-          ${driver.phone ? `<div style="font-size:12px;margin-top:4px"><a href="tel:${escapeHtml(driver.phone)}">${escapeHtml(driver.phone)}</a></div>` : ''}
+          ${driver.phone ? `<div style="font-size:12px;margin-top:4px"><a href="tel:${escapeHtml(driver.phone.replace(/\s/g, ''))}">📞 ${escapeHtml(driver.phone)}</a></div>` : '<div style="font-size:12px;margin-top:4px;color:#888">ტელეფონი არ არის მითითებული</div>'}
           ${driver.languagesLabel ? row('ენები', driver.languagesLabel) : ''}
           ${driver.city ? row('ქალაქი', driver.city) : ''}
         </div>
@@ -157,6 +163,9 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
   </${tag}>
   <${tag} class="voucher-box">
     <span class="status">ვაუჩერი</span>${updatedBadge}
+    <${tag} class="booking-number">📋 ჯავშანი ${escapeHtml(bookingNumber)}</${tag}>
+    <${tag} class="price-offer">🏷️ კლიენტის ფასი: ${escapeHtml(priceLine)}</${tag}>
+    <${tag} class="price-offer">💰 მძღოლი: ${escapeHtml(priceLine)}</${tag}>
     <${tag} class="voucher-id">${escapeHtml(voucherCode)}</${tag}>
     <${tag} class="divider"></${tag}>
     ${sectionTitle('📋 ჯავშანი')}
@@ -164,8 +173,6 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     ${driverSection ? `<${tag} class="divider"></${tag}>${driverSection}` : ''}
     ${vehicleSection ? `<${tag} class="divider"></${tag}>${vehicleSection}` : ''}
     ${hostSection ? `<${tag} class="divider"></${tag}>${hostSection}` : ''}
-    <${tag} class="divider"></${tag}>
-    <${tag} class="price">${Number(booking.price_gel).toLocaleString('ka-GE')} ₾</${tag}>
   </${tag}>
   <${tag} class="footer">KEKE Manager • ${new Date().toLocaleDateString('ka-GE')}</${tag}>
 </body>

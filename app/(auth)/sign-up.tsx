@@ -70,6 +70,7 @@ export default function SignUpScreen() {
   const [companyIdCode, setCompanyIdCode] = useState('');
   const [companyDirector, setCompanyDirector] = useState('');
   const [email, setEmail] = useState('');
+  const [driverPhone, setDriverPhone] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [isGuideDriver, setIsGuideDriver] = useState(false);
@@ -103,6 +104,7 @@ export default function SignUpScreen() {
       !!companyDirector.trim());
   const passwordsMatch =
     password.length > 0 && passwordConfirm.length > 0 && password === passwordConfirm;
+  const driverPhoneReady = isCompany || !!driverPhone.trim();
   const formReady =
     !!accountType &&
     !!fullName.trim() &&
@@ -110,6 +112,7 @@ export default function SignUpScreen() {
     !!password &&
     passwordsMatch &&
     companyFieldsReady &&
+    driverPhoneReady &&
     !isSubmitting;
 
   async function onRegister() {
@@ -125,6 +128,7 @@ export default function SignUpScreen() {
       companyPhone,
       companyIdCode,
       companyDirector,
+      driverPhone,
     });
     setFieldErrors(fields);
     if (
@@ -136,7 +140,8 @@ export default function SignUpScreen() {
       fields.companyEmail ||
       fields.companyPhone ||
       fields.companyIdCode ||
-      fields.companyDirector
+      fields.companyDirector ||
+      fields.driverPhone
     ) {
       const first =
         fields.accountType ??
@@ -145,6 +150,7 @@ export default function SignUpScreen() {
         fields.companyPhone ??
         fields.companyIdCode ??
         fields.companyDirector ??
+        fields.driverPhone ??
         fields.email ??
         fields.password ??
         fields.passwordConfirm ??
@@ -162,6 +168,7 @@ export default function SignUpScreen() {
       const { error: signUpError } = await signUp(authEmail, password, fullName.trim(), role, {
         isHiredDriver: type === 'hired_driver',
         isGuideDriver: type === 'freelance_driver' && isGuideDriver,
+        phone: type !== 'company' ? driverPhone.trim() : undefined,
         company:
           type === 'company'
             ? {
@@ -297,14 +304,24 @@ export default function SignUpScreen() {
           ) : null}
 
           {!isCompany ? (
-            <AuthInput
-              label={t('auth.email')}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-              error={fieldErrors.email}
-            />
+            <>
+              <AuthInput
+                label={t('auth.email')}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+                error={fieldErrors.email}
+              />
+              <AuthInput
+                label={t('authScreen.phone')}
+                keyboardType="phone-pad"
+                value={driverPhone}
+                onChangeText={setDriverPhone}
+                error={fieldErrors.driverPhone}
+                placeholder="+995 5XX XXX XXX"
+              />
+            </>
           ) : null}
           <AuthInput
             label={t('auth.password')}

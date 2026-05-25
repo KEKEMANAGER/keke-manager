@@ -28,6 +28,8 @@ import {
 } from '../lib/companyVoucherData';
 import { formatStoredDateForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
+import { bookingOfferedPriceGel } from '../lib/bookingPrice';
+import { formatBookingDisplayNumber, formatVoucherPriceGel } from '../lib/bookingVoucherDisplay';
 import { shareCompanyVoucherPDF } from '../lib/voucher';
 import { GuideDriverBadge } from './GuideDriverBadge';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
@@ -61,6 +63,8 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
   const [printing, setPrinting] = useState(false);
 
   const { booking, driver, vehicle, host } = data;
+  const offeredGel = bookingOfferedPriceGel(booking);
+  const bookingNumber = formatBookingDisplayNumber(booking.id);
   const voucherCode =
     booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const isTour = booking.kind === 'tour' || booking.kind === 'day_tour';
@@ -126,6 +130,16 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.voucherBox, SHADOWS.gold]}>
+          <Text style={styles.bookingNumberLine}>
+            📋 {t('companyVoucher.bookingNumber')} {bookingNumber}
+          </Text>
+          <Text style={styles.priceOfferLine}>
+            🏷️ {t('companyVoucher.clientPrice')}: {formatVoucherPriceGel(offeredGel)}
+          </Text>
+          <Text style={styles.priceOfferLine}>
+            💰 {t('companyVoucher.driverPrice')}: {formatVoucherPriceGel(offeredGel)}
+          </Text>
+
           <View style={styles.voucherTopRow}>
             <View style={styles.voucherPill}>
               <Text style={styles.voucherPillText}>{t('companyVoucher.badge')}</Text>
@@ -143,9 +157,6 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
           </View>
 
           <Text style={styles.voucherCode}>{voucherCode}</Text>
-          <Text style={styles.bookingIdLine}>
-            {t('companyVoucher.bookingId')}: {booking.id}
-          </Text>
           <Text style={styles.statusLine}>{bookingStatusLabel(booking.status)}</Text>
 
           <SectionHeader title={`📋 ${t('companyVoucher.sectionBooking')}`} />
@@ -160,8 +171,8 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
           ) : null}
           <DetailRow label={t('companyVoucher.passengers')} value={String(booking.passengers ?? 1)} />
           <DetailRow
-            label={t('companyVoucher.price')}
-            value={`${Number(booking.price_gel).toLocaleString('ka-GE')} ₾`}
+            label={t('companyVoucher.offeredPrice')}
+            value={`${offeredGel.toLocaleString('ka-GE')} ₾`}
           />
           {booking.sign_text?.trim() ? (
             <DetailRow label={t('bookings.voucherPickupSignName')} value={booking.sign_text.trim()} />
@@ -277,9 +288,11 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                 ) : null}
                 {driver.phone ? (
                   <Pressable onPress={() => callPhone(driver.phone!)}>
-                    <Text style={styles.phoneLink}>{driver.phone}</Text>
+                    <Text style={styles.phoneLink}>📞 {driver.phone}</Text>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <Text style={styles.metaLine}>{t('companyVoucher.phoneMissing')}</Text>
+                )}
               </View>
             </View>
             <View style={styles.actionRow}>
@@ -508,6 +521,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   updatedPillText: { fontSize: 11, fontWeight: '700', color: '#B91C1C' },
+  bookingNumberLine: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+  priceOfferLine: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.success,
+    marginBottom: SPACING.sm,
+  },
   voucherCode: {
     fontSize: 22,
     fontWeight: '900',

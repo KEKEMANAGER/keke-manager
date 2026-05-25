@@ -360,10 +360,18 @@ function formatDriverLanguages(languages: string[]): string {
 
 function matchingDriverVehicleLine(vehicle: MatchingDriver['vehicle']): string {
   if (!vehicle) return '';
+  const typeClass = [
+    vehicle.type ? vehicleTypeLabel(normalizeVehicleType(vehicle.type)) : null,
+    vehicle.class ? vehicleClassLabel(normalizeVehicleClass(vehicle.class)) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const parts: string[] = [];
+  if (typeClass) parts.push(typeClass);
   if (vehicle.model?.trim()) parts.push(vehicle.model.trim());
   if (vehicle.year != null) parts.push(String(vehicle.year));
-  const head = parts.join(' ');
+  if (vehicle.plate?.trim()) parts.push(vehicle.plate.trim());
+  const head = parts.join(' — ');
   if (vehicle.color?.trim()) {
     return head ? `${head}, ${vehicle.color.trim()}` : vehicle.color.trim();
   }
@@ -379,6 +387,7 @@ function MatchingDriversSection({
   driverTargetMode,
   onDriverTargetModeChange,
   selectedDriverId,
+  selectedDriverVehicleId,
   onSelectDriver,
   onDriversLoaded,
 }: {
@@ -390,7 +399,8 @@ function MatchingDriversSection({
   driverTargetMode: DriverTargetMode;
   onDriverTargetModeChange: (mode: DriverTargetMode) => void;
   selectedDriverId: string | null;
-  onSelectDriver: (id: string | null) => void;
+  selectedDriverVehicleId: string | null;
+  onSelectDriver: (id: string | null, vehicleId: string | null) => void;
   onDriversLoaded?: (drivers: MatchingDriver[]) => void;
 }) {
   const { t } = useTranslation();
@@ -436,9 +446,9 @@ function MatchingDriversSection({
       onDriversLoaded?.(data);
       if (data.length === 0) {
         onDriverTargetModeChange('all');
-        onSelectDriver(null);
+        onSelectDriver(null, null);
       } else if (selectedDriverId && !data.some((d) => d.id === selectedDriverId)) {
-        onSelectDriver(null);
+        onSelectDriver(null, null);
       }
     });
 
@@ -488,7 +498,7 @@ function MatchingDriversSection({
             <Pressable
               onPress={() => {
                 onDriverTargetModeChange('all');
-                onSelectDriver(null);
+                onSelectDriver(null, null);
               }}
               style={({ pressed }) => [
                 styles.driverTargetOption,
@@ -554,7 +564,12 @@ function MatchingDriversSection({
                 return (
                   <Pressable
                     key={driver.id}
-                    onPress={() => onSelectDriver(selected ? null : driver.id)}
+                    onPress={() =>
+                      onSelectDriver(
+                        selected ? null : driver.id,
+                        selected ? null : driver.vehicle?.id ?? null,
+                      )
+                    }
                     style={({ pressed }) => [
                       styles.driverCard,
                       selected && styles.driverCardSelected,
@@ -813,14 +828,20 @@ export default function NewBookingScreen() {
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
   const [driverTargetMode, setDriverTargetMode] = useState<DriverTargetMode>('all');
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [selectedDriverVehicleId, setSelectedDriverVehicleId] = useState<string | null>(null);
   const [matchingDrivers, setMatchingDrivers] = useState<MatchingDriver[]>([]);
   const [requiredLanguages, setRequiredLanguages] = useState<string[]>([]);
   const [driverCategory, setDriverCategory] = useState<RequestedDriverCategory>('all');
 
   useEffect(() => {
-    setSelectedDriverId(null);
+    selectDriver(null, null);
     setDriverTargetMode('all');
   }, [selectedVehicleType, vehicleClass, requiredLanguages, driverCategory]);
+
+  function selectDriver(driverId: string | null, vehicleId: string | null) {
+    setSelectedDriverId(driverId);
+    setSelectedDriverVehicleId(vehicleId);
+  }
 
   const [meetGreet, setMeetGreet] = useState(false);
   const [signText, setSignText] = useState('');
@@ -911,25 +932,22 @@ export default function NewBookingScreen() {
   );
 
   const pax = Math.max(1, parseInt(passengers, 10) || 1);
-  const price = useMemo(
+  const estimateGel = useMemo(
     () => calcMockPrice({ type: booking_kind, passengers: pax, vehicleClass }),
     [booking_kind, pax, vehicleClass],
   );
 
-  const clientGelParsed = useMemo(
-    () => (booking_kind === 'transfer' ? parseAmountGeorgian(clientPriceStr) : 0),
-    [booking_kind, clientPriceStr],
+  const offeredGelParsed = useMemo(
+    () => parseAmountGeorgian(clientPriceStr),
+    [clientPriceStr],
   );
+  const driverOfferGel = offeredGelParsed > 0 ? offeredGelParsed : estimateGel;
   const commissionGelPreview = useMemo(
     () =>
-      booking_kind === 'transfer'
-        ? commissionGelAmount(clientGelParsed, commissionStr, commissionMode)
+      booking_kind === 'transfer' && offeredGelParsed > 0
+        ? commissionGelAmount(offeredGelParsed, commissionStr, commissionMode)
         : 0,
-    [booking_kind, clientGelParsed, commissionStr, commissionMode],
-  );
-  const companyIncomePreview = useMemo(
-    () => (booking_kind === 'transfer' ? Math.max(0, clientGelParsed - commissionGelPreview) : 0),
-    [booking_kind, clientGelParsed, commissionGelPreview],
+    [booking_kind, offeredGelParsed, commissionStr, commissionMode],
   );
 
   const previewVoucherId = useMemo(
@@ -1029,7 +1047,7 @@ export default function NewBookingScreen() {
     setVehicleClass('comfort');
     setSelectedVehicleType(VEHICLE_TYPES[0]);
     setDriverTargetMode('all');
-    setSelectedDriverId(null);
+    selectDriver(null, null);
     setRequiredLanguages([]);
     setMeetGreet(false);
     setSignText('');
@@ -1077,6 +1095,9 @@ export default function NewBookingScreen() {
     if (!passengers.trim() || pax < 1) {
       return t('newBooking.validation.passengers');
     }
+    if (offeredGelParsed <= 0) {
+      return t('newBooking.validation.offeredPrice');
+    }
 
     return validateStep2();
   }
@@ -1107,10 +1128,10 @@ export default function NewBookingScreen() {
 
     setSubmitting(true);
     setSubmitError(null);
-    const clientGel = booking_kind === 'transfer' ? parseAmountGeorgian(clientPriceStr) : 0;
+    const offeredGel = offeredGelParsed;
     const commissionGelDb =
       booking_kind === 'transfer' && commissionStr.trim()
-        ? commissionGelAmount(clientGel, commissionStr, commissionMode)
+        ? commissionGelAmount(offeredGel, commissionStr, commissionMode)
         : null;
     const isMultiDayTour = booking_kind === 'tour';
     const isDayTour = booking_kind === 'dayTour';
@@ -1207,7 +1228,7 @@ export default function NewBookingScreen() {
       passenger_phone: booking_kind === 'transfer' ? passengerPhone.trim() || null : null,
       flight_direction: booking_kind === 'transfer' ? transferTab : null,
       pickup_time: null,
-      client_price: booking_kind === 'transfer' && clientGel > 0 ? clientGel : null,
+      client_price: offeredGel,
       commission:
         booking_kind === 'transfer' && commissionGelDb !== null && commissionGelDb > 0
           ? commissionGelDb
@@ -1218,10 +1239,12 @@ export default function NewBookingScreen() {
       transfer_out: transferOutDb,
       comment: comment.trim() || null,
       payment_method: paymentWhen,
-      price_gel: price,
+      price_gel: offeredGel,
       created_by_name: operatorName,
       driver_id:
         driverTargetMode === 'specific' && selectedDriverId ? selectedDriverId : null,
+      vehicle_id:
+        driverTargetMode === 'specific' && selectedDriverId ? selectedDriverVehicleId : null,
       required_languages: requiredLanguages.length > 0 ? requiredLanguages : null,
       requested_driver_category: driverCategory,
     });
@@ -1460,16 +1483,8 @@ export default function NewBookingScreen() {
                   : t('newBooking.form.placeholders.commissionPctExample')
               }
             />
-            {clientGelParsed > 0 ? (
-              <View style={styles.incomeRow}>
-                <Text style={styles.incomeLabel}>{t('newBooking.form.yourIncome')}</Text>
-                <Text style={styles.incomeValue}>{formatGel(companyIncomePreview)}</Text>
-              </View>
-            ) : (
-              <Text style={styles.incomeHint}>{t('newBooking.form.incomeHint')}</Text>
-            )}
             <Text style={styles.driverPayNote}>
-              {t('newBooking.form.driverPayInline', { amount: formatGel(price) })}
+              {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
             </Text>
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
@@ -1721,47 +1736,25 @@ export default function NewBookingScreen() {
 
         {step === 3 && (
           <View style={styles.block}>
+            {(booking_kind === 'tour' || booking_kind === 'dayTour') ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+                <AuthInput
+                  label={t('newBooking.form.offeredPrice')}
+                  value={clientPriceStr}
+                  onChangeText={setClientPriceStr}
+                  keyboardType="decimal-pad"
+                  placeholder={t('newBooking.form.placeholders.zero')}
+                />
+              </>
+            ) : null}
             <View style={styles.priceBox}>
-              {booking_kind === 'transfer' ? (
-                <>
-                  <Text style={styles.priceLabel}>{t('newBooking.form.driverPayLabel')}</Text>
-                  <Text style={styles.priceBig}>{formatGel(price)}</Text>
-                  {clientGelParsed > 0 ? (
-                    <>
-                      <View style={styles.priceSplit}>
-                        <Text style={styles.priceSubLabel}>{t('newBooking.form.clientPriceShort')}</Text>
-                        <Text style={styles.priceSubValue}>{formatGel(clientGelParsed)}</Text>
-                      </View>
-                      {commissionGelPreview > 0 ? (
-                        <View style={styles.priceSplit}>
-                          <Text style={styles.priceSubLabel}>{t('newBooking.form.commissionGel')}</Text>
-                          <Text style={styles.priceSubValue}>{formatGel(commissionGelPreview)}</Text>
-                        </View>
-                      ) : null}
-                      <View style={[styles.priceSplit, styles.priceIncomeRow]}>
-                        <Text style={styles.priceIncomeLabel}>{t('newBooking.form.yourIncome')}</Text>
-                        <Text style={styles.priceIncomeValue}>{formatGel(companyIncomePreview)}</Text>
-                      </View>
-                    </>
-                  ) : null}
-                  <Text style={styles.priceNote}>
-                    {t('newBooking.form.finalPriceNote', {
-                      pax,
-                      class: vehicleClassLabel(vehicleClass),
-                    })}
-                  </Text>
-                </>
+              <Text style={styles.priceLabel}>{t('newBooking.form.offeredPriceDriver')}</Text>
+              <Text style={styles.priceBig}>{formatGel(driverOfferGel)}</Text>
+              {offeredGelParsed <= 0 ? (
+                <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceRequiredHint')}</Text>
               ) : (
-                <>
-                  <Text style={styles.priceLabel}>{t('newBooking.form.estimatedPrice')}</Text>
-                  <Text style={styles.priceBig}>{formatGel(price)}</Text>
-                  <Text style={styles.priceNote}>
-                    {t('newBooking.form.estimatedPriceNote', {
-                      pax,
-                      class: vehicleClassLabel(vehicleClass),
-                    })}
-                  </Text>
-                </>
+                <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceSameNote')}</Text>
               )}
             </View>
             <Text style={styles.fieldLabel}>{t('newBooking.form.paymentMethod')}</Text>
@@ -1950,23 +1943,8 @@ export default function NewBookingScreen() {
               <Text style={styles.vLine}>
                 {t('newBooking.form.voucherPayment')}: {paymentLabel(paymentWhen)}
               </Text>
-              {booking_kind === 'transfer' && clientGelParsed > 0 ? (
-                <>
-                  <Text style={styles.vLineMuted}>
-                    {t('newBooking.form.voucherClientPrice')}: {formatGel(clientGelParsed)}
-                  </Text>
-                  {commissionGelPreview > 0 ? (
-                    <Text style={styles.vLineMuted}>
-                      {t('newBooking.form.voucherCommission')}: {formatGel(commissionGelPreview)}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.vLineMuted}>
-                    {t('newBooking.form.voucherIncome')}: {formatGel(companyIncomePreview)}
-                  </Text>
-                </>
-              ) : null}
               <Text style={styles.vPrice}>
-                {t('newBooking.form.voucherDriver')}: {formatGel(price)}
+                {t('newBooking.form.voucherOfferedPrice')}: {formatGel(driverOfferGel)}
               </Text>
             </View>
 
@@ -1981,7 +1959,8 @@ export default function NewBookingScreen() {
               driverTargetMode={driverTargetMode}
               onDriverTargetModeChange={setDriverTargetMode}
               selectedDriverId={selectedDriverId}
-              onSelectDriver={setSelectedDriverId}
+              selectedDriverVehicleId={selectedDriverVehicleId}
+              onSelectDriver={selectDriver}
               onDriversLoaded={setMatchingDrivers}
             />
 

@@ -55,6 +55,9 @@ export type MatchingDriver = {
   rating_count: number;
   is_guide_driver: boolean;
   vehicle: {
+    id: string | null;
+    type: string | null;
+    class: string | null;
     model: string | null;
     year: number | null;
     color: string | null;
@@ -160,7 +163,7 @@ export async function fetchMatchingDrivers(
     supabase
       .from('vehicles')
       .select(
-        'driver_id, model, year, color, plate, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active',
+        'driver_id, type, class, model, year, color, plate, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active',
       )
       .in('driver_id', ids)
       .order('is_active', { ascending: false }),
@@ -184,6 +187,9 @@ export async function fetchMatchingDrivers(
   const vehicleByDriver = new Map<
     string,
     {
+      id?: string;
+      type?: string | null;
+      class?: string | null;
       model?: string | null;
       year?: number | null;
       color?: string | null;
@@ -196,7 +202,10 @@ export async function fetchMatchingDrivers(
     }
   >();
   for (const v of (vehiclesRes.data ?? []) as {
+    id: string;
     driver_id: string;
+    type?: string | null;
+    class?: string | null;
     model?: string | null;
     year?: number | null;
     color?: string | null;
@@ -208,7 +217,21 @@ export async function fetchMatchingDrivers(
     photo_rear?: string | null;
   }[]) {
     const key = String(v.driver_id);
-    if (!vehicleByDriver.has(key)) {
+    const vt = normalizeVehicleType(v.type ?? '');
+    const vc = normalizeVehicleClass(v.class ?? '');
+    const matchesFilter =
+      vt === normType && (!normClass || !vc || vc === normClass);
+    const existing = vehicleByDriver.get(key);
+    if (!existing) {
+      vehicleByDriver.set(key, v);
+      continue;
+    }
+    const existingMatches =
+      normalizeVehicleType(existing.type ?? '') === normType &&
+      (!normClass ||
+        !normalizeVehicleClass(existing.class ?? '') ||
+        normalizeVehicleClass(existing.class ?? '') === normClass);
+    if (matchesFilter && !existingMatches) {
       vehicleByDriver.set(key, v);
     }
   }
@@ -275,6 +298,9 @@ export async function fetchMatchingDrivers(
       is_guide_driver: user?.is_guide_driver === true,
       vehicle: vehicle
         ? {
+            id: vehicle.id ?? null,
+            type: vehicle.type ?? null,
+            class: vehicle.class ?? null,
             model: vehicle.model ?? null,
             year: vehicle.year ?? null,
             color: vehicle.color ?? null,

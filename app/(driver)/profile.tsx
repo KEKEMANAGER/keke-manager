@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,6 +21,7 @@ import {
   showValidationAlert,
   validateBioLength,
   validateDriverProfileForm,
+  validateDriverProfilePhoneOnly,
   validateRequired,
 } from '../../lib/validation';
 import { useTranslation } from 'react-i18next';
@@ -99,6 +101,7 @@ export default function DriverProfileScreen() {
   }, [loadAvatar]);
 
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [city, setCity] = useState<string | null>(null);
   const [bio, setBio] = useState('');
   const [spokenLanguages, setSpokenLanguages] = useState<string[]>([]);
@@ -133,13 +136,14 @@ export default function DriverProfileScreen() {
     setSaveError(null);
     const { data, error } = await supabase
       .from('users')
-      .select('full_name, city, bio, languages, experience_years, available_for_hire')
+      .select('full_name, phone, city, bio, languages, experience_years, available_for_hire')
       .eq('id', user.id)
       .maybeSingle();
     setProfileLoading(false);
     if (error || !data) return;
     const row = data as {
       full_name?: string | null;
+      phone?: string | null;
       city?: string | null;
       bio?: string | null;
       languages?: string[] | null;
@@ -149,6 +153,7 @@ export default function DriverProfileScreen() {
     if (typeof row.full_name === 'string' && row.full_name.trim()) {
       setName(row.full_name.trim());
     }
+    setPhone(row.phone?.trim() ?? profile?.phone?.trim() ?? '');
     const cityVal = row.city?.trim();
     setCity(cityVal && isValidGeorgianCity(cityVal) ? cityVal : null);
     setBio(row.bio?.trim() ?? '');
@@ -310,6 +315,7 @@ export default function DriverProfileScreen() {
     const years = parseInt(experienceYears.trim(), 10);
     const userPatch = {
       full_name: name.trim() || null,
+      phone: phone.trim() || null,
       city,
       bio: bio.trim() || null,
       experience_years: Number.isFinite(years) && years > 0 ? years : null,
@@ -527,6 +533,12 @@ export default function DriverProfileScreen() {
         {isEditing ? (
           <>
             <Field label={t('profilePage.fullName')} value={name} onChangeText={setName} />
+            <Field
+              label={t('profilePage.phone')}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
             <SearchableCitySelect
               label={t('profilePage.city')}
               value={city}
@@ -572,6 +584,16 @@ export default function DriverProfileScreen() {
         ) : (
           <>
             <ViewField label={t('profilePage.fullName')} value={name || '—'} />
+            {phone.trim() ? (
+              <Pressable onPress={() => void Linking.openURL(`tel:${phone.replace(/\s/g, '')}`)}>
+                <View style={styles.phoneViewRow}>
+                  <Text style={styles.fieldLabel}>{t('profilePage.phone')}</Text>
+                  <Text style={styles.phoneLink}>📞 {phone}</Text>
+                </View>
+              </Pressable>
+            ) : (
+              <ViewField label={t('profilePage.phone')} value="—" />
+            )}
             <ViewField label={t('profilePage.city')} value={city || '—'} />
             <ViewField label={t('profilePage.bio')} value={bio || '—'} />
             <ViewField
@@ -818,6 +840,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginBottom: SPACING.xs,
+  },
+  phoneViewRow: {
+    marginBottom: SPACING.md,
+  },
+  phoneLink: {
+    color: COLORS.goldDark,
+    fontSize: 15,
+    fontWeight: '700',
   },
   charCount: {
     fontSize: 12,

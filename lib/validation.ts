@@ -64,11 +64,36 @@ export function validateSignInPassword(password: string): string | null {
 export function validateOptionalPhone(phone: string): string | null {
   const trimmed = phone.trim();
   if (!trimmed) return null;
+  return validatePhoneDigits(trimmed);
+}
+
+/** Required phone: Georgia (+995 5XX XXX XXX) or general international. */
+export function validatePhoneRequired(phone: string): string | null {
+  const trimmed = phone.trim();
+  if (!trimmed) {
+    return t('validation.phoneRequired');
+  }
+  return validatePhoneDigits(trimmed);
+}
+
+function validatePhoneDigits(trimmed: string): string | null {
   const digits = trimmed.replace(/\D/g, '');
-  if (digits.length < 6) {
+  if (digits.length < 9) {
     return t('validation.phoneInvalid');
   }
-  return null;
+  if (digits.startsWith('995')) {
+    if (digits.length !== 12 || !/^9955\d{8}$/.test(digits)) {
+      return t('validation.phoneGeorgiaInvalid');
+    }
+    return null;
+  }
+  if (digits.length === 9 && digits.startsWith('5')) {
+    return null;
+  }
+  if (digits.length >= 10 && digits.length <= 15) {
+    return null;
+  }
+  return t('validation.phoneInvalid');
 }
 
 export function validateExperienceYears(value: string): string | null {
@@ -139,6 +164,7 @@ export type SignUpFormInput = {
   companyPhone?: string;
   companyIdCode?: string;
   companyDirector?: string;
+  driverPhone?: string;
 };
 
 export type SignUpFieldErrors = {
@@ -151,6 +177,7 @@ export type SignUpFieldErrors = {
   companyPhone?: string;
   companyIdCode?: string;
   companyDirector?: string;
+  driverPhone?: string;
 };
 
 export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors {
@@ -169,13 +196,8 @@ export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors 
   if (input.accountType === 'company') {
     const companyEmailErr = validateEmail(input.companyEmail ?? '', true);
     if (companyEmailErr) errors.companyEmail = companyEmailErr.replace(/\.$/, '');
-    const phoneErr = validateOptionalPhone(input.companyPhone ?? '');
+    const phoneErr = validatePhoneRequired(input.companyPhone ?? '');
     if (phoneErr) errors.companyPhone = phoneErr;
-    else if (!(input.companyPhone ?? '').trim()) {
-      errors.companyPhone = t('validation.required', {
-        field: t('authScreen.companyPhone'),
-      });
-    }
     if (!(input.companyIdCode ?? '').trim()) {
       errors.companyIdCode = t('validation.required', {
         field: t('authScreen.companyIdCode'),
@@ -189,6 +211,8 @@ export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors 
   } else {
     const emailErr = validateEmail(input.email);
     if (emailErr) errors.email = emailErr.replace(/\.$/, '');
+    const phoneErr = validatePhoneRequired(input.driverPhone ?? '');
+    if (phoneErr) errors.driverPhone = phoneErr;
   }
 
   return errors;
@@ -209,12 +233,13 @@ export function validateCompanyProfileForm(input: CompanyProfileFormInput): stri
   return (
     validateRequired(input.companyName, t('validation.fields.companyName')) ??
     validateEmail(input.email, false) ??
-    validateOptionalPhone(input.phone)
+    validatePhoneRequired(input.phone)
   );
 }
 
 export type DriverProfileFormInput = {
   name: string;
+  phone: string;
   vehicleType: string | null;
   vehicleClass: string | null;
   experienceYears: string;
@@ -223,10 +248,21 @@ export type DriverProfileFormInput = {
 export function validateDriverProfileForm(input: DriverProfileFormInput): string | null {
   const nameErr = validateRequired(input.name, t('validation.fields.name'));
   if (nameErr) return nameErr;
+  const phoneErr = validatePhoneRequired(input.phone);
+  if (phoneErr) return phoneErr;
   if (!input.vehicleType || !input.vehicleClass) {
     return t('validation.vehicleTypeClassRequired');
   }
   return validateExperienceYears(input.experienceYears);
+}
+
+export function validateDriverProfilePhoneOnly(input: {
+  name: string;
+  phone: string;
+}): string | null {
+  const nameErr = validateRequired(input.name, t('validation.fields.name'));
+  if (nameErr) return nameErr;
+  return validatePhoneRequired(input.phone);
 }
 
 export function extractErrorMessage(err: unknown): string {

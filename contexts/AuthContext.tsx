@@ -79,7 +79,12 @@ type AuthContextValue = {
     password: string,
     fullName: string,
     role: KekeRole,
-    options?: { isHiredDriver?: boolean; isGuideDriver?: boolean; company?: CompanySignUpMeta },
+    options?: {
+      isHiredDriver?: boolean;
+      isGuideDriver?: boolean;
+      company?: CompanySignUpMeta;
+      phone?: string;
+    },
   ) => ReturnType<typeof supabase.auth.signUp>;
   signOut: () => ReturnType<typeof supabase.auth.signOut>;
 };
@@ -257,7 +262,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string,
       fullName: string,
       role: KekeRole,
-      options?: { isHiredDriver?: boolean; isGuideDriver?: boolean; company?: CompanySignUpMeta },
+      options?: {
+      isHiredDriver?: boolean;
+      isGuideDriver?: boolean;
+      company?: CompanySignUpMeta;
+      phone?: string;
+    },
     ) => {
     const isHiredDriver = role === 'driver' && !!options?.isHiredDriver;
     const isGuideDriver =
@@ -297,6 +307,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userPatch.company_phone = companyMeta.company_phone;
         userPatch.company_id_code = companyMeta.company_id_code;
         userPatch.company_director = companyMeta.company_director;
+      } else if (role === 'driver' && options?.phone?.trim()) {
+        userPatch.phone = options.phone.trim();
       }
       const rowReady = await waitForUserRow(supabase, userId);
       if (rowReady) {
