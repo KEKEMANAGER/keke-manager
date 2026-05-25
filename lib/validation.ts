@@ -45,8 +45,9 @@ export function validatePassword(
 }
 
 export function validatePasswordConfirm(password: string, confirm: string): string | null {
-  const passErr = validatePassword(password);
-  if (passErr) return passErr;
+  if (!confirm.trim()) {
+    return t('validation.passwordConfirmRequired');
+  }
   if (password !== confirm) {
     return t('validation.passwordMismatch');
   }
@@ -133,6 +134,7 @@ export type SignUpFormInput = {
   fullName: string;
   email: string;
   password: string;
+  passwordConfirm: string;
   companyEmail?: string;
   companyPhone?: string;
   companyIdCode?: string;
@@ -144,6 +146,7 @@ export type SignUpFieldErrors = {
   fullName?: string;
   email?: string;
   password?: string;
+  passwordConfirm?: string;
   companyEmail?: string;
   companyPhone?: string;
   companyIdCode?: string;
@@ -160,6 +163,8 @@ export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors 
   }
   const passErr = validatePassword(input.password);
   if (passErr) errors.password = passErr.replace(/\.$/, '');
+  const confirmErr = validatePasswordConfirm(input.password, input.passwordConfirm);
+  if (confirmErr) errors.passwordConfirm = confirmErr;
 
   if (input.accountType === 'company') {
     const companyEmailErr = validateEmail(input.companyEmail ?? '', true);

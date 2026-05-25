@@ -14,7 +14,6 @@ import { I18nextProvider, useTranslation } from 'react-i18next';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AnimatedSplash from '../components/AnimatedSplash';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { LogoutButton } from '../components/LogoutButton';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../constants/theme';
 import '../lib/backgroundLocation';
@@ -239,8 +238,13 @@ function NavigationShell() {
 
     let target: string | null = null;
 
+    const onWebLanding =
+      Platform.OS === 'web' && (pathname === '/' || pathname === '' || !segments[0]);
+
     if (!userId && (inApp || inDriver)) {
       target = '/sign-in';
+    } else if (!userId && onWebLanding) {
+      target = null;
     } else if (userId && !role && (inApp || inDriver)) {
       target = '/';
     } else if (userId && inAuth && role && !onPasswordRecoveryRoute && !inLegal) {
@@ -262,7 +266,6 @@ function NavigationShell() {
 
   return (
     <View style={styles.shell}>
-      <LogoutButton />
       <Slot />
       {loading ? (
         <View style={styles.loadingOverlay} pointerEvents="auto">

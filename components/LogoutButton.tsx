@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useSegments } from 'expo-router';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { usePathname, useSegments } from 'expo-router';
+import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,12 +12,15 @@ export function LogoutButton() {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const segments = useSegments();
+  const pathname = usePathname();
 
   const root = segments[0];
   const inAuth = root === '(auth)';
   const inTabs = root === '(app)' || root === '(driver)';
+  const onWebLanding =
+    Platform.OS === 'web' && (pathname === '/' || pathname === '' || !segments[0]);
 
-  if (!user?.id || inAuth) return null;
+  if (!user?.id || inAuth || onWebLanding) return null;
 
   const bottomOffset = insets.bottom + (inTabs ? 76 : SPACING.lg);
 

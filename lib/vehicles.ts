@@ -24,12 +24,14 @@ export type VehicleRow = {
   color: string | null;
   year: number | null;
   plate: string | null;
+  make_id: number | null;
+  model_id: number | null;
   is_verified: boolean | null;
   updated_at: string;
 };
 
 const VEHICLE_SELECT =
-  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,is_verified,updated_at';
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id,is_verified,updated_at';
 
 /** All vehicles for this driver, active first. */
 export async function fetchVehiclesByDriver(driverId: string): Promise<{
@@ -131,6 +133,8 @@ export async function insertVehicle(
     color?: string | null;
     year?: number | null;
     plate?: string | null;
+    make_id?: number | null;
+    model_id?: number | null;
   },
 ): Promise<{ data: VehicleRow | null; error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
@@ -270,6 +274,8 @@ function normalizeVehicleDbFields(fields: {
   color?: string | null;
   year?: number | null;
   plate?: string | null;
+  make_id?: number | null;
+  model_id?: number | null;
 }): { fields: typeof fields; error: Error | null } {
   const out = { ...fields };
   if (fields.type != null) {
@@ -296,6 +302,8 @@ export async function saveVehicleDetails(
     color?: string | null;
     year?: number | null;
     plate?: string | null;
+    make_id?: number | null;
+    model_id?: number | null;
   },
 ): Promise<{ error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);

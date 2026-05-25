@@ -31,7 +31,7 @@ The Service is designed for business users in the transportation and tour-manage
 | Role | Description |
 |------|-------------|
 | **Company** | Creates and manages bookings, tracks drivers, chats with drivers, rates completed trips |
-| **Driver (freelance)** | Accepts bookings, shares GPS during active trips, manages vehicle and verification documents, may host sub-drivers |
+| **Driver with own vehicle** | Accepts bookings, shares GPS during active trips, manages vehicle and verification documents, may host sub-drivers |
 | **Driver (hired)** | Works under a host driver; limited vehicle/fleet features; job-board visibility |
 | **Administrator** | Internal operators who verify users, moderate accounts, view operational data |
 

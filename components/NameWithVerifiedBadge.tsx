@@ -1,21 +1,33 @@
 import { StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { GuideDriverBadge } from './GuideDriverBadge';
 import { VerifiedBadge } from './VerifiedBadge';
 
 type Props = {
   name: string;
   verified?: boolean | null;
+  isGuide?: boolean | null;
   textStyle?: StyleProp<TextStyle>;
   style?: StyleProp<ViewStyle>;
   numberOfLines?: number;
 };
 
-export function NameWithVerifiedBadge({ name, verified, textStyle, style, numberOfLines }: Props) {
+export function NameWithVerifiedBadge({
+  name,
+  verified,
+  isGuide,
+  textStyle,
+  style,
+  numberOfLines,
+}: Props) {
   return (
     <View style={[styles.row, style]}>
-      <Text style={textStyle} numberOfLines={numberOfLines}>
+      <Text style={[textStyle, styles.name]} numberOfLines={numberOfLines}>
         {name}
       </Text>
-      <VerifiedBadge verified={verified} />
+      <View style={styles.badges}>
+        {isGuide ? <GuideDriverBadge compact /> : null}
+        <VerifiedBadge verified={verified} />
+      </View>
     </View>
   );
 }
@@ -26,5 +38,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     flexShrink: 1,
+  },
+  name: {
+    flexShrink: 1,
+  },
+  badges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
   },
 });

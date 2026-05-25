@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KEKE — ტელეფონიდან გახსნა</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 420px;
+      margin: 2rem auto;
+      padding: 1rem;
+      text-align: center;
+      background: #0f0f0f;
+      color: #f5f5f5;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    p { color: #aaa; font-size: 0.9rem; line-height: 1.5; }
+    a {
+      display: block;
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      background: #d4af37;
+      color: #0f0f0f;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 700;
+      word-break: break-all;
+    }
+    #qrcode { margin: 1.5rem auto; display: inline-block; background: #fff; padding: 12px; border-radius: 12px; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.5rem;
+      margin-top: 1rem;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    label { display: block; text-align: left; font-size: 0.8rem; color: #888; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>KEKE Manager — Web (ტელეფონი)</h1>
+  <p>კომპიუტერი და ტელეფონი იმავე Wi‑Fi-ზე უნდა იყოს. დაასკანერე QR ან დააჭირე ბმულს.</p>
+  <div id="qrcode"></div>
+  <a id="openLink" href="#">იხსნება…</a>
+  <label for="urlInput">LAN მისამართი (თუ IP შეიცვალა)</label>
+  <input id="urlInput" type="text" />
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const defaultHost = params.get('host') || '172.20.10.9';
+    const port = params.get('port') || '8081';
+    let appUrl = params.get('url') || ('http://' + defaultHost + ':' + port);
+
+    const input = document.getElementById('urlInput');
+    const link = document.getElementById('openLink');
+
+    function render(url) {
+      appUrl = url.replace(/\/$/, '');
+      input.value = appUrl;
+      link.href = appUrl;
+      link.textContent = appUrl;
+      QRCode.toCanvas(document.createElement('canvas'), appUrl, { width: 260, margin: 2 }, (err, canvas) => {
+        const box = document.getElementById('qrcode');
+        box.innerHTML = '';
+        if (err) {
+          box.textContent = 'QR შეცდომა: ' + err.message;
+          return;
+        }
+        box.appendChild(canvas);
+      });
+    }
+
+    input.addEventListener('change', () => render(input.value.trim()));
+    render(appUrl);
+  </script>
+</body>
+</html>

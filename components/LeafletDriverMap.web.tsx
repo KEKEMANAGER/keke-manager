@@ -1,11 +1,10 @@
-import L from 'leaflet';
-import { createElement, useEffect, useRef } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import 'leaflet/dist/leaflet.css';
+import { loadLeaflet } from '../lib/loadLeaflet.web';
 import { COLORS } from '../constants/theme';
 import type { LeafletDriverMapProps, LeafletMapPin } from './LeafletDriverMap';
 
-const TBILISI: L.LatLngExpression = [41.6938, 44.8015];
+const TBILISI: [number, number] = [41.6938, 44.8015];
 const DEFAULT_ZOOM = 12;
 
 function isStale(updatedAt: string, maxAgeMs = 60_000): boolean {
@@ -51,10 +50,12 @@ function markerHtml(color: string, selected: boolean, label: string): string {
 }
 
 function divIconForPin(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  L: any,
   pin: LeafletMapPin,
   selected: boolean,
   hostDriverId?: string,
-): L.DivIcon {
+) {
   const color = markerColor(pin, hostDriverId);
   const label = pin.full_name?.trim() ?? '';
   const size = selected ? 40 : 34;
@@ -74,91 +75,110 @@ export function LeafletDriverMap({
   style,
 }: LeafletDriverMapProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const layerRef = useRef<L.LayerGroup | null>(null);
-  const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const layerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markersRef = useRef<Map<string, any>>(new Map());
   const onSelectRef = useRef(onSelectPin);
+  const [mapReady, setMapReady] = useState(false);
   onSelectRef.current = onSelectPin;
 
   useEffect(() => {
     const el = hostRef.current;
     if (!el || mapRef.current) return;
 
-    const map = L.map(el, {
-      center: TBILISI,
-      zoom: DEFAULT_ZOOM,
-      zoomControl: true,
+    let cancelled = false;
+    let sizeTimer = 0;
+
+    void loadLeaflet().then((L) => {
+      if (cancelled || !hostRef.current || mapRef.current) return;
+
+      const map = L.map(el, {
+        center: TBILISI,
+        zoom: DEFAULT_ZOOM,
+        zoomControl: true,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(map);
+
+      layerRef.current = L.layerGroup().addTo(map);
+      mapRef.current = map;
+      setMapReady(true);
+
+      sizeTimer = window.setTimeout(() => map.invalidateSize(), 150);
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(map);
-
-    layerRef.current = L.layerGroup().addTo(map);
-    mapRef.current = map;
-
-    const t = window.setTimeout(() => map.invalidateSize(), 150);
-
     return () => {
-      window.clearTimeout(t);
-      const markers = markersRef.current;
-      markers.clear();
-      map.remove();
-      mapRef.current = null;
-      layerRef.current = null;
+      cancelled = true;
+      window.clearTimeout(sizeTimer);
+      const map = mapRef.current;
+      if (map) {
+        markersRef.current.clear();
+        map.remove();
+        mapRef.current = null;
+        layerRef.current = null;
+        setMapReady(false);
+      }
     };
   }, []);
 
   useEffect(() => {
+    if (!mapReady) return;
     const map = mapRef.current;
     const layer = layerRef.current;
     if (!map || !layer) return;
 
-    const nextIds = new Set(pins.map((p) => p.driver_id));
-    for (const [id, marker] of markersRef.current) {
-      if (!nextIds.has(id)) {
-        layer.removeLayer(marker);
-        markersRef.current.delete(id);
+    void loadLeaflet().then((L) => {
+      const nextIds = new Set(pins.map((p) => p.driver_id));
+      for (const [id, marker] of markersRef.current) {
+        if (!nextIds.has(id)) {
+          layer.removeLayer(marker);
+          markersRef.current.delete(id);
+        }
       }
-    }
 
-    const latLngs: L.LatLngExpression[] = [];
+      const latLngs: [number, number][] = [];
 
-    for (const pin of pins) {
-      if (!Number.isFinite(pin.latitude) || !Number.isFinite(pin.longitude)) continue;
-      const latLng: L.LatLngExpression = [pin.latitude, pin.longitude];
-      latLngs.push(latLng);
+      for (const pin of pins) {
+        if (!Number.isFinite(pin.latitude) || !Number.isFinite(pin.longitude)) continue;
+        const latLng: [number, number] = [pin.latitude, pin.longitude];
+        latLngs.push(latLng);
 
-      const selected = pin.driver_id === selectedId;
-      const icon = divIconForPin(pin, selected, hostDriverId);
-      let marker = markersRef.current.get(pin.driver_id);
+        const selected = pin.driver_id === selectedId;
+        const icon = divIconForPin(L, pin, selected, hostDriverId);
+        let marker = markersRef.current.get(pin.driver_id);
 
-      if (marker) {
-        marker.setLatLng(latLng);
-        marker.setIcon(icon);
-        marker.setZIndexOffset(selected ? 1000 : 0);
-      } else {
-        marker = L.marker(latLng, { icon }).addTo(layer);
-        marker.on('click', () => onSelectRef.current?.(pin.driver_id));
-        markersRef.current.set(pin.driver_id, marker);
+        if (marker) {
+          marker.setLatLng(latLng);
+          marker.setIcon(icon);
+          marker.setZIndexOffset(selected ? 1000 : 0);
+        } else {
+          marker = L.marker(latLng, { icon }).addTo(layer);
+          marker.on('click', () => onSelectRef.current?.(pin.driver_id));
+          markersRef.current.set(pin.driver_id, marker);
+        }
       }
-    }
 
-    if (latLngs.length === 1) {
-      map.setView(latLngs[0], Math.max(map.getZoom(), 14), { animate: true });
-    } else if (latLngs.length > 1) {
-      const bounds = L.latLngBounds(latLngs);
-      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15, animate: true });
-    }
-
-    if (selectedId) {
-      const sel = pins.find((p) => p.driver_id === selectedId);
-      if (sel) {
-        map.panTo([sel.latitude, sel.longitude], { animate: true });
+      if (latLngs.length === 1) {
+        map.setView(latLngs[0], Math.max(map.getZoom(), 14), { animate: true });
+      } else if (latLngs.length > 1) {
+        const bounds = L.latLngBounds(latLngs);
+        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15, animate: true });
       }
-    }
-  }, [pins, selectedId, hostDriverId]);
+
+      if (selectedId) {
+        const sel = pins.find((p) => p.driver_id === selectedId);
+        if (sel) {
+          map.panTo([sel.latitude, sel.longitude], { animate: true });
+        }
+      }
+    });
+  }, [pins, selectedId, hostDriverId, mapReady]);
 
   return (
     <View style={[styles.wrap, style]}>

@@ -11,8 +11,10 @@ import {
   type ReactNode,
 } from 'react';
 import { Alert, Platform } from 'react-native';
+import { resolveAppMenuRole, isHostDriver, type AppMenuRole } from '../lib/menuRole';
 import { clearProfilePushToken } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
+import { fetchVehiclesByDriver, type VehicleRow } from '../lib/vehicles';
 import i18n from '../src/lib/i18n';
 
 /** Marker: user had a stored session — used to show expiry message vs first-time anonymous open (native only). */
@@ -42,11 +44,13 @@ export type Profile = {
   vehicle_registration_photo: string | null;
   rejection_reason: string | null;
   is_hired_driver: boolean | null;
+  is_guide_driver: boolean | null;
   available_for_hire: boolean | null;
   company_email: string | null;
   company_phone: string | null;
   company_id_code: string | null;
   company_director: string | null;
+  city: string | null;
 };
 
 export type CompanySignUpMeta = {
@@ -60,6 +64,13 @@ type AuthContextValue = {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  /** Drawer role: company | freelance_driver | hired_driver */
+  menuRole: AppMenuRole | null;
+  vehicles: VehicleRow[];
+  vehicleCount: number;
+  /** Freelance driver with 2+ vehicles (dynamic host, not a DB role). */
+  isHost: boolean;
+  refreshVehicles: () => Promise<void>;
   /** True until first session is resolved, or while `user` is set and profile row is loading. */
   loading: boolean;
   signIn: (email: string, password: string) => ReturnType<typeof supabase.auth.signInWithPassword>;
@@ -68,7 +79,7 @@ type AuthContextValue = {
     password: string,
     fullName: string,
     role: KekeRole,
-    options?: { isHiredDriver?: boolean; company?: CompanySignUpMeta },
+    options?: { isHiredDriver?: boolean; isGuideDriver?: boolean; company?: CompanySignUpMeta },
   ) => ReturnType<typeof supabase.auth.signUp>;
   signOut: () => ReturnType<typeof supabase.auth.signOut>;
 };
@@ -76,7 +87,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const USER_PROFILE_SELECT =
-  'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, available_for_hire, company_email, company_phone, company_id_code, company_director';
+  'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, is_guide_driver, available_for_hire, company_email, company_phone, company_id_code, company_director, city';
 
 async function fetchProfile(userId: string): Promise<Profile | null> {
   const [usersRes, profilesRes] = await Promise.all([
@@ -116,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
   const [sessionHydrated, setSessionHydrated] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const initialHydrateDone = useRef(false);
@@ -245,9 +257,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string,
       fullName: string,
       role: KekeRole,
-      options?: { isHiredDriver?: boolean; company?: CompanySignUpMeta },
+      options?: { isHiredDriver?: boolean; isGuideDriver?: boolean; company?: CompanySignUpMeta },
     ) => {
     const isHiredDriver = role === 'driver' && !!options?.isHiredDriver;
+    const isGuideDriver =
+      role === 'driver' && !isHiredDriver && !!options?.isGuideDriver;
     const companyMeta = role === 'company' ? options?.company : undefined;
     const result = await supabase.auth.signUp({
       email,
@@ -257,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: fullName,
           role,
           is_hired_driver: isHiredDriver,
+          is_guide_driver: isGuideDriver,
           ...(companyMeta
             ? {
                 company_email: companyMeta.company_email,
@@ -273,6 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userPatch: Record<string, unknown> = {
         role,
         is_hired_driver: isHiredDriver,
+        is_guide_driver: isGuideDriver,
         full_name: fullName,
         email: email.trim(),
       };
@@ -304,6 +320,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [markHadSessionNative],
   );
 
+  const refreshVehicles = useCallback(async () => {
+    const uid = user?.id;
+    if (!uid || profile?.role !== 'driver') {
+      setVehicles([]);
+      return;
+    }
+    const { data } = await fetchVehiclesByDriver(uid);
+    setVehicles(data ?? []);
+  }, [user?.id, profile?.role]);
+
+  useEffect(() => {
+    if (profile?.role === 'driver' && user?.id) {
+      void refreshVehicles();
+    } else {
+      setVehicles([]);
+    }
+  }, [profile?.role, user?.id, refreshVehicles]);
+
+  const menuRole = useMemo(() => resolveAppMenuRole(profile), [profile]);
+  const vehicleCount = vehicles.length;
+  const isHost = isHostDriver(vehicleCount);
+
   const signOut = useCallback(async () => {
     const uid = user?.id ?? session?.user?.id;
     userInitiatedSignOutRef.current = true;
@@ -328,12 +366,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       session,
       profile,
+      menuRole,
+      vehicles,
+      vehicleCount,
+      isHost,
+      refreshVehicles,
       loading,
       signIn,
       signUp,
       signOut,
     }),
-    [user, session, profile, loading, signIn, signUp, signOut],
+    [
+      user,
+      session,
+      profile,
+      menuRole,
+      vehicles,
+      vehicleCount,
+      isHost,
+      refreshVehicles,
+      loading,
+      signIn,
+      signUp,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

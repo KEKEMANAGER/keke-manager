@@ -52,20 +52,28 @@ export async function fetchHiredDriversForBoard(
 
   const { data: fleetRows, error: fleetErr } = await supabase
     .from('driver_fleet')
-    .select('sub_driver_id');
+    .select('sub_driver_id, host_driver_id, status')
+    .in('status', ['pending', 'accepted']);
 
   if (fleetErr) return { data: [], error: new Error(fleetErr.message) };
 
   const excluded = new Set<string>([hostId]);
   for (const row of fleetRows ?? []) {
-    excluded.add((row as { sub_driver_id: string }).sub_driver_id);
+    const r = row as { sub_driver_id: string; host_driver_id: string; status?: string };
+    const st = r.status?.trim() || 'accepted';
+    if (st === 'accepted') {
+      excluded.add(r.sub_driver_id);
+    } else if (st === 'pending' && r.host_driver_id === hostId) {
+      excluded.add(r.sub_driver_id);
+    }
   }
 
   let usersQuery = supabase
     .from('users')
     .select('id, full_name, email, avatar_url, bio, languages, available_for_hire')
     .eq('role', 'driver')
-    .eq('is_hired_driver', true);
+    .eq('is_hired_driver', true)
+    .eq('is_verified', true);
 
   if (onlyLooking) {
     usersQuery = usersQuery.eq('available_for_hire', true);
@@ -175,8 +183,9 @@ export async function fetchHiredDriverStatus(driverId: string): Promise<{
 
   const { data: fleetRow, error: fleetErr } = await supabase
     .from('driver_fleet')
-    .select('host_driver_id')
+    .select('host_driver_id, status')
     .eq('sub_driver_id', id)
+    .eq('status', 'accepted')
     .maybeSingle();
 
   if (fleetErr) return { status: 'looking', hostName: null, error: new Error(fleetErr.message) };

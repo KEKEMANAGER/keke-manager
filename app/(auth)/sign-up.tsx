@@ -71,6 +71,8 @@ export default function SignUpScreen() {
   const [companyDirector, setCompanyDirector] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [isGuideDriver, setIsGuideDriver] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<SignUpFieldErrors>({});
@@ -91,6 +93,7 @@ export default function SignUpScreen() {
   }
 
   const isCompany = accountType === 'company';
+  const isFreelanceDriver = accountType === 'freelance_driver';
   const authEmail = isCompany ? companyEmail.trim() : email.trim();
   const companyFieldsReady =
     !isCompany ||
@@ -98,11 +101,14 @@ export default function SignUpScreen() {
       !!companyPhone.trim() &&
       !!companyIdCode.trim() &&
       !!companyDirector.trim());
+  const passwordsMatch =
+    password.length > 0 && passwordConfirm.length > 0 && password === passwordConfirm;
   const formReady =
     !!accountType &&
     !!fullName.trim() &&
     !!authEmail &&
     !!password &&
+    passwordsMatch &&
     companyFieldsReady &&
     !isSubmitting;
 
@@ -114,6 +120,7 @@ export default function SignUpScreen() {
       fullName,
       email,
       password,
+      passwordConfirm,
       companyEmail,
       companyPhone,
       companyIdCode,
@@ -125,6 +132,7 @@ export default function SignUpScreen() {
       fields.fullName ||
       fields.email ||
       fields.password ||
+      fields.passwordConfirm ||
       fields.companyEmail ||
       fields.companyPhone ||
       fields.companyIdCode ||
@@ -139,6 +147,7 @@ export default function SignUpScreen() {
         fields.companyDirector ??
         fields.email ??
         fields.password ??
+        fields.passwordConfirm ??
         '';
       setError(first);
       showValidationAlert(first);
@@ -152,6 +161,7 @@ export default function SignUpScreen() {
       const role = accountTypeToRole(type);
       const { error: signUpError } = await signUp(authEmail, password, fullName.trim(), role, {
         isHiredDriver: type === 'hired_driver',
+        isGuideDriver: type === 'freelance_driver' && isGuideDriver,
         company:
           type === 'company'
             ? {
@@ -201,7 +211,10 @@ export default function SignUpScreen() {
             return (
               <Pressable
                 key={opt.type}
-                onPress={() => setAccountType(opt.type)}
+                onPress={() => {
+                  setAccountType(opt.type);
+                  if (opt.type !== 'freelance_driver') setIsGuideDriver(false);
+                }}
                 style={({ pressed }) => [
                   styles.roleCard,
                   SHADOWS.card,
@@ -262,6 +275,27 @@ export default function SignUpScreen() {
             </View>
           ) : null}
 
+          {isFreelanceDriver ? (
+            <Pressable
+              onPress={() => setIsGuideDriver((v) => !v)}
+              style={({ pressed }) => [
+                styles.guideCheckRow,
+                isGuideDriver && styles.guideCheckRowOn,
+                pressed && styles.roleCardPressed,
+              ]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isGuideDriver }}
+            >
+              <View style={[styles.guideCheckbox, isGuideDriver && styles.guideCheckboxOn]}>
+                {isGuideDriver ? <Text style={styles.guideCheckMark}>✓</Text> : null}
+              </View>
+              <View style={styles.guideCheckText}>
+                <Text style={styles.guideCheckTitle}>{t('authScreen.isGuideDriver')}</Text>
+                <Text style={styles.guideCheckHint}>{t('authScreen.isGuideDriverHint')}</Text>
+              </View>
+            </Pressable>
+          ) : null}
+
           {!isCompany ? (
             <AuthInput
               label={t('auth.email')}
@@ -280,6 +314,21 @@ export default function SignUpScreen() {
             onChangeText={setPassword}
             error={fieldErrors.password}
           />
+          <AuthInput
+            label={t('auth.passwordConfirm')}
+            secureTextEntry
+            autoCapitalize="none"
+            value={passwordConfirm}
+            onChangeText={setPasswordConfirm}
+            error={fieldErrors.passwordConfirm}
+          />
+          {passwordConfirm.length > 0 ? (
+            password === passwordConfirm ? (
+              <Text style={styles.passwordOk}>✓ {t('auth.passwordsMatch')}</Text>
+            ) : (
+              <Text style={styles.passwordMismatch}>{t('validation.passwordMismatch')}</Text>
+            )
+          ) : null}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -382,6 +431,54 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: SPACING.sm,
   },
+  guideCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+    padding: SPACING.md,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+  },
+  guideCheckRowOn: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  guideCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  guideCheckboxOn: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.gold,
+  },
+  guideCheckMark: {
+    color: COLORS.black,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  guideCheckText: {
+    flex: 1,
+  },
+  guideCheckTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  guideCheckHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.textMuted,
+  },
   card: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.card,
@@ -400,6 +497,20 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontSize: 14,
     marginBottom: SPACING.md,
+  },
+  passwordMismatch: {
+    color: COLORS.error,
+    fontSize: 13,
+    marginTop: -SPACING.sm,
+    marginBottom: SPACING.md,
+    fontWeight: '600',
+  },
+  passwordOk: {
+    color: COLORS.success,
+    fontSize: 13,
+    marginTop: -SPACING.sm,
+    marginBottom: SPACING.md,
+    fontWeight: '600',
   },
   button: {
     marginTop: SPACING.sm,

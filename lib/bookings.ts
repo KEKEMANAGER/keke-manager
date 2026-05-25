@@ -1,12 +1,25 @@
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import i18n from '../src/lib/i18n';
+import {
+  driverMatchesRequestedCategory,
+  normalizeRequestedDriverCategory,
+  type RequestedDriverCategory,
+} from './driverCategory';
 import { formatDisplayDateTime, parseStoredDateTime } from './dateTime';
 import { notifyBookingConfirmed } from './localNotifications';
 import {
   createScheduleForAcceptedBooking,
   releaseDriverScheduleForBooking,
 } from './driverSchedules';
-import { notifyCompanyBookingAccepted, notifyMatchingDriversOfNewBooking } from './notifications';
+import { notifyBookingAssignedByHost } from './fleetNotifications';
+import { isHiredOrFleetSubDriver } from './hiredDriver';
+import {
+  notifyBookingVoucherCreated,
+  notifyCompanyBookingAccepted,
+  notifyCompanyDriverCancelledBooking,
+  notifyMatchingDriversOfNewBooking,
+} from './notifications';
+import { formatTourBookingNotificationBody } from './tourDays';
 import { sanitizeLanguageCodes } from './spokenLanguages';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
@@ -96,7 +109,7 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
 
   const { data, error } = await supabase
     .from('users')
-    .select('id, is_verified, avatar_url')
+    .select('id, is_verified, avatar_url, is_guide_driver')
     .in('id', [...ids]);
 
   if (error) {
@@ -107,10 +120,17 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
   }
 
   const verifiedById = new Map<string, boolean>();
+  const guideById = new Map<string, boolean>();
   const avatarById = new Map<string, string | null>();
   for (const row of data ?? []) {
-    const u = row as { id: string; is_verified?: boolean | null; avatar_url?: string | null };
+    const u = row as {
+      id: string;
+      is_verified?: boolean | null;
+      is_guide_driver?: boolean | null;
+      avatar_url?: string | null;
+    };
     verifiedById.set(String(u.id), !!u.is_verified);
+    guideById.set(String(u.id), u.is_guide_driver === true);
     const url = u.avatar_url?.trim() ?? '';
     avatarById.set(String(u.id), url || null);
   }
@@ -120,12 +140,89 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
     driver_is_verified: row.driver_id
       ? (verifiedById.get(trimUserId(row.driver_id)) ?? false)
       : null,
+    driver_is_guide_driver: row.driver_id
+      ? guideById.get(trimUserId(row.driver_id)) ?? false
+      : null,
     company_is_verified: verifiedById.get(trimUserId(row.company_id)) ?? false,
     driver_avatar_url: row.driver_id
       ? (avatarById.get(trimUserId(row.driver_id)) ?? null)
       : null,
     company_avatar_url: avatarById.get(trimUserId(row.company_id)) ?? null,
   }));
+}
+
+async function enrichBookingsWithHostInfo(rows: BookingRow[]): Promise<BookingRow[]> {
+  if (rows.length === 0) return rows;
+
+  const subsNeedingHost: string[] = [];
+  for (const row of rows) {
+    if (!trimUserId(row.host_driver_id) && trimUserId(row.driver_id)) {
+      subsNeedingHost.push(trimUserId(row.driver_id)!);
+    }
+  }
+
+  const hostIdBySub = new Map<string, string>();
+  if (subsNeedingHost.length > 0) {
+    const { data: fleet, error: fleetErr } = await supabase
+      .from('driver_fleet')
+      .select('sub_driver_id, host_driver_id')
+      .in('sub_driver_id', [...new Set(subsNeedingHost)])
+      .eq('status', 'accepted');
+    if (fleetErr && __DEV__) {
+      console.warn('[bookings] enrichBookingsWithHostInfo fleet', fleetErr.message);
+    }
+    for (const f of fleet ?? []) {
+      const sub = trimUserId((f as { sub_driver_id: string }).sub_driver_id);
+      const host = trimUserId((f as { host_driver_id: string }).host_driver_id);
+      if (sub && host) hostIdBySub.set(sub, host);
+    }
+  }
+
+  const hostIds = new Set<string>();
+  const withHostId = rows.map((row) => {
+    let hid = trimUserId(row.host_driver_id);
+    if (!hid) {
+      const did = trimUserId(row.driver_id);
+      if (did) {
+        const fromFleet = hostIdBySub.get(did);
+        if (fromFleet) hid = fromFleet;
+      }
+    }
+    if (hid) hostIds.add(hid);
+    return hid && hid !== row.host_driver_id ? { ...row, host_driver_id: hid } : row;
+  });
+
+  if (hostIds.size === 0) return withHostId;
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, full_name')
+    .in('id', [...hostIds]);
+
+  if (error) {
+    if (__DEV__) console.warn('[bookings] enrichBookingsWithHostInfo', error.message);
+    return withHostId;
+  }
+
+  const nameById = new Map<string, string>();
+  for (const row of data ?? []) {
+    const u = row as { id: string; full_name?: string | null };
+    const name = u.full_name?.trim();
+    if (name) nameById.set(String(u.id), name);
+  }
+
+  return withHostId.map((row) => {
+    const hid = trimUserId(row.host_driver_id);
+    if (!hid) return row;
+    return {
+      ...row,
+      host_display_name: nameById.get(hid) ?? row.host_display_name ?? null,
+    };
+  });
+}
+
+export async function enrichBookingsForList(rows: BookingRow[]): Promise<BookingRow[]> {
+  return enrichBookingsWithHostInfo(await enrichBookingsWithUserVerification(rows));
 }
 
 /** Legacy DBs still use `confirmed` in `bookings_status_check`; new migrations use `accepted`. */
@@ -175,21 +272,28 @@ export type ItineraryDay = {
   stops: string;
 };
 
-/** @deprecated Legacy shape in `tour_days`; prefer `itinerary`. */
+/** Multi-day tour calendar (stored in `tour_days` jsonb). */
 export type TourDayPersisted = {
-  id: string;
+  day: number;
   date: string;
   fromPlace: string;
   toPlace: string;
-  stops: string[];
-  overnight: boolean;
+  stops: string | string[];
+  touristHotel?: string;
+  driverOvernight?: string;
+  /** @deprecated legacy flag */
+  overnight?: boolean;
+  /** @deprecated legacy id */
+  id?: string;
 };
 
 /** Arrival / departure transfer leg (stored in `transfer_in` / `transfer_out` jsonb). */
 export type TourTransferLeg = {
   date: string;
-  flight: string;
-  passengerName: string;
+  airport?: string;
+  hotel?: string;
+  flight?: string;
+  passengerName?: string;
 };
 
 export type BookingRow = {
@@ -211,6 +315,7 @@ export type BookingRow = {
   flight_number: string | null;
   meet_greet: boolean | null;
   sign_text: string | null;
+  pickup_sign_logo_url: string | null;
   passenger_name: string | null;
   passenger_phone: string | null;
   flight_direction: FlightDirection | string | null;
@@ -228,15 +333,22 @@ export type BookingRow = {
   driver_display_name: string | null;
   driver_phone: string | null;
   driver_plate: string | null;
+  /** Host who accepted and delegated to a sub driver. */
+  host_driver_id?: string | null;
+  host_display_name?: string | null;
   /** Set on insert; optional when row predates column. */
   voucher_code?: string | null;
+  requested_driver_category?: RequestedDriverCategory | string | null;
   /** Tour operator / staff name who created the booking. */
   created_by_name?: string | null;
   /** Populated by `enrichBookingsWithUserVerification` when listing bookings. */
   driver_is_verified?: boolean | null;
+  driver_is_guide_driver?: boolean | null;
   company_is_verified?: boolean | null;
   driver_avatar_url?: string | null;
   company_avatar_url?: string | null;
+  driver_update_pending?: boolean | null;
+  update_change_summary?: Record<string, { old: string; new: string; label: string }> | null;
 };
 
 export type InsertBookingInput = {
@@ -276,6 +388,8 @@ export type InsertBookingInput = {
   driver_id?: string | null;
   /** Driver must speak at least one of these language codes (empty = any). */
   required_languages?: string[] | null;
+  /** Open-job driver category filter (`all` | `guide` | `own_vehicle`). */
+  requested_driver_category?: RequestedDriverCategory | null;
 };
 
 /** Localized booking status label */
@@ -286,6 +400,11 @@ export function bookingStatusLabel(status: BookingStatus): string {
 }
 
 export { bookingKindLabel, bookingTypeLabel, resolveBookingKindLabelCode } from './bookingLabels';
+export {
+  uploadPickupSignLogo,
+  setBookingPickupSignLogoUrl,
+  type PickupSignLogoFile,
+} from './pickupSignLogo';
 
 export function routeSummary(row: BookingRow): string {
   if (isTransferKind(row.kind) && row.from_location && row.to_location) {
@@ -355,7 +474,24 @@ export async function fetchBookingsByCompanyId(companyUserId: string) {
     .eq('company_id', id)
     .order('created_at', { ascending: false });
   return {
-    data: await enrichBookingsWithUserVerification(hydrateBookingRows(data ?? [])),
+    data: await enrichBookingsForList(hydrateBookingRows(data ?? [])),
+    error,
+  };
+}
+
+/** Bookings delegated by this host to fleet sub-drivers. */
+export async function fetchBookingsForHost(hostDriverId: string) {
+  const id = trimUserId(hostDriverId);
+  if (!id) {
+    return { data: [] as BookingRow[], error: null };
+  }
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('host_driver_id', id)
+    .order('updated_at', { ascending: false });
+  return {
+    data: await enrichBookingsForList(hydrateBookingRows(data ?? [])),
     error,
   };
 }
@@ -372,7 +508,7 @@ export async function fetchBookingsForDriver(driverUserId: string) {
     .eq('driver_id', id)
     .order('updated_at', { ascending: false });
   return {
-    data: await enrichBookingsWithUserVerification(hydrateBookingRows(data ?? [])),
+    data: await enrichBookingsForList(hydrateBookingRows(data ?? [])),
     error,
   };
 }
@@ -428,6 +564,16 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     return { data: [] as BookingRow[], error: null };
   }
 
+  const { data: driverUserRow } = await supabase
+    .from('users')
+    .select('is_guide_driver, is_hired_driver')
+    .eq('id', id)
+    .maybeSingle();
+  const driverFlags = (driverUserRow ?? {}) as {
+    is_guide_driver?: boolean | null;
+    is_hired_driver?: boolean | null;
+  };
+
   // Primary source: all active vehicles (multiple allowed).
   const { data: activeVehicles } = await supabase
     .from('vehicles')
@@ -477,9 +623,19 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
       driver_id?: string | null;
       vehicle_type?: string | null;
       vehicle_class?: string | null;
+      requested_driver_category?: string | null;
     };
     const rowDriverId = row.driver_id != null ? String(row.driver_id).trim() : '';
     if (rowDriverId && rowDriverId !== id) {
+      return false;
+    }
+    if (
+      !rowDriverId &&
+      !driverMatchesRequestedCategory(
+        driverFlags,
+        normalizeRequestedDriverCategory(row.requested_driver_category),
+      )
+    ) {
       return false;
     }
     const bookingType = normalizeVehicleType(row.vehicle_type ?? '');
@@ -545,6 +701,9 @@ export async function insertBooking(row: InsertBookingInput) {
         const codes = sanitizeLanguageCodes(row.required_languages ?? []);
         return codes.length > 0 ? codes : null;
       })(),
+      requested_driver_category: normalizeRequestedDriverCategory(
+        row.requested_driver_category ?? 'all',
+      ),
     };
 
     if (opts.includeKindColumn) {
@@ -636,6 +795,9 @@ export async function insertBooking(row: InsertBookingInput) {
   }
 
   const bookingId = data?.id as string | undefined;
+  if (bookingId && assignedDriverId) {
+    void maybeAutoAcceptHiredAssignedBooking(bookingId, assignedDriverId);
+  }
   if (bookingId) {
     void notifyMatchingDriversOfNewBooking({
       kind,
@@ -645,17 +807,95 @@ export async function insertBooking(row: InsertBookingInput) {
       bookingId,
       showAlertIfEmpty: true,
       requiredLanguages: row.required_languages ?? undefined,
+      requestedDriverCategory: normalizeRequestedDriverCategory(
+        row.requested_driver_category ?? 'all',
+      ),
+      detailBody:
+        kind === 'tour'
+          ? formatTourBookingNotificationBody({
+              tour_days: row.tour_days,
+              transfer_in: row.transfer_in,
+              transfer_out: row.transfer_out,
+            })
+          : undefined,
       availability: {
         kind,
         date_display: row.date_display,
         itinerary: row.itinerary,
+        tour_days: row.tour_days,
         transfer_in: row.transfer_in,
         transfer_out: row.transfer_out,
       },
     });
+    if (assignedDriverId) {
+      void notifyBookingVoucherCreated({
+        bookingId,
+        driverUserId: assignedDriverId,
+        companyUserId,
+        voucherCode,
+        kind,
+        route: row.route,
+        from_location: row.from_location,
+        to_location: row.to_location,
+        tour_days: row.tour_days,
+        transfer_in: row.transfer_in,
+        transfer_out: row.transfer_out,
+      });
+    }
   }
 
   return { id: bookingId, error: null };
+}
+
+async function maybeAutoAcceptHiredAssignedBooking(
+  bookingId: string,
+  driverUserId: string,
+): Promise<void> {
+  const hired = await isHiredOrFleetSubDriver(driverUserId);
+  if (!hired) return;
+
+  const { data: user } = await supabase
+    .from('users')
+    .select('full_name')
+    .eq('id', driverUserId)
+    .maybeSingle();
+
+  const { data: fleet } = await supabase
+    .from('driver_fleet')
+    .select('vehicle_id')
+    .eq('sub_driver_id', driverUserId)
+    .eq('status', 'accepted')
+    .maybeSingle();
+
+  let plate = '';
+  const fleetVehicleId = (fleet as { vehicle_id?: string } | null)?.vehicle_id?.trim();
+  if (fleetVehicleId) {
+    const { data: fleetVehicle } = await supabase
+      .from('vehicles')
+      .select('plate')
+      .eq('id', fleetVehicleId)
+      .maybeSingle();
+    plate = (fleetVehicle as { plate?: string | null } | null)?.plate?.trim() ?? '';
+  }
+  if (!plate) {
+    const { data: vehicle } = await supabase
+      .from('vehicles')
+      .select('plate')
+      .eq('driver_id', driverUserId)
+      .eq('is_active', true)
+      .maybeSingle();
+    plate = (vehicle as { plate?: string | null } | null)?.plate?.trim() ?? '';
+  }
+
+  const displayName =
+    (user as { full_name?: string | null } | null)?.full_name?.trim() || 'Driver';
+
+  await acceptBooking(bookingId, {
+    driverId: driverUserId,
+    displayName,
+    phone: '',
+    plate,
+  });
 }
 
 export async function acceptBooking(
@@ -720,6 +960,108 @@ export async function acceptBooking(
     driverPhone: driver.phone || undefined,
     driverPlate: driver.plate || undefined,
   });
+  return { ok: true as const, error: null };
+}
+
+/** Host accepts open booking and assigns to an accepted fleet sub-driver. */
+export async function hostAcceptBookingForSub(
+  bookingRowId: string,
+  hostDriverId: string,
+  subDriverId: string,
+  subDriver: {
+    displayName: string;
+    phone: string;
+    plate: string;
+  },
+) {
+  const rowId = String(bookingRowId).trim();
+  const hostId = trimUserId(hostDriverId);
+  const subId = trimUserId(subDriverId);
+  if (!isBookingRowUuid(rowId)) {
+    return { ok: false as const, error: new Error('booking id უნდა იყოს ჯავშნის uuid') };
+  }
+  if (!hostId || !subId) {
+    return { ok: false as const, error: new Error('მძღოლის id არ არის') };
+  }
+
+  const { data: fleetRow, error: fleetErr } = await supabase
+    .from('driver_fleet')
+    .select('id')
+    .eq('host_driver_id', hostId)
+    .eq('sub_driver_id', subId)
+    .eq('status', 'accepted')
+    .maybeSingle();
+
+  if (fleetErr) return { ok: false as const, error: new Error(fleetErr.message) };
+  if (!fleetRow) {
+    return { ok: false as const, error: new Error('მძღოლი არ არის თქვენს ფლოტში') };
+  }
+
+  const runAccept = (assignStatus: 'accepted' | 'confirmed') =>
+    supabase
+      .from('bookings')
+      .update({
+        driver_id: subId,
+        host_driver_id: hostId,
+        status: assignStatus,
+        driver_display_name: subDriver.displayName,
+        driver_phone: subDriver.phone || null,
+        driver_plate: subDriver.plate || null,
+      })
+      .eq('id', rowId)
+      .eq('status', 'pending')
+      .is('driver_id', null)
+      .select('id, voucher_code, route, from_location, to_location, kind, tour_days, transfer_in, transfer_out')
+      .maybeSingle();
+
+  let { data, error } = await runAccept('accepted');
+  if (error && isBookingsStatusConstraintError(error)) {
+    ({ data, error } = await runAccept('confirmed'));
+  }
+
+  if (error) return { ok: false as const, error };
+  if (!data) {
+    return { ok: false as const, error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია') };
+  }
+
+  void createScheduleForAcceptedBooking(rowId, subId);
+  void notifyBookingConfirmed();
+
+  const row = data as {
+    voucher_code?: string | null;
+    route?: string | null;
+    from_location?: string | null;
+    to_location?: string | null;
+  };
+  const routeLine =
+    row.route?.trim() ||
+    [row.from_location, row.to_location].filter((x) => x?.trim()).join(' → ') ||
+    '';
+
+  void notifyBookingAssignedByHost({
+    subDriverId: subId,
+    hostDriverId: hostId,
+    bookingId: rowId,
+    routeSummary: routeLine,
+    voucherCode: row.voucher_code?.trim(),
+  });
+
+  const { data: companyRow } = await supabase
+    .from('bookings')
+    .select('company_id')
+    .eq('id', rowId)
+    .maybeSingle();
+  const companyUid = String((companyRow as { company_id?: string | null } | null)?.company_id ?? '').trim();
+  if (companyUid) {
+    void notifyCompanyBookingAccepted({
+      companyUserId: companyUid,
+      bookingId: rowId,
+      driverName: subDriver.displayName || undefined,
+      driverPhone: subDriver.phone || undefined,
+      driverPlate: subDriver.plate || undefined,
+    });
+  }
+
   return { ok: true as const, error: null };
 }
 
@@ -811,6 +1153,86 @@ export async function startBookingTrip(bookingRowId: string, driverUserId: strin
       error: new Error('დაწყება ვერ მოხერხდა — ჯავშანი სხვა მდგომარეობაშია ან სხვა მძღოლისაა'),
     };
   }
+  return { ok: true as const, error: null };
+}
+
+/** Driver or host cancels after accept (accepted / in_progress → cancelled). */
+export async function cancelBookingByDriver(bookingRowId: string, driverUserId: string) {
+  const rowId = String(bookingRowId).trim();
+  if (!isBookingRowUuid(rowId)) {
+    return { ok: false as const, error: new Error('invalid booking id') };
+  }
+  const uid = trimUserId(driverUserId);
+  if (!uid) {
+    return { ok: false as const, error: new Error('მძღოლის id არ არის') };
+  }
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from('bookings')
+    .select(
+      'id, status, company_id, driver_id, host_driver_id, route, from_location, to_location, driver_display_name',
+    )
+    .eq('id', rowId)
+    .maybeSingle();
+
+  if (fetchErr) return { ok: false as const, error: fetchErr };
+  if (!existing) {
+    return { ok: false as const, error: new Error('ჯავშანი ვერ მოიძებნა') };
+  }
+
+  const row = existing as {
+    status?: string;
+    company_id?: string;
+    driver_id?: string | null;
+    host_driver_id?: string | null;
+    route?: string | null;
+    from_location?: string | null;
+    to_location?: string | null;
+    driver_display_name?: string | null;
+  };
+
+  const status = String(row.status ?? '').toLowerCase();
+  if (status !== 'accepted' && status !== 'confirmed' && status !== 'in_progress') {
+    return {
+      ok: false as const,
+      error: new Error('გაუქმება მხოლოდ მიღებული ან მიმდინარე ჯავშნისთვისაა'),
+    };
+  }
+
+  const driverId = trimUserId(row.driver_id ?? '');
+  const hostId = trimUserId(row.host_driver_id ?? '');
+  if (driverId !== uid && hostId !== uid) {
+    return { ok: false as const, error: new Error('ჯავშანი თქვენზე არ არის მინიჭებული') };
+  }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled' })
+    .eq('id', rowId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) return { ok: false as const, error };
+  if (!data) {
+    return { ok: false as const, error: new Error('ჯავშანი ვერ გაუქმდა') };
+  }
+
+  void releaseDriverScheduleForBooking(rowId);
+
+  const companyUid = trimUserId(row.company_id ?? '');
+  const routeLine =
+    row.route?.trim() ||
+    [row.from_location, row.to_location].filter((x) => x?.trim()).join(' → ') ||
+    '';
+  if (companyUid) {
+    void notifyCompanyDriverCancelledBooking({
+      companyUserId: companyUid,
+      bookingId: rowId,
+      driverName: row.driver_display_name?.trim() || undefined,
+      routeSummary: routeLine,
+    });
+  }
+
   return { ok: true as const, error: null };
 }
 

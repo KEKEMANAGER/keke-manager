@@ -1,6 +1,12 @@
 import * as Notifications from 'expo-notifications';
 import { Alert, Platform } from 'react-native';
 import i18n from '../src/lib/i18n';
+import type { RequestedDriverCategory } from './driverCategory';
+import {
+  driverEligibleForOpenJobBroadcast,
+  driverMatchesRequestedCategory,
+  normalizeRequestedDriverCategory,
+} from './driverCategory';
 import type { BookingScheduleInput } from './driverSchedules';
 import {
   estimateBookingBusyWindow,
@@ -10,6 +16,7 @@ import {
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
+import { formatTourBookingNotificationBody } from './tourDays';
 import { supabase } from './supabase';
 import {
   normalizeVehicleClass,
@@ -183,6 +190,7 @@ export async function fetchMatchingDriverPushRecipients(
   bookingVehicleClass: string | null | undefined,
   availability?: BookingScheduleInput | null,
   requiredLanguages?: string[] | null,
+  driverCategory?: RequestedDriverCategory | null,
 ): Promise<{
   recipients: DriverPushRecipient[];
   error: Error | null;
@@ -193,6 +201,7 @@ export async function fetchMatchingDriverPushRecipients(
     bookingVehicleType,
     bookingVehicleClass ?? '',
   );
+  const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
 
   if (!vehicleType) {
     return {
@@ -242,7 +251,10 @@ export async function fetchMatchingDriverPushRecipients(
       .select('id, push_token, is_verified')
       .in('id', driverIds)
       .not('push_token', 'is', null),
-    supabase.from('users').select('id, is_verified, languages').in('id', driverIds),
+    supabase
+      .from('users')
+      .select('id, is_verified, languages, is_hired_driver, is_guide_driver')
+      .in('id', driverIds),
   ]);
 
   if (profilesRes.error) {
@@ -252,14 +264,28 @@ export async function fetchMatchingDriverPushRecipients(
 
   const usersVerified = new Map<string, boolean>();
   const userLanguages = new Map<string, string[]>();
+  const userById = new Map<
+    string,
+    { is_hired_driver?: boolean | null; is_guide_driver?: boolean | null }
+  >();
   for (const row of usersRes.data ?? []) {
-    const u = row as { id: string; is_verified?: boolean | null; languages?: string[] | null };
+    const u = row as {
+      id: string;
+      is_verified?: boolean | null;
+      languages?: string[] | null;
+      is_hired_driver?: boolean | null;
+      is_guide_driver?: boolean | null;
+    };
     const uid = String(u.id);
     usersVerified.set(uid, u.is_verified === true);
     userLanguages.set(
       uid,
       Array.isArray(u.languages) ? u.languages.filter((x) => typeof x === 'string') : [],
     );
+    userById.set(uid, {
+      is_hired_driver: u.is_hired_driver,
+      is_guide_driver: u.is_guide_driver,
+    });
   }
 
   let matchedRows = (profilesRes.data ?? [])
@@ -267,6 +293,9 @@ export async function fetchMatchingDriverPushRecipients(
     .filter((row) => {
       const verified = row.is_verified === true || usersVerified.get(row.id) === true;
       if (!verified) return false;
+      const userRow = userById.get(row.id) ?? {};
+      if (!driverEligibleForOpenJobBroadcast(userRow)) return false;
+      if (!driverMatchesRequestedCategory(userRow, category)) return false;
       return driverMatchesRequiredLanguages(userLanguages.get(row.id), requiredLanguages);
     });
 
@@ -363,6 +392,10 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   availability?: BookingScheduleInput | null;
   /** When set, only drivers who speak at least one of these languages are notified. */
   requiredLanguages?: string[] | null;
+  /** Open-job filter stored on the booking (`all` | `guide` | `own_vehicle`). */
+  requestedDriverCategory?: RequestedDriverCategory | null;
+  /** Extra lines appended to push body (e.g. multi-day tour itinerary). */
+  detailBody?: string | null;
 }): Promise<NotifyMatchingDriversResult> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     params.vehicleType,
@@ -403,6 +436,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
         vehicleClass,
         params.availability,
         params.requiredLanguages,
+        params.requestedDriverCategory,
       );
 
   if (error) {
@@ -429,7 +463,9 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   }
 
   const kindNorm = normalizePushBookingKind(params.kind);
-  const { title, body } = getNewBookingNotificationContent(kindNorm);
+  const { title, body: baseBody } = getNewBookingNotificationContent(kindNorm);
+  const detail = params.detailBody?.trim();
+  const body = detail ? `${baseBody}\n${detail}` : baseBody;
   const data: Record<string, string> = {
     type: 'new_booking',
     booking_kind: kindNorm,
@@ -516,6 +552,54 @@ export async function notifyCompanyBookingAccepted(params: {
   if (!res.ok && __DEV__) console.warn('[notify] booking_accepted push failed:', res.error);
 }
 
+/** Driver cancelled an accepted / in-progress booking — notify company. */
+export async function notifyCompanyDriverCancelledBooking(params: {
+  companyUserId: string;
+  bookingId: string;
+  driverName?: string;
+  routeSummary?: string;
+}): Promise<void> {
+  const companyUserId = params.companyUserId.trim();
+  const bookingId = params.bookingId.trim();
+  if (!companyUserId || !bookingId) return;
+
+  const title = notifyT('notifications.driverCancelledTitle', 'KEKE · Booking cancelled');
+  const driverLine = params.driverName?.trim()
+    ? notifyT('notifications.driverCancelledBy', 'Driver {{name}} cancelled the booking').replace(
+        '{{name}}',
+        params.driverName.trim(),
+      )
+    : notifyT('notifications.driverCancelledBody', 'The driver cancelled the booking');
+  const body = [driverLine, params.routeSummary?.trim()].filter(Boolean).join('\n');
+
+  const pushData: Record<string, string> = {
+    type: 'booking_driver_cancelled',
+    booking_id: bookingId,
+  };
+
+  await insertInAppNotifications([
+    {
+      user_id: companyUserId,
+      type: 'booking_driver_cancelled',
+      title,
+      body,
+      data: { ...pushData },
+    },
+  ]);
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('push_token')
+    .eq('id', companyUserId)
+    .maybeSingle();
+
+  const token = (profile as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  if (!token) return;
+
+  const res = await sendExpoPushNotification(token, title, body, pushData);
+  if (!res.ok && __DEV__) console.warn('[notify] driver_cancelled push failed:', res.error);
+}
+
 /** Push copy for chat messages. */
 export function getChatMessageNotificationContent(senderName: string, preview: string) {
   const name = senderName.trim() || notifyT('common.newMessage', 'New message');
@@ -529,11 +613,90 @@ export function getChatMessageNotificationContent(senderName: string, preview: s
  * Push a chat message to the receiver's device.
  * Chat is universal: skips verification check, only requires a stored push token.
  */
+/** Voucher + route summary when company assigns a driver on create. */
+export async function notifyBookingVoucherCreated(params: {
+  bookingId: string;
+  driverUserId: string;
+  companyUserId: string;
+  voucherCode: string;
+  kind?: string | null;
+  route?: string | null;
+  from_location?: string | null;
+  to_location?: string | null;
+  tour_days?: unknown;
+  transfer_in?: unknown;
+  transfer_out?: unknown;
+}): Promise<void> {
+  const bookingId = params.bookingId.trim();
+  const driverId = params.driverUserId.trim();
+  const companyId = params.companyUserId.trim();
+  const code = params.voucherCode.trim();
+  if (!bookingId || !driverId || !code) return;
+
+  const routeLine =
+    params.route?.trim() ||
+    [params.from_location, params.to_location].filter((x) => x?.trim()).join(' → ') ||
+    '';
+  const tourDetail =
+    normalizePushBookingKind(params.kind) === 'tour' ||
+    normalizePushBookingKind(params.kind) === 'day_tour'
+      ? formatTourBookingNotificationBody({
+          tour_days: params.tour_days as Parameters<typeof formatTourBookingNotificationBody>[0]['tour_days'],
+          transfer_in: params.transfer_in as Parameters<typeof formatTourBookingNotificationBody>[0]['transfer_in'],
+          transfer_out: params.transfer_out as Parameters<typeof formatTourBookingNotificationBody>[0]['transfer_out'],
+        })
+      : '';
+
+  const lines = [
+    notifyT('notifications.voucherBodyPrefix', `Voucher ${code}`),
+    routeLine,
+    tourDetail,
+  ].filter(Boolean);
+  const body = lines.join('\n').slice(0, 900);
+  const title = notifyT('notifications.voucherTitle', 'KEKE · Voucher');
+  const data: Record<string, unknown> = {
+    type: 'booking_voucher',
+    booking_id: bookingId,
+    voucher_code: code,
+  };
+
+  await insertInAppNotifications([
+    { user_id: driverId, type: 'booking_voucher', title, body, data },
+    ...(companyId
+      ? [{ user_id: companyId, type: 'booking_voucher', title, body, data }]
+      : []),
+  ]);
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, push_token')
+    .in('id', [driverId, companyId].filter(Boolean));
+
+  const pushData: Record<string, string> = {
+    type: 'booking_voucher',
+    booking_id: bookingId,
+    voucher_code: code,
+  };
+
+  const tokens = [
+    ...new Set(
+      ((profiles ?? []) as { id: string; push_token?: string | null }[])
+        .map((p) => p.push_token?.trim())
+        .filter((t): t is string => !!t),
+    ),
+  ];
+  if (tokens.length > 0) {
+    await sendExpoPushToMany(tokens, title, body, pushData);
+  }
+}
+
 export async function notifyChatMessageRecipient(params: {
   receiverUserId: string;
   senderUserId: string;
   senderName: string;
   messageText: string;
+  bookingId?: string;
+  threadType?: string;
 }): Promise<{ ok: boolean; error: string | null }> {
   const receiverId = String(params.receiverUserId ?? '').trim();
   const senderId = String(params.senderUserId ?? '').trim();
@@ -558,6 +721,12 @@ export async function notifyChatMessageRecipient(params: {
     type: 'chat_message',
     sender_id: senderId,
   };
+  if (params.bookingId?.trim()) {
+    pushDataStr.booking_id = params.bookingId.trim();
+  }
+  if (params.threadType?.trim()) {
+    pushDataStr.thread_type = params.threadType.trim();
+  }
   await insertInAppNotifications([
     {
       user_id: receiverId,
@@ -580,4 +749,68 @@ export async function notifyChatMessageRecipient(params: {
     return { ok: false, error: res.error };
   }
   return { ok: true, error: null };
+}
+
+function formatBookingUpdateBody(
+  diff: Record<string, { old: string; new: string; label: string }>,
+): string {
+  const lines = Object.values(diff)
+    .slice(0, 6)
+    .map((d) => `${d.label}: ${d.old} → ${d.new}`);
+  return lines.join('\n') || notifyT('notifications.bookingUpdatedBody', 'Company updated booking details');
+}
+
+async function pushBookingUpdatedToUser(
+  userId: string,
+  bookingId: string,
+  diff: Record<string, { old: string; new: string; label: string }>,
+): Promise<void> {
+  const uid = userId.trim();
+  const bid = bookingId.trim();
+  if (!uid || !bid) return;
+
+  const title = notifyT('notifications.bookingUpdatedTitle', '📝 Booking updated');
+  const body = formatBookingUpdateBody(diff);
+  const pushData: Record<string, string> = {
+    type: 'booking_updated',
+    booking_id: bid,
+  };
+
+  await insertInAppNotifications([
+    {
+      user_id: uid,
+      type: 'booking_updated',
+      title,
+      body,
+      data: { ...pushData, changes_json: JSON.stringify(diff) },
+    },
+  ]);
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('push_token')
+    .eq('id', uid)
+    .maybeSingle();
+
+  const token = (profile as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  if (!token) return;
+
+  const res = await sendExpoPushNotification(token, title, body, pushData);
+  if (!res.ok && __DEV__) console.warn('[notify] booking_updated push failed:', res.error);
+}
+
+export async function notifyDriverBookingUpdated(
+  driverId: string,
+  bookingId: string,
+  changes: Record<string, { old: string; new: string; label: string }>,
+): Promise<void> {
+  await pushBookingUpdatedToUser(driverId, bookingId, changes);
+}
+
+export async function notifyHostBookingUpdated(
+  hostDriverId: string,
+  bookingId: string,
+  changes: Record<string, { old: string; new: string; label: string }>,
+): Promise<void> {
+  await pushBookingUpdatedToUser(hostDriverId, bookingId, changes);
 }

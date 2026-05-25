@@ -1,3 +1,4 @@
+import type { ChatThreadType, ParticipantRole } from './bookingChat';
 import { notifyChatMessageRecipient } from './notifications';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
@@ -10,6 +11,9 @@ export type MessageRow = {
   sender_id: string;
   receiver_id: string;
   booking_id: string | null;
+  thread_type?: ChatThreadType | null;
+  sender_participant_role?: ParticipantRole | null;
+  receiver_participant_role?: ParticipantRole | null;
   text: string;
   is_read: boolean;
   created_at: string;
@@ -27,14 +31,22 @@ export type ConversationRow = {
 export async function fetchMessages(
   userId: string,
   otherUserId: string,
+  options?: { bookingId?: string; threadType?: ChatThreadType },
 ): Promise<{ data: MessageRow[]; error: Error | null }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('messages')
     .select('*')
     .or(
       `and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`,
-    )
-    .order('created_at', { ascending: true });
+    );
+
+  const bookingId = options?.bookingId?.trim();
+  const threadType = options?.threadType;
+  if (bookingId && threadType) {
+    query = query.eq('booking_id', bookingId).eq('thread_type', threadType);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: true });
   if (error) return { data: [], error: new Error(error.message) };
   return { data: (data ?? []) as MessageRow[], error: null };
 }
@@ -56,6 +68,9 @@ export async function sendMessage(params: {
   receiverId: string;
   text: string;
   bookingId?: string | null;
+  threadType?: ChatThreadType | null;
+  senderRole?: ParticipantRole | null;
+  receiverRole?: ParticipantRole | null;
   /** Display name used in push notification; resolved from `users` when omitted. */
   senderName?: string;
 }): Promise<{ data: MessageRow | null; error: Error | null }> {
@@ -67,6 +82,9 @@ export async function sendMessage(params: {
       receiver_id: params.receiverId,
       text,
       booking_id: params.bookingId ?? null,
+      thread_type: params.threadType ?? null,
+      sender_participant_role: params.senderRole ?? null,
+      receiver_participant_role: params.receiverRole ?? null,
     })
     .select()
     .single();
@@ -81,6 +99,8 @@ export async function sendMessage(params: {
         senderUserId: params.senderId,
         senderName,
         messageText: text,
+        bookingId: params.bookingId ?? undefined,
+        threadType: params.threadType ?? undefined,
       });
     } catch (e) {
       if (__DEV__) {
@@ -95,13 +115,21 @@ export async function sendMessage(params: {
 export async function markMessagesRead(
   userId: string,
   otherUserId: string,
+  options?: { bookingId?: string; threadType?: ChatThreadType },
 ): Promise<void> {
-  await supabase
+  let query = supabase
     .from('messages')
     .update({ is_read: true })
     .eq('receiver_id', userId)
     .eq('sender_id', otherUserId)
     .eq('is_read', false);
+
+  const bookingId = options?.bookingId?.trim();
+  if (bookingId && options?.threadType) {
+    query = query.eq('booking_id', bookingId).eq('thread_type', options.threadType);
+  }
+
+  await query;
 }
 
 async function mergeChatPartnersFromBookings(
@@ -203,17 +231,26 @@ export function subscribeToMessages(
   userId: string,
   otherUserId: string,
   onIncoming: (msg: MessageRow) => void,
+  options?: { bookingId?: string; threadType?: ChatThreadType },
 ) {
+  const bookingId = options?.bookingId?.trim();
+  const threadType = options?.threadType;
+  const channelKey = bookingId && threadType
+    ? `msgs-${bookingId}-${threadType}`
+    : `msgs-${[userId, otherUserId].sort().join('-')}`;
+
   return supabase
-    .channel(`msgs-${[userId, otherUserId].sort().join('-')}`)
+    .channel(channelKey)
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages' },
       (payload) => {
         const msg = payload.new as MessageRow;
-        if (msg.sender_id === otherUserId && msg.receiver_id === userId) {
-          onIncoming(msg);
+        if (msg.sender_id !== otherUserId || msg.receiver_id !== userId) return;
+        if (bookingId && threadType) {
+          if (msg.booking_id !== bookingId || msg.thread_type !== threadType) return;
         }
+        onIncoming(msg);
       },
     )
     .subscribe();

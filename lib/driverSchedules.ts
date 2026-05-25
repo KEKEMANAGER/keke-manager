@@ -1,8 +1,7 @@
+import type { ItineraryDay, TourDayPersisted, TourTransferLeg } from './bookings';
 import { parseStoredDateTime, toIsoString } from './dateTime';
 import { supabase } from './supabase';
-
-type ItineraryDay = { day: number; from: string; to: string; stops: string };
-type TourTransferLeg = { date: string; flight: string; passengerName: string };
+import { parseDateOnly } from './tourDays';
 
 function normalizeScheduleKind(kind: string): 'transfer' | 'tour' | 'day_tour' {
   const k = String(kind).trim().toLowerCase();
@@ -38,6 +37,7 @@ export type BookingScheduleInput = {
   kind: string;
   date_display?: string | null;
   itinerary?: ItineraryDay[] | null;
+  tour_days?: TourDayPersisted[] | null;
   transfer_in?: TourTransferLeg | null;
   transfer_out?: TourTransferLeg | null;
 };
@@ -83,6 +83,10 @@ export function estimateBookingBusyWindow(input: BookingScheduleInput): BusyTime
 
   if (transferOutStart && transferOutStart.getTime() > start.getTime()) {
     end = new Date(transferOutStart.getTime() + TOUR_DAY_DURATION_MS);
+  } else if (input.tour_days?.length) {
+    const last = input.tour_days[input.tour_days.length - 1];
+    const lastDate = parseDateOnly(last.date) ?? start;
+    end = new Date(lastDate.getTime() + TOUR_DAY_DURATION_MS);
   } else if (input.itinerary?.length) {
     const days = Math.max(1, input.itinerary.length);
     end = new Date(start.getTime() + days * TOUR_DAY_DURATION_MS);

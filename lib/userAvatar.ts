@@ -1,11 +1,15 @@
 import { storagePublicUrlBase } from './mediaUpload';
+import { resolveProfileAvatarUrl } from './profileAvatar';
 import { supabase } from './supabase';
 
 export async function fetchUserAvatarUrl(userId: string): Promise<string | null> {
-  const { data, error } = await supabase.from('users').select('avatar_url').eq('id', userId).maybeSingle();
-  if (error || !data) return null;
-  const u = data as { avatar_url?: string | null };
-  return typeof u.avatar_url === 'string' && u.avatar_url.startsWith('http') ? u.avatar_url : null;
+  const [profileRes, userRes] = await Promise.all([
+    supabase.from('profiles').select('avatar_url').eq('id', userId).maybeSingle(),
+    supabase.from('users').select('avatar_url').eq('id', userId).maybeSingle(),
+  ]);
+  const profile = profileRes.data as { avatar_url?: string | null } | null;
+  const user = userRes.data as { avatar_url?: string | null } | null;
+  return resolveProfileAvatarUrl(profile?.avatar_url, user?.avatar_url);
 }
 
 export async function saveUserAvatarUrl(userId: string, publicUrl: string) {
@@ -19,6 +23,7 @@ export async function saveUserAvatarUrl(userId: string, publicUrl: string) {
   if (error) return { error };
 
   if (data && data.length > 0) {
+    await supabase.from('profiles').upsert({ id: userId, avatar_url: cleanUrl }, { onConflict: 'id' });
     return { error: null };
   }
 
@@ -29,5 +34,8 @@ export async function saveUserAvatarUrl(userId: string, publicUrl: string) {
     full_name: null,
     email: null,
   });
+  if (!ins.error) {
+    await supabase.from('profiles').upsert({ id: userId, avatar_url: cleanUrl }, { onConflict: 'id' });
+  }
   return { error: ins.error };
 }

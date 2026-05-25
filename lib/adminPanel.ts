@@ -9,6 +9,7 @@ export type AdminUserRow = {
   email: string | null;
   role: KekeRole | string | null;
   is_hired_driver: boolean | null;
+  is_guide_driver: boolean | null;
   is_blocked: boolean | null;
   is_verified: boolean | null;
   verification_status: string | null;
@@ -28,7 +29,7 @@ export type AdminStats = {
 };
 
 const USER_LIST_SELECT =
-  'id, full_name, email, role, is_hired_driver, is_blocked, is_verified, verification_status, created_at';
+  'id, full_name, email, role, is_hired_driver, is_guide_driver, is_blocked, is_verified, verification_status, created_at';
 
 export async function fetchAdminUsers(): Promise<{ data: AdminUserRow[]; error: Error | null }> {
   const { data, error } = await supabase

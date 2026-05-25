@@ -1,12 +1,16 @@
 import type { DriverLocationRow } from './locations';
+import { notifyFleetInviteToSub } from './fleetNotifications';
 import { supabase } from './supabase';
 import type { VehicleRow } from './vehicles';
+
+export type FleetInviteStatus = 'pending' | 'accepted' | 'rejected';
 
 export type DriverFleetRow = {
   id: string;
   host_driver_id: string;
   sub_driver_id: string;
   vehicle_id: string;
+  status: FleetInviteStatus;
   created_at: string;
 };
 
@@ -18,6 +22,11 @@ export type FleetMemberView = DriverFleetRow & {
     'id' | 'model' | 'plate' | 'type' | 'class' | 'is_active' | 'photo_front'
   > | null;
   location: DriverLocationRow | null;
+};
+
+export type FleetInviteView = DriverFleetRow & {
+  host_full_name: string | null;
+  vehicle: Pick<VehicleRow, 'id' | 'model' | 'plate' | 'type' | 'class'> | null;
 };
 
 export type FleetSubContext = {
@@ -32,6 +41,7 @@ export type FleetSubContext = {
 export type FleetHostContext = {
   kind: 'host';
   memberCount: number;
+  pendingCount: number;
 };
 
 export type FleetContext =
@@ -41,6 +51,23 @@ export type FleetContext =
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function fleetStatus(row: { status?: string | null }): FleetInviteStatus {
+  const s = row.status?.trim().toLowerCase();
+  if (s === 'pending' || s === 'rejected') return s;
+  return 'accepted';
+}
+
+function isMissingFleetStatusColumn(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('status') &&
+    (m.includes('schema cache') ||
+      m.includes('could not find') ||
+      m.includes('column') ||
+      m.includes('does not exist'))
+  );
+}
 
 /** Resolve driver user id from email or uuid string. */
 export async function resolveDriverUserId(
@@ -63,15 +90,16 @@ export async function resolveDriverUserId(
   return { userId: (data as { id: string }).id, error: null };
 }
 
-/** Sub / hired driver: host-assigned vehicle from `driver_fleet`. */
+/** Sub / hired driver: host-assigned vehicle from accepted `driver_fleet`. */
 export async function fetchFleetContext(driverId: string): Promise<FleetContext> {
   const id = driverId.trim();
   if (!id) return { kind: 'none' };
 
   const { data: subRow, error: fleetErr } = await supabase
     .from('driver_fleet')
-    .select('id, host_driver_id, vehicle_id')
+    .select('id, host_driver_id, vehicle_id, status')
     .eq('sub_driver_id', id)
+    .eq('status', 'accepted')
     .maybeSingle();
 
   if (fleetErr && __DEV__) {
@@ -103,30 +131,57 @@ export async function fetchFleetContext(driverId: string): Promise<FleetContext>
     };
   }
 
-  const { count } = await supabase
-    .from('driver_fleet')
-    .select('id', { count: 'exact', head: true })
-    .eq('host_driver_id', id);
+  const [{ count: acceptedCount }, { count: pendingCount }] = await Promise.all([
+    supabase
+      .from('driver_fleet')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_driver_id', id)
+      .eq('status', 'accepted'),
+    supabase
+      .from('driver_fleet')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_driver_id', id)
+      .eq('status', 'pending'),
+  ]);
 
-  if ((count ?? 0) > 0) {
-    return { kind: 'host', memberCount: count ?? 0 };
+  const members = (acceptedCount ?? 0) + (pendingCount ?? 0);
+  if (members > 0) {
+    return {
+      kind: 'host',
+      memberCount: acceptedCount ?? 0,
+      pendingCount: pendingCount ?? 0,
+    };
   }
 
   return { kind: 'none' };
 }
 
-export async function fetchFleetForHost(hostDriverId: string): Promise<{
+export async function fetchFleetForHost(
+  hostDriverId: string,
+  opts?: { includePending?: boolean },
+): Promise<{
   data: FleetMemberView[];
   error: Error | null;
 }> {
-  const { data: rows, error } = await supabase
+  let query = supabase
     .from('driver_fleet')
-    .select('id, host_driver_id, sub_driver_id, vehicle_id, created_at')
+    .select('id, host_driver_id, sub_driver_id, vehicle_id, status, created_at')
     .eq('host_driver_id', hostDriverId)
     .order('created_at', { ascending: false });
 
+  if (!opts?.includePending) {
+    query = query.eq('status', 'accepted');
+  } else {
+    query = query.in('status', ['pending', 'accepted']);
+  }
+
+  const { data: rows, error } = await query;
+
   if (error) return { data: [], error: new Error(error.message) };
-  const fleet = (rows ?? []) as DriverFleetRow[];
+  const fleet = (rows ?? []).map((r) => ({
+    ...(r as DriverFleetRow),
+    status: fleetStatus(r as { status?: string }),
+  }));
   if (fleet.length === 0) return { data: [], error: null };
 
   const subIds = fleet.map((f) => f.sub_driver_id);
@@ -160,14 +215,83 @@ export async function fetchFleetForHost(hostDriverId: string): Promise<{
         sub_full_name: u?.full_name ?? null,
         sub_email: u?.email ?? null,
         vehicle: vehicleMap.get(f.vehicle_id) ?? null,
-        location: locMap.get(f.sub_driver_id) ?? null,
+        location: f.status === 'accepted' ? locMap.get(f.sub_driver_id) ?? null : null,
       };
     }),
     error: null,
   };
 }
 
-/** Host + all sub-driver ids in fleet (for company map). */
+/** Accepted fleet members only (for booking assignment). */
+export async function fetchAcceptedFleetMembersForHost(hostDriverId: string): Promise<{
+  data: FleetMemberView[];
+  error: Error | null;
+}> {
+  return fetchFleetForHost(hostDriverId, { includePending: false });
+}
+
+/** Pending fleet invites for sub driver dashboard. */
+export async function fetchPendingFleetInvitesForSub(subDriverId: string): Promise<{
+  data: FleetInviteView[];
+  error: Error | null;
+}> {
+  const id = subDriverId.trim();
+  if (!id) return { data: [], error: null };
+
+  const baseCols = 'id, host_driver_id, sub_driver_id, vehicle_id, created_at';
+  let fleet: DriverFleetRow[] = [];
+
+  const withStatus = await supabase
+    .from('driver_fleet')
+    .select(`${baseCols}, status`)
+    .eq('sub_driver_id', id)
+    .order('created_at', { ascending: false });
+
+  if (!withStatus.error) {
+    fleet = ((withStatus.data ?? []) as DriverFleetRow[]).filter(
+      (r) => fleetStatus(r) === 'pending',
+    );
+  } else if (isMissingFleetStatusColumn(withStatus.error.message)) {
+    return {
+      data: [],
+      error: new Error(
+        'driver_fleet.status საჭიროა — გაუშვი მიგრაცია 20260626180000_driver_fleet_status_and_booking_host.sql',
+      ),
+    };
+  } else {
+    return { data: [], error: new Error(withStatus.error.message) };
+  }
+
+  if (fleet.length === 0) return { data: [], error: null };
+
+  const hostIds = [...new Set(fleet.map((f) => f.host_driver_id))];
+  const vehicleIds = fleet.map((f) => f.vehicle_id);
+
+  const [{ data: hosts }, { data: vehicles }] = await Promise.all([
+    supabase.from('users').select('id, full_name').in('id', hostIds),
+    supabase
+      .from('vehicles')
+      .select('id, model, plate, type, class')
+      .in('id', vehicleIds),
+  ]);
+
+  type H = { id: string; full_name: string | null };
+  type V = FleetInviteView['vehicle'];
+  const hostMap = new Map((hosts as H[] ?? []).map((h) => [h.id, h.full_name]));
+  const vehicleMap = new Map((vehicles as V[] ?? []).map((v) => [v!.id, v]));
+
+  return {
+    data: fleet.map((f) => ({
+      ...f,
+      status: 'pending' as const,
+      host_full_name: hostMap.get(f.host_driver_id) ?? null,
+      vehicle: vehicleMap.get(f.vehicle_id) ?? null,
+    })),
+    error: null,
+  };
+}
+
+/** Host + accepted sub-driver ids (for company map). */
 export async function fetchFleetDriverIdsAround(driverId: string): Promise<string[]> {
   const id = driverId.trim();
   if (!id) return [];
@@ -175,7 +299,8 @@ export async function fetchFleetDriverIdsAround(driverId: string): Promise<strin
   const { data: asHost } = await supabase
     .from('driver_fleet')
     .select('sub_driver_id')
-    .eq('host_driver_id', id);
+    .eq('host_driver_id', id)
+    .eq('status', 'accepted');
 
   if (asHost?.length) {
     const subs = (asHost as { sub_driver_id: string }[]).map((r) => r.sub_driver_id);
@@ -186,6 +311,7 @@ export async function fetchFleetDriverIdsAround(driverId: string): Promise<strin
     .from('driver_fleet')
     .select('host_driver_id')
     .eq('sub_driver_id', id)
+    .eq('status', 'accepted')
     .maybeSingle();
 
   if (subRow) {
@@ -193,15 +319,18 @@ export async function fetchFleetDriverIdsAround(driverId: string): Promise<strin
     const { data: siblings } = await supabase
       .from('driver_fleet')
       .select('sub_driver_id')
-      .eq('host_driver_id', hostId);
-    const subs = (siblings as { sub_driver_id: string }[] | null)?.map((r) => r.sub_driver_id) ?? [];
+      .eq('host_driver_id', hostId)
+      .eq('status', 'accepted');
+    const subs =
+      (siblings as { sub_driver_id: string }[] | null)?.map((r) => r.sub_driver_id) ?? [];
     return [hostId, ...subs];
   }
 
   return [id];
 }
 
-export async function assignSubDriverToVehicle(
+/** Host sends invite — `driver_fleet.status` = pending (sub must accept). */
+export async function sendFleetInvite(
   hostDriverId: string,
   vehicleId: string,
   subDriverId: string,
@@ -222,37 +351,132 @@ export async function assignSubDriverToVehicle(
     return { data: null, error: new Error('მანქანა ვერ მოიძებნა ან თქვენზე არ არის') };
   }
 
+  const { data: subUser } = await supabase
+    .from('users')
+    .select('id, is_hired_driver, is_verified')
+    .eq('id', subDriverId)
+    .maybeSingle();
+
+  if (!subUser) return { data: null, error: new Error('მძღოლი ვერ მოიძებნა') };
+  const sub = subUser as { is_hired_driver?: boolean; is_verified?: boolean };
+  if (!sub.is_hired_driver) {
+    return { data: null, error: new Error('მხოლოდ დაქირავებული მძღოლი შეიძლება მოწვეულ იქნას') };
+  }
+  if (!sub.is_verified) {
+    return { data: null, error: new Error('მძღოლი უნდა იყოს verified') };
+  }
+
+  const { data: existing } = await supabase
+    .from('driver_fleet')
+    .select('id, host_driver_id, status')
+    .eq('sub_driver_id', subDriverId)
+    .maybeSingle();
+
+  if (existing) {
+    const ex = existing as { id: string; host_driver_id: string; status?: string };
+    const st = fleetStatus(ex);
+    if (st === 'accepted') {
+      return { data: null, error: new Error('მძღოლი უკვე დასაქმებულია სხვა ჰოსტთან') };
+    }
+    if (st === 'pending' && ex.host_driver_id !== hostDriverId) {
+      return { data: null, error: new Error('მძღოლს უკვე აქვს სხვა ჰოსტის მოწვევა') };
+    }
+    const { data, error } = await supabase
+      .from('driver_fleet')
+      .update({ vehicle_id: vehicleId, status: 'pending', host_driver_id: hostDriverId })
+      .eq('id', ex.id)
+      .select('id, host_driver_id, sub_driver_id, vehicle_id, status, created_at')
+      .maybeSingle();
+    if (error) return { data: null, error: new Error(error.message) };
+    const row = data as DriverFleetRow;
+    void notifyFleetInviteToSub({ subDriverId, hostDriverId, fleetId: row.id });
+    return { data: row, error: null };
+  }
+
   const { data, error } = await supabase
     .from('driver_fleet')
-    .upsert(
-      {
-        host_driver_id: hostDriverId,
-        sub_driver_id: subDriverId,
-        vehicle_id: vehicleId,
-      },
-      { onConflict: 'vehicle_id' },
-    )
-    .select('id, host_driver_id, sub_driver_id, vehicle_id, created_at')
+    .insert({
+      host_driver_id: hostDriverId,
+      sub_driver_id: subDriverId,
+      vehicle_id: vehicleId,
+      status: 'pending',
+    })
+    .select('id, host_driver_id, sub_driver_id, vehicle_id, status, created_at')
     .maybeSingle();
 
   if (error) return { data: null, error: new Error(error.message) };
 
-  await supabase
-    .from('users')
-    .update({ available_for_hire: false })
-    .eq('id', subDriverId);
+  const row = data as DriverFleetRow;
+  void notifyFleetInviteToSub({ subDriverId, hostDriverId, fleetId: row.id });
+  return { data: row, error: null };
+}
 
-  return { data: data as DriverFleetRow | null, error: null };
+/** Sub accepts or rejects a pending fleet invite. */
+export async function respondToFleetInvite(
+  subDriverId: string,
+  fleetId: string,
+  accept: boolean,
+): Promise<{ error: Error | null }> {
+  const { data: row, error: fetchErr } = await supabase
+    .from('driver_fleet')
+    .select('id, status, sub_driver_id')
+    .eq('id', fleetId)
+    .eq('sub_driver_id', subDriverId)
+    .maybeSingle();
+
+  if (fetchErr) return { error: new Error(fetchErr.message) };
+  if (!row) return { error: new Error('მოწვევა ვერ მოიძებნა') };
+  if (fleetStatus(row as { status?: string }) !== 'pending') {
+    return { error: new Error('მოწვევა უკვე განხილულია') };
+  }
+
+  if (!accept) {
+    const { error } = await supabase.from('driver_fleet').delete().eq('id', fleetId);
+    return { error: error ? new Error(error.message) : null };
+  }
+
+  const { error } = await supabase
+    .from('driver_fleet')
+    .update({ status: 'accepted' })
+    .eq('id', fleetId);
+
+  if (error) return { error: new Error(error.message) };
+
+  await supabase.from('users').update({ available_for_hire: false }).eq('id', subDriverId);
+  return { error: null };
+}
+
+/** @deprecated Use sendFleetInvite — immediate assign without accept step. */
+export async function assignSubDriverToVehicle(
+  hostDriverId: string,
+  vehicleId: string,
+  subDriverId: string,
+): Promise<{ data: DriverFleetRow | null; error: Error | null }> {
+  return sendFleetInvite(hostDriverId, vehicleId, subDriverId);
 }
 
 export async function removeFleetMember(
   fleetId: string,
   hostDriverId: string,
 ): Promise<{ error: Error | null }> {
+  const { data: row } = await supabase
+    .from('driver_fleet')
+    .select('sub_driver_id, status')
+    .eq('id', fleetId)
+    .eq('host_driver_id', hostDriverId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from('driver_fleet')
     .delete()
     .eq('id', fleetId)
     .eq('host_driver_id', hostDriverId);
-  return { error: error ? new Error(error.message) : null };
+
+  if (error) return { error: new Error(error.message) };
+
+  const subId = (row as { sub_driver_id?: string } | null)?.sub_driver_id?.trim();
+  if (subId) {
+    await supabase.from('users').update({ available_for_hire: true }).eq('id', subId);
+  }
+  return { error: null };
 }

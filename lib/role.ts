@@ -20,3 +20,10 @@ export function hasCompleteRole(profile: Profile | null | undefined): boolean {
 export function isHiredDriver(profile: Profile | null | undefined): boolean {
   return profile?.is_hired_driver === true;
 }
+
+export {
+  resolveAppMenuRole,
+  isFreelanceDriver,
+  isHostDriver,
+  type AppMenuRole,
+} from './menuRole';

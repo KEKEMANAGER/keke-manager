@@ -1,6 +1,6 @@
-import { useCallback, useId, useMemo, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { formatDisplayDateTime, formatDisplayTime } from '../lib/dateTime';
+import { createElement, useCallback, useId, useMemo } from 'react';
+import type { ChangeEvent, CSSProperties } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
@@ -42,17 +42,16 @@ function fromInputValue(raw: string, mode: 'datetime' | 'time'): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function openNativePicker(input: HTMLInputElement | null) {
-  if (!input) return;
+function openPicker(el: HTMLInputElement) {
   try {
-    if (typeof input.showPicker === 'function') {
-      input.showPicker();
+    if (typeof el.showPicker === 'function') {
+      el.showPicker();
       return;
     }
   } catch {
-    // Safari / older browsers
+    // Safari may throw without a direct user gesture
   }
-  input.click();
+  el.focus();
 }
 
 export function DateTimeField({
@@ -65,47 +64,62 @@ export function DateTimeField({
 }: Props) {
   const { t } = useTranslation();
   const resolvedPlaceholder = placeholder ?? t('dateTimeField.default');
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const inputId = useId();
 
-  const displayText = useMemo(() => {
-    if (!value) return '';
-    return mode === 'time' ? formatDisplayTime(value) : formatDisplayDateTime(value);
-  }, [value, mode]);
-
+  const inputValue = useMemo(() => toInputValue(value, mode), [value, mode]);
   const minAttr = useMemo(() => toMinAttribute(minimumDate, mode), [minimumDate, mode]);
 
-  const handleOpen = useCallback(() => {
-    openNativePicker(inputRef.current);
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      onChange(fromInputValue(e.target.value, mode));
+    },
+    [mode, onChange],
+  );
+
+  const handleActivate = useCallback((e: { currentTarget: HTMLInputElement }) => {
+    openPicker(e.currentTarget);
   }, []);
+
+  const inputStyle = useMemo((): CSSProperties => {
+    const hasValue = Boolean(inputValue);
+    return {
+      width: '100%',
+      boxSizing: 'border-box',
+      display: 'block',
+      margin: 0,
+      backgroundColor: COLORS.white,
+      border: '1px solid #E5E7EB',
+      borderRadius: RADIUS.input,
+      padding: '14px 16px',
+      minHeight: 48,
+      fontSize: 16,
+      fontWeight: hasValue ? 500 : 400,
+      color: hasValue ? COLORS.text : COLORS.textMuted,
+      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      cursor: 'pointer',
+      WebkitAppearance: 'none',
+      appearance: 'none',
+    };
+  }, [inputValue]);
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.label} nativeID={`${inputId}-label`}>
         {label}
       </Text>
-      <Pressable
-        onPress={handleOpen}
-        style={({ pressed }) => [styles.inputWrap, pressed && styles.inputPressed]}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-      >
-        <Text style={[styles.valueText, !displayText && styles.placeholderText]}>
-          {displayText || resolvedPlaceholder}
-        </Text>
-      </Pressable>
-      {/* Hidden native picker — Pressable triggers showPicker()/click (RN Web blocks overlay taps). */}
-      <input
-        id={inputId}
-        ref={inputRef}
-        type={mode === 'time' ? 'time' : 'datetime-local'}
-        value={toInputValue(value, mode)}
-        min={minAttr}
-        aria-labelledby={`${inputId}-label`}
-        onChange={(e) => onChange(fromInputValue(e.target.value, mode))}
-        style={styles.hiddenInput}
-        tabIndex={-1}
-      />
+      {createElement('input', {
+        id: inputId,
+        type: mode === 'time' ? 'time' : 'datetime-local',
+        value: inputValue,
+        min: minAttr,
+        'aria-label': label,
+        'aria-labelledby': `${inputId}-label`,
+        title: resolvedPlaceholder,
+        onChange: handleChange,
+        onClick: handleActivate,
+        onFocus: handleActivate,
+        style: inputStyle,
+      })}
     </View>
   );
 }
@@ -113,41 +127,10 @@ export function DateTimeField({
 const styles = StyleSheet.create({
   wrap: {
     marginBottom: SPACING.md,
-    position: 'relative',
+    width: '100%',
   },
   label: {
     ...TYPOGRAPHY.label,
     marginBottom: SPACING.sm,
   },
-  inputWrap: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: RADIUS.input,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 14,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  inputPressed: {
-    borderColor: COLORS.gold,
-    opacity: 0.95,
-  },
-  valueText: {
-    fontSize: 16,
-    color: COLORS.text,
-    fontWeight: '500',
-  },
-  placeholderText: {
-    color: COLORS.textMuted,
-    fontWeight: '400',
-  },
-  hiddenInput: {
-    position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
-    pointerEvents: 'none',
-    left: -9999,
-  } as const,
 });

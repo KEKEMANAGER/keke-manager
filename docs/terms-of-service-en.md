@@ -53,7 +53,7 @@ We do not guarantee availability of drivers or bookings in all regions or at all
 | Type | Capabilities (summary) |
 |------|----------------------|
 | **Company** | Create bookings, track drivers, chat, view history, rate drivers |
-| **Driver (freelance)** | Accept bookings, GPS tracking, vehicle profile, verification, fleet/job board |
+| **Driver with own vehicle** | Accept bookings, GPS tracking, vehicle profile, verification, fleet/job board |
 | **Driver (hired)** | Accept assigned work, job-board profile; limited fleet/vehicle UI |
 | **Admin** | Platform moderation (assigned by us only—not self-registration) |
 
