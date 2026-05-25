@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,15 +21,18 @@ import {
 } from '../../lib/adminPanel';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
+import { AdminUserDetailModal } from './AdminUserDetailModal';
 
 export function AdminUsersSection() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [roleTarget, setRoleTarget] = useState<AdminUserRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -54,6 +57,7 @@ export function AdminUsersSection() {
     if (u.role === 'company') return t('adminPanel.typeCompany');
     if (u.role === 'admin') return t('common.admin');
     if (u.is_hired_driver) return t('adminPanel.typeHired');
+    if (u.role === 'driver' && u.is_guide_driver) return t('adminPanel.typeGuideDriver');
     if (u.role === 'driver') return t('adminPanel.typeDriver');
     return u.role ?? '—';
   }
@@ -105,6 +109,14 @@ export function AdminUsersSection() {
     void applyRoleForUser(userId, role);
   }
 
+  function openUserDetail(u: AdminUserRow) {
+    if (Platform.OS === 'web') {
+      setDetailUserId(u.id);
+      return;
+    }
+    router.push(`/(app)/admin-user/${u.id}`);
+  }
+
   function confirmDelete(u: AdminUserRow) {
     setDeleteTarget(u);
   }
@@ -140,11 +152,14 @@ export function AdminUsersSection() {
       ) : (
         rows.map((u) => (
           <View key={u.id} style={adminStyles.card}>
-            <Text style={adminStyles.cardTitle}>{u.full_name?.trim() || u.email || '—'}</Text>
-            <Text style={adminStyles.cardMeta}>{u.email}</Text>
-            <Text style={adminStyles.cardMeta}>
-              {t('adminPanel.userType')}: {typeLabel(u)}
-            </Text>
+            <Pressable onPress={() => openUserDetail(u)} style={({ pressed }) => pressed && { opacity: 0.9 }}>
+              <Text style={adminStyles.cardTitle}>{u.full_name?.trim() || u.email || '—'}</Text>
+              <Text style={adminStyles.cardMeta}>{u.email}</Text>
+              <Text style={adminStyles.cardMeta}>
+                {t('adminPanel.userType')}: {typeLabel(u)}
+              </Text>
+              <Text style={styles.tapHint}>{t('adminPanel.userDetail.tapForDetails')}</Text>
+            </Pressable>
             {u.is_blocked ? (
               <View style={[adminStyles.badge, adminStyles.badgeDanger]}>
                 <Text style={[adminStyles.badgeText, adminStyles.badgeDangerText]}>
@@ -154,7 +169,7 @@ export function AdminUsersSection() {
             ) : null}
             <View style={adminStyles.btnRow}>
               <Pressable
-                onPress={() => toggleBlock(u)}
+                onPress={() => void toggleBlock(u)}
                 disabled={actingId === u.id}
                 style={({ pressed }) => [
                   adminStyles.btnOutline,
@@ -183,6 +198,12 @@ export function AdminUsersSection() {
           </View>
         ))
       )}
+
+      <AdminUserDetailModal
+        userId={detailUserId}
+        onClose={() => setDetailUserId(null)}
+        onOpenUser={(nextId) => setDetailUserId(nextId)}
+      />
 
       <Modal
         visible={!!roleTarget}
@@ -304,5 +325,12 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '800',
     fontSize: 14,
+  },
+  tapHint: {
+    color: COLORS.gold,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
+    marginBottom: 4,
   },
 });
