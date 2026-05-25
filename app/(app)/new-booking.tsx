@@ -817,6 +817,7 @@ export default function NewBookingScreen() {
   const [arrivalAirport, setArrivalAirport] = useState('');
   const [arrivalDestination, setArrivalDestination] = useState('');
   const [arrivalFlightNo, setArrivalFlightNo] = useState('');
+  const [departureFlightNo, setDepartureFlightNo] = useState('');
   const [arrivalDateTime, setArrivalDateTime] = useState<Date | null>(null);
   const [departureAddress, setDepartureAddress] = useState('');
   const [departureAirport, setDepartureAirport] = useState('');
@@ -1218,8 +1219,8 @@ export default function NewBookingScreen() {
       vehicle_type: selectedVehicleType,
       vehicle_class: vehicleClass,
       flight_number:
-        booking_kind === 'transfer' && transferTab === 'arrival'
-          ? arrivalFlightNo.trim() || null
+        booking_kind === 'transfer'
+          ? (transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() || null
           : null,
       meet_greet: booking_kind === 'transfer' ? meetGreet : false,
       sign_text:
@@ -1336,11 +1337,11 @@ export default function NewBookingScreen() {
                     placeholder={t('newBooking.form.placeholders.airportExample')}
                   />
                   <AuthInput
-                    label={t('newBooking.form.flightNo')}
+                    label={t('newBooking.flightNumber')}
                     value={arrivalFlightNo}
                     onChangeText={setArrivalFlightNo}
                     autoCapitalize="characters"
-                    placeholder={t('newBooking.form.placeholders.flightExample')}
+                    placeholder={t('newBooking.flightNumberPlaceholder')}
                   />
                   <DateTimeField
                     label={t('newBooking.form.dateTime')}
@@ -1376,6 +1377,13 @@ export default function NewBookingScreen() {
                     value={departureAirport}
                     onChangeText={setDepartureAirport}
                     placeholder={t('newBooking.form.placeholders.airportExample')}
+                  />
+                  <AuthInput
+                    label={t('newBooking.flightNumber')}
+                    value={departureFlightNo}
+                    onChangeText={setDepartureFlightNo}
+                    autoCapitalize="characters"
+                    placeholder={t('newBooking.flightNumberPlaceholder')}
                   />
                 </>
               )}
@@ -1813,9 +1821,10 @@ export default function NewBookingScreen() {
                   {transferTab === 'departure' && departureDateTime ? (
                     <Text style={styles.vLine}>{formatDisplayDateTime(departureDateTime)}</Text>
                   ) : null}
-                  {transferTab === 'arrival' && arrivalFlightNo.trim() ? (
+                  {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() ? (
                     <Text style={styles.vLineMuted}>
-                      {t('newBooking.form.voucherFlight')}: {arrivalFlightNo.trim()}
+                      {t('companyVoucher.flightNumber')}:{' '}
+                      {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim()}
                     </Text>
                   ) : null}
                   {passengerName.trim() ? (

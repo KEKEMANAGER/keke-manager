@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Pressable,
@@ -22,7 +23,6 @@ import {
   validateBioLength,
   validateDriverProfileForm,
   validateDriverProfilePhoneOnly,
-  validateRequired,
 } from '../../lib/validation';
 import { useTranslation } from 'react-i18next';
 import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
@@ -291,9 +291,10 @@ export default function DriverProfileScreen() {
     if (!user?.id) return;
 
     const validationError = isHired
-      ? validateRequired(name, t('profilePage.fullName')) ?? validateBioLength(bio)
+      ? (validateDriverProfilePhoneOnly({ name, phone }) ?? validateBioLength(bio))
       : (validateDriverProfileForm({
           name,
+          phone,
           vehicleType,
           vehicleClass,
           experienceYears,
@@ -376,6 +377,7 @@ export default function DriverProfileScreen() {
     void loadProfileFields();
     if (isHired) void loadHiredStatus();
     else void loadVehiclePreferences();
+    Alert.alert(t('profilePage.savedTitle'), t('profilePage.savedMessage'));
   }
 
   return (

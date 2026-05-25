@@ -170,6 +170,12 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
             <DetailRow label={t('companyVoucher.to')} value={booking.to_location} />
           ) : null}
           <DetailRow label={t('companyVoucher.passengers')} value={String(booking.passengers ?? 1)} />
+          {booking.flight_number?.trim() ? (
+            <DetailRow
+              label={t('companyVoucher.flightNumber')}
+              value={`✈️ ${booking.flight_number.trim()}`}
+            />
+          ) : null}
           <DetailRow
             label={t('companyVoucher.offeredPrice')}
             value={`${offeredGel.toLocaleString('ka-GE')} ₾`}

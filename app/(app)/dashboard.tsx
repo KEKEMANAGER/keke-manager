@@ -294,7 +294,9 @@ export default function CompanyDashboardScreen() {
     setDriverModal(booking);
     setDriverProfile(null);
     setDriverLoading(true);
-    const { data, error: profErr } = await fetchDriverProfile(booking.driver_id);
+    const { data, error: profErr } = await fetchDriverProfile(booking.driver_id, {
+      bookingVehicleId: booking.vehicle_id,
+    });
     if (profErr) {
       setDriverProfile(null);
     } else {

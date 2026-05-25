@@ -135,7 +135,9 @@
     "cleanliness": "Чистота",
     "communication": "Коммуникация",
     "driving": "Вождение",
-    "vehicleSaveFailed": "Не удалось сохранить настройки автомобиля"
+    "vehicleSaveFailed": "Не удалось сохранить настройки автомобиля",
+    "savedTitle": "Сохранено",
+    "savedMessage": "Профиль обновлён"
   },
   "vehicleScreen": {
     "title": "Фото автомобиля",
@@ -214,6 +216,8 @@
     "operatorHint": "Добавьте туроператоров в профиле, чтобы выбрать здесь.",
     "experienceYears": "Опыт: {{years}} лет",
     "noVehicle": "Автомобиль ещё не указан",
+    "flightNumber": "Номер рейса (аэропорт)",
+    "flightNumberPlaceholder": "напр. PS601, TK301",
     "payment": {
       "now": "Сейчас",
       "later": "Позже",

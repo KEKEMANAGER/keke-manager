@@ -39,6 +39,7 @@ export default function EditBookingScreen() {
   const [passengers, setPassengers] = useState('');
   const [priceGel, setPriceGel] = useState('');
   const [signText, setSignText] = useState('');
+  const [flightNumber, setFlightNumber] = useState('');
   const [comment, setComment] = useState('');
   const [reason, setReason] = useState('');
 
@@ -59,6 +60,7 @@ export default function EditBookingScreen() {
     setPassengers(String(data.passengers ?? 1));
     setPriceGel(String(data.price_gel ?? ''));
     setSignText(data.sign_text ?? '');
+    setFlightNumber(data.flight_number ?? '');
     setComment(data.comment ?? '');
   }, [id, user?.id, router, t]);
 
@@ -98,6 +100,8 @@ export default function EditBookingScreen() {
         passengers: Number.isFinite(pax) && pax > 0 ? pax : booking.passengers,
         price_gel: Number.isFinite(price) ? price : booking.price_gel,
         sign_text: signText.trim() || null,
+        flight_number:
+          booking.kind === 'transfer' ? flightNumber.trim() || null : booking.flight_number,
         comment: comment.trim() || null,
       },
       reason,
@@ -144,6 +148,15 @@ export default function EditBookingScreen() {
         keyboardType="decimal-pad"
       />
       <AuthInput label={t('editBooking.signText')} value={signText} onChangeText={setSignText} />
+      {booking?.kind === 'transfer' ? (
+        <AuthInput
+          label={t('newBooking.flightNumber')}
+          value={flightNumber}
+          onChangeText={setFlightNumber}
+          autoCapitalize="characters"
+          placeholder={t('newBooking.flightNumberPlaceholder')}
+        />
+      ) : null}
       <AuthInput
         label={t('editBooking.comment')}
         value={comment}

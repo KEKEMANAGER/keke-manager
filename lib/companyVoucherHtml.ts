@@ -84,6 +84,9 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     booking.from_location ? row('საიდან', booking.from_location) : '',
     booking.to_location ? row('სად', booking.to_location) : '',
     row('მგზავრები', String(booking.passengers ?? 1)),
+    booking.flight_number?.trim()
+      ? row('ფრენის ნომერი', `✈️ ${booking.flight_number.trim()}`)
+      : '',
     booking.sign_text?.trim() ? row('დასახვედრი სახელი', booking.sign_text.trim()) : '',
     pickupSignVoucherHtmlSection(booking),
     booking.comment?.trim() ? row('შენიშვნა', booking.comment.trim()) : '',

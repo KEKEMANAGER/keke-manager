@@ -161,7 +161,9 @@
     "cleanliness": "სისუფთავე",
     "communication": "კომუნიკაცია",
     "driving": "ძალისმიერი მართვა",
-    "vehicleSaveFailed": "ავტომობილის პარამეტრები ვერ შეინახა"
+    "vehicleSaveFailed": "ავტომობილის პარამეტრები ვერ შეინახა",
+    "savedTitle": "შენახულია",
+    "savedMessage": "პროფილი განახლდა"
   },
   "vehicleScreen": {
     "title": "ავტომობილის ფოტოები",
@@ -247,6 +249,8 @@
     "operatorHint": "პროფილში დაამატეთ ტურ ოპერატორები (მაგ. მონიკა), რომ აქ აირჩიოთ.",
     "experienceYears": "გამოცდილება: {{years}} წელი",
     "noVehicle": "ავტომობილი ჯერ არ არის მითითებული",
+    "flightNumber": "ფრენის ნომერი (აეროპორტი)",
+    "flightNumberPlaceholder": "მაგ: PS601, TK301",
     "payment": {
       "now": "ახლა",
       "later": "შემდეგ",
@@ -1109,6 +1113,7 @@
     "brandSubtitle": "B2B სატრანსპორტო პლატფორმა",
     "bookingId": "Booking ID",
     "bookingNumber": "ჯავშანი",
+    "flightNumber": "ფრენის ნომერი",
     "clientPrice": "კლიენტის ფასი",
     "driverPrice": "მძღოლი",
     "offeredPrice": "შეთავაზებული ფასი",

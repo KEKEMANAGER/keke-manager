@@ -163,7 +163,9 @@
     "cleanliness": "Cleanliness",
     "communication": "Communication",
     "driving": "Driving",
-    "vehicleSaveFailed": "Could not save vehicle settings"
+    "vehicleSaveFailed": "Could not save vehicle settings",
+    "savedTitle": "Saved",
+    "savedMessage": "Profile updated"
   },
   "vehicleScreen": {
     "title": "Vehicle photos",
@@ -250,6 +252,8 @@
     "operatorHint": "Add tour operators in your profile (e.g. Monika) to select here.",
     "experienceYears": "Experience: {{years}} years",
     "noVehicle": "Vehicle not specified yet",
+    "flightNumber": "Flight number (airport)",
+    "flightNumberPlaceholder": "e.g. PS601, TK301",
     "payment": {
       "now": "Now",
       "later": "Later",
@@ -1112,6 +1116,7 @@
     "brandSubtitle": "B2B transport platform",
     "bookingId": "Booking ID",
     "bookingNumber": "Booking",
+    "flightNumber": "Flight number",
     "clientPrice": "Client price",
     "driverPrice": "Driver",
     "offeredPrice": "Offered price",

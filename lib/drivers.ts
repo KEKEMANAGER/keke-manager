@@ -318,7 +318,9 @@ export async function fetchMatchingDrivers(
 
 export async function fetchDriverProfile(
   driverUserId: string,
+  options?: { bookingVehicleId?: string | null },
 ): Promise<{ data: DriverProfile | null; error: Error | null }> {
+  const preferredId = options?.bookingVehicleId?.trim() || null;
   const [userRes, profileRes, vehiclesRes, ratingRes] = await Promise.all([
     supabase
       .from('users')
@@ -337,7 +339,11 @@ export async function fetchDriverProfile(
   const user = userRes.data as UserProfileRow | null;
   const profile = profileRes.data as { avatar_url?: string | null; full_name?: string | null } | null;
   const vehicles = vehiclesRes.data ?? [];
-  const v = vehicles.find((row) => row.is_active) ?? vehicles[0] ?? null;
+  const v =
+    (preferredId ? vehicles.find((row) => row.id === preferredId) : null) ??
+    vehicles.find((row) => row.is_active) ??
+    vehicles[0] ??
+    null;
 
   const profileName =
     typeof profile?.full_name === 'string' && profile.full_name.trim()
