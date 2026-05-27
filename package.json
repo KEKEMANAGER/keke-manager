@@ -7,11 +7,14 @@
     "start:tunnel": "expo start --tunnel",
     "icons": "node scripts/generate-store-icons.mjs",
     "legal:sync": "node scripts/sync-legal-docs.mjs",
+    "blog:seed": "node scripts/seed-blog-articles.mjs",
+    "blog:build": "node scripts/build-blog.mjs",
+    "blog": "node scripts/seed-blog-articles.mjs && node scripts/build-blog.mjs",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "web:lan": "expo start --web --host lan",
-    "build": "expo export -p web",
+    "build": "node scripts/seed-blog-articles.mjs && node scripts/build-blog.mjs && expo export -p web",
     "lint": "expo lint"
   },
   "dependencies": {

@@ -105,6 +105,13 @@ export function LandingHeader({
                   </Text>
                 </Pressable>
               ))}
+              {Platform.OS === 'web' ? (
+                <Link href="/blog" style={sx(styles.navLinkItem, { textDecorationLine: 'none' })}>
+                  <Text style={sx(isTablet ? styles.navLinkTablet : styles.navLink, landingFont({ fontWeight: '500' }))}>
+                    Blog
+                  </Text>
+                </Link>
+              ) : null}
             </View>
           ) : null}
 

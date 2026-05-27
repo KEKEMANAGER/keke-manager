@@ -228,6 +228,7 @@ function NavigationShell() {
     const inApp = root === '(app)';
     const inDriver = root === '(driver)';
     const inLegal = root === 'legal';
+    const inBlog = root === 'blog';
 
     const matchesAuthPath = (slug: string) =>
       pathname === `/${slug}` || pathname.endsWith(`/${slug}`) || segments.includes(slug);
@@ -241,7 +242,9 @@ function NavigationShell() {
     const onWebLanding =
       Platform.OS === 'web' && (pathname === '/' || pathname === '' || !segments[0]);
 
-    if (!userId && (inApp || inDriver)) {
+    if (inBlog) {
+      target = null;
+    } else if (!userId && (inApp || inDriver)) {
       target = '/sign-in';
     } else if (!userId && onWebLanding) {
       target = null;

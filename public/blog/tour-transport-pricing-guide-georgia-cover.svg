@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0a0a0a"/>
+  <rect x="0" y="520" width="1200" height="110" fill="#EF9F27"/>
+  <text x="60" y="280" fill="#ffffff" font-family="Inter,Arial,sans-serif" font-size="48" font-weight="800">KEKE Manager Blog</text>
+  <text x="60" y="360" fill="#EF9F27" font-family="Inter,Arial,sans-serif" font-size="32" font-weight="600">ტურისტული ტრანსპორტის ფასების გზამკვლევი საქართველოში</text>
+</svg>
