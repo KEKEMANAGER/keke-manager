@@ -45,6 +45,32 @@ export async function insertRating(
   return { error };
 }
 
+/**
+ * Existing rating for this booking by the current user (`ratings.company_id` = rater).
+ */
+export async function fetchRatingByBookingAndRater(
+  bookingId: string,
+  ratedByUserId: string,
+): Promise<{ data: BookingRatingRow | null; error: Error | null }> {
+  const bid = bookingId.trim();
+  const raterId = ratedByUserId.trim();
+  if (!bid || !raterId) {
+    return { data: null, error: new Error('booking id ან user id არ არის') };
+  }
+  const { data, error } = await supabase
+    .from('ratings')
+    .select('booking_id, overall, comment, created_at')
+    .eq('booking_id', bid)
+    .eq('company_id', raterId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) {
+    return { data: null, error: new Error(error.message) };
+  }
+  const row = (data?.[0] as BookingRatingRow | undefined) ?? null;
+  return { data: row, error: null };
+}
+
 /** One rating per company per booking (tour, transfer, or day_tour each = one booking row). */
 export async function fetchRatingForBooking(
   bookingId: string,

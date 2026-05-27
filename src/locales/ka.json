@@ -678,7 +678,11 @@
     "skip": "გამოტოვება",
     "thanks": "მადლობა შეფასებისთვის!",
     "alreadyRated": "შეფასებულია",
+    "alreadyRatedBooking": "ეს ჯავშანი უკვე შეფასებულია",
     "alreadyRatedSub": "ამ ჯავშანზე უკვე გაგზავნეთ შეფასება.",
+    "badgeTransfer": "ტრანსფერი",
+    "badgeOneDay": "ერთდღიანი",
+    "badgeMultiDay": "მრავალდღიანი",
     "viewRating": "შეფასების ნახვა",
     "errorLoad": "ჯავშანი ვერ ჩაიტვირთა",
     "errorSubmit": "შეფასება ვერ გაიგზავნა"

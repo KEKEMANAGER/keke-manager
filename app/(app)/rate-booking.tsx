@@ -15,7 +15,7 @@ import { COLORS, SPACING } from '../../constants/theme';
 import { fetchBookingById, isBookingRowUuid } from '../../lib/bookings';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
-  fetchRatingForBooking,
+  fetchRatingByBookingAndRater,
   insertRating,
   isDuplicateBookingRatingError,
 } from '../../lib/ratings';
@@ -41,6 +41,7 @@ export default function RateBookingScreen() {
   const [driverId, setDriverId] = useState('');
   /** `bookings.company_id` — used when persisting rating (matches RLS + unique index). */
   const [ratingCompanyId, setRatingCompanyId] = useState('');
+  const [bookingKindBadge, setBookingKindBadge] = useState<string | null>(null);
   const [loadingBooking, setLoadingBooking] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -55,6 +56,7 @@ export default function RateBookingScreen() {
     setLoadError(null);
     setDriverId('');
     setRatingCompanyId('');
+    setBookingKindBadge(null);
     if (!bookingId || !companyId) {
       setLoadError(t('rateBookingScreen.errorLoad'));
       setLoadingBooking(false);
@@ -89,10 +91,11 @@ export default function RateBookingScreen() {
       setDriverId(assignedDriverId);
       const ownerCompanyId = trimUserId(data.company_id) || companyId;
       setRatingCompanyId(ownerCompanyId);
+      setBookingKindBadge(ratingKindBadgeLabel(data.kind, t));
 
-      const { data: existing, error: ratingErr } = await fetchRatingForBooking(
+      const { data: existing, error: ratingErr } = await fetchRatingByBookingAndRater(
         bookingId,
-        ownerCompanyId,
+        companyId,
       );
       if (ratingErr) {
         setLoadError(ratingErr.message);
@@ -158,6 +161,13 @@ export default function RateBookingScreen() {
       setError(t('rateBookingScreen.starsHint'));
       return;
     }
+
+    const { data: existingBeforeSubmit } = await fetchRatingByBookingAndRater(bookingId, companyId);
+    if (existingBeforeSubmit) {
+      applyExistingRating(existingBeforeSubmit);
+      return;
+    }
+
     setSubmitting(true);
     const { error: err } = await insertRating(
       bookingId,
@@ -169,13 +179,13 @@ export default function RateBookingScreen() {
     setSubmitting(false);
     if (err) {
       if (isDuplicateBookingRatingError(err)) {
-        const { data: existing } = await fetchRatingForBooking(bookingId, persistCompanyId);
+        const { data: existing } = await fetchRatingByBookingAndRater(bookingId, companyId);
         if (existing) {
           applyExistingRating(existing);
           return;
         }
         setAlreadyRated(true);
-        setError(t('rateBookingScreen.alreadyRatedSub'));
+        setError(null);
         return;
       }
       setError(getSupabaseErrorMessage(err) || t('rateBookingScreen.errorSubmit'));
@@ -196,14 +206,20 @@ export default function RateBookingScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
+      {bookingKindBadge ? (
+        <View style={styles.kindBadge}>
+          <Text style={styles.kindBadgeText}>{bookingKindBadge}</Text>
+        </View>
+      ) : null}
+
       <Text style={styles.title}>{t('rateBookingScreen.title')}</Text>
       <Text style={styles.sub}>
-        {alreadyRated ? t('rateBookingScreen.alreadyRatedSub') : t('rateBookingScreen.subtitle')}
+        {alreadyRated ? t('rateBookingScreen.alreadyRatedBooking') : t('rateBookingScreen.subtitle')}
       </Text>
 
       {alreadyRated ? (
-        <View style={styles.ratedBadge}>
-          <Text style={styles.ratedBadgeText}>{t('rateBookingScreen.alreadyRated')}</Text>
+        <View style={styles.alreadyRatedBox}>
+          <Text style={styles.alreadyRatedMsg}>{t('rateBookingScreen.alreadyRatedBooking')}</Text>
         </View>
       ) : null}
 
@@ -248,19 +264,17 @@ export default function RateBookingScreen() {
 
       <Pressable
         onPress={() => void submit()}
-        disabled={formDisabled && !alreadyRated}
+        disabled={formDisabled || alreadyRated}
         style={({ pressed }) => [
           styles.primary,
           (pressed || submitting) && styles.primaryPressed,
-          formDisabled && !alreadyRated && styles.primaryDisabled,
+          (formDisabled || alreadyRated) && styles.primaryDisabled,
         ]}
       >
         {submitting ? (
           <ActivityIndicator color="#0f0f0f" />
         ) : (
-          <Text style={styles.primaryText}>
-            {alreadyRated ? t('common.back') : t('rateBookingScreen.submit')}
-          </Text>
+          <Text style={styles.primaryText}>{t('rateBookingScreen.submit')}</Text>
         )}
       </Pressable>
 
@@ -298,20 +312,37 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: SPACING.md,
   },
-  ratedBadge: {
-    alignSelf: 'center',
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+  kindBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.goldTint,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginBottom: SPACING.md,
+  },
+  kindBadgeText: {
+    color: COLORS.goldDark,
+    fontWeight: '800',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  alreadyRatedBox: {
+    backgroundColor: 'rgba(76, 175, 80, 0.12)',
     borderWidth: 1,
     borderColor: COLORS.success,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 12,
+    padding: SPACING.md,
     marginBottom: SPACING.lg,
   },
-  ratedBadgeText: {
+  alreadyRatedMsg: {
     color: COLORS.success,
-    fontWeight: '800',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   starsRow: {
     flexDirection: 'row',
@@ -389,3 +420,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+function ratingKindBadgeLabel(
+  kind: string | null | undefined,
+  t: (key: string) => string,
+): string | null {
+  const k = (kind ?? '').trim();
+  if (!k) return null;
+  if (k === 'transfer' || k.startsWith('transfer_')) {
+    return t('rateBookingScreen.badgeTransfer');
+  }
+  if (k === 'day_tour') {
+    return t('rateBookingScreen.badgeOneDay');
+  }
+  if (k === 'tour') {
+    return t('rateBookingScreen.badgeMultiDay');
+  }
+  return null;
+}
