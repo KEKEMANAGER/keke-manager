@@ -1,18 +1,33 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useSegments } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../AppLogo';
 import { APP_HEADER_BODY_HEIGHT, Z_INDEX } from '../../constants/layout';
 import { COLORS, SPACING } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 import { useAppMenu } from '../../contexts/AppMenuContext';
+import { getAppHomeRoute, isAppHomeSegment } from '../../lib/appHome';
 
 export function AppHeader() {
   const { t } = useTranslation();
+  const router = useRouter();
+  const segments = useSegments();
   const insets = useSafeAreaInsets();
+  const { menuRole } = useAuth();
   const { openDrawer, headerVisible } = useAppMenu();
 
+  const lastSegment = segments[segments.length - 1];
+  const homeRoute = menuRole ? getAppHomeRoute(menuRole) : null;
+  const onHome = homeRoute && !isAppHomeSegment(menuRole, lastSegment);
+
   if (!headerVisible) return null;
+
+  function goHome() {
+    if (!homeRoute) return;
+    router.replace(homeRoute as never);
+  }
 
   return (
     <View
@@ -30,12 +45,23 @@ export function AppHeader() {
         <Text style={styles.title} numberOfLines={1}>
           {t('menu.appTitle')}
         </Text>
+        {onHome ? (
+          <Pressable
+            onPress={goHome}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={t('menu.home')}
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+          >
+            <Ionicons name="home-outline" size={22} color={COLORS.text} />
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={openDrawer}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel={t('menu.open')}
-          style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
+          style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
         >
           <Ionicons name="menu-outline" size={22} color={COLORS.text} />
         </Pressable>
@@ -76,7 +102,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.6,
   },
-  menuBtn: {
+  iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -85,9 +111,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: SPACING.sm,
   },
-  menuBtnPressed: {
+  iconBtnPressed: {
     opacity: 0.85,
     backgroundColor: COLORS.surfaceAlt,
   },

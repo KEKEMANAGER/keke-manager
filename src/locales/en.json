@@ -680,6 +680,9 @@
     "submit": "Submit",
     "skip": "Skip",
     "thanks": "Thank you for your rating!",
+    "alreadyRated": "Rated",
+    "alreadyRatedSub": "You have already submitted a rating for this booking.",
+    "viewRating": "View rating",
     "errorLoad": "Could not load booking",
     "errorSubmit": "Could not submit rating"
   },
@@ -1093,6 +1096,7 @@
   "menu": {
     "appTitle": "KEKE MANAGER",
     "open": "Open menu",
+    "home": "Home",
     "dashboard": "Dashboard",
     "profile": "Profile",
     "account": "My account",

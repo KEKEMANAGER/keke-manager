@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -29,6 +30,7 @@ import {
 } from '../../components/CompanyBookingVoucher';
 import { useAuth } from '../../contexts/AuthContext';
 import { canCompanyEditBooking } from '../../lib/bookingUpdate';
+import { fetchRatedBookingIdsForCompany } from '../../lib/ratings';
 
 type FilterKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
@@ -89,6 +91,7 @@ export default function CompanyHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -101,22 +104,33 @@ export default function CompanyHistoryScreen() {
     if (mode === 'initial') setLoading(true);
     if (mode === 'refresh') setRefreshing(true);
 
-    const { data, error: err } = await fetchBookingsByCompanyId(userId);
+    const [bookingsRes, ratedRes] = await Promise.all([
+      fetchBookingsByCompanyId(userId),
+      fetchRatedBookingIdsForCompany(userId),
+    ]);
 
     if (mode === 'initial') setLoading(false);
     if (mode === 'refresh') setRefreshing(false);
 
-    if (err) {
-      setError(err.message);
+    setRatedBookingIds(ratedRes.ids);
+
+    if (bookingsRes.error) {
+      setError(bookingsRes.error.message);
       setRows([]);
     } else {
-      setRows(data);
+      setRows(bookingsRes.data);
     }
   }, [userId]);
 
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) void load('silent');
+    }, [load, userId]),
+  );
 
   useEffect(() => {
     if (!userId) return;
@@ -267,20 +281,30 @@ export default function CompanyHistoryScreen() {
               </Pressable>
               {/* rate-booking: bookingId = booking.id (uuid), driverId = driver user id. */}
               {r.status === 'completed' && r.driver_id ? (
-                <Pressable
-                  onPress={() => {
-                    const booking = r;
-                    const driverId = booking.driver_id;
-                    if (!driverId) return;
-                    // Query string avoids web/Expo Router param mix-ups vs object `params`.
-                    router.push(
-                      `/(app)/rate-booking?bookingId=${encodeURIComponent(booking.id)}&driverId=${encodeURIComponent(driverId)}`,
-                    );
-                  }}
-                  style={({ pressed }) => [styles.rateBtn, pressed && styles.rateBtnPressed]}
-                >
-                  <Text style={styles.rateBtnText}>{t('historyPage.rate')}</Text>
-                </Pressable>
+                ratedBookingIds.has(r.id) ? (
+                  <Pressable
+                    onPress={() =>
+                      router.push(
+                        `/(app)/rate-booking?bookingId=${encodeURIComponent(r.id)}&driverId=${encodeURIComponent(r.driver_id!)}`,
+                      )
+                    }
+                    style={({ pressed }) => [styles.ratedBadge, pressed && styles.rateBtnPressed]}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                    <Text style={styles.ratedBadgeText}>{t('rateBookingScreen.alreadyRated')}</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() =>
+                      router.push(
+                        `/(app)/rate-booking?bookingId=${encodeURIComponent(r.id)}&driverId=${encodeURIComponent(r.driver_id!)}`,
+                      )
+                    }
+                    style={({ pressed }) => [styles.rateBtn, pressed && styles.rateBtnPressed]}
+                  >
+                    <Text style={styles.rateBtnText}>{t('historyPage.rate')}</Text>
+                  </Pressable>
+                )
               ) : null}
             </View>
           ))
@@ -464,6 +488,24 @@ const styles = StyleSheet.create({
   },
   rateBtnText: {
     color: COLORS.gold,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  ratedBadge: {
+    marginTop: SPACING.md,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 12,
+    backgroundColor: 'rgba(76, 175, 80, 0.12)',
+    borderWidth: 1,
+    borderColor: COLORS.success,
+  },
+  ratedBadgeText: {
+    color: COLORS.success,
     fontWeight: '800',
     fontSize: 14,
   },

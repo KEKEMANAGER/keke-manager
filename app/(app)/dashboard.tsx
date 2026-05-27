@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { User } from '@supabase/supabase-js';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -47,6 +47,7 @@ import {
   CompanyBookingVoucherModal,
   openCompanyVoucher,
 } from '../../components/CompanyBookingVoucher';
+import { fetchRatedBookingIdsForCompany } from '../../lib/ratings';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
 
@@ -141,6 +142,7 @@ export default function CompanyDashboardScreen() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [ads, setAds] = useState<AdCard[]>([]);
   const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
+  const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -157,11 +159,13 @@ export default function CompanyDashboardScreen() {
       setRefreshing(true);
     }
 
-    const [bRes, sRes, activeAds] = await Promise.all([
+    const [bRes, sRes, activeAds, ratedRes] = await Promise.all([
       fetchBookingsByCompanyId(userId),
       aggregateCompanyStats(userId),
       fetchActiveAds(),
+      fetchRatedBookingIdsForCompany(userId),
     ]);
+    setRatedBookingIds(ratedRes.ids);
     setAds(activeAds);
 
     if (mode === 'initial') {
@@ -188,6 +192,12 @@ export default function CompanyDashboardScreen() {
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) void load('silent');
+    }, [load, userId]),
+  );
 
   useEffect(() => {
     if (!userId) return;
@@ -525,16 +535,30 @@ export default function CompanyDashboardScreen() {
               </View>
             ) : null}
             {b.status === 'completed' && b.driver_id ? (
-              <Pressable
-                onPress={() =>
-                  router.push(
-                    `/(app)/rate-booking?bookingId=${encodeURIComponent(b.id)}&driverId=${encodeURIComponent(b.driver_id!)}`,
-                  )
-                }
-                style={({ pressed }) => [styles.rateBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.rateBtnText}>{t('companyDashboard.rateDriver')}</Text>
-              </Pressable>
+              ratedBookingIds.has(b.id) ? (
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      `/(app)/rate-booking?bookingId=${encodeURIComponent(b.id)}&driverId=${encodeURIComponent(b.driver_id!)}`,
+                    )
+                  }
+                  style={({ pressed }) => [styles.ratedBadge, pressed && styles.pressed]}
+                >
+                  <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                  <Text style={styles.ratedBadgeText}>{t('rateBookingScreen.alreadyRated')}</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      `/(app)/rate-booking?bookingId=${encodeURIComponent(b.id)}&driverId=${encodeURIComponent(b.driver_id!)}`,
+                    )
+                  }
+                  style={({ pressed }) => [styles.rateBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.rateBtnText}>{t('companyDashboard.rateDriver')}</Text>
+                </Pressable>
+              )
             ) : null}
             <Pressable
               onPress={() => openCompanyVoucher(router, b.id, setVoucherBooking, b)}
@@ -1114,6 +1138,24 @@ const styles = StyleSheet.create({
   },
   rateBtnText: {
     color: COLORS.gold,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  ratedBadge: {
+    marginTop: SPACING.sm,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 12,
+    backgroundColor: 'rgba(76, 175, 80, 0.12)',
+    borderWidth: 1,
+    borderColor: COLORS.success,
+  },
+  ratedBadgeText: {
+    color: COLORS.success,
     fontWeight: '800',
     fontSize: 14,
   },

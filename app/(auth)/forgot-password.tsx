@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { AppLogo } from '../../components/AppLogo';
+import { AuthBrandHeader } from '../../components/AuthBrandHeader';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { getPasswordResetRedirectUrl } from '../../lib/passwordResetAuth';
@@ -73,8 +73,7 @@ export default function ForgotPasswordScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <AppLogo size="auth" />
-        <Text style={styles.tagline}>KEKE MANAGER</Text>
+        <AuthBrandHeader tagline="KEKE MANAGER" />
 
         <View style={styles.card}>
           <Text style={styles.title}>{t('authScreen.forgotTitle')}</Text>
@@ -149,14 +148,6 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
-  },
-  tagline: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    letterSpacing: 1.2,
-    fontWeight: '700',
-    marginBottom: SPACING.xl,
   },
   card: {
     backgroundColor: COLORS.white,

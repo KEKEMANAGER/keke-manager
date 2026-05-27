@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import { fetchBookingById, isBookingRowUuid } from '../../lib/bookings';
-import { insertRating } from '../../lib/ratings';
+import { fetchRatingForBooking, insertRating } from '../../lib/ratings';
 import { trimUserId } from '../../lib/userId';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -40,6 +40,7 @@ export default function RateBookingScreen() {
   /** 1–5; persisted as `ratings.overall`. */
   const [overall, setOverall] = useState(0);
   const [comment, setComment] = useState('');
+  const [alreadyRated, setAlreadyRated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +79,21 @@ export default function RateBookingScreen() {
       return;
     }
     setDriverId(assignedDriverId);
+
+    const { data: existing, error: ratingErr } = await fetchRatingForBooking(bookingId, companyId);
+    if (ratingErr) {
+      setLoadError(ratingErr.message);
+      return;
+    }
+    if (existing) {
+      setAlreadyRated(true);
+      setOverall(Number(existing.overall) || 0);
+      setComment(existing.comment?.trim() ?? '');
+    } else {
+      setAlreadyRated(false);
+      setOverall(0);
+      setComment('');
+    }
   }, [bookingId, companyId, params.driverId, t]);
 
   useEffect(() => {
@@ -90,6 +106,10 @@ export default function RateBookingScreen() {
 
   async function submit() {
     setError(null);
+    if (alreadyRated) {
+      router.back();
+      return;
+    }
     if (loadError || loadingBooking) {
       return;
     }
@@ -134,7 +154,15 @@ export default function RateBookingScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.title}>{t('rateBookingScreen.title')}</Text>
-      <Text style={styles.sub}>{t('rateBookingScreen.subtitle')}</Text>
+      <Text style={styles.sub}>
+        {alreadyRated ? t('rateBookingScreen.alreadyRatedSub') : t('rateBookingScreen.subtitle')}
+      </Text>
+
+      {alreadyRated ? (
+        <View style={styles.ratedBadge}>
+          <Text style={styles.ratedBadgeText}>{t('rateBookingScreen.alreadyRated')}</Text>
+        </View>
+      ) : null}
 
       {loadingBooking ? (
         <View style={styles.loading}>
@@ -148,7 +176,7 @@ export default function RateBookingScreen() {
                 key={n}
                 onPress={() => setOverall(n)}
                 style={styles.starHit}
-                disabled={formDisabled}
+                disabled={formDisabled || alreadyRated}
               >
                 <Text style={[styles.star, n <= overall ? styles.starOn : styles.starOff]}>★</Text>
               </Pressable>
@@ -164,7 +192,7 @@ export default function RateBookingScreen() {
             style={styles.input}
             multiline
             textAlignVertical="top"
-            editable={!formDisabled}
+            editable={!formDisabled && !alreadyRated}
           />
         </>
       )}
@@ -177,23 +205,27 @@ export default function RateBookingScreen() {
 
       <Pressable
         onPress={() => void submit()}
-        disabled={formDisabled}
+        disabled={formDisabled && !alreadyRated}
         style={({ pressed }) => [
           styles.primary,
           (pressed || submitting) && styles.primaryPressed,
-          formDisabled && styles.primaryDisabled,
+          formDisabled && !alreadyRated && styles.primaryDisabled,
         ]}
       >
         {submitting ? (
           <ActivityIndicator color="#0f0f0f" />
         ) : (
-          <Text style={styles.primaryText}>{t('rateBookingScreen.submit')}</Text>
+          <Text style={styles.primaryText}>
+            {alreadyRated ? t('common.back') : t('rateBookingScreen.submit')}
+          </Text>
         )}
       </Pressable>
 
-      <Pressable onPress={skip} style={styles.skip} disabled={submitting}>
-        <Text style={styles.skipText}>{t('rateBookingScreen.skip')}</Text>
-      </Pressable>
+      {!alreadyRated ? (
+        <Pressable onPress={skip} style={styles.skip} disabled={submitting}>
+          <Text style={styles.skipText}>{t('rateBookingScreen.skip')}</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
@@ -221,7 +253,22 @@ const styles = StyleSheet.create({
     color: COLORS.grayLight,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.md,
+  },
+  ratedBadge: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    borderWidth: 1,
+    borderColor: COLORS.success,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginBottom: SPACING.lg,
+  },
+  ratedBadgeText: {
+    color: COLORS.success,
+    fontWeight: '800',
+    fontSize: 14,
   },
   starsRow: {
     flexDirection: 'row',

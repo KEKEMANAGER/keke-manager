@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { AppLogo } from '../../components/AppLogo';
+import { AuthBrandHeader } from '../../components/AuthBrandHeader';
 import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -81,8 +81,7 @@ export default function SignInScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <AppLogo size="auth" />
-        <Text style={styles.tagline}>{t('auth.tagline')}</Text>
+        <AuthBrandHeader />
 
         <View style={styles.card}>
           <Text style={styles.title}>{t('common.signIn')}</Text>
@@ -160,12 +159,6 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
-  },
-  tagline: {
-    fontSize: 15,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginBottom: SPACING.xl,
   },
   card: {
     backgroundColor: COLORS.white,

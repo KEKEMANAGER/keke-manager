@@ -20,7 +20,7 @@ import {
 } from '../../lib/validation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { AppLogo } from '../../components/AppLogo';
+import { AuthBrandHeader } from '../../components/AuthBrandHeader';
 import { AuthInput } from '../../components/AuthInput';
 import { LegalConsentNotice } from '../../components/LegalConsentNotice';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../constants/theme';
@@ -208,7 +208,7 @@ export default function SignUpScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <AppLogo size="auth" />
+        <AuthBrandHeader tagline={null} style={styles.logoHeader} />
         <Text style={styles.stepTitle}>{t('authScreen.signUp')}</Text>
 
         <Text style={styles.sectionLabel}>{t('authScreen.selectRole')}</Text>
@@ -394,6 +394,9 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: SPACING.lg,
+  },
+  logoHeader: {
+    marginBottom: SPACING.sm,
   },
   stepTitle: {
     fontSize: 22,
