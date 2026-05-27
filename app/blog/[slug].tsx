@@ -19,8 +19,7 @@ import {
   blogFaqSchema,
   blogPostingSchema,
 } from '../../lib/blogSeoMeta';
-import type { BlogLang } from '../../lib/blogTypes';
-import { isSeoLang } from '../../lib/seoMeta';
+import { useBlogLang } from '../../lib/useBlogLang';
 import { LANDING, landingFont, sx } from '../../components/landing/landingTheme';
 import { useLandingBreakpoint } from '../../components/landing/useLandingBreakpoint';
 
@@ -80,9 +79,9 @@ function ReadingProgressBar() {
 }
 
 export default function BlogArticleScreen() {
-  const { slug: rawSlug, lang: rawLang } = useLocalSearchParams<{ slug?: string; lang?: string }>();
+  const { slug: rawSlug } = useLocalSearchParams<{ slug?: string }>();
   const slug = Array.isArray(rawSlug) ? rawSlug[0] : rawSlug;
-  const lang: BlogLang = isSeoLang(String(rawLang ?? '')) ? (rawLang as BlogLang) : 'ka';
+  const lang = useBlogLang();
   const copy = COPY[lang === 'en' ? 'en' : 'ka'];
   const { isDesktop } = useLandingBreakpoint();
 
@@ -110,6 +109,7 @@ export default function BlogArticleScreen() {
 
   const showSidebarToc = Platform.OS === 'web' && isDesktop && post.toc.length > 0;
   const showInlineToc = Platform.OS === 'web' && !isDesktop && post.toc.length > 0;
+  const blogListHref = lang === 'ka' ? '/blog' : `/blog?lang=${lang}`;
 
   return (
     <BlogShell>
@@ -121,7 +121,7 @@ export default function BlogArticleScreen() {
             <Text style={styles.crumbText}>{copy.home}</Text>
           </Link>
           <Text style={styles.crumbSep}> / </Text>
-          <Link href="/blog" style={sx(styles.crumb)}>
+          <Link href={blogListHref} style={sx(styles.crumb)}>
             <Text style={styles.crumbText}>{copy.blog}</Text>
           </Link>
           <Text style={styles.crumbSep}> / </Text>

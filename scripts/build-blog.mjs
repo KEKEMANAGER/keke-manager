@@ -231,6 +231,13 @@ function extractToc(md) {
   return toc;
 }
 
+function splitLocalizedBodies(body) {
+  const parts = body.split(/\n## English\s*\n/);
+  const kaBody = parts[0].trim();
+  const enBody = parts[1]?.trim() ?? '';
+  return { kaBody, enBody };
+}
+
 function excerptFromBody(body, max = 160) {
   const plain = body
     .replace(/^#+\s.*/gm, '')
@@ -428,11 +435,12 @@ function main() {
     try {
     const raw = fs.readFileSync(path.join(CONTENT_DIR, file), 'utf8');
     const { fm, body } = parseFrontmatterAdvanced(raw);
+    const { kaBody, enBody } = splitLocalizedBodies(body);
     const slug = fm.slug || file.replace(/\.md$/, '');
     const cover = ensurePlaceholderCover(slug, fm.title || slug);
     const featuredImage = fm.featuredImage?.startsWith('/') ? fm.featuredImage : cover;
-    const wordCount = body.split(/\s+/).filter(Boolean).length;
-    const rt = Number(fm.readingTime) || readingTimeMinutes(body);
+    const wordCount = kaBody.split(/\s+/).filter(Boolean).length;
+    const rt = Number(fm.readingTime) || readingTimeMinutes(kaBody);
 
     posts.push({
       slug,
@@ -452,10 +460,12 @@ function main() {
       language: fm.language || 'ka',
       faq: Array.isArray(fm.faq) ? fm.faq : [],
       related: parseRelated(fm.related),
-      excerpt: excerptFromBody(body),
-      excerpt_en: excerptFromBody(body.split('## English')[1] || body),
-      html: markdownToHtml(body),
-      toc: extractToc(body),
+      excerpt: excerptFromBody(kaBody),
+      excerpt_en: enBody ? excerptFromBody(enBody) : excerptFromBody(kaBody),
+      html: markdownToHtml(kaBody),
+      html_en: enBody ? markdownToHtml(enBody) : '',
+      toc: extractToc(kaBody),
+      toc_en: enBody ? extractToc(enBody) : [],
       wordCount,
     });
     } catch (err) {

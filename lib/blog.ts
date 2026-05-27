@@ -10,14 +10,34 @@ type Manifest = {
 const data = manifest as Manifest;
 const allPosts: BlogPost[] = data.posts ?? [];
 
+function localizedHtml(post: BlogPost, lang: BlogLang): string {
+  if (lang === 'en' && post.html_en?.trim()) return post.html_en;
+  if (lang === 'ru' && post.html_en?.trim()) return post.html_en;
+  return post.html;
+}
+
+function localizedToc(post: BlogPost, lang: BlogLang): BlogPost['toc'] {
+  if (lang === 'en' && post.toc_en?.length) return post.toc_en;
+  if (lang === 'ru' && post.toc_en?.length) return post.toc_en;
+  return post.toc;
+}
+
 function postLang(post: BlogPost, lang?: BlogLang): BlogPost {
-  if (!lang || lang === 'ka') return post;
+  if (!lang || lang === 'ka') {
+    return {
+      ...post,
+      categoryName: categoryLabel(post.category, 'ka'),
+    };
+  }
   if (lang === 'en') {
     return {
       ...post,
       title: post.title_en || post.title,
       description: post.description_en || post.description,
       excerpt: post.excerpt_en || post.excerpt,
+      html: localizedHtml(post, 'en'),
+      toc: localizedToc(post, 'en'),
+      categoryName: categoryLabel(post.category, 'en'),
     };
   }
   return {
@@ -25,6 +45,9 @@ function postLang(post: BlogPost, lang?: BlogLang): BlogPost {
     title: post.title_ru || post.title_en || post.title,
     description: post.description_ru || post.description_en || post.description,
     excerpt: post.excerpt_en || post.excerpt,
+    html: localizedHtml(post, 'ru'),
+    toc: localizedToc(post, 'ru'),
+    categoryName: categoryLabel(post.category, 'ru'),
   };
 }
 

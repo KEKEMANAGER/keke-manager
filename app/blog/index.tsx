@@ -9,8 +9,8 @@ import { NewsletterSignup } from '../../components/blog/NewsletterSignup';
 import { TryKekeCta } from '../../components/blog/TryKekeCta';
 import { getAllPosts, paginatePosts, searchPosts } from '../../lib/blog';
 import { blogIndexSeo } from '../../lib/blogSeoMeta';
-import type { BlogCategoryId, BlogLang } from '../../lib/blogTypes';
-import { isSeoLang } from '../../lib/seoMeta';
+import type { BlogCategoryId } from '../../lib/blogTypes';
+import { useBlogLang } from '../../lib/useBlogLang';
 import { LANDING, landingFont, sx } from '../../components/landing/landingTheme';
 
 const PER_PAGE = 12;
@@ -45,8 +45,8 @@ const COPY = {
 };
 
 export default function BlogIndexScreen() {
-  const params = useLocalSearchParams<{ lang?: string; category?: string; page?: string }>();
-  const lang: BlogLang = isSeoLang(String(params.lang ?? '')) ? (params.lang as BlogLang) : 'ka';
+  const params = useLocalSearchParams<{ category?: string; page?: string }>();
+  const lang = useBlogLang();
   const copy = COPY[lang === 'en' ? 'en' : 'ka'];
 
   const [query, setQuery] = useState('');

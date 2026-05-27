@@ -42,7 +42,9 @@ export type BlogPost = BlogPostFrontmatter & {
   excerpt: string;
   excerpt_en: string;
   html: string;
+  html_en: string;
   toc: BlogTocItem[];
+  toc_en: BlogTocItem[];
   wordCount: number;
 };
 
