@@ -476,7 +476,14 @@ export default function DriverBookingsScreen() {
           <Pressable onPress={() => router.replace('/(driver)/dashboard')} style={styles.gateBtn}>
             <Text style={styles.gateBtnText}>{t('hiredDriver.goDashboard')}</Text>
           </Pressable>
-        ) : null}
+        ) : (
+          <Pressable
+            onPress={() => router.push('/(driver)/verification' as never)}
+            style={styles.gateBtn}
+          >
+            <Text style={styles.gateBtnText}>{t('menu.verification')}</Text>
+          </Pressable>
+        )}
       </View>
     );
   }

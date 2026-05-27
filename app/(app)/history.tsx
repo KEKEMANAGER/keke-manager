@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -30,7 +29,10 @@ import {
 } from '../../components/CompanyBookingVoucher';
 import { useAuth } from '../../contexts/AuthContext';
 import { canCompanyEditBooking } from '../../lib/bookingUpdate';
-import { fetchRatedBookingIdsForCompany } from '../../lib/ratings';
+import {
+  fetchRatedBookingIdsForCompany,
+  isBookingAlreadyRated,
+} from '../../lib/ratings';
 
 type FilterKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
@@ -281,18 +283,10 @@ export default function CompanyHistoryScreen() {
               </Pressable>
               {/* rate-booking: bookingId = booking.id (uuid), driverId = driver user id. */}
               {r.status === 'completed' && r.driver_id ? (
-                ratedBookingIds.has(r.id) ? (
-                  <Pressable
-                    onPress={() =>
-                      router.push(
-                        `/(app)/rate-booking?bookingId=${encodeURIComponent(r.id)}&driverId=${encodeURIComponent(r.driver_id!)}`,
-                      )
-                    }
-                    style={({ pressed }) => [styles.ratedBadge, pressed && styles.rateBtnPressed]}
-                  >
-                    <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-                    <Text style={styles.ratedBadgeText}>{t('rateBookingScreen.alreadyRated')}</Text>
-                  </Pressable>
+                isBookingAlreadyRated(r.id, ratedBookingIds) ? (
+                  <View style={styles.ratedBadge}>
+                    <Text style={styles.ratedBadgeText}>{t('rateBookingScreen.alreadyRatedBadge')}</Text>
+                  </View>
                 ) : (
                   <Pressable
                     onPress={() =>

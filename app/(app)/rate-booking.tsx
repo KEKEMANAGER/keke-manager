@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import { fetchBookingById, isBookingRowUuid } from '../../lib/bookings';
-import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
   fetchRatingByBookingAndRater,
   insertRating,
@@ -93,18 +92,12 @@ export default function RateBookingScreen() {
       setRatingCompanyId(ownerCompanyId);
       setBookingKindBadge(ratingKindBadgeLabel(data.kind, t));
 
-      const { data: existing, error: ratingErr } = await fetchRatingByBookingAndRater(
-        bookingId,
-        companyId,
-      );
-      if (ratingErr) {
-        setLoadError(ratingErr.message);
-        return;
-      }
+      const { data: existing } = await fetchRatingByBookingAndRater(bookingId, companyId);
       if (existing) {
         setAlreadyRated(true);
         setOverall(Number(existing.overall) || 0);
         setComment(existing.comment?.trim() ?? '');
+        setError(null);
       } else {
         setAlreadyRated(false);
         setOverall(0);
@@ -124,6 +117,24 @@ export default function RateBookingScreen() {
     setComment(existing.comment?.trim() ?? '');
     setError(null);
   }
+
+  useEffect(() => {
+    if (!bookingId || !companyId || !isBookingRowUuid(bookingId)) return;
+    let cancelled = false;
+    void (async () => {
+      const { data: existing } = await fetchRatingByBookingAndRater(bookingId, companyId);
+      if (cancelled) return;
+      if (existing) {
+        setAlreadyRated(true);
+        setOverall(Number(existing.overall) || 0);
+        setComment(existing.comment?.trim() ?? '');
+        setError(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId, companyId]);
 
   useEffect(() => {
     void loadBooking();
@@ -182,19 +193,19 @@ export default function RateBookingScreen() {
         const { data: existing } = await fetchRatingByBookingAndRater(bookingId, companyId);
         if (existing) {
           applyExistingRating(existing);
-          return;
+        } else {
+          setAlreadyRated(true);
+          setError(null);
         }
-        setAlreadyRated(true);
-        setError(null);
         return;
       }
-      setError(getSupabaseErrorMessage(err) || t('rateBookingScreen.errorSubmit'));
+      setError(t('rateBookingScreen.errorSubmitRetry'));
       return;
     }
     router.replace('/(app)/dashboard');
   }
 
-  const screenError = alreadyRated ? null : loadError ?? error;
+  const screenError = alreadyRated ? null : loadError ?? (!alreadyRated ? error : null);
   const formDisabled = loadingBooking || !!loadError || submitting;
 
   return (
@@ -256,27 +267,29 @@ export default function RateBookingScreen() {
         </>
       )}
 
-      {screenError ? (
+      {!alreadyRated && screenError ? (
         <View style={styles.errBox}>
           <Text style={styles.errText}>{screenError}</Text>
         </View>
       ) : null}
 
-      <Pressable
-        onPress={() => void submit()}
-        disabled={formDisabled || alreadyRated}
-        style={({ pressed }) => [
-          styles.primary,
-          (pressed || submitting) && styles.primaryPressed,
-          (formDisabled || alreadyRated) && styles.primaryDisabled,
-        ]}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#0f0f0f" />
-        ) : (
-          <Text style={styles.primaryText}>{t('rateBookingScreen.submit')}</Text>
-        )}
-      </Pressable>
+      {!alreadyRated ? (
+        <Pressable
+          onPress={() => void submit()}
+          disabled={formDisabled}
+          style={({ pressed }) => [
+            styles.primary,
+            (pressed || submitting) && styles.primaryPressed,
+            formDisabled && styles.primaryDisabled,
+          ]}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#0f0f0f" />
+          ) : (
+            <Text style={styles.primaryText}>{t('rateBookingScreen.submit')}</Text>
+          )}
+        </Pressable>
+      ) : null}
 
       {!alreadyRated ? (
         <Pressable onPress={skip} style={styles.skip} disabled={submitting}>

@@ -102,6 +102,11 @@ export function AppDrawer() {
         { icon: 'calendar-outline', label: t('menu.myBookings'), route: '/(driver)/bookings' },
         { icon: 'chatbubbles-outline', label: t('menu.chats'), route: '/(driver)/chat-list' },
         { icon: 'person-outline', label: t('menu.myProfile'), route: '/(driver)/profile' },
+        {
+          icon: 'document-text-outline',
+          label: t('menu.verification'),
+          route: '/(driver)/verification',
+        },
         { icon: 'star-outline', label: t('menu.ratings'), route: '/(driver)/ratings' },
         { divider: true },
         { icon: 'settings-outline', label: t('menu.settings'), route: '/(driver)/settings' },
@@ -117,6 +122,11 @@ export function AppDrawer() {
         { icon: 'calendar-outline', label: t('menu.myBookings'), route: '/(driver)/bookings' },
         { icon: 'chatbubbles-outline', label: t('menu.chats'), route: '/(driver)/chat-list' },
         { icon: 'person-outline', label: t('menu.myProfile'), route: '/(driver)/profile' },
+        {
+          icon: 'document-text-outline',
+          label: t('menu.verification'),
+          route: '/(driver)/verification',
+        },
         { icon: 'star-outline', label: t('menu.ratings'), route: '/(driver)/ratings' },
         { divider: true },
         { icon: 'settings-outline', label: t('menu.settings'), route: '/(driver)/settings' },

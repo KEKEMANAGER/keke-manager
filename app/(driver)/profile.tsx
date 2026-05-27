@@ -668,6 +668,17 @@ export default function DriverProfileScreen() {
         </View>
       ) : null}
 
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t('menu.verification')}</Text>
+        <Text style={styles.availabilityHint}>{t('verificationScreen.docsEditHint')}</Text>
+        <Pressable
+          onPress={() => router.push('/(driver)/verification' as never)}
+          style={({ pressed }) => [styles.calendarLink, pressed && { opacity: 0.9 }]}
+        >
+          <Text style={styles.calendarLinkText}>{t('verificationScreen.manageDocs')}</Text>
+        </Pressable>
+      </View>
+
       <ProfileFeedbackEntry />
 
       <LegalSettingsLinks />

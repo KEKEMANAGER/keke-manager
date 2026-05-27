@@ -47,7 +47,10 @@ import {
   CompanyBookingVoucherModal,
   openCompanyVoucher,
 } from '../../components/CompanyBookingVoucher';
-import { fetchRatedBookingIdsForCompany } from '../../lib/ratings';
+import {
+  fetchRatedBookingIdsForCompany,
+  isBookingAlreadyRated,
+} from '../../lib/ratings';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
 
@@ -159,14 +162,18 @@ export default function CompanyDashboardScreen() {
       setRefreshing(true);
     }
 
-    const [bRes, sRes, activeAds, ratedRes] = await Promise.all([
+    const [bRes, sRes, activeAds] = await Promise.all([
       fetchBookingsByCompanyId(userId),
       aggregateCompanyStats(userId),
       fetchActiveAds(),
-      fetchRatedBookingIdsForCompany(userId),
     ]);
-    setRatedBookingIds(ratedRes.ids);
     setAds(activeAds);
+
+    const completedBookingIds = (bRes.data ?? [])
+      .filter((b) => b.status === 'completed' && b.driver_id)
+      .map((b) => b.id);
+    const ratedRes = await fetchRatedBookingIdsForCompany(userId, completedBookingIds);
+    setRatedBookingIds(ratedRes.ids);
 
     if (mode === 'initial') {
       setLoading(false);
@@ -535,7 +542,7 @@ export default function CompanyDashboardScreen() {
               </View>
             ) : null}
             {b.status === 'completed' && b.driver_id ? (
-              ratedBookingIds.has(b.id) ? (
+              isBookingAlreadyRated(b.id, ratedBookingIds) ? (
                 <Pressable
                   onPress={() =>
                     router.push(

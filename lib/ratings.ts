@@ -1,4 +1,18 @@
 import { supabase } from './supabase';
+import { trimUserId } from './userId';
+
+/** Case-insensitive key for matching `bookings.id` to `ratings.booking_id`. */
+export function normalizeRatingBookingIdKey(id: string | null | undefined): string {
+  return String(id ?? '').trim().toLowerCase();
+}
+
+export function isBookingAlreadyRated(
+  bookingId: string | null | undefined,
+  ratedBookingIds: Set<string>,
+): boolean {
+  const key = normalizeRatingBookingIdKey(bookingId);
+  return !!key && ratedBookingIds.has(key);
+}
 
 export function isDuplicateBookingRatingError(error: unknown): boolean {
   const msg =
@@ -116,11 +130,23 @@ export async function fetchRatingForBooking(
   return { data: row, error: null };
 }
 
+function addRatedBookingIdsFromRows(
+  rows: { booking_id?: string }[] | null | undefined,
+  ids: Set<string>,
+) {
+  for (const r of rows ?? []) {
+    const key = normalizeRatingBookingIdKey(r.booking_id);
+    if (key) ids.add(key);
+  }
+}
+
 /** Booking ids this company has already rated (for list badges). */
 export async function fetchRatedBookingIdsForCompany(
   companyId: string,
+  /** Completed booking ids from the current list — optional targeted refresh. */
+  bookingIdsHint?: string[],
 ): Promise<{ ids: Set<string>; error: Error | null }> {
-  const cid = companyId.trim();
+  const cid = trimUserId(companyId);
   if (!cid) {
     return { ids: new Set(), error: new Error('company id არ არის') };
   }
@@ -133,32 +159,22 @@ export async function fetchRatedBookingIdsForCompany(
   if (directErr) {
     return { ids: new Set(), error: new Error(directErr.message) };
   }
-  for (const r of direct ?? []) {
-    const id = (r as { booking_id?: string }).booking_id?.trim();
-    if (id) ids.add(id);
-  }
+  addRatedBookingIdsFromRows(direct as { booking_id?: string }[], ids);
 
-  const { data: bookings, error: bookingsErr } = await supabase
-    .from('bookings')
-    .select('id')
-    .eq('company_id', cid);
-  if (bookingsErr) {
-    return { ids, error: new Error(bookingsErr.message) };
-  }
-  const bookingIds = (bookings ?? [])
-    .map((b) => (b as { id?: string }).id?.trim())
-    .filter((id): id is string => !!id);
-  if (bookingIds.length > 0) {
-    const { data: linked, error: linkedErr } = await supabase
-      .from('ratings')
-      .select('booking_id')
-      .in('booking_id', bookingIds);
-    if (linkedErr) {
-      return { ids, error: new Error(linkedErr.message) };
-    }
-    for (const r of linked ?? []) {
-      const id = (r as { booking_id?: string }).booking_id?.trim();
-      if (id) ids.add(id);
+  const hints = (bookingIdsHint ?? []).map((id) => id.trim()).filter(Boolean);
+  if (hints.length > 0) {
+    const chunkSize = 80;
+    for (let i = 0; i < hints.length; i += chunkSize) {
+      const chunk = hints.slice(i, i + chunkSize);
+      const { data, error } = await supabase
+        .from('ratings')
+        .select('booking_id')
+        .eq('company_id', cid)
+        .in('booking_id', chunk);
+      if (error) {
+        return { ids, error: new Error(error.message) };
+      }
+      addRatedBookingIdsFromRows(data as { booking_id?: string }[], ids);
     }
   }
 

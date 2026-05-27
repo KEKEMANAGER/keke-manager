@@ -71,6 +71,24 @@ export async function saveSingleVerificationDocument(
   if (doc === 'license') payload.license_photo = url;
   if (doc === 'registration') payload.vehicle_registration_photo = url;
 
+  const { data: current, error: readErr } = await supabase
+    .from('users')
+    .select('verification_status')
+    .eq('id', userId)
+    .maybeSingle();
+  if (readErr) {
+    return { error: readErr };
+  }
+
+  const status = (current?.verification_status ?? 'pending') as VerificationStatus;
+  if (status === 'rejected') {
+    payload.verification_status = 'pending';
+    payload.rejection_reason = null;
+  } else if (status === 'submitted' || status === 'approved') {
+    payload.verification_status = 'submitted';
+    payload.rejection_reason = null;
+  }
+
   const { error } = await supabase.from('users').update(payload).eq('id', userId);
   return { error };
 }

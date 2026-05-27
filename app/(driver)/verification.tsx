@@ -63,6 +63,7 @@ export default function DriverVerificationScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadingDoc, setUploadingDoc] = useState<VerificationSimpleDoc | null>(null);
+  const [docsDirty, setDocsDirty] = useState(false);
   const [isHiredDriverUser, setIsHiredDriverUser] = useState(() => isHiredDriver(profile));
 
   const simpleDocs = useMemo(
@@ -76,8 +77,10 @@ export default function DriverVerificationScreen() {
   const submittedView = verificationStatus === 'submitted' && !approvedView;
   const canSubmit =
     photosComplete &&
-    !approvedView &&
-    (verificationStatus === 'pending' || verificationStatus === 'rejected');
+    !submitting &&
+    (verificationStatus === 'pending' ||
+      verificationStatus === 'rejected' ||
+      ((verificationStatus === 'submitted' || approvedView) && docsDirty));
 
   const load = useCallback(async () => {
     if (authLoading) return;
@@ -157,6 +160,7 @@ export default function DriverVerificationScreen() {
         setSubmitError(error.message);
         return;
       }
+      setDocsDirty(true);
       await load();
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : t('vehicleScreen.uploadFailed'));
@@ -201,6 +205,7 @@ export default function DriverVerificationScreen() {
         setSubmitError(error.message);
         return;
       }
+      setDocsDirty(false);
       await load();
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : t('vehicleScreen.uploadFailed'));
@@ -281,6 +286,10 @@ export default function DriverVerificationScreen() {
         </Text>
       )}
 
+      {submittedView || approvedView || verificationStatus === 'rejected' ? (
+        <Text style={styles.docsEditHint}>{t('verificationScreen.docsEditHint')}</Text>
+      ) : null}
+
       <View style={styles.docList}>
         {simpleDocs.map((doc) => {
           const uploaded = isSimpleDocUploaded(photos, doc);
@@ -334,7 +343,13 @@ export default function DriverVerificationScreen() {
           {submitting ? (
             <ActivityIndicator color={COLORS.black} />
           ) : (
-            <Text style={styles.submitBtnText}>{t('verificationScreen.submit')}</Text>
+            <Text style={styles.submitBtnText}>
+              {verificationStatus === 'rejected' ||
+              verificationStatus === 'submitted' ||
+              approvedView
+                ? t('verificationScreen.resubmit')
+                : t('verificationScreen.submit')}
+            </Text>
           )}
         </Pressable>
       ) : null}
@@ -364,6 +379,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: SPACING.lg,
+  },
+  docsEditHint: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: SPACING.md,
   },
   statusHero: {
     alignItems: 'center',
