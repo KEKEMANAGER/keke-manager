@@ -8,21 +8,6 @@ a.blog-article-card-link:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(239, 159, 39, 0.12);
 }
-.blog-sticky-cta {
-  position: fixed !important;
-  bottom: 16px;
-  left: 16px;
-  right: 16px;
-  max-width: 420px;
-  margin-left: auto;
-  margin-right: auto;
-  z-index: 50;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-  background: #faeeda;
-  border: 1px solid #ef9f27;
-  border-radius: 16px;
-  padding: 20px;
-}
 .blog-progress-track {
   position: fixed;
   top: 0;

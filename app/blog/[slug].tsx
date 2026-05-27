@@ -22,6 +22,7 @@ import {
 import type { BlogLang } from '../../lib/blogTypes';
 import { isSeoLang } from '../../lib/seoMeta';
 import { LANDING, landingFont, sx } from '../../components/landing/landingTheme';
+import { useLandingBreakpoint } from '../../components/landing/useLandingBreakpoint';
 
 const COPY = {
   ka: {
@@ -83,6 +84,7 @@ export default function BlogArticleScreen() {
   const slug = Array.isArray(rawSlug) ? rawSlug[0] : rawSlug;
   const lang: BlogLang = isSeoLang(String(rawLang ?? '')) ? (rawLang as BlogLang) : 'ka';
   const copy = COPY[lang === 'en' ? 'en' : 'ka'];
+  const { isDesktop } = useLandingBreakpoint();
 
   const post = useMemo(() => (slug ? getPostBySlug(slug, lang) : null), [slug, lang]);
   const related = useMemo(
@@ -106,6 +108,9 @@ export default function BlogArticleScreen() {
     );
   }
 
+  const showSidebarToc = Platform.OS === 'web' && isDesktop && post.toc.length > 0;
+  const showInlineToc = Platform.OS === 'web' && !isDesktop && post.toc.length > 0;
+
   return (
     <BlogShell>
       {seo ? <BlogSeoHead meta={seo} schemas={schemas} /> : null}
@@ -125,19 +130,22 @@ export default function BlogArticleScreen() {
 
         <ArticleHero post={post} lang={lang} />
 
-        <View style={styles.layout}>
-          <View style={styles.main}>
+        <View style={sx(styles.layout, showSidebarToc ? styles.layoutDesktop : styles.layoutStack)}>
+          <View style={sx(styles.main, showSidebarToc ? styles.mainWithSidebar : undefined)}>
+            {showInlineToc ? (
+              <TableOfContents items={post.toc} title={copy.toc} variant="inline" />
+            ) : null}
             <BlogMarkdownBody html={post.html} />
             <FaqSection items={post.faq} title={copy.faq} />
             <ShareButtons slug={post.slug} title={post.title} labels={copy.share} />
             <AuthorBio lang={lang} />
-            <TryKekeCta title={copy.ctaTitle} subtitle={copy.ctaSub} button={copy.ctaBtn} sticky />
+            <TryKekeCta title={copy.ctaTitle} subtitle={copy.ctaSub} button={copy.ctaBtn} />
             <RelatedPosts posts={related} title={copy.related} lang={lang} />
             <NewsletterSignup title={copy.newsletterTitle} subtitle={copy.newsletterSub} lang={lang} />
           </View>
-          {Platform.OS === 'web' && post.toc.length > 0 ? (
+          {showSidebarToc ? (
             <View style={styles.aside}>
-              <TableOfContents items={post.toc} title={copy.toc} />
+              <TableOfContents items={post.toc} title={copy.toc} variant="sidebar" />
             </View>
           ) : null}
         </View>
@@ -147,7 +155,7 @@ export default function BlogArticleScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingVertical: 24, paddingBottom: 120 },
+  scroll: { paddingVertical: 24, paddingBottom: 48 },
   breadcrumbs: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -165,16 +173,30 @@ const styles = StyleSheet.create({
     ...landingFont({ fontSize: 13, color: LANDING.muted }),
   },
   layout: {
-    flexDirection: Platform.OS === 'web' ? 'row' : 'column',
+    width: '100%',
+    alignItems: 'stretch',
+  },
+  layoutStack: {
+    flexDirection: 'column',
+  },
+  layoutDesktop: {
+    flexDirection: 'row',
     gap: 32,
     alignItems: 'flex-start',
   },
-  main: { flex: 1, minWidth: 0, maxWidth: 700 },
+  main: {
+    flex: 1,
+    minWidth: 0,
+    width: '100%',
+  },
+  mainWithSidebar: {
+    maxWidth: 700,
+  },
   aside: {
     width: 280,
     flexShrink: 0,
     ...Platform.select({
-      web: { position: 'sticky' as const, top: 80 },
+      web: { position: 'sticky' as const, top: 80, alignSelf: 'flex-start' },
       default: {},
     }),
   },

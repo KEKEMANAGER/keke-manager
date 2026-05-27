@@ -6,12 +6,11 @@ type Props = {
   title: string;
   subtitle: string;
   button: string;
-  sticky?: boolean;
 };
 
-export function TryKekeCta({ title, subtitle, button, sticky }: Props) {
-  const inner = (
-    <>
+export function TryKekeCta({ title, subtitle, button }: Props) {
+  return (
+    <View style={styles.box}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.sub}>{subtitle}</Text>
       {Platform.OS === 'web' ? (
@@ -25,14 +24,8 @@ export function TryKekeCta({ title, subtitle, button, sticky }: Props) {
           </Pressable>
         </Link>
       )}
-    </>
+    </View>
   );
-
-  if (Platform.OS === 'web' && sticky) {
-    return <div className="blog-sticky-cta">{inner}</div>;
-  }
-
-  return <View style={sx(styles.box)}>{inner}</View>;
 }
 
 const styles = StyleSheet.create({
