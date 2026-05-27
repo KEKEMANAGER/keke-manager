@@ -83,7 +83,10 @@ export function LandingHeader({
           <Pressable style={styles.navBrand} onPress={() => onNavLink('hero')}>
             <Image
               source={LOGO}
-              style={[styles.navLogo, isMobile ? styles.navLogoMobile : isTablet ? styles.navLogoTablet : styles.navLogoDesktop]}
+              style={sx(
+                styles.navLogo,
+                isMobile ? styles.navLogoMobile : isTablet ? styles.navLogoTablet : styles.navLogoDesktop,
+              )}
               resizeMode="contain"
             />
             {!isMobile ? (

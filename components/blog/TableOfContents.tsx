@@ -1,6 +1,6 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BlogTocItem } from '../../lib/blogTypes';
-import { LANDING, landingFont } from '../landing/landingTheme';
+import { LANDING, landingFont, sx } from '../landing/landingTheme';
 
 type Props = {
   items: BlogTocItem[];
@@ -23,7 +23,7 @@ export function TableOfContents({ items, title }: Props) {
         <Pressable
           key={item.id}
           onPress={() => scrollTo(item.id)}
-          style={[styles.item, item.level === 3 && styles.itemNested]}
+          style={sx(styles.item, item.level === 3 ? styles.itemNested : undefined)}
         >
           <Text style={styles.itemText}>{item.text}</Text>
         </Pressable>

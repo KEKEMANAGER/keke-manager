@@ -73,7 +73,7 @@ export function ServicesSection({ copy, isMobile, isTablet, isDesktop, container
       : ({ width: '100%' as const, alignSelf: 'stretch' as const });
 
   return (
-    <View nativeID="services" style={[styles.section, { paddingVertical: sectionPadV }]}>
+    <View nativeID="services" style={sx(styles.section, { paddingVertical: sectionPadV })}>
       <View style={containerStyle}>
         <Text style={sx(styles.label, landingFont({ fontWeight: '600' }))}>{copy.servicesLabel}</Text>
         <Text style={sx(styles.title, landingFont({ fontWeight: '800' }))}>{copy.servicesTitle}</Text>

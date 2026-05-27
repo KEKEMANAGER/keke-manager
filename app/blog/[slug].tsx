@@ -72,9 +72,9 @@ function ReadingProgressBar() {
   }, []);
   if (Platform.OS !== 'web') return null;
   return (
-    <View style={[styles.progressTrack, Platform.OS === 'web' && ({ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 } as object)]}>
-      <View style={[styles.progressFill, { width: `${pct}%` }]} />
-    </View>
+    <div className="blog-progress-track">
+      <div className="blog-progress-fill" style={{ width: `${pct}%` }} />
+    </div>
   );
 }
 
@@ -177,15 +177,6 @@ const styles = StyleSheet.create({
       web: { position: 'sticky' as const, top: 80 },
       default: {},
     }),
-  },
-  progressTrack: {
-    height: 3,
-    backgroundColor: LANDING.border,
-    width: '100%',
-  },
-  progressFill: {
-    height: 3,
-    backgroundColor: LANDING.accent,
   },
   notFound: {
     ...landingFont({ fontSize: 18, padding: 24 }),

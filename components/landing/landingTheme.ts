@@ -1,18 +1,6 @@
-import {
-  Platform,
-  StyleSheet,
-  type ImageStyle,
-  type StyleProp,
-  type TextStyle,
-  type ViewStyle,
-} from 'react-native';
+import { Platform } from 'react-native';
 
-type RNStyle = ViewStyle | TextStyle | ImageStyle;
-
-/** Flatten style arrays on web — avoids CSSStyleDeclaration crash with conditional entries. */
-export function sx(...styles: Array<StyleProp<RNStyle> | false | undefined | null>): RNStyle {
-  return StyleSheet.flatten(styles.filter(Boolean)) as RNStyle;
-}
+export { pressableSx, sx } from '../../lib/sx';
 
 export const LANDING = {
   white: '#ffffff',

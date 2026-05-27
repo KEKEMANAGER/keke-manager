@@ -2,6 +2,7 @@ import { Link } from 'expo-router';
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../constants/theme';
+import { sx } from '../lib/sx';
 import { AppLogo } from './AppLogo';
 
 type Props = {
@@ -25,7 +26,7 @@ export function AuthBrandHeader({ tagline, style }: Props) {
     return (
       <Link href="/" asChild>
         <Pressable
-          style={[styles.wrap, styles.wrapWeb, style]}
+          style={sx(styles.wrap, styles.wrapWeb, style)}
           accessibilityRole="link"
           accessibilityLabel={t('menu.home')}
         >
@@ -35,7 +36,7 @@ export function AuthBrandHeader({ tagline, style }: Props) {
     );
   }
 
-  return <View style={[styles.wrap, style]}>{inner}</View>;
+  return <View style={sx(styles.wrap, style)}>{inner}</View>;
 }
 
 const styles = StyleSheet.create({

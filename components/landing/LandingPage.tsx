@@ -133,7 +133,7 @@ export function LandingPage() {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const copy = useMemo(() => getLandingCopy(lang), [lang]);
 
-  useLandingMeta(lang, copy);
+  useLandingMeta(copy);
 
   useEffect(() => {
     const useNativeDriver = Platform.OS !== 'web';

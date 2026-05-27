@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { BLOG_CATEGORIES } from '../../lib/blogTypes';
 import type { BlogCategoryId, BlogLang } from '../../lib/blogTypes';
-import { LANDING, landingFont } from '../landing/landingTheme';
+import { LANDING, landingFont, sx } from '../landing/landingTheme';
 
 type Props = {
   active: BlogCategoryId | 'all';
@@ -27,9 +27,9 @@ export function CategoryFilter({ active, onChange, lang = 'ka' }: Props) {
           <Pressable
             key={f.id}
             onPress={() => onChange(f.id)}
-            style={[styles.chip, on && styles.chipOn]}
+            style={sx(styles.chip, on ? styles.chipOn : undefined)}
           >
-            <Text style={[styles.chipText, on && styles.chipTextOn]}>
+            <Text style={sx(styles.chipText, on ? styles.chipTextOn : undefined)}>
               {lang === 'ka' ? f.labelKa : f.labelEn}
             </Text>
           </Pressable>

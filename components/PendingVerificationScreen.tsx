@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { AppLogo } from './AppLogo';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import { pressableSx, sx } from '../lib/sx';
 import { useAuth } from '../contexts/AuthContext';
 
 export function PendingVerificationScreen() {
@@ -26,10 +27,10 @@ export function PendingVerificationScreen() {
 
   return (
     <View
-      style={[
-        styles.screen,
-        { paddingTop: insets.top + SPACING.xl, paddingBottom: insets.bottom + SPACING.xl },
-      ]}
+      style={sx(styles.screen, {
+        paddingTop: insets.top + SPACING.xl,
+        paddingBottom: insets.bottom + SPACING.xl,
+      })}
     >
       <AppLogo size="auth" />
       <View style={styles.card}>
@@ -46,7 +47,7 @@ export function PendingVerificationScreen() {
         <Pressable
           onPress={() => void onSignOut()}
           disabled={signingOut}
-          style={({ pressed }) => [styles.signOutBtn, pressed && styles.signOutBtnPressed]}
+          style={pressableSx(styles.signOutBtn, (pressed) => (pressed ? styles.signOutBtnPressed : undefined))}
         >
           {signingOut ? (
             <ActivityIndicator color={COLORS.black} size="small" />

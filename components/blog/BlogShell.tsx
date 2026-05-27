@@ -15,7 +15,7 @@ export function BlogShell({ children }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={sx(styles.header, { paddingTop: insets.top + 12 })}>
         <Link href="/" style={sx(styles.logoLink)}>
           <Image source={LOGO} style={styles.logo} resizeMode="contain" />
           <Text style={styles.logoText}>KEKE Manager</Text>
@@ -30,7 +30,7 @@ export function BlogShell({ children }: Props) {
         </View>
       </View>
       <View style={styles.content}>{children}</View>
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={sx(styles.footer, { paddingBottom: insets.bottom + 16 })}>
         <Text style={styles.footerText}>© {new Date().getFullYear()} KEKE Manager · Georgia</Text>
         <View style={styles.footerLinks}>
           <Link href="/" style={sx(styles.footerLink)}>

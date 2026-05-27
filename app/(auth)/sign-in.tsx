@@ -17,6 +17,7 @@ import { AuthInput } from '../../components/AuthInput';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
+import { pressableSx, sx } from '../../lib/sx';
 import {
   showErrorAlert,
   showValidationAlert,
@@ -74,10 +75,10 @@ export default function SignInScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingTop: insets.top + SPACING.xl, paddingBottom: insets.bottom + SPACING.xl },
-        ]}
+        contentContainerStyle={sx(styles.scroll, {
+          paddingTop: insets.top + SPACING.xl,
+          paddingBottom: insets.bottom + SPACING.xl,
+        })}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -115,12 +116,12 @@ export default function SignInScreen() {
           <Pressable
             onPress={handleSignIn}
             disabled={loading || !emailAddress.trim() || !password}
-            style={({ pressed }) => [
+            style={pressableSx(
               styles.button,
               SHADOWS.button,
-              (loading || !emailAddress.trim() || !password) && styles.buttonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
+              (loading || !emailAddress.trim() || !password) ? styles.buttonDisabled : undefined,
+              (pressed) => (pressed ? styles.buttonPressed : undefined),
+            )}
           >
             {loading ? (
               <ActivityIndicator color={COLORS.white} size="small" />

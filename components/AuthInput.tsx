@@ -1,5 +1,6 @@
 import { type TextInputProps, StyleSheet, Text, TextInput, View } from 'react-native';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { sx } from '../lib/sx';
 
 type Props = TextInputProps & {
   label: string;
@@ -12,7 +13,7 @@ export function AuthInput({ label, style, error, ...rest }: Props) {
       <Text style={styles.label}>{label}</Text>
       <TextInput
         placeholderTextColor={COLORS.textMuted}
-        style={[styles.input, error ? styles.inputError : null, style]}
+        style={sx(styles.input, error ? styles.inputError : undefined, style)}
         {...rest}
       />
       {error ? <Text style={styles.fieldError}>{error}</Text> : null}

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import { pressableSx } from '../lib/sx';
 import i18n from '../src/lib/i18n';
 
 type Props = {
@@ -39,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <Text style={styles.subtitle}>{i18n.t('errorBoundary.subtitle')}</Text>
             <Pressable
               onPress={this.handleRetry}
-              style={({ pressed }) => [styles.button, SHADOWS.button, pressed && styles.pressed]}
+              style={pressableSx(styles.button, SHADOWS.button, (pressed) => (pressed ? styles.pressed : undefined))}
             >
               <Text style={styles.buttonText}>{i18n.t('errorBoundary.retry')}</Text>
             </Pressable>

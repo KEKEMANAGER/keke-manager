@@ -43,15 +43,19 @@ export function ArticleCard({ post, lang = 'ka' }: Props) {
 
   if (Platform.OS === 'web') {
     return (
-      <Link href={href} style={sx(styles.card, styles.cardWeb)}>
-        {inner}
+      <Link href={href} asChild className="blog-article-card-link">
+        <Pressable style={sx(styles.card)}>{inner}</Pressable>
       </Link>
     );
   }
 
   return (
     <Link href={href} asChild>
-      <Pressable style={({ pressed }) => [styles.card, pressed && styles.pressed]}>{inner}</Pressable>
+      <Pressable
+        style={({ pressed }) => sx(styles.card, pressed ? styles.pressed : undefined)}
+      >
+        {inner}
+      </Pressable>
     </Link>
   );
 }
@@ -67,10 +71,6 @@ const styles = StyleSheet.create({
     minWidth: 280,
     maxWidth: '100%',
   },
-  cardWeb: {
-    textDecorationLine: 'none',
-    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-  } as object,
   pressed: { opacity: 0.92 },
   image: {
     width: '100%',

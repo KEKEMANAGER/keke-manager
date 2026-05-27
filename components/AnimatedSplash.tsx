@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { sx } from '../lib/sx';
 
 export interface AnimatedSplashProps {
   onFinish: () => void;
@@ -98,37 +99,31 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
   ]);
 
   return (
-    <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
+    <Animated.View style={sx(styles.container, { opacity: screenOpacity })}>
       <View style={styles.content}>
         <View style={styles.logoRow}>
           <Animated.Text
-            style={[
-              styles.kLetter,
-              {
-                opacity: kOpacity,
-                transform: [{ scale: kScale }],
-              },
-            ]}
+            style={sx(styles.kLetter, {
+              opacity: kOpacity,
+              transform: [{ scale: kScale }],
+            })}
           >
             K
           </Animated.Text>
           <View style={styles.roadRow}>
-            <Animated.View style={[styles.roadLine, { width: roadWidth }]} />
-            <Animated.View style={[styles.arrowHead, { opacity: arrowOpacity }]} />
+            <Animated.View style={sx(styles.roadLine, { width: roadWidth })} />
+            <Animated.View style={sx(styles.arrowHead, { opacity: arrowOpacity })} />
           </View>
         </View>
         <Animated.Text
-          style={[
-            styles.title,
-            {
-              opacity: titleOpacity,
-              transform: [{ translateY: titleTranslateY }],
-            },
-          ]}
+          style={sx(styles.title, {
+            opacity: titleOpacity,
+            transform: [{ translateY: titleTranslateY }],
+          })}
         >
           KEKE MANAGER
         </Animated.Text>
-        <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
+        <Animated.Text style={sx(styles.tagline, { opacity: taglineOpacity })}>
           {t('auth.tagline')}
         </Animated.Text>
       </View>

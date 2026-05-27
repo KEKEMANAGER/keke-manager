@@ -1,4 +1,41 @@
 export const BLOG_WEB_CSS = `
+a.blog-article-card-link {
+  text-decoration: none;
+  display: block;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+a.blog-article-card-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(239, 159, 39, 0.12);
+}
+.blog-sticky-cta {
+  position: fixed !important;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+  z-index: 50;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  background: #faeeda;
+  border: 1px solid #ef9f27;
+  border-radius: 16px;
+  padding: 20px;
+}
+.blog-progress-track {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 3px;
+  background: #e8e8e8;
+}
+.blog-progress-fill {
+  height: 3px;
+  background: #ef9f27;
+}
 .blog-article-body {
   max-width: 700px;
   margin: 0 auto;
