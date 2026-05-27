@@ -48,24 +48,45 @@ export async function insertRating(
 /** One rating per company per booking (tour, transfer, or day_tour each = one booking row). */
 export async function fetchRatingForBooking(
   bookingId: string,
-  companyId: string,
+  companyId?: string,
 ): Promise<{ data: BookingRatingRow | null; error: Error | null }> {
   const bid = bookingId.trim();
-  const cid = companyId.trim();
-  if (!bid || !cid) {
-    return { data: null, error: new Error('booking id ან company id არ არის') };
+  if (!bid) {
+    return { data: null, error: new Error('booking id არ არის') };
   }
-  const { data, error } = await supabase
+
+  const selectCols = 'booking_id, overall, comment, created_at';
+
+  const { data: byBooking, error: byBookingErr } = await supabase
     .from('ratings')
-    .select('booking_id, overall, comment, created_at')
+    .select(selectCols)
+    .eq('booking_id', bid)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (byBookingErr) {
+    return { data: null, error: new Error(byBookingErr.message) };
+  }
+  const fromBooking = (byBooking?.[0] as BookingRatingRow | undefined) ?? null;
+  if (fromBooking) {
+    return { data: fromBooking, error: null };
+  }
+
+  const cid = companyId?.trim();
+  if (!cid) {
+    return { data: null, error: null };
+  }
+
+  const { data: byCompany, error: byCompanyErr } = await supabase
+    .from('ratings')
+    .select(selectCols)
     .eq('booking_id', bid)
     .eq('company_id', cid)
     .order('created_at', { ascending: false })
     .limit(1);
-  if (error) {
-    return { data: null, error: new Error(error.message) };
+  if (byCompanyErr) {
+    return { data: null, error: new Error(byCompanyErr.message) };
   }
-  const row = (data?.[0] as BookingRatingRow | undefined) ?? null;
+  const row = (byCompany?.[0] as BookingRatingRow | undefined) ?? null;
   return { data: row, error: null };
 }
 
@@ -77,18 +98,44 @@ export async function fetchRatedBookingIdsForCompany(
   if (!cid) {
     return { ids: new Set(), error: new Error('company id არ არის') };
   }
-  const { data, error } = await supabase
+  const ids = new Set<string>();
+
+  const { data: direct, error: directErr } = await supabase
     .from('ratings')
     .select('booking_id')
     .eq('company_id', cid);
-  if (error) {
-    return { ids: new Set(), error: new Error(error.message) };
+  if (directErr) {
+    return { ids: new Set(), error: new Error(directErr.message) };
   }
-  const ids = new Set(
-    (data ?? [])
-      .map((r) => (r as { booking_id?: string }).booking_id?.trim())
-      .filter((id): id is string => !!id),
-  );
+  for (const r of direct ?? []) {
+    const id = (r as { booking_id?: string }).booking_id?.trim();
+    if (id) ids.add(id);
+  }
+
+  const { data: bookings, error: bookingsErr } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('company_id', cid);
+  if (bookingsErr) {
+    return { ids, error: new Error(bookingsErr.message) };
+  }
+  const bookingIds = (bookings ?? [])
+    .map((b) => (b as { id?: string }).id?.trim())
+    .filter((id): id is string => !!id);
+  if (bookingIds.length > 0) {
+    const { data: linked, error: linkedErr } = await supabase
+      .from('ratings')
+      .select('booking_id')
+      .in('booking_id', bookingIds);
+    if (linkedErr) {
+      return { ids, error: new Error(linkedErr.message) };
+    }
+    for (const r of linked ?? []) {
+      const id = (r as { booking_id?: string }).booking_id?.trim();
+      if (id) ids.add(id);
+    }
+  }
+
   return { ids, error: null };
 }
 

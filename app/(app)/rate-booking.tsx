@@ -39,6 +39,8 @@ export default function RateBookingScreen() {
   const companyId = user?.id ?? '';
 
   const [driverId, setDriverId] = useState('');
+  /** `bookings.company_id` — used when persisting rating (matches RLS + unique index). */
+  const [ratingCompanyId, setRatingCompanyId] = useState('');
   const [loadingBooking, setLoadingBooking] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -52,6 +54,7 @@ export default function RateBookingScreen() {
   const loadBooking = useCallback(async () => {
     setLoadError(null);
     setDriverId('');
+    setRatingCompanyId('');
     if (!bookingId || !companyId) {
       setLoadError(t('rateBookingScreen.errorLoad'));
       setLoadingBooking(false);
@@ -84,8 +87,13 @@ export default function RateBookingScreen() {
         return;
       }
       setDriverId(assignedDriverId);
+      const ownerCompanyId = trimUserId(data.company_id) || companyId;
+      setRatingCompanyId(ownerCompanyId);
 
-      const { data: existing, error: ratingErr } = await fetchRatingForBooking(bookingId, companyId);
+      const { data: existing, error: ratingErr } = await fetchRatingForBooking(
+        bookingId,
+        ownerCompanyId,
+      );
       if (ratingErr) {
         setLoadError(ratingErr.message);
         return;
@@ -137,7 +145,8 @@ export default function RateBookingScreen() {
     if (loadError || loadingBooking) {
       return;
     }
-    if (!bookingId || !driverId || !companyId) {
+    const persistCompanyId = ratingCompanyId || companyId;
+    if (!bookingId || !driverId || !persistCompanyId) {
       setError(t('rateBookingScreen.errorLoad'));
       return;
     }
@@ -152,7 +161,7 @@ export default function RateBookingScreen() {
     setSubmitting(true);
     const { error: err } = await insertRating(
       bookingId,
-      companyId,
+      persistCompanyId,
       driverId,
       overall,
       comment.trim() || null,
@@ -160,12 +169,13 @@ export default function RateBookingScreen() {
     setSubmitting(false);
     if (err) {
       if (isDuplicateBookingRatingError(err)) {
-        const { data: existing } = await fetchRatingForBooking(bookingId, companyId);
+        const { data: existing } = await fetchRatingForBooking(bookingId, persistCompanyId);
         if (existing) {
           applyExistingRating(existing);
           return;
         }
-        setError(getSupabaseErrorMessage(err));
+        setAlreadyRated(true);
+        setError(t('rateBookingScreen.alreadyRatedSub'));
         return;
       }
       setError(getSupabaseErrorMessage(err) || t('rateBookingScreen.errorSubmit'));
@@ -174,7 +184,7 @@ export default function RateBookingScreen() {
     router.replace('/(app)/dashboard');
   }
 
-  const screenError = loadError ?? error;
+  const screenError = alreadyRated ? null : loadError ?? error;
   const formDisabled = loadingBooking || !!loadError || submitting;
 
   return (
