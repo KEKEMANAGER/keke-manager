@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,7 +13,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import { fetchBookingById, isBookingRowUuid } from '../../lib/bookings';
-import { fetchRatingForBooking, insertRating } from '../../lib/ratings';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
+import {
+  fetchRatingForBooking,
+  insertRating,
+  isDuplicateBookingRatingError,
+} from '../../lib/ratings';
 import { trimUserId } from '../../lib/userId';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -58,47 +63,66 @@ export default function RateBookingScreen() {
       return;
     }
     setLoadingBooking(true);
-    const { data, error: fetchErr } = await fetchBookingById(bookingId, companyId);
-    setLoadingBooking(false);
-    if (fetchErr || !data) {
-      setLoadError(t('rateBookingScreen.errorLoad'));
-      return;
-    }
-    if (data.status !== 'completed') {
-      setLoadError(t('rateBookingScreen.errorLoad'));
-      return;
-    }
-    const assignedDriverId = trimUserId(data.driver_id);
-    if (!assignedDriverId) {
-      setLoadError(t('rateBookingScreen.errorLoad'));
-      return;
-    }
-    const driverIdFromUrl = trimUserId(pickSearchParam(params.driverId));
-    if (driverIdFromUrl && driverIdFromUrl !== assignedDriverId) {
-      setLoadError(t('rateBookingScreen.errorLoad'));
-      return;
-    }
-    setDriverId(assignedDriverId);
+    try {
+      const { data, error: fetchErr } = await fetchBookingById(bookingId, companyId);
+      if (fetchErr || !data) {
+        setLoadError(t('rateBookingScreen.errorLoad'));
+        return;
+      }
+      if (data.status !== 'completed') {
+        setLoadError(t('rateBookingScreen.errorLoad'));
+        return;
+      }
+      const assignedDriverId = trimUserId(data.driver_id);
+      if (!assignedDriverId) {
+        setLoadError(t('rateBookingScreen.errorLoad'));
+        return;
+      }
+      const driverIdFromUrl = trimUserId(pickSearchParam(params.driverId));
+      if (driverIdFromUrl && driverIdFromUrl !== assignedDriverId) {
+        setLoadError(t('rateBookingScreen.errorLoad'));
+        return;
+      }
+      setDriverId(assignedDriverId);
 
-    const { data: existing, error: ratingErr } = await fetchRatingForBooking(bookingId, companyId);
-    if (ratingErr) {
-      setLoadError(ratingErr.message);
-      return;
-    }
-    if (existing) {
-      setAlreadyRated(true);
-      setOverall(Number(existing.overall) || 0);
-      setComment(existing.comment?.trim() ?? '');
-    } else {
-      setAlreadyRated(false);
-      setOverall(0);
-      setComment('');
+      const { data: existing, error: ratingErr } = await fetchRatingForBooking(bookingId, companyId);
+      if (ratingErr) {
+        setLoadError(ratingErr.message);
+        return;
+      }
+      if (existing) {
+        setAlreadyRated(true);
+        setOverall(Number(existing.overall) || 0);
+        setComment(existing.comment?.trim() ?? '');
+      } else {
+        setAlreadyRated(false);
+        setOverall(0);
+        setComment('');
+      }
+    } finally {
+      setLoadingBooking(false);
     }
   }, [bookingId, companyId, params.driverId, t]);
+
+  function applyExistingRating(existing: {
+    overall: number;
+    comment: string | null;
+  }) {
+    setAlreadyRated(true);
+    setOverall(Number(existing.overall) || 0);
+    setComment(existing.comment?.trim() ?? '');
+    setError(null);
+  }
 
   useEffect(() => {
     void loadBooking();
   }, [loadBooking]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (bookingId && companyId) void loadBooking();
+    }, [loadBooking, bookingId, companyId]),
+  );
 
   function skip() {
     router.back();
@@ -135,7 +159,16 @@ export default function RateBookingScreen() {
     );
     setSubmitting(false);
     if (err) {
-      setError(err.message || t('rateBookingScreen.errorSubmit'));
+      if (isDuplicateBookingRatingError(err)) {
+        const { data: existing } = await fetchRatingForBooking(bookingId, companyId);
+        if (existing) {
+          applyExistingRating(existing);
+          return;
+        }
+        setError(getSupabaseErrorMessage(err));
+        return;
+      }
+      setError(getSupabaseErrorMessage(err) || t('rateBookingScreen.errorSubmit'));
       return;
     }
     router.replace('/(app)/dashboard');

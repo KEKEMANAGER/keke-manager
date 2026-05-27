@@ -31,6 +31,12 @@ export function getSupabaseErrorMessage(error: unknown): string {
   }
   if (lower.includes('duplicate key')) {
     if (
+      lower.includes('ratings_company_booking_unique') ||
+      (lower.includes('booking_id') && lower.includes('ratings'))
+    ) {
+      return 'ამ ჯავშანზე უკვე გაგზავნეთ შეფასება';
+    }
+    if (
       lower.includes('driver_clerk_id') ||
       lower.includes('vehicles_driver_clerk_id')
     ) {

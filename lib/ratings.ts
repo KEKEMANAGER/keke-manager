@@ -1,5 +1,19 @@
 import { supabase } from './supabase';
 
+export function isDuplicateBookingRatingError(error: unknown): boolean {
+  const msg =
+    (typeof error === 'object' &&
+      error !== null &&
+      'message' in error &&
+      String((error as { message?: string }).message)) ||
+    (error instanceof Error ? error.message : String(error ?? ''));
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes('ratings_company_booking_unique') ||
+    (lower.includes('duplicate key') && lower.includes('booking_id'))
+  );
+}
+
 export type BookingRatingRow = {
   booking_id: string;
   overall: number;
@@ -46,14 +60,12 @@ export async function fetchRatingForBooking(
     .select('booking_id, overall, comment, created_at')
     .eq('booking_id', bid)
     .eq('company_id', cid)
-    .maybeSingle();
+    .order('created_at', { ascending: false })
+    .limit(1);
   if (error) {
     return { data: null, error: new Error(error.message) };
   }
-  if (!data) {
-    return { data: null, error: null };
-  }
-  const row = data as BookingRatingRow;
+  const row = (data?.[0] as BookingRatingRow | undefined) ?? null;
   return { data: row, error: null };
 }
 
