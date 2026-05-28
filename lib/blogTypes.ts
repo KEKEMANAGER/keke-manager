@@ -62,10 +62,29 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   { id: 'tourism-trends', name: 'Tourism Trends', nameKa: 'ტურიზმის ტენდენციები' },
 ];
 
-export const BLOG_AUTHOR = {
-  name: 'Akaki Kachibaia',
-  title: 'Founder, KEKE Manager',
-  bio: 'Akaki Kachibaia is the founder of KEKE Manager — a B2B platform connecting tour companies, guide-drivers, and fleet owners across Georgia.',
-  bioKa:
-    'აკაკი კაჩიბაია არის KEKE Manager-ის დამფუძნებელი — B2B პლატფორმა, რომელიც აერთიანებს ტურისტულ კომპანიებს, გიდ-მძღოლებსა და ფლოტის მფლობელებს საქართველოში.',
+export type BlogAuthorProfile = {
+  initials: string;
+  name: string;
+  title: string;
+  titleKa: string;
+};
+
+export const BLOG_AUTHORS: BlogAuthorProfile[] = [
+  {
+    initials: 'AK',
+    name: 'Akaki Kachibaia',
+    title: 'Founder, KEKE Manager',
+    titleKa: 'დამფუძნებელი, KEKE Manager',
+  },
+  {
+    initials: 'AN',
+    name: 'Ani Kekelia',
+    title: 'Co-founder, KEKE Manager',
+    titleKa: 'თანამფუძნებელი, KEKE Manager',
+  },
+];
+
+export const BLOG_TEAM_BIO = {
+  en: 'Akaki Kachibaia and Ani Kekelia founded KEKE Manager — a B2B platform connecting tour companies, guide-drivers, and fleet owners across Georgia.',
+  ka: 'აკაკი კაჩიბაიასა და ანი კეკელიას მიერ დაარსებული KEKE Manager — B2B პლატფორმა, რომელიც აერთიანებს ტურისტულ კომპანიებს, გიდ-მძღოლებსა და ფლოტის მფლობელებს საქართველოში.',
 };
