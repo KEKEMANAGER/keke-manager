@@ -40,7 +40,7 @@ import { LandingPageScroll } from './LandingPageScroll';
 import { LANDING, landingFont, sx } from './landingTheme';
 import { LANDING_BP, useLandingBreakpoint } from './useLandingBreakpoint';
 
-const LOGO = require('../../assets/images/logo.png');
+import { BRAND_LOGO } from '../../lib/brandLogo';
 
 const LANDING_RESPONSIVE_CSS = `
 .landing-feature-card {
@@ -91,7 +91,7 @@ function useLandingMeta(copy: ReturnType<typeof getLandingCopy>) {
     setMeta('description', copy.metaDescription);
     setMeta('og:title', copy.metaTitle, true);
     setMeta('og:description', copy.metaDescription, true);
-    setMeta('og:image', 'https://kekemanager.com/logo.png', true);
+    setMeta('og:image', 'https://kekemanager.com/logo.webp', true);
     setMeta('og:url', 'https://kekemanager.com/', true);
     const link = document.querySelector('link[rel="canonical"]') ?? document.createElement('link');
     link.setAttribute('rel', 'canonical');
@@ -296,7 +296,7 @@ export function LandingPage() {
                   )}
                 >
                   <Image
-                    source={LOGO}
+                    source={BRAND_LOGO}
                     style={{ width: heroLogoSize, height: heroLogoSize, marginBottom: 8 }}
                     resizeMode="contain"
                     {...(Platform.OS === 'web'

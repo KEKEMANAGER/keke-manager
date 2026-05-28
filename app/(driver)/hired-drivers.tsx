@@ -18,7 +18,7 @@ export default function HiredDriversScreen() {
     return (
       <View style={styles.wrap}>
         <EmptyState
-          icon="users"
+          icon="people"
           title={t('menu.hostOnlyTitle')}
           subtitle={t('menu.hostOnlyBody')}
         />

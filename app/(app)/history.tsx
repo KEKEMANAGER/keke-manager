@@ -145,14 +145,14 @@ export default function CompanyHistoryScreen() {
   const filtered = useMemo(() => rows.filter((r) => matchesFilter(r, filter)), [rows, filter]);
 
   function historyEmptyMessages(f: FilterKey): {
-    icon: 'calendar' | 'archive' | 'clock';
+    icon: 'calendar' | 'archive' | 'time-outline';
     title: string;
     subtitle: string;
   } {
     switch (f) {
       case 'pending':
         return {
-          icon: 'clock',
+          icon: 'time-outline',
           title: t('historyPage.empty.pendingTitle'),
           subtitle: t('historyPage.empty.pendingSubtitle'),
         };

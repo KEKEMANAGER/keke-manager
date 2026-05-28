@@ -1,6 +1,6 @@
 import manifest from './generated/blogManifest.json';
-import type { BlogCategory, BlogCategoryId, BlogLang, BlogPost } from './blogTypes';
-import { BLOG_CATEGORIES } from './blogTypes';
+import type { BlogCategory, BlogLang, BlogPost } from './blogTypes';
+import { BLOG_CATEGORIES, categoryLabel } from './blogTypes';
 
 type Manifest = {
   generatedAt: string;
@@ -129,11 +129,4 @@ export function paginatePosts(
   };
 }
 
-export function categoryLabel(
-  categoryId: BlogCategoryId,
-  lang: BlogLang = 'ka',
-): string {
-  const cat = BLOG_CATEGORIES.find((c) => c.id === categoryId);
-  if (!cat) return categoryId;
-  return lang === 'ka' ? cat.nameKa : cat.name;
-}
+export { categoryLabel } from './blogTypes';

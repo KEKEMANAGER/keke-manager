@@ -1,10 +1,10 @@
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 
 export type EmptyStateProps = {
-  icon: ComponentProps<typeof Feather>['name'];
+  icon: ComponentProps<typeof Ionicons>['name'];
   title: string;
   subtitle?: string;
 };
@@ -13,7 +13,7 @@ export function EmptyState({ icon, title, subtitle }: EmptyStateProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.iconCircle}>
-        <Feather name={icon} size={40} color={COLORS.gold} />
+        <Ionicons name={icon} size={40} color={COLORS.gold} />
       </View>
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}

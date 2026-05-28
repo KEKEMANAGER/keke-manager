@@ -20,7 +20,7 @@ import { LANDING_BP } from './useLandingBreakpoint';
 import { LANDING, landingFont, sx } from './landingTheme';
 import type { ViewStyle } from 'react-native';
 
-const LOGO = require('../../assets/images/logo.png');
+import { BRAND_LOGO } from '../../lib/brandLogo';
 
 const NAV_LINKS = [
   { id: 'hero', key: 'navHome' as const },
@@ -82,7 +82,7 @@ export function LandingHeader({
         <View style={sx(styles.navRow, isMobile ? styles.navRowMobile : undefined)}>
           <Pressable style={styles.navBrand} onPress={() => onNavLink('hero')}>
             <Image
-              source={LOGO}
+              source={BRAND_LOGO}
               style={sx(
                 styles.navLogo,
                 isMobile ? styles.navLogoMobile : isTablet ? styles.navLogoTablet : styles.navLogoDesktop,

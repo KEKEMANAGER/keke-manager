@@ -4,7 +4,7 @@ import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LANDING, landingFont, sx } from '../landing/landingTheme';
 
-const LOGO = require('../../assets/images/logo.png');
+import { BRAND_LOGO } from '../../lib/brandLogo';
 
 type Props = {
   children: ReactNode;
@@ -17,7 +17,7 @@ export function BlogShell({ children }: Props) {
     <View style={styles.screen}>
       <View style={sx(styles.header, { paddingTop: insets.top + 12 })}>
         <Link href="/" style={sx(styles.logoLink)}>
-          <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+          <Image source={BRAND_LOGO} style={styles.logo} resizeMode="contain" />
           <Text style={styles.logoText}>KEKE Manager</Text>
         </Link>
         <View style={styles.nav}>

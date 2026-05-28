@@ -1,5 +1,5 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { categoryLabel } from '../../lib/blog';
+import { categoryLabel } from '../../lib/blogTypes';
 import type { BlogLang, BlogPost } from '../../lib/blogTypes';
 import { LANDING, landingFont } from '../landing/landingTheme';
 

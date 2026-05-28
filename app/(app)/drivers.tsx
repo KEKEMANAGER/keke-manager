@@ -71,7 +71,7 @@ export default function CompanyDriversScreen() {
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={{ marginTop: SPACING.xl }} />
       ) : drivers.length === 0 ? (
-        <EmptyState icon="users" title={t('menu.driversEmpty')} subtitle={t('menu.driversEmptyHint')} />
+        <EmptyState icon="people" title={t('menu.driversEmpty')} subtitle={t('menu.driversEmptyHint')} />
       ) : (
         drivers.map((d) => {
           const name = d.full_name?.trim() || t('common.driver');

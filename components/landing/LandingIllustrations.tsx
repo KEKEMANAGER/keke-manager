@@ -2,7 +2,7 @@ import { Image, View } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path, Rect } from 'react-native-svg';
 import { LANDING } from './landingTheme';
 
-const LOGO = require('../../assets/images/logo.png');
+import { BRAND_LOGO } from '../../lib/brandLogo';
 
 export function KekeLogoBadge({ size = 32 }: { size?: number }) {
   return (
@@ -22,7 +22,7 @@ export function KekeLogoBadge({ size = 32 }: { size?: number }) {
         justifyContent: 'center',
       }}
     >
-      <Image source={LOGO} style={{ width: size - 8, height: size - 8 }} resizeMode="contain" />
+      <Image source={BRAND_LOGO} style={{ width: size - 8, height: size - 8 }} resizeMode="contain" />
     </View>
   );
 }

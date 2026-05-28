@@ -53,6 +53,14 @@
       }
     },
     "plugins": [
+      [
+        "expo-router",
+        {
+          "asyncRoutes": {
+            "web": true
+          }
+        }
+      ],
       "expo-web-browser",
       [
         "expo-location",

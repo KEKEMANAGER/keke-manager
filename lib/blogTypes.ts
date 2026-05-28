@@ -62,6 +62,12 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
   { id: 'tourism-trends', name: 'Tourism Trends', nameKa: 'ტურიზმის ტენდენციები' },
 ];
 
+export function categoryLabel(categoryId: BlogCategoryId, lang: BlogLang = 'ka'): string {
+  const cat = BLOG_CATEGORIES.find((c) => c.id === categoryId);
+  if (!cat) return categoryId;
+  return lang === 'ka' ? cat.nameKa : cat.name;
+}
+
 export type BlogAuthorProfile = {
   initials: string;
   name: string;

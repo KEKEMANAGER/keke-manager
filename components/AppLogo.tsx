@@ -1,7 +1,7 @@
 import { Image, StyleSheet, type ImageStyle, type StyleProp } from 'react-native';
 import { sx } from '../lib/sx';
 
-const logoSource = require('../assets/logo.png');
+import { BRAND_LOGO } from '../lib/brandLogo';
 
 type AppLogoSize = 'auth' | 'header';
 
@@ -14,7 +14,7 @@ export function AppLogo({ size = 'auth', style }: Props) {
   const dimensions = size === 'auth' ? styles.auth : styles.header;
   return (
     <Image
-      source={logoSource}
+      source={BRAND_LOGO}
       style={sx(dimensions, style)}
       resizeMode="contain"
       accessibilityLabel="KEKE MANAGER"

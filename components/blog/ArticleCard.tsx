@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BlogPost } from '../../lib/blogTypes';
-import { categoryLabel } from '../../lib/blog';
+import { categoryLabel } from '../../lib/blogTypes';
 import type { BlogLang } from '../../lib/blogTypes';
 import { LANDING, landingFont, sx } from '../landing/landingTheme';
 
