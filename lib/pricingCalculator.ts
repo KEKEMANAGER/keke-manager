@@ -3,18 +3,20 @@ import type { VehicleTypeCode } from './vehicleCatalog';
 export type PricingVehicleTier = 'sedan' | 'suv' | 'minivan' | 'bus';
 
 const FUEL_PER_KM: Record<PricingVehicleTier, number> = {
-  sedan: 0.35,
-  suv: 0.45,
-  minivan: 0.55,
-  bus: 0.65,
+  sedan: 0.25,
+  suv: 0.35,
+  minivan: 0.45,
+  bus: 0.55,
 };
 
 const DAILY_RATE: Record<PricingVehicleTier, number> = {
-  sedan: 80,
-  suv: 100,
-  minivan: 120,
-  bus: 150,
+  sedan: 60,
+  suv: 80,
+  minivan: 100,
+  bus: 120,
 };
+
+const MIN_RECOMMENDED_GEL = 40;
 
 const MOUNTAIN_KEYWORDS = [
   'kazbegi',
@@ -78,7 +80,7 @@ export function calculateRecommendedPrice(input: RecommendedPriceInput): Recomme
   const dailyComponent = dailyRate * dayCount;
   const subtotal = fuelComponent + dailyComponent;
   const mountainMultiplier = input.mountainRoute ? 1.3 : 1;
-  const recommendedGel = Math.max(50, Math.round(subtotal * mountainMultiplier));
+  const recommendedGel = Math.max(MIN_RECOMMENDED_GEL, Math.round(subtotal * mountainMultiplier));
 
   return {
     distanceKm,
