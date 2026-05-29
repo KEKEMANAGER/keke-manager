@@ -51,6 +51,15 @@ config.resolver.resolveRequest = (context, moduleName, platform, ...rest) => {
   }
   if (
     platform === 'web' &&
+    (moduleName === 'react-native-screens' || moduleName.startsWith('react-native-screens/'))
+  ) {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(__dirname, 'metro-shims/react-native-screens.web.js'),
+    };
+  }
+  if (
+    platform === 'web' &&
     (moduleName === 'react-native-maps' || moduleName.startsWith('react-native-maps/'))
   ) {
     return {

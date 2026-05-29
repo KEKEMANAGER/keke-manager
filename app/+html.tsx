@@ -59,8 +59,6 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="twitter:image" content={OG_IMAGE_URL} />
 
         <link rel="icon" type="image/png" href="/favicon.ico" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
 
         <script
           type="application/ld+json"
@@ -75,12 +73,6 @@ export default function Root({ children }: PropsWithChildren) {
           }}
         />
 
-        <link
-          rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-          crossOrigin=""
-        />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>

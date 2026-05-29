@@ -26,8 +26,16 @@ const totalBytes = files.reduce((sum, f) => sum + f.bytes, 0);
 
 const mb = (n) => `${(n / (1024 * 1024)).toFixed(2)} MB`;
 
+const hasSupabaseInEntry =
+  entry && fs.readFileSync(path.join(distJs, entry.name), 'utf8').includes('supabase');
+const hasSupabaseInCommon =
+  common && fs.readFileSync(path.join(distJs, common.name), 'utf8').includes('supabase');
+
 console.log('Web bundle summary');
 console.log(`  Initial (entry + common + runtime): ${mb(initialBytes)}`);
 if (entry) console.log(`    entry: ${mb(entry.bytes)}`);
 if (common) console.log(`    common: ${mb(common.bytes)}`);
 console.log(`  All JS chunks: ${mb(totalBytes)} (${files.length} files)`);
+console.log(
+  `  Supabase in initial payload: ${hasSupabaseInEntry || hasSupabaseInCommon ? 'yes (needs review)' : 'no (deferred to auth routes)'}`,
+);

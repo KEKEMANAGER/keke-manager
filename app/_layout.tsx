@@ -49,42 +49,13 @@ function NavigationShell() {
     if (loading) return;
 
     const root = segments[0];
-    const inAuth = root === '(auth)';
     const inApp = root === '(app)';
     const inDriver = root === '(driver)';
-    const inLegal = root === 'legal';
-    const inBlog = root === 'blog';
-
-    const matchesAuthPath = (slug: string) =>
-      pathname === `/${slug}` || pathname.endsWith(`/${slug}`) || segments.includes(slug);
-
-    const onSignInRoute = matchesAuthPath('sign-in');
-    const onPasswordRecoveryRoute =
-      matchesAuthPath('reset-password') || matchesAuthPath('forgot-password');
 
     let target: string | null = null;
 
-    const onWebLanding =
-      Platform.OS === 'web' && (pathname === '/' || pathname === '' || !segments[0]);
-
-    if (inBlog) {
-      target = null;
-    } else if (!userId && (inApp || inDriver)) {
-      target = '/sign-in';
-    } else if (!userId && onWebLanding) {
-      target = null;
-    } else if (userId && !role && (inApp || inDriver)) {
+    if (userId && !role && (inApp || inDriver)) {
       target = '/';
-    } else if (userId && inAuth && role && !onPasswordRecoveryRoute && !inLegal) {
-      target = role === 'driver' ? '/(driver)/dashboard' : '/(app)/dashboard';
-    } else if (userId && role === 'driver' && inApp) {
-      target = '/(driver)/dashboard';
-    } else if (userId && (role === 'company' || role === 'admin') && inDriver) {
-      target = '/(app)/dashboard';
-    }
-
-    if (onSignInRoute) {
-      target = null;
     }
 
     if (target && pathname !== target) {

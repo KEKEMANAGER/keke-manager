@@ -8,6 +8,7 @@ import { AppHeader } from '../../components/layout/AppHeader';
 import { TabBarIcon } from '../../components/TabBarIcon';
 import { APP_HEADER_BODY_HEIGHT, tabBarMinHeight, Z_INDEX } from '../../constants/layout';
 import { COLORS, SPACING } from '../../constants/theme';
+import { AuthScope } from '../../components/AuthScope';
 import { AppMenuProvider } from '../../contexts/AppMenuContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
@@ -121,9 +122,11 @@ function CompanyTabs() {
 
 export default function CompanyTabsLayout() {
   return (
-    <AppMenuProvider>
-      <CompanyTabs />
-    </AppMenuProvider>
+    <AuthScope>
+      <AppMenuProvider>
+        <CompanyTabs />
+      </AppMenuProvider>
+    </AuthScope>
   );
 }
 
