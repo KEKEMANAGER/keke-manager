@@ -16,12 +16,10 @@ export const LANDING = {
 
 export function landingFont(extra?: object) {
   return {
-    ...(Platform.OS === 'web'
-      ? {
-          fontFamily:
-            'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-        }
-      : { fontFamily: 'System' }),
+    fontFamily: Platform.select({
+      web: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      default: 'System',
+    }),
     ...extra,
   };
 }

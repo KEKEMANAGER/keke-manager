@@ -38,8 +38,8 @@ export function WebSessionRedirect() {
 
     const schedule =
       typeof requestIdleCallback === 'function'
-        ? (cb: () => void) => requestIdleCallback(cb, { timeout: 2500 })
-        : (cb: () => void) => window.setTimeout(cb, 300);
+        ? (cb: () => void) => requestIdleCallback(cb, { timeout: 5000 })
+        : (cb: () => void) => window.setTimeout(cb, 1500);
 
     const id = schedule(() => {
       void run();

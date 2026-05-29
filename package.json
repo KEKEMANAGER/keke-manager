@@ -14,7 +14,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "web:lan": "expo start --web --host lan",
-    "build": "node scripts/seed-blog-articles.mjs && node scripts/build-blog.mjs && node scripts/optimize-brand-assets.mjs && node scripts/generate-seo-assets.mjs && expo export -p web --clear && node scripts/report-bundle-size.mjs",
+    "build": "node scripts/seed-blog-articles.mjs && node scripts/build-blog.mjs && node scripts/optimize-brand-assets.mjs && node scripts/generate-seo-assets.mjs && expo export -p web --clear && node scripts/copy-public-to-dist.mjs && node scripts/patch-web-html.mjs && node scripts/report-bundle-size.mjs",
     "lint": "expo lint"
   },
   "dependencies": {

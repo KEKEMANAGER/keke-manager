@@ -77,8 +77,12 @@ function scrollToSection(id: string) {
 function useLandingMeta(copy: ReturnType<typeof getLandingCopy>) {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    document.title = copy.metaTitle;
-    const setMeta = (name: string, content: string, prop = false) => {
+    document.getElementById('root')?.classList.add('keke-hydrated');
+    document.getElementById('keke-lcp-shell')?.remove();
+
+    const apply = () => {
+      document.title = copy.metaTitle;
+      const setMeta = (name: string, content: string, prop = false) => {
       const attr = prop ? 'property' : 'name';
       let el = document.querySelector(`meta[${attr}="${name}"]`);
       if (!el) {
@@ -86,32 +90,32 @@ function useLandingMeta(copy: ReturnType<typeof getLandingCopy>) {
         el.setAttribute(attr, name);
         document.head.appendChild(el);
       }
-      el.setAttribute('content', content);
+        el.setAttribute('content', content);
+      };
+      setMeta('description', copy.metaDescription);
+      setMeta('og:title', copy.metaTitle, true);
+      setMeta('og:description', copy.metaDescription, true);
+      setMeta('og:image', 'https://kekemanager.com/logo.webp', true);
+      setMeta('og:url', 'https://kekemanager.com/', true);
+      const link = document.querySelector('link[rel="canonical"]') ?? document.createElement('link');
+      link.setAttribute('rel', 'canonical');
+      link.setAttribute('href', 'https://kekemanager.com/');
+      if (!link.parentElement) document.head.appendChild(link);
+      const styleId = 'landing-responsive-css';
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = LANDING_RESPONSIVE_CSS;
+        document.head.appendChild(style);
+      }
     };
-    setMeta('description', copy.metaDescription);
-    setMeta('og:title', copy.metaTitle, true);
-    setMeta('og:description', copy.metaDescription, true);
-    setMeta('og:image', 'https://kekemanager.com/logo.webp', true);
-    setMeta('og:url', 'https://kekemanager.com/', true);
-    const link = document.querySelector('link[rel="canonical"]') ?? document.createElement('link');
-    link.setAttribute('rel', 'canonical');
-    link.setAttribute('href', 'https://kekemanager.com/');
-    if (!link.parentElement) document.head.appendChild(link);
-    if (!document.getElementById('landing-inter-font')) {
-      const fontLink = document.createElement('link');
-      fontLink.id = 'landing-inter-font';
-      fontLink.rel = 'stylesheet';
-      fontLink.href =
-        'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap';
-      document.head.appendChild(fontLink);
+
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(apply, { timeout: 1200 });
+      return () => cancelIdleCallback(id);
     }
-    const styleId = 'landing-responsive-css';
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.textContent = LANDING_RESPONSIVE_CSS;
-      document.head.appendChild(style);
-    }
+    const t = window.setTimeout(apply, 0);
+    return () => clearTimeout(t);
   }, [copy.metaTitle, copy.metaDescription]);
 }
 
@@ -136,11 +140,11 @@ export function LandingPage() {
   useLandingMeta(copy);
 
   useEffect(() => {
-    const useNativeDriver = Platform.OS !== 'web';
+    if (Platform.OS === 'web') return;
     Animated.loop(
       Animated.sequence([
-        Animated.timing(floatAnim, { toValue: 1, duration: 2200, useNativeDriver }),
-        Animated.timing(floatAnim, { toValue: 0, duration: 2200, useNativeDriver }),
+        Animated.timing(floatAnim, { toValue: 1, duration: 2200, useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 2200, useNativeDriver: true }),
       ]),
     ).start();
   }, [floatAnim]);
@@ -175,6 +179,24 @@ export function LandingPage() {
   );
 
   useEffect(() => {
+    if (Platform.OS === 'web') {
+      let intervalId: ReturnType<typeof setInterval> | undefined;
+      const start = () => {
+        intervalId = setInterval(() => setSlide((s) => (s + 1) % slides.length), 4000);
+      };
+      if (typeof requestIdleCallback === 'function') {
+        const idleId = requestIdleCallback(start, { timeout: 4000 });
+        return () => {
+          cancelIdleCallback(idleId);
+          if (intervalId) clearInterval(intervalId);
+        };
+      }
+      const delay = window.setTimeout(start, 2000);
+      return () => {
+        clearTimeout(delay);
+        if (intervalId) clearInterval(intervalId);
+      };
+    }
     const t = setInterval(() => setSlide((s) => (s + 1) % slides.length), 4000);
     return () => clearInterval(t);
   }, [slides.length]);
@@ -300,7 +322,11 @@ export function LandingPage() {
                     style={{ width: heroLogoSize, height: heroLogoSize, marginBottom: 8 }}
                     resizeMode="contain"
                     {...(Platform.OS === 'web'
-                      ? ({ loading: 'lazy' } as { loading?: 'lazy' | 'eager' })
+                      ? ({
+                          // @ts-expect-error RN Web image attrs for LCP
+                          fetchPriority: 'high',
+                          loading: 'eager',
+                        } as { fetchPriority?: 'high' | 'low' | 'auto'; loading?: 'eager' | 'lazy' })
                       : {})}
                   />
                   <Text

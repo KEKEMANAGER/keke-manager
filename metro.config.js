@@ -41,6 +41,14 @@ config.resolver.resolveRequest = (context, moduleName, platform, ...rest) => {
   }
   if (
     platform === 'web' &&
+    moduleName.includes('react-native-vector-icons/Fonts/') &&
+    moduleName.endsWith('.ttf') &&
+    !moduleName.endsWith('Ionicons.ttf')
+  ) {
+    return { type: 'empty' };
+  }
+  if (
+    platform === 'web' &&
     (moduleName === '@react-native-community/datetimepicker' ||
       moduleName.startsWith('@react-native-community/datetimepicker/'))
   ) {

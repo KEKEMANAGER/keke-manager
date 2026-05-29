@@ -19,6 +19,12 @@ const files = fs.readdirSync(distJs).map((name) => {
 
 const entry = files.find((f) => f.name.startsWith('entry-'));
 const common = files.find((f) => f.name.startsWith('__common-'));
+
+function chunkIncludesSupabase(fileName) {
+  if (!fileName) return false;
+  const text = fs.readFileSync(path.join(distJs, fileName), 'utf8');
+  return text.includes('createClient') && text.includes('supabase.co');
+}
 const runtime = files.find((f) => f.name.startsWith('__expo-metro-runtime-'));
 const initial = [entry, common, runtime].filter(Boolean);
 const initialBytes = initial.reduce((sum, f) => sum + f.bytes, 0);
@@ -26,10 +32,8 @@ const totalBytes = files.reduce((sum, f) => sum + f.bytes, 0);
 
 const mb = (n) => `${(n / (1024 * 1024)).toFixed(2)} MB`;
 
-const hasSupabaseInEntry =
-  entry && fs.readFileSync(path.join(distJs, entry.name), 'utf8').includes('supabase');
-const hasSupabaseInCommon =
-  common && fs.readFileSync(path.join(distJs, common.name), 'utf8').includes('supabase');
+const hasSupabaseInEntry = chunkIncludesSupabase(entry?.name);
+const hasSupabaseInCommon = chunkIncludesSupabase(common?.name);
 
 console.log('Web bundle summary');
 console.log(`  Initial (entry + common + runtime): ${mb(initialBytes)}`);

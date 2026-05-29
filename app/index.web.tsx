@@ -1,35 +1,12 @@
-import { lazy, Suspense } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { LandingPage } from '../components/landing/LandingPage';
 import { WebSessionRedirect } from '../components/WebSessionRedirect';
-import { COLORS } from '../constants/theme';
 
-const LandingPage = lazy(() =>
-  import('../components/landing/LandingPage').then((m) => ({ default: m.LandingPage })),
-);
-
+/** Eager landing import — homepage LCP must not wait on a lazy chunk. */
 export default function IndexWeb() {
   return (
     <>
       <WebSessionRedirect />
-      <Suspense
-        fallback={
-          <View style={styles.center}>
-            <ActivityIndicator color={COLORS.gold} size="large" />
-          </View>
-        }
-      >
-        <LandingPage />
-      </Suspense>
+      <LandingPage />
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-    minHeight: '100vh',
-  },
-});
