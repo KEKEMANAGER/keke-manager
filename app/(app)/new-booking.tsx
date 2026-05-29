@@ -80,9 +80,7 @@ import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
 import type { RequestedDriverCategory } from '../../lib/driverCategory';
 import { formatSpokenLanguagesList } from '../../lib/spokenLanguages';
 import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
-import { PricingCalculator, type PricingCalculatorContext } from '../../components/PricingCalculator';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
-import type { RouteSegment } from '../../lib/osrmRouting';
 import type { User } from '@supabase/supabase-js';
 
 type BookingKindUi = 'transfer' | 'tour' | 'dayTour';
@@ -938,62 +936,6 @@ export default function NewBookingScreen() {
     [tourDays.length],
   );
 
-  const pricingCalculatorContext = useMemo((): PricingCalculatorContext => {
-    const locationTexts: string[] = [];
-    let segments: RouteSegment[] = [];
-    let dayCount = 1;
-
-    if (booking_kind === 'transfer') {
-      if (transferTab === 'arrival') {
-        segments = [{ from: arrivalFrom.name, to: arrivalTo.name }];
-        locationTexts.push(arrivalFrom.name, arrivalTo.name);
-      } else {
-        segments = [{ from: departureFrom.name, to: departureTo.name }];
-        locationTexts.push(departureFrom.name, departureTo.name);
-      }
-    } else if (booking_kind === 'dayTour') {
-      const d = days[0];
-      if (d) {
-        segments = [{ from: d.from, to: d.to }];
-        locationTexts.push(d.from, d.to, d.stops);
-      }
-    } else if (booking_kind === 'tour') {
-      segments = tourDays
-        .map((d) => ({ from: d.from, to: d.to }))
-        .filter((s) => s.from.trim() || s.to.trim());
-      for (const d of tourDays) {
-        locationTexts.push(d.from, d.to, d.stops, d.touristHotel, d.driverOvernight);
-      }
-      dayCount = Math.max(1, tourDays.length);
-    }
-
-    return {
-      segments,
-      locationTexts,
-      dayCount,
-      vehicleType: selectedVehicleType,
-    };
-  }, [
-    booking_kind,
-    transferTab,
-    arrivalFrom.name,
-    arrivalTo.name,
-    departureFrom.name,
-    departureTo.name,
-    days,
-    tourDays,
-    selectedVehicleType,
-  ]);
-
-  const canRunPricingCalculator = useMemo(
-    () => pricingCalculatorContext.segments.some((s) => s.from.trim() && s.to.trim()),
-    [pricingCalculatorContext.segments],
-  );
-
-  const applyCalculatedPrice = useCallback((gel: number) => {
-    setClientPriceStr(String(gel));
-  }, []);
-
   const pax = Math.max(1, parseInt(passengers, 10) || 1);
   const estimateGel = useMemo(
     () => calcMockPrice({ type: booking_kind, passengers: pax, vehicleClass }),
@@ -1538,12 +1480,6 @@ export default function NewBookingScreen() {
               keyboardType="decimal-pad"
               placeholder={t('newBooking.form.placeholders.zero')}
             />
-            <PricingCalculator
-              context={pricingCalculatorContext}
-              canCalculate={canRunPricingCalculator}
-              onApplyPrice={applyCalculatedPrice}
-              disabled={submitting}
-            />
             <Text style={styles.fieldLabel}>{t('newBooking.form.commission')}</Text>
             <View style={styles.chips}>
               <Pressable
@@ -1839,21 +1775,7 @@ export default function NewBookingScreen() {
                   keyboardType="decimal-pad"
                   placeholder={t('newBooking.form.placeholders.zero')}
                 />
-                <PricingCalculator
-                  context={pricingCalculatorContext}
-                  canCalculate={canRunPricingCalculator}
-                  onApplyPrice={applyCalculatedPrice}
-                  disabled={submitting}
-                />
               </>
-            ) : null}
-            {booking_kind === 'transfer' ? (
-              <PricingCalculator
-                context={pricingCalculatorContext}
-                canCalculate={canRunPricingCalculator}
-                onApplyPrice={applyCalculatedPrice}
-                disabled={submitting}
-              />
             ) : null}
             <View style={styles.priceBox}>
               <Text style={styles.priceLabel}>{t('newBooking.form.offeredPriceDriver')}</Text>
