@@ -249,6 +249,15 @@
     "stepSummary": "Summary & payment",
     "pickService": "Choose a service type above, then continue.",
     "serviceKind": "Service type",
+    "smartForm": {
+      "step1Title": "Services",
+      "step1Hint": "Select one or more services for this booking.",
+      "arrivalTransfer": "Arrival transfer",
+      "tour": "Tour",
+      "departureTransfer": "Departure transfer",
+      "selectAtLeastOne": "Select at least one service",
+      "summaryFullPackage": "Full package (arrival + tour + departure)"
+    },
     "drivers": "Drivers",
     "driverCategory": {
       "label": "Driver type",

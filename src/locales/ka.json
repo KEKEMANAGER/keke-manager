@@ -247,6 +247,15 @@
     "stepSummary": "შეჯამება და გადახდა",
     "pickService": "აირჩიეთ სერვისის ტიპი ზემოთ და გადადით შემდეგ ნაბიჯზე.",
     "serviceKind": "სერვისის ტიპი",
+    "smartForm": {
+      "step1Title": "სერვისები",
+      "step1Hint": "აირჩიეთ ერთი ან რამდენიმე სერვისი ამ ჯავშნისთვის.",
+      "arrivalTransfer": "ჩამოსვლის ტრანსფერი",
+      "tour": "ტური",
+      "departureTransfer": "გაცილების ტრანსფერი",
+      "selectAtLeastOne": "აირჩიეთ მინიმუმ ერთი სერვისი",
+      "summaryFullPackage": "სრული პაკეტი (ჩამოსვლა + ტური + გაცილება)"
+    },
     "drivers": "მძღოლები",
     "driverCategory": {
       "label": "მძღოლის ტიპი",

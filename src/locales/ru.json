@@ -247,6 +247,15 @@
     "stepSummary": "Итог и оплата",
     "pickService": "Выберите тип услуги выше и перейдите дальше.",
     "serviceKind": "Тип услуги",
+    "smartForm": {
+      "step1Title": "Услуги",
+      "step1Hint": "Выберите одну или несколько услуг для этого бронирования.",
+      "arrivalTransfer": "Трансфер по прилёту",
+      "tour": "Тур",
+      "departureTransfer": "Трансфер при вылете",
+      "selectAtLeastOne": "Выберите хотя бы одну услугу",
+      "summaryFullPackage": "Полный пакет (прилёт + тур + вылет)"
+    },
     "drivers": "Водители",
     "driverCategory": {
       "label": "Тип водителя",
