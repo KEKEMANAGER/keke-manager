@@ -47,6 +47,23 @@ const CRITICAL_LANDING_SHELL = `
   <p class="hero">ერთი პლატფორმა,</p>
   <p class="hero-accent">უსაზღვრო შესაძებლობები</p>
 </div>
+<script id="keke-lcp-route-dismiss">
+(function () {
+  var path = location.pathname || '/';
+  if (path === '/' || path === '/index.html') return;
+  function hide() {
+    var shell = document.getElementById('keke-lcp-shell');
+    if (!shell) return;
+    shell.classList.add('keke-lcp-done');
+    setTimeout(function () { shell.remove(); }, 250);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hide);
+  } else {
+    hide();
+  }
+})();
+</script>
 `.trim();
 
 const HEAD_INJECT = [
@@ -64,6 +81,7 @@ let html = fs.readFileSync(indexPath, 'utf8');
 html = html.replace(/<link rel="preload" href="\/logo\.webp"[^>]*>\s*/g, '');
 html = html.replace(/<style id="keke-critical-css">[\s\S]*?<\/style>\s*/g, '');
 html = html.replace(/<div id="keke-lcp-shell">[\s\S]*?<\/div>\s*/g, '');
+html = html.replace(/<script id="keke-lcp-route-dismiss">[\s\S]*?<\/script>\s*/g, '');
 
 if (!html.includes('</head>')) {
   console.error('patch-web-html: invalid dist/index.html');

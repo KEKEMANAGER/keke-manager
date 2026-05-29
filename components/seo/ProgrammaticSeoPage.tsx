@@ -1,5 +1,7 @@
 import { Link } from 'expo-router';
+import { useEffect } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { dismissLcpShell } from '../../lib/lcpShell';
 import { BlogSeoHead } from '../blog/BlogSeoHead';
 import { TryKekeCta } from '../blog/TryKekeCta';
 import { LANDING, landingFont, sx } from '../landing/landingTheme';
@@ -73,6 +75,11 @@ export function ProgrammaticSeoPage({
   siblingTitle,
 }: Props) {
   const ui = UI[lang];
+
+  useEffect(() => {
+    dismissLcpShell();
+  }, []);
+
   const meta = seoLandingMeta(page, kind, lang);
   const h1 = page.h1[lang];
   const h1Alt = lang === 'ka' ? page.h1.en : page.h1.ka;

@@ -1,4 +1,4 @@
-import { Slot } from 'expo-router';
+import { Slot, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, type ReactNode } from 'react';
 import { type DimensionValue, StyleSheet, View } from 'react-native';
@@ -6,6 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { COLORS } from '../constants/theme';
+import { dismissLcpShell } from '../lib/lcpShell';
 import i18n, { initI18n } from '../src/lib/i18n';
 
 function WebRootStyles() {
@@ -33,6 +34,20 @@ function I18nBootstrap({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** Homepage keeps the static LCP shell until LandingPage paints; all other public routes dismiss immediately. */
+function PublicWebLcpShell() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const isHome = !pathname || pathname === '/';
+    if (!isHome) {
+      dismissLcpShell();
+    }
+  }, [pathname]);
+
+  return null;
+}
+
 /** Web root: no AuthProvider — public pages avoid Supabase in the initial JS payload. */
 export default function RootLayoutWeb() {
   return (
@@ -41,6 +56,7 @@ export default function RootLayoutWeb() {
         <I18nextProvider i18n={i18n}>
           <ErrorBoundary>
             <WebRootStyles />
+            <PublicWebLcpShell />
             <StatusBar style="light" />
             <View style={styles.shell}>
               <Slot />
