@@ -221,8 +221,20 @@ export default function CompanyDashboardScreen() {
     });
   }
 
-  const activeBookings = bookings.filter((b) =>
-    b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress',
+  const activeBookings = useMemo(
+    () =>
+      bookings.filter(
+        (b) => b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress',
+      ),
+    [bookings],
+  );
+
+  const recentActiveBookings = useMemo(
+    () =>
+      [...activeBookings]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 2),
+    [activeBookings],
   );
 
   const pendingCount = useMemo(
@@ -439,7 +451,8 @@ export default function CompanyDashboardScreen() {
           subtitle={t('companyDashboard.emptyActiveSubtitle')}
         />
       ) : (
-        activeBookings.map((b) => (
+        <>
+          {recentActiveBookings.map((b) => (
           <View key={b.id} style={[styles.bookingCard, bookingCardStatusBorder(b.status)]}>
             <View style={styles.bookingTop}>
               <Text style={styles.bookingType}>
@@ -574,7 +587,14 @@ export default function CompanyDashboardScreen() {
               <Text style={styles.voucherBtnText}>📄 {t('common.voucher')}</Text>
             </Pressable>
           </View>
-        ))
+          ))}
+          <Pressable
+            onPress={() => router.push('/(app)/bookings')}
+            style={({ pressed }) => [styles.historyLinkBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.historyLinkText}>სრული ისტორია →</Text>
+          </Pressable>
+        </>
       )}
 
 
@@ -896,6 +916,17 @@ const styles = StyleSheet.create({
   link: {
     color: COLORS.gold,
     fontSize: 14,
+    fontWeight: '700',
+  },
+  historyLinkBtn: {
+    alignSelf: 'center',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  historyLinkText: {
+    color: COLORS.gold,
+    fontSize: 15,
     fontWeight: '700',
   },
   quickRow: {
