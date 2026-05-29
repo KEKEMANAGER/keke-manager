@@ -6,6 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { COLORS } from '../constants/theme';
+import { AuthProvider } from '../contexts/AuthContext';
 import { dismissLcpShell } from '../lib/lcpShell';
 import i18n, { initI18n } from '../src/lib/i18n';
 
@@ -51,20 +52,22 @@ function PublicWebLcpShell() {
   return null;
 }
 
-/** Web root: no AuthProvider — public pages avoid Supabase in the initial JS payload. */
+/** Web root: AuthProvider required for useAuth on index, (app), (driver), and (auth) routes. */
 export default function RootLayoutWeb() {
   return (
     <SafeAreaProvider>
       <I18nBootstrap>
         <I18nextProvider i18n={i18n}>
-          <ErrorBoundary>
-            <WebRootStyles />
-            <PublicWebLcpShell />
-            <StatusBar style="light" />
-            <View style={styles.shell}>
-              <Slot />
-            </View>
-          </ErrorBoundary>
+          <AuthProvider>
+            <ErrorBoundary>
+              <WebRootStyles />
+              <PublicWebLcpShell />
+              <StatusBar style="light" />
+              <View style={styles.shell}>
+                <Slot />
+              </View>
+            </ErrorBoundary>
+          </AuthProvider>
         </I18nextProvider>
       </I18nBootstrap>
     </SafeAreaProvider>
