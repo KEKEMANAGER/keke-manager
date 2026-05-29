@@ -12,15 +12,22 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AuthInput } from '../../../components/AuthInput';
+import { LocationPicker } from '../../../components/LocationPicker';
 import { APP_HEADER_BODY_HEIGHT } from '../../../constants/layout';
 import { COLORS, RADIUS, SPACING } from '../../../constants/theme';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { BookingRow } from '../../../lib/bookings';
+import { isTransferKind, type BookingRow } from '../../../lib/bookings';
 import {
   canCompanyEditBooking,
   fetchBookingForCompanyEdit,
   updateBookingByCompany,
 } from '../../../lib/bookingUpdate';
+import {
+  emptyLocationValue,
+  locationValueFromStored,
+  persistLocationFields,
+  type LocationValue,
+} from '../../../lib/bookingLocations';
 import { showErrorAlert, showValidationAlert } from '../../../lib/validation';
 
 export default function EditBookingScreen() {
@@ -33,8 +40,8 @@ export default function EditBookingScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [booking, setBooking] = useState<BookingRow | null>(null);
-  const [fromLoc, setFromLoc] = useState('');
-  const [toLoc, setToLoc] = useState('');
+  const [fromLoc, setFromLoc] = useState<LocationValue>(() => emptyLocationValue());
+  const [toLoc, setToLoc] = useState<LocationValue>(() => emptyLocationValue());
   const [dateDisplay, setDateDisplay] = useState('');
   const [passengers, setPassengers] = useState('');
   const [priceGel, setPriceGel] = useState('');
@@ -54,8 +61,8 @@ export default function EditBookingScreen() {
       return;
     }
     setBooking(data);
-    setFromLoc(data.from_location ?? '');
-    setToLoc(data.to_location ?? '');
+    setFromLoc(locationValueFromStored(data.from_location, data.from_location_type));
+    setToLoc(locationValueFromStored(data.to_location, data.to_location_type));
     setDateDisplay(data.date_display ?? '');
     setPassengers(String(data.passengers ?? 1));
     setPriceGel(String(data.price_gel ?? ''));
@@ -87,6 +94,21 @@ export default function EditBookingScreen() {
 
   async function submit() {
     if (!user?.id || !booking) return;
+
+    const fromP = persistLocationFields(fromLoc);
+    const toP = persistLocationFields(toLoc);
+
+    if (isTransferKind(booking.kind)) {
+      if (!fromP.name) {
+        showValidationAlert(t('newBooking.validation.locationFrom'));
+        return;
+      }
+      if (!toP.name) {
+        showValidationAlert(t('newBooking.validation.locationTo'));
+        return;
+      }
+    }
+
     setSaving(true);
     const pax = parseInt(passengers, 10);
     const price = parseFloat(priceGel.replace(',', '.'));
@@ -94,8 +116,10 @@ export default function EditBookingScreen() {
       booking.id,
       user.id,
       {
-        from_location: fromLoc.trim() || null,
-        to_location: toLoc.trim() || null,
+        from_location: fromP.name,
+        from_location_type: fromP.type,
+        to_location: toP.name,
+        to_location_type: toP.type,
         date_display: dateDisplay.trim() || null,
         passengers: Number.isFinite(pax) && pax > 0 ? pax : booking.passengers,
         price_gel: Number.isFinite(price) ? price : booking.price_gel,
@@ -122,6 +146,8 @@ export default function EditBookingScreen() {
     );
   }
 
+  const showLocationPickers = booking ? isTransferKind(booking.kind) : true;
+
   return (
     <ScrollView
       contentContainerStyle={[
@@ -132,8 +158,33 @@ export default function EditBookingScreen() {
       <Text style={styles.title}>{t('editBooking.title')}</Text>
       <Text style={styles.sub}>{t('editBooking.subtitle')}</Text>
 
-      <AuthInput label={t('editBooking.from')} value={fromLoc} onChangeText={setFromLoc} />
-      <AuthInput label={t('editBooking.to')} value={toLoc} onChangeText={setToLoc} />
+      {showLocationPickers ? (
+        <>
+          <LocationPicker
+            label={t('newBooking.form.pickupLocation')}
+            value={fromLoc}
+            onChange={setFromLoc}
+          />
+          <LocationPicker
+            label={t('newBooking.form.dropoffLocation')}
+            value={toLoc}
+            onChange={setToLoc}
+          />
+        </>
+      ) : (
+        <>
+          <AuthInput
+            label={t('editBooking.from')}
+            value={fromLoc.name}
+            onChangeText={(name) => setFromLoc({ type: fromLoc.type, name })}
+          />
+          <AuthInput
+            label={t('editBooking.to')}
+            value={toLoc.name}
+            onChangeText={(name) => setToLoc({ type: toLoc.type, name })}
+          />
+        </>
+      )}
       <AuthInput label={t('editBooking.date')} value={dateDisplay} onChangeText={setDateDisplay} />
       <AuthInput
         label={t('editBooking.passengers')}
@@ -148,7 +199,7 @@ export default function EditBookingScreen() {
         keyboardType="decimal-pad"
       />
       <AuthInput label={t('editBooking.signText')} value={signText} onChangeText={setSignText} />
-      {booking?.kind === 'transfer' ? (
+      {booking && isTransferKind(booking.kind) ? (
         <AuthInput
           label={t('newBooking.flightNumber')}
           value={flightNumber}

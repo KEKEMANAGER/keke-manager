@@ -29,6 +29,7 @@ import {
 import { formatStoredDateForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
+import { formatLocationDisplay } from '../lib/bookingLocations';
 import { formatBookingDisplayNumber, formatVoucherPriceGel } from '../lib/bookingVoucherDisplay';
 import { shareCompanyVoucherPDF } from '../lib/voucher';
 import { GuideDriverBadge } from './GuideDriverBadge';
@@ -164,10 +165,16 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
           <DetailRow label={t('companyVoucher.date')} value={formatBookingDate(booking)} />
           <DetailRow label={t('companyVoucher.route')} value={routeSummary(booking)} />
           {booking.from_location ? (
-            <DetailRow label={t('companyVoucher.from')} value={booking.from_location} />
+            <DetailRow
+              label={t('companyVoucher.from')}
+              value={formatLocationDisplay(booking.from_location, booking.from_location_type)}
+            />
           ) : null}
           {booking.to_location ? (
-            <DetailRow label={t('companyVoucher.to')} value={booking.to_location} />
+            <DetailRow
+              label={t('companyVoucher.to')}
+              value={formatLocationDisplay(booking.to_location, booking.to_location_type)}
+            />
           ) : null}
           <DetailRow label={t('companyVoucher.passengers')} value={String(booking.passengers ?? 1)} />
           {booking.flight_number?.trim() ? (
@@ -203,6 +210,29 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
               <Text style={styles.notesTitle}>{t('bookings.voucherNotes')}</Text>
               <Text style={styles.notesBody}>{booking.comment.trim()}</Text>
             </View>
+          ) : null}
+
+          {isTour && booking.transfer_in && (booking.transfer_in.airport || booking.transfer_in.hotel) ? (
+            <DetailRow
+              label={t('newBooking.form.transferArrivalSection')}
+              value={formatLocationRoute(
+                booking.transfer_in.airport,
+                booking.transfer_in.airport_type,
+                booking.transfer_in.hotel,
+                booking.transfer_in.hotel_type,
+              )}
+            />
+          ) : null}
+          {isTour && booking.transfer_out && (booking.transfer_out.airport || booking.transfer_out.hotel) ? (
+            <DetailRow
+              label={t('newBooking.form.transferDepartureSection')}
+              value={formatLocationRoute(
+                booking.transfer_out.hotel,
+                booking.transfer_out.hotel_type,
+                booking.transfer_out.airport,
+                booking.transfer_out.airport_type,
+              )}
+            />
           ) : null}
 
           {isTour && tourDays.length > 0 ? (

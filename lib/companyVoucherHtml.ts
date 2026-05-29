@@ -1,3 +1,4 @@
+import { formatLocationDisplay, formatLocationRoute } from './bookingLocations';
 import { bookingOfferedPriceGel } from './bookingPrice';
 import { formatBookingDisplayNumber, formatVoucherPriceGel } from './bookingVoucherDisplay';
 import type { CompanyVoucherData } from './companyVoucherData';
@@ -64,9 +65,19 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
   const tag = 'div';
 
   const route =
-    [booking.from_location?.trim(), booking.to_location?.trim()].filter(Boolean).join(' → ') ||
-    booking.route?.trim() ||
-    '—';
+    formatLocationRoute(
+      booking.from_location,
+      booking.from_location_type,
+      booking.to_location,
+      booking.to_location_type,
+    ) !== '—'
+      ? formatLocationRoute(
+          booking.from_location,
+          booking.from_location_type,
+          booking.to_location,
+          booking.to_location_type,
+        )
+      : booking.route?.trim() || '—';
 
   const updatedBadge =
     booking.driver_update_pending && booking.updated_at
@@ -81,8 +92,12 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     row('ტიპი', bookingKindLabel(booking.kind, booking.flight_direction)),
     row('თარიღი', formatStoredDateForDisplay(booking.date_display)),
     row('მარშრუტი', route),
-    booking.from_location ? row('საიდან', booking.from_location) : '',
-    booking.to_location ? row('სად', booking.to_location) : '',
+    booking.from_location
+      ? row('საიდან', formatLocationDisplay(booking.from_location, booking.from_location_type))
+      : '',
+    booking.to_location
+      ? row('სად', formatLocationDisplay(booking.to_location, booking.to_location_type))
+      : '',
     row('მგზავრები', String(booking.passengers ?? 1)),
     booking.flight_number?.trim()
       ? row('ფრენის ნომერი', `✈️ ${booking.flight_number.trim()}`)

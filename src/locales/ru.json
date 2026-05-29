@@ -236,6 +236,12 @@
     },
     "form": {
       "airport": "Аэропорт",
+      "pickupLocation": "Место подачи",
+      "dropoffLocation": "Место назначения",
+      "transferInFrom": "Прибытие — откуда",
+      "transferInTo": "Прибытие — куда",
+      "transferOutFrom": "Отправление — откуда",
+      "transferOutTo": "Отправление — куда",
       "flightNo": "Номер рейса",
       "dateTime": "Дата и время",
       "destination": "Пункт назначения",
@@ -322,6 +328,8 @@
     },
     "validation": {
       "airport": "Введите аэропорт",
+      "locationFrom": "Выберите тип места подачи и укажите локацию",
+      "locationTo": "Выберите тип места назначения и укажите локацию",
       "destination": "Введите пункт назначения",
       "dateTime": "Выберите дату и время",
       "hotel": "Введите отель / адрес",
@@ -350,6 +358,18 @@
       "pdfReady": "PDF загружен",
       "pickFailed": "Не удалось выбрать файл",
       "uploadFailed": "Не удалось загрузить логотип"
+    }
+  },
+  "locationPicker": {
+    "selectTypeHint": "Выберите тип локации",
+    "presetPlaceholder": "Выберите из списка",
+    "hotelPlaceholder": "напр. Hotel Marriott Tbilisi",
+    "addressPlaceholder": "напр. ул. Руставели 12, Тбилиси",
+    "types": {
+      "airport": "Аэропорт",
+      "train_station": "Вокзал",
+      "hotel": "Отель",
+      "address": "Адрес"
     }
   },
   "historyPage": {

@@ -272,6 +272,12 @@
     },
     "form": {
       "airport": "Airport",
+      "pickupLocation": "Pickup location",
+      "dropoffLocation": "Drop-off location",
+      "transferInFrom": "Arrival transfer — from",
+      "transferInTo": "Arrival transfer — to",
+      "transferOutFrom": "Departure transfer — from",
+      "transferOutTo": "Departure transfer — to",
       "flightNo": "Flight number",
       "dateTime": "Date and time",
       "destination": "Destination",
@@ -371,6 +377,8 @@
     },
     "validation": {
       "airport": "Enter airport",
+      "locationFrom": "Select pickup location type and enter the place",
+      "locationTo": "Select drop-off location type and enter the place",
       "destination": "Enter destination",
       "dateTime": "Select date and time",
       "hotel": "Enter hotel / address",
@@ -401,6 +409,18 @@
       "pdfReady": "PDF uploaded",
       "pickFailed": "Could not pick file",
       "uploadFailed": "Could not upload logo"
+    }
+  },
+  "locationPicker": {
+    "selectTypeHint": "Select a location type",
+    "presetPlaceholder": "Choose from list",
+    "hotelPlaceholder": "e.g. Hotel Marriott Tbilisi",
+    "addressPlaceholder": "e.g. 12 Rustaveli Ave, Tbilisi",
+    "types": {
+      "airport": "Airport",
+      "train_station": "Train station",
+      "hotel": "Hotel",
+      "address": "Address"
     }
   },
   "historyPage": {

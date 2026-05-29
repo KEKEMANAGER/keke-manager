@@ -8,7 +8,9 @@ import { trimUserId } from './userId';
 
 const BOOKING_UPDATE_FIELDS = [
   'from_location',
+  'from_location_type',
   'to_location',
+  'to_location_type',
   'route',
   'date_display',
   'passengers',
@@ -35,7 +37,9 @@ type UpdateField = (typeof BOOKING_UPDATE_FIELDS)[number];
 function labelForField(key: string): string {
   const labels: Record<string, string> = {
     from_location: 'საიდან',
+    from_location_type: 'საიდან (ტიპი)',
     to_location: 'სად',
+    to_location_type: 'სად (ტიპი)',
     route: 'მარშრუტი',
     date_display: 'თარიღი',
     passengers: 'მგზავრები',

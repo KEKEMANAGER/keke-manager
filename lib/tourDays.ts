@@ -1,4 +1,5 @@
 import type { ItineraryDay, TourDayPersisted, TourTransferLeg } from './bookings';
+import { formatLocationDisplay } from './bookingLocations';
 import { formatDisplayDateTime, formatStoredDateForDisplay, parseStoredDateTime, toIsoString } from './dateTime';
 
 /** Form state for one calendar day in a multi-day tour. */
@@ -162,12 +163,16 @@ function formatDayDate(date: string): string {
 function formatTransferLeg(label: string, leg: TourTransferLeg | null | undefined): string | null {
   if (!leg) return null;
   const when = leg.date ? formatStoredDateForDisplay(leg.date) : '—';
-  const airport = leg.airport?.trim();
-  const hotel = leg.hotel?.trim();
+  const airport = formatLocationDisplay(leg.airport, leg.airport_type);
+  const hotel = formatLocationDisplay(leg.hotel, leg.hotel_type);
   const route =
-    airport && hotel
+    airport !== '—' && hotel !== '—'
       ? `${airport} → ${hotel}`
-      : airport || hotel || leg.flight?.trim() || '';
+      : airport !== '—'
+        ? airport
+        : hotel !== '—'
+          ? hotel
+          : leg.flight?.trim() || '';
   if (!route && !when) return null;
   return `${label}: ${when}${route ? ` · ${route}` : ''}`;
 }
@@ -209,9 +214,15 @@ export function tourVoucherHtmlRows(booking: {
   const rows: string[] = [];
   const tin = booking.transfer_in;
   if (tin && (tin.date || tin.airport || tin.hotel)) {
+    const from = formatLocationDisplay(tin.airport, tin.airport_type);
+    const to = formatLocationDisplay(tin.hotel, tin.hotel_type);
+    const route =
+      from !== '—' && to !== '—'
+        ? `${from} → ${to}`
+        : [from !== '—' ? from : '', to !== '—' ? to : ''].filter(Boolean).join(' → ');
     rows.push(
       `<div class="row"><span class="label">ჩამოსვლის ტრანსფერი</span><span class="value">${escapeHtml(
-        [formatStoredDateForDisplay(tin.date), tin.airport, '→', tin.hotel].filter(Boolean).join(' '),
+        [formatStoredDateForDisplay(tin.date), route].filter((x) => x && x !== '—').join(' · '),
       )}</span></div>`,
     );
   }
@@ -258,9 +269,15 @@ export function tourVoucherHtmlRows(booking: {
   }
   const tout = booking.transfer_out;
   if (tout && (tout.date || tout.airport || tout.hotel)) {
+    const from = formatLocationDisplay(tout.hotel, tout.hotel_type);
+    const to = formatLocationDisplay(tout.airport, tout.airport_type);
+    const route =
+      from !== '—' && to !== '—'
+        ? `${from} → ${to}`
+        : [from !== '—' ? from : '', to !== '—' ? to : ''].filter(Boolean).join(' → ');
     rows.push(
       `<div class="row"><span class="label">გამგზავრების ტრანსფერი</span><span class="value">${escapeHtml(
-        [formatStoredDateForDisplay(tout.date), tout.hotel, '→', tout.airport].filter(Boolean).join(' '),
+        [formatStoredDateForDisplay(tout.date), route].filter((x) => x && x !== '—').join(' · '),
       )}</span></div>`,
     );
   }

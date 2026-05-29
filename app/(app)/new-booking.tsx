@@ -37,7 +37,16 @@ import {
   type PickupSignLogoFile,
   type TourTransferLeg,
 } from '../../lib/bookings';
+import { LocationPicker } from '../../components/LocationPicker';
 import { PickupSignLogoField } from '../../components/PickupSignLogoField';
+import {
+  emptyLocationValue,
+  formatLocationDisplay,
+  formatLocationRoute,
+  locationValueIsComplete,
+  persistLocationFields,
+  type LocationValue,
+} from '../../lib/bookingLocations';
 import { isPickupSignLogoPdf } from '../../lib/pickupSignLogo';
 import {
   normalizeVehicleClass,
@@ -747,59 +756,6 @@ function PassengerStepper({
   );
 }
 
-// ─── Airport dropdown ───────────────────────────────────────────────────────
-const GEORGIA_AIRPORTS = [
-  'თბილისის აეროპორტი',
-  'ბათუმის აეროპორტი',
-  'ქუთაისის აეროპორტი',
-] as const;
-
-function AirportDropdown({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const isPreset = (GEORGIA_AIRPORTS as readonly string[]).includes(value);
-  return (
-    <View style={styles.ddWrapper}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable
-        onPress={() => setOpen((o) => !o)}
-        style={({ pressed }) => [styles.ddTrigger, pressed && styles.pressed]}
-      >
-        <Text style={[styles.ddTriggerText, !value && styles.ddPlaceholder]}>
-          {value || placeholder || ''}
-        </Text>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.gold} />
-      </Pressable>
-      {open && (
-        <View style={styles.ddList}>
-          {GEORGIA_AIRPORTS.map((ap) => {
-            const active = value === ap;
-            return (
-              <Pressable
-                key={ap}
-                onPress={() => { onChangeText(ap); setOpen(false); }}
-                style={({ pressed }) => [styles.ddItem, active && styles.ddItemActive, pressed && styles.pressed]}
-              >
-                <Text style={[styles.ddItemText, active && styles.ddItemTextActive]}>{ap}</Text>
-                {active && <Ionicons name="checkmark" size={16} color={COLORS.gold} />}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-    </View>
-  );
-}
-
 function VehiclePicker({
   selectedVehicleType,
   onVehicleTypeChange,
@@ -849,13 +805,19 @@ export default function NewBookingScreen() {
   const [booking_kind, set_booking_kind] = useState<BookingKindUi>('transfer');
 
   const [transferTab, setTransferTab] = useState<TransferTab>('arrival');
-  const [arrivalAirport, setArrivalAirport] = useState('');
-  const [arrivalDestination, setArrivalDestination] = useState('');
+  const [arrivalFrom, setArrivalFrom] = useState<LocationValue>(() => ({
+    type: 'airport',
+    name: '',
+  }));
+  const [arrivalTo, setArrivalTo] = useState<LocationValue>(() => emptyLocationValue());
   const [arrivalFlightNo, setArrivalFlightNo] = useState('');
   const [departureFlightNo, setDepartureFlightNo] = useState('');
   const [arrivalDateTime, setArrivalDateTime] = useState<Date | null>(null);
-  const [departureAddress, setDepartureAddress] = useState('');
-  const [departureAirport, setDepartureAirport] = useState('');
+  const [departureFrom, setDepartureFrom] = useState<LocationValue>(() => emptyLocationValue());
+  const [departureTo, setDepartureTo] = useState<LocationValue>(() => ({
+    type: 'airport',
+    name: '',
+  }));
   const [departureDateTime, setDepartureDateTime] = useState<Date | null>(null);
 
   const [bookingDateTime, setBookingDateTime] = useState<Date | null>(null);
@@ -901,10 +863,16 @@ export default function NewBookingScreen() {
   const [tourStartDate, setTourStartDate] = useState<Date | null>(null);
   const [tourEndDate, setTourEndDate] = useState<Date | null>(null);
   const [tourDays, setTourDays] = useState<TourDayForm[]>([]);
-  const [transferInAirport, setTransferInAirport] = useState('');
-  const [transferInHotel, setTransferInHotel] = useState('');
-  const [transferOutAirport, setTransferOutAirport] = useState('');
-  const [transferOutHotel, setTransferOutHotel] = useState('');
+  const [transferInAirportLoc, setTransferInAirportLoc] = useState<LocationValue>(() => ({
+    type: 'airport',
+    name: '',
+  }));
+  const [transferInHotelLoc, setTransferInHotelLoc] = useState<LocationValue>(() => emptyLocationValue());
+  const [transferOutAirportLoc, setTransferOutAirportLoc] = useState<LocationValue>(() => ({
+    type: 'airport',
+    name: '',
+  }));
+  const [transferOutHotelLoc, setTransferOutHotelLoc] = useState<LocationValue>(() => emptyLocationValue());
 
   const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('now');
   const [operators, setOperators] = useState<CompanyMember[]>([]);
@@ -1024,13 +992,13 @@ export default function NewBookingScreen() {
   function validateStep2(): string | null {
     if (booking_kind === 'transfer') {
       if (transferTab === 'arrival') {
-        if (!arrivalAirport.trim()) return t('newBooking.validation.airport');
-        if (!arrivalDestination.trim()) return t('newBooking.validation.destination');
+        if (!locationValueIsComplete(arrivalFrom)) return t('newBooking.validation.locationFrom');
+        if (!locationValueIsComplete(arrivalTo)) return t('newBooking.validation.locationTo');
         if (!arrivalDateTime) return t('newBooking.validation.dateTime');
         return null;
       }
-      if (!departureAddress.trim()) return t('newBooking.validation.hotel');
-      if (!departureAirport.trim()) return t('newBooking.validation.airport');
+      if (!locationValueIsComplete(departureFrom)) return t('newBooking.validation.locationFrom');
+      if (!locationValueIsComplete(departureTo)) return t('newBooking.validation.locationTo');
       if (!departureDateTime) return t('newBooking.validation.departureDate');
       return null;
     }
@@ -1055,13 +1023,13 @@ export default function NewBookingScreen() {
       }
       if (hasArrivalTransfer) {
         if (!transferInDateTime) return t('newBooking.validation.dateTime');
-        if (!transferInAirport.trim()) return t('newBooking.validation.airport');
-        if (!transferInHotel.trim()) return t('newBooking.validation.destination');
+        if (!locationValueIsComplete(transferInAirportLoc)) return t('newBooking.validation.locationFrom');
+        if (!locationValueIsComplete(transferInHotelLoc)) return t('newBooking.validation.locationTo');
       }
       if (hasDepartureTransfer) {
         if (!transferOutDateTime) return t('newBooking.validation.departureDate');
-        if (!transferOutHotel.trim()) return t('newBooking.validation.hotel');
-        if (!transferOutAirport.trim()) return t('newBooking.validation.airport');
+        if (!locationValueIsComplete(transferOutHotelLoc)) return t('newBooking.validation.locationFrom');
+        if (!locationValueIsComplete(transferOutAirportLoc)) return t('newBooking.validation.locationTo');
       }
       return null;
     }
@@ -1072,12 +1040,12 @@ export default function NewBookingScreen() {
     setStep(1);
     set_booking_kind('transfer');
     setTransferTab('arrival');
-    setArrivalAirport('');
-    setArrivalDestination('');
+    setArrivalFrom({ type: 'airport', name: '' });
+    setArrivalTo(emptyLocationValue());
     setArrivalFlightNo('');
     setArrivalDateTime(null);
-    setDepartureAddress('');
-    setDepartureAirport('');
+    setDepartureFrom(emptyLocationValue());
+    setDepartureTo({ type: 'airport', name: '' });
     setDepartureDateTime(null);
     setBookingDateTime(null);
     setPassengers('2');
@@ -1106,10 +1074,10 @@ export default function NewBookingScreen() {
     setTourStartDate(null);
     setTourEndDate(null);
     setTourDays([]);
-    setTransferInAirport('');
-    setTransferInHotel('');
-    setTransferOutAirport('');
-    setTransferOutHotel('');
+    setTransferInAirportLoc({ type: 'airport', name: '' });
+    setTransferInHotelLoc(emptyLocationValue());
+    setTransferOutAirportLoc({ type: 'airport', name: '' });
+    setTransferOutHotelLoc(emptyLocationValue());
     setPaymentWhen('now');
     setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
@@ -1184,20 +1152,33 @@ export default function NewBookingScreen() {
       : isDayTour
         ? tourEndpoints(itineraryDb ?? [])
         : { from: null, to: null };
+    const transferInAirportP = persistLocationFields(transferInAirportLoc);
+    const transferInHotelP = persistLocationFields(transferInHotelLoc);
+    const transferOutHotelP = persistLocationFields(transferOutHotelLoc);
+    const transferOutAirportP = persistLocationFields(transferOutAirportLoc);
+    const arrivalFromP = persistLocationFields(arrivalFrom);
+    const arrivalToP = persistLocationFields(arrivalTo);
+    const departureFromP = persistLocationFields(departureFrom);
+    const departureToP = persistLocationFields(departureTo);
+
     const transferInDb: TourTransferLeg | null =
       isMultiDayTour && hasArrivalTransfer && transferInDateTime
         ? {
             date: toIsoString(transferInDateTime),
-            airport: transferInAirport.trim(),
-            hotel: transferInHotel.trim(),
+            airport: transferInAirportP.name ?? undefined,
+            airport_type: transferInAirportP.type,
+            hotel: transferInHotelP.name ?? undefined,
+            hotel_type: transferInHotelP.type,
           }
         : null;
     const transferOutDb: TourTransferLeg | null =
       isMultiDayTour && hasDepartureTransfer && transferOutDateTime
         ? {
             date: toIsoString(transferOutDateTime),
-            hotel: transferOutHotel.trim(),
-            airport: transferOutAirport.trim(),
+            hotel: transferOutHotelP.name ?? undefined,
+            hotel_type: transferOutHotelP.type,
+            airport: transferOutAirportP.name ?? undefined,
+            airport_type: transferOutAirportP.type,
           }
         : null;
     const structuredRoute = isMultiDayTour
@@ -1220,15 +1201,27 @@ export default function NewBookingScreen() {
       from_location:
         booking_kind === 'transfer'
           ? transferTab === 'arrival'
-            ? arrivalAirport.trim() || null
-            : departureAddress.trim() || null
+            ? arrivalFromP.name
+            : departureFromP.name
           : tourEnds.from,
+      from_location_type:
+        booking_kind === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalFromP.type
+            : departureFromP.type
+          : null,
       to_location:
         booking_kind === 'transfer'
           ? transferTab === 'arrival'
-            ? arrivalDestination.trim() || null
-            : departureAirport.trim() || null
+            ? arrivalToP.name
+            : departureToP.name
           : tourEnds.to,
+      to_location_type:
+        booking_kind === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalToP.type
+            : departureToP.type
+          : null,
       route: routeForDb,
       date_display: isDayTour
         ? bookingDateTime
@@ -1366,11 +1359,10 @@ export default function NewBookingScreen() {
             <View style={styles.accordionPanel}>
               {transferTab === 'arrival' ? (
                 <>
-                  <AirportDropdown
-                    label={t('newBooking.form.airport')}
-                    value={arrivalAirport}
-                    onChangeText={setArrivalAirport}
-                    placeholder={t('newBooking.form.placeholders.airportExample')}
+                  <LocationPicker
+                    label={t('newBooking.form.pickupLocation')}
+                    value={arrivalFrom}
+                    onChange={setArrivalFrom}
                   />
                   <AuthInput
                     label={t('newBooking.flightNumber')}
@@ -1386,20 +1378,18 @@ export default function NewBookingScreen() {
                     placeholder={t('newBooking.form.placeholders.dateTime')}
                     minimumDate={new Date()}
                   />
-                  <AuthInput
-                    label={t('newBooking.form.destination')}
-                    value={arrivalDestination}
-                    onChangeText={setArrivalDestination}
-                    placeholder={t('newBooking.form.placeholders.destinationExample')}
+                  <LocationPicker
+                    label={t('newBooking.form.dropoffLocation')}
+                    value={arrivalTo}
+                    onChange={setArrivalTo}
                   />
                 </>
               ) : (
                 <>
-                  <AuthInput
-                    label={t('newBooking.form.hotelAddress')}
-                    value={departureAddress}
-                    onChangeText={setDepartureAddress}
-                    placeholder={t('newBooking.form.pickupPlace')}
+                  <LocationPicker
+                    label={t('newBooking.form.pickupLocation')}
+                    value={departureFrom}
+                    onChange={setDepartureFrom}
                   />
                   <DateTimeField
                     label={t('newBooking.form.departureDateTime')}
@@ -1408,11 +1398,10 @@ export default function NewBookingScreen() {
                     placeholder={t('newBooking.form.placeholders.dateTime')}
                     minimumDate={new Date()}
                   />
-                  <AirportDropdown
-                    label={t('newBooking.form.airport')}
-                    value={departureAirport}
-                    onChangeText={setDepartureAirport}
-                    placeholder={t('newBooking.form.placeholders.airportExample')}
+                  <LocationPicker
+                    label={t('newBooking.form.dropoffLocation')}
+                    value={departureTo}
+                    onChange={setDepartureTo}
                   />
                   <AuthInput
                     label={t('newBooking.flightNumber')}
@@ -1631,17 +1620,15 @@ export default function NewBookingScreen() {
                   placeholder={t('newBooking.form.placeholders.dateTime')}
                   minimumDate={new Date()}
                 />
-                <AuthInput
-                  label={t('newBooking.form.airport')}
-                  value={transferInAirport}
-                  onChangeText={setTransferInAirport}
-                  placeholder={t('newBooking.form.placeholders.airportExample')}
+                <LocationPicker
+                  label={t('newBooking.form.transferInFrom')}
+                  value={transferInAirportLoc}
+                  onChange={setTransferInAirportLoc}
                 />
-                <AuthInput
-                  label={t('newBooking.form.destination')}
-                  value={transferInHotel}
-                  onChangeText={setTransferInHotel}
-                  placeholder={t('newBooking.form.placeholders.destinationExample')}
+                <LocationPicker
+                  label={t('newBooking.form.transferInTo')}
+                  value={transferInHotelLoc}
+                  onChange={setTransferInHotelLoc}
                 />
               </>
             ) : null}
@@ -1728,17 +1715,15 @@ export default function NewBookingScreen() {
                   placeholder={t('newBooking.form.placeholders.dateTime')}
                   minimumDate={new Date()}
                 />
-                <AuthInput
-                  label={t('newBooking.form.hotelAddress')}
-                  value={transferOutHotel}
-                  onChangeText={setTransferOutHotel}
-                  placeholder={t('newBooking.form.pickupPlace')}
+                <LocationPicker
+                  label={t('newBooking.form.transferOutFrom')}
+                  value={transferOutHotelLoc}
+                  onChange={setTransferOutHotelLoc}
                 />
-                <AuthInput
-                  label={t('newBooking.form.airport')}
-                  value={transferOutAirport}
-                  onChangeText={setTransferOutAirport}
-                  placeholder={t('newBooking.form.placeholders.airportExample')}
+                <LocationPicker
+                  label={t('newBooking.form.transferOutTo')}
+                  value={transferOutAirportLoc}
+                  onChange={setTransferOutAirportLoc}
                 />
               </>
             ) : null}
@@ -1848,8 +1833,18 @@ export default function NewBookingScreen() {
                   </Text>
                   <Text style={styles.vLine}>
                     {transferTab === 'arrival'
-                      ? `${arrivalAirport || '—'} → ${arrivalDestination || '—'}`
-                      : `${departureAddress || '—'} → ${departureAirport || '—'}`}
+                      ? formatLocationRoute(
+                          arrivalFrom.name,
+                          arrivalFrom.type,
+                          arrivalTo.name,
+                          arrivalTo.type,
+                        )
+                      : formatLocationRoute(
+                          departureFrom.name,
+                          departureFrom.type,
+                          departureTo.name,
+                          departureTo.type,
+                        )}
                   </Text>
                   {transferTab === 'arrival' && arrivalDateTime ? (
                     <Text style={styles.vLine}>{formatDisplayDateTime(arrivalDateTime)}</Text>
@@ -1912,8 +1907,11 @@ export default function NewBookingScreen() {
                         datetime: transferInDateTime
                           ? formatDisplayDateTime(transferInDateTime)
                           : '—',
-                        from: transferInAirport.trim() || '—',
-                        to: transferInHotel.trim() || '—',
+                        from: formatLocationDisplay(
+                          transferInAirportLoc.name,
+                          transferInAirportLoc.type,
+                        ),
+                        to: formatLocationDisplay(transferInHotelLoc.name, transferInHotelLoc.type),
                       })}
                     </Text>
                   ) : null}
@@ -1961,8 +1959,14 @@ export default function NewBookingScreen() {
                         datetime: transferOutDateTime
                           ? formatDisplayDateTime(transferOutDateTime)
                           : '—',
-                        from: transferOutHotel.trim() || '—',
-                        to: transferOutAirport.trim() || '—',
+                        from: formatLocationDisplay(
+                          transferOutHotelLoc.name,
+                          transferOutHotelLoc.type,
+                        ),
+                        to: formatLocationDisplay(
+                          transferOutAirportLoc.name,
+                          transferOutAirportLoc.type,
+                        ),
                       })}
                     </Text>
                   ) : null}

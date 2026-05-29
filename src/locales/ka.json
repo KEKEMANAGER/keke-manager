@@ -269,6 +269,12 @@
     },
     "form": {
       "airport": "აეროპორტი",
+      "pickupLocation": "აღების ადგილი",
+      "dropoffLocation": "დანიშნულების ადგილი",
+      "transferInFrom": "ჩამოსვლა — საიდან",
+      "transferInTo": "ჩამოსვლა — სად",
+      "transferOutFrom": "გამგზავრება — საიდან",
+      "transferOutTo": "გამგზავრება — სად",
       "flightNo": "რეისის ნომერი",
       "dateTime": "თარიღი და დრო",
       "destination": "დანიშნულების ადგილი",
@@ -368,6 +374,8 @@
     },
     "validation": {
       "airport": "შეიყვანეთ აეროპორტი",
+      "locationFrom": "აირჩიეთ აღების ადგილის ტიპი და მიუთითეთ მდებარეობა",
+      "locationTo": "აირჩიეთ დანიშნულების ტიპი და მიუთითეთ მდებარეობა",
       "destination": "შეიყვანეთ დანიშნულების ადგილი",
       "dateTime": "აირჩიეთ თარიღი და დრო",
       "hotel": "შეიყვანეთ სასტუმრო / მისამართი",
@@ -398,6 +406,18 @@
       "pdfReady": "PDF ატვირთულია",
       "pickFailed": "ფაილის არჩევა ვერ მოხერხდა",
       "uploadFailed": "ლოგოს ატვირთვა ვერ მოხერხდა"
+    }
+  },
+  "locationPicker": {
+    "selectTypeHint": "აირჩიეთ ლოკაციის ტიპი",
+    "presetPlaceholder": "აირჩიეთ სიიდან",
+    "hotelPlaceholder": "მაგ: Hotel Marriott Tbilisi",
+    "addressPlaceholder": "მაგ: 12 Rustaveli Ave, Tbilisi",
+    "types": {
+      "airport": "აეროპორტი",
+      "train_station": "სადგური",
+      "hotel": "სასტუმრო",
+      "address": "მისამართი"
     }
   },
   "historyPage": {

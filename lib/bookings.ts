@@ -20,6 +20,7 @@ import {
   notifyMatchingDriversOfNewBooking,
 } from './notifications';
 import { resolveVehicleIdForBooking } from './bookingVehicle';
+import { formatLocationRoute } from './bookingLocations';
 import { formatTourBookingNotificationBody } from './tourDays';
 import { sanitizeLanguageCodes } from './spokenLanguages';
 import { fetchDriverProfile } from './profiles';
@@ -292,7 +293,9 @@ export type TourDayPersisted = {
 export type TourTransferLeg = {
   date: string;
   airport?: string;
+  airport_type?: string | null;
   hotel?: string;
+  hotel_type?: string | null;
   flight?: string;
   passengerName?: string;
 };
@@ -308,7 +311,9 @@ export type BookingRow = {
   status: BookingStatus;
   kind: BookingType;
   from_location: string | null;
+  from_location_type?: string | null;
   to_location: string | null;
+  to_location_type?: string | null;
   route: string | null;
   date_display: string | null;
   passengers: number;
@@ -360,7 +365,9 @@ export type InsertBookingInput = {
   company_name: string | null;
   kind: BookingType;
   from_location: string | null;
+  from_location_type?: string | null;
   to_location: string | null;
+  to_location_type?: string | null;
   route: string | null;
   date_display: string | null;
   passengers: number;
@@ -412,9 +419,18 @@ export {
 } from './pickupSignLogo';
 
 export function routeSummary(row: BookingRow): string {
-  if (isTransferKind(row.kind) && row.from_location && row.to_location) {
-    return `${row.from_location} → ${row.to_location}`;
+  if (isTransferKind(row.kind)) {
+    const line = formatLocationRoute(
+      row.from_location,
+      row.from_location_type,
+      row.to_location,
+      row.to_location_type,
+    );
+    if (line !== '—') return line;
   }
+  const from = row.from_location?.trim();
+  const to = row.to_location?.trim();
+  if (from && to) return `${from} → ${to}`;
   return row.route?.trim() || '—';
 }
 
@@ -690,7 +706,9 @@ export async function insertBooking(row: InsertBookingInput) {
       company_name: row.company_name,
       booking_type: bookingKindForDb,
       from_location: row.from_location,
+      from_location_type: row.from_location_type ?? null,
       to_location: row.to_location,
+      to_location_type: row.to_location_type ?? null,
       date_display: row.date_display,
       passengers: row.passengers,
       vehicle_type: vehicleType,
