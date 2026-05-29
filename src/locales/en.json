@@ -184,6 +184,19 @@
     "ibanLabel": "IBAN",
     "ibanMissing": "Driver has not set an IBAN"
   },
+  "pricingCalculator": {
+    "open": "Price calculator",
+    "title": "Price calculator",
+    "recommended": "Recommended price: {{price}}",
+    "apply": "Use this price",
+    "recalculate": "Recalculate",
+    "distance": "Distance: ~{{km}} km",
+    "mountain": "Mountain route (+30%)",
+    "days": "{{count}} day(s)",
+    "errorLocations": "Set both origin and destination for the route.",
+    "errorGeocode": "Could not resolve locations — check place names.",
+    "errorRoute": "Could not calculate distance — try again later."
+  },
   "vehicleScreen": {
     "title": "Vehicle photos",
     "photos": "Vehicle photos",
