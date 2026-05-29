@@ -1,1 +1,14 @@
-/* /index.html 200
+# Static files (before SPA fallback; Cloudflare applies redirects before assets)
+/llms.txt         /llms.txt         200
+/llms-full.txt    /llms-full.txt    200
+/robots.txt       /robots.txt       200
+/sitemap.xml      /sitemap.xml      200
+/logo.png         /logo.png         200
+/logo.webp        /logo.webp        200
+/og-image.jpg     /og-image.jpg     200
+/favicon.ico      /favicon.ico      200
+/blog/rss.xml     /blog/rss.xml     200
+/blog/*           /blog/:splat      200
+
+# Expo Router SPA
+/*                /index.html       200
