@@ -323,6 +323,30 @@ function ensurePlaceholderCover(slug, title) {
   return `/blog/${slug}-cover.svg`;
 }
 
+function buildSeoLandingSitemapUrls(today) {
+  const seoPath = path.join(ROOT, 'lib', 'seoLandingPages.json');
+  if (!fs.existsSync(seoPath)) return [];
+  const seo = JSON.parse(fs.readFileSync(seoPath, 'utf8'));
+  const urls = [];
+  for (const p of seo.locations ?? []) {
+    urls.push({
+      loc: `${SITE_URL}/locations/${p.slug}`,
+      lastmod: today,
+      changefreq: 'monthly',
+      priority: '0.75',
+    });
+  }
+  for (const p of seo.services ?? []) {
+    urls.push({
+      loc: `${SITE_URL}/services/${p.slug}`,
+      lastmod: today,
+      changefreq: 'monthly',
+      priority: '0.75',
+    });
+  }
+  return urls;
+}
+
 function buildSitemap(posts) {
   const today = new Date().toISOString().slice(0, 10);
   const sitemapPath = path.join(ROOT, 'public', 'sitemap.xml');
@@ -340,7 +364,8 @@ function buildSitemap(posts) {
     changefreq: 'monthly',
     priority: '0.7',
   }));
-  const all = [...staticUrls, ...blogUrls];
+  const seoUrls = buildSeoLandingSitemapUrls(today);
+  const all = [...staticUrls, ...seoUrls, ...blogUrls];
   const body = all
     .map(
       (u) => `  <url>

@@ -1,0 +1,377 @@
+{
+  "driverCountLabel": "500+",
+  "locations": [
+    {
+      "slug": "tbilisi",
+      "geo": { "name": "Tbilisi", "nameKa": "თბილისი", "lat": 41.7151, "lng": 44.8271 },
+      "title": {
+        "en": "Find Verified Tour Drivers in Tbilisi | KEKE Manager",
+        "ka": "ვერიფიცირებული ტურმძღოლი თბილისში | KEKE Manager"
+      },
+      "description": {
+        "en": "KEKE Manager connects tour companies and travel agencies with 500+ verified guide-drivers in Tbilisi. Manage bookings, GPS, and fleet in one B2B platform — not a taxi service.",
+        "ka": "KEKE Manager აერთიანებს ტუროკომპანიებსა და სააგენტოებს 500+ ვერიფიცირებულ ტურმძღოლთან თბილისში. ჯავშნები, GPS და ფლოტი ერთ B2B პლატფორმაზე."
+      },
+      "h1": {
+        "en": "Find verified tour drivers in Tbilisi on KEKE Manager",
+        "ka": "იპოვეთ ვერიფიცირებული ტურმძღოლები თბილისში KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "KEKE Manager is a B2B platform where tour operators post trips and hire verified guide-drivers in Tbilisi. We do not sell transfers ourselves — companies and drivers connect directly on the platform with ratings, GPS tracking, and digital vouchers.",
+        "ka": "KEKE Manager არის B2B პლატფორმა, სადაც ტუროკომპანიები ათავსებენ ტურებს და იღებენ ვერიფიცირებულ გიდ-მძღოლებს თბილისში. ტრანსფერს ჩვენ არ ვყიდით — კომპანიები და მძღოლები უკავშირდებიან პლატფორმაზე რეიტინგით, GPS-ით და ციფრული ვაუჩერებით."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: publish bookings and assign drivers from a verified pool",
+          "Agencies & DMCs: find reliable transport partners without phone chains",
+          "Drivers: join the platform and receive trip offers in Tbilisi"
+        ],
+        "ka": [
+          "ტუროკომპანიები: განათავსეთ ჯავშნები და მიანიჭეთ მძღოლები ვერიფიცირებული აუზიდან",
+          "სააგენტოები: იპოვეთ სანდო ტრანსპორტის პარტნიორები ტელეფონის ჯაჭით გარეშე",
+          "მძღოლები: შემოუერთდით პლატფორმას და მიიღეთ შეთავაზებები თბილისის მიმართულებით"
+        ]
+      },
+      "relatedBlog": [
+        "tbilisi-airport-transfer-guide",
+        "how-to-find-reliable-tour-driver-georgia",
+        "tour-transport-pricing-guide-georgia"
+      ]
+    },
+    {
+      "slug": "batumi",
+      "geo": { "name": "Batumi", "nameKa": "ბათუმი", "lat": 41.6168, "lng": 41.6367 },
+      "title": {
+        "en": "Find Tour Drivers in Batumi | KEKE Manager B2B Platform",
+        "ka": "ტურმძღოლების პოვნა ბათუმში | KEKE Manager B2B"
+      },
+      "description": {
+        "en": "Connect with verified tour and transfer drivers in Batumi through KEKE Manager. Tour companies manage fleet and bookings; drivers join free. 500+ drivers across Georgia.",
+        "ka": "დაუკავშირდით ვერიფიცირებულ ტურმძღოლებთან ბათუმში KEKE Manager-ის მეშვეობით. ტუროკომპანიები მართავენ ფლოტსა და ჯავშნებს; მძღოლები უფასოდ უერთდებიან."
+      },
+      "h1": {
+        "en": "Connect with verified tour drivers in Batumi",
+        "ka": "დაუკავშირდით ვერიფიცირებულ ტურმძღოლებთან ბათუმში"
+      },
+      "intro": {
+        "en": "Seasonal demand on the Black Sea coast means tour operators need a reliable driver network — not ad-hoc phone calls. KEKE Manager lets Batumi-based companies and inbound agencies match trips with verified drivers on one platform.",
+        "ka": "ბათუმის სეზონური ტურიზმი მოითხოვს სანდო მძღოლთა ქსელს. KEKE Manager-ზე ტუროკომპანიები და სააგენტოები ერთ პლატფორმაზე უკავშირდებიან ტურებს ვერიფიცირებულ მძღოლებთან."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: centralize Batumi and Adjara trip assignments",
+          "Agencies: source vetted drivers for coastal and city programs",
+          "Drivers: get visibility with companies that book through KEKE"
+        ],
+        "ka": [
+          "ტუროკომპანიები: ცენტრალიზებული ჯავშანი აჭარის მიმართულებებზე",
+          "სააგენტოები: შემოწმებული მძღოლები საზღვაურ-ქალაქის პროგრამებისთვის",
+          "მძღოლები: ხილვადობა კომპანიებთან, რომლებიც KEKE-ზე ჯავშნავენ"
+        ]
+      },
+      "relatedBlog": [
+        "batumi-transport-tourism-guide",
+        "how-to-find-reliable-tour-driver-georgia",
+        "georgia-tourism-trends-2026"
+      ]
+    },
+    {
+      "slug": "kazbegi",
+      "geo": { "name": "Kazbegi", "nameKa": "ყაზბეგი", "lat": 42.6629, "lng": 44.6448 },
+      "title": {
+        "en": "Mountain Tour Drivers Kazbegi | KEKE Manager",
+        "ka": "მთის ტურმძღოლები ყაზბეგში | KEKE Manager"
+      },
+      "description": {
+        "en": "Find verified 4x4 and mountain tour drivers for Kazbegi routes on KEKE Manager. Tour companies plan multi-day trips; drivers with suitable vehicles join the platform.",
+        "ka": "იპოვეთ ვერიფიცირებული 4x4 და მთის ტურმძღოლები ყაზბეგის მარშრუტებისთვის KEKE Manager-ზე. ტუროკომპანიები გეგმავენ ტურებს; მძღოლები უერთდებიან პლატფორმაზე."
+      },
+      "h1": {
+        "en": "Find mountain & Kazbegi route drivers on KEKE Manager",
+        "ka": "იპოვეთ მთისა და ყაზბეგის მარშრუტის მძღოლები KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "Kazbegi and Gudauri trips need drivers with the right vehicle and experience. On KEKE Manager, tour operators publish itineraries and connect with verified drivers — we are a booking platform, not a tour operator.",
+        "ka": "ყაზბეგისა და გუდაურის ტურებს სჭირდება გამოცდილი მძღოლები და შესაბამისი ავტოპარკი. KEKE Manager-ზე ტუროკომპანიები ათავსებენ მარშრუტებს და უკავშირდებიან ვერიფიცირებულ მძღოლებთან."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: match Kazbegi departures with rated drivers",
+          "Agencies: one place to source mountain-ready partners",
+          "Drivers: offer 4x4 and minivan trips to registered companies"
+        ],
+        "ka": [
+          "ტუროკომპანიები: ყაზბეგის განრიგები ხარისხიან მძღოლებთან",
+          "სააგენტოები: მთის მზადყოფილი პარტნიორები ერთ პლატფორმაზე",
+          "მძღოლები: 4x4 და მინივენის ტურები რეგისტრირებულ კომპანიებისთვის"
+        ]
+      },
+      "relatedBlog": [
+        "tbilisi-kazbegi-day-trip-guide",
+        "georgia-mountain-tours-4x4",
+        "best-vehicles-tourist-transport"
+      ]
+    },
+    {
+      "slug": "kutaisi",
+      "geo": { "name": "Kutaisi", "nameKa": "ქუთაისი", "lat": 42.2679, "lng": 42.6946 },
+      "title": {
+        "en": "Tour Drivers Kutaisi & Imereti | KEKE Manager",
+        "ka": "ტურმძღოლები ქუთაისსა და იმერეთში | KEKE Manager"
+      },
+      "description": {
+        "en": "Tour companies and agencies use KEKE Manager to find verified drivers for Kutaisi, airport links, and Imereti wine country loops. Manage your fleet on one B2B platform.",
+        "ka": "ტუროკომპანიები და სააგენტოები იყენებენ KEKE Manager-ს ქუთაისის, აეროპორტისა და იმერეთის მარშრუტებისთვის. მართეთ ფლოტი ერთ B2B პლატფორმაზე."
+      },
+      "h1": {
+        "en": "Find verified tour drivers in Kutaisi & Imereti",
+        "ka": "ვერიფიცირებული ტურმძღოლები ქუთაისსა და იმერეთში"
+      },
+      "intro": {
+        "en": "Kutaisi airport and Imereti cultural routes drive steady transport demand. KEKE Manager helps operators publish jobs and hire verified local drivers instead of maintaining scattered contact lists.",
+        "ka": "ქუთაისის აეროპორტი და იმერეთის კულტურული მარშრუტები ქმნის მუდმივ მოთხოვნას. KEKE Manager-ზე ოპერატორები ათავსებენ ტურებს და იღებენ ადგილობრივ ვერიფიცირებულ მძღოლებს."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: assign Kutaisi and region trips digitally",
+          "Agencies: reliable partners for West Georgia programs",
+          "Drivers: receive offers from companies on the platform"
+        ],
+        "ka": [
+          "ტუროკომპანიები: ქუთაისისა და რეგიონის ტურები ციფრულად",
+          "სააგენტოები: სანდო პარტნიორები დასავლეთ საქართველოსთვის",
+          "მძღოლები: შეთავაზებები პლატფორმაზე რეგისტრირებული კომპანიებისგან"
+        ]
+      },
+      "relatedBlog": [
+        "how-to-find-reliable-tour-driver-georgia",
+        "kakheti-wine-tour-transport",
+        "tour-transport-pricing-guide-georgia"
+      ]
+    },
+    {
+      "slug": "borjomi",
+      "geo": { "name": "Borjomi", "nameKa": "ბორჯომი", "lat": 41.8461, "lng": 43.3798 },
+      "title": {
+        "en": "Tour Transport Partners Borjomi | KEKE Manager",
+        "ka": "ტურისტული ტრანსპორტი ბორჯომში | KEKE Manager"
+      },
+      "description": {
+        "en": "Connect tour companies with verified drivers for Borjomi and Samtskhe-Javakheti routes on KEKE Manager. Platform bookings, GPS, ratings — not a direct transport provider.",
+        "ka": "დაუკავშირდით ტუროკომპანიებს ვერიფიცირებულ მძღოლებთან ბორჯომისა და სამცხე-ჯავახეთის მარშრუტებზე KEKE Manager-ზე."
+      },
+      "h1": {
+        "en": "Find tour drivers for Borjomi routes on KEKE Manager",
+        "ka": "იპოვეთ ტურმძღოლები ბორჯომის მარშრუტებისთვის KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "Wellness and nature tourism around Borjomi relies on dependable driver partners. KEKE Manager is where tour operators and drivers meet — publish trips, track vehicles, and keep everything documented.",
+        "ka": "ბორჯომის ტურიზმი საჭიროებს საიმედო მძღოლ-პარტნიორებს. KEKE Manager-ზე ტუროპერატორები და მძღოლები ურთიერთდებიან — ტურები, GPS და დოკუმენტები ერთ ადგილას."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: manage Borjomi-area departures online",
+          "Agencies: vetted drivers for spa and nature itineraries",
+          "Drivers: join and work with registered tour companies"
+        ],
+        "ka": [
+          "ტუროკომპანიები: ბორჯომის მიმართულების ტურები ონლაინ",
+          "სააგენტოები: შემოწმებული მძღოლები სპა და ბუნების ტურებისთვის",
+          "მძღოლები: უერთდებიან და მუშაობენ რეგისტრირებულ კომპანიებთან"
+        ]
+      },
+      "relatedBlog": [
+        "tour-transport-pricing-guide-georgia",
+        "managing-tourist-driver-fleet",
+        "how-to-find-reliable-tour-driver-georgia"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "slug": "airport-transfer",
+      "serviceName": { "en": "Airport transfer driver matching", "ka": "აეროპორტის ტრანსფერის მძღოლების შერჩევა" },
+      "title": {
+        "en": "Airport Transfer Drivers Georgia | KEKE Manager Platform",
+        "ka": "აეროპორტის ტრანსფერის მძღოლები | KEKE Manager"
+      },
+      "description": {
+        "en": "Tour companies assign airport pickups to verified drivers on KEKE Manager. Agencies find partners across Georgia — we are a B2B platform, not a transfer company.",
+        "ka": "ტუროკომპანიები ანიჭებენ აეროპორტის ტრანსფერებს ვერიფიცირებულ მძღოლებს KEKE Manager-ზე. სააგენტოები პოულობენ პარტნიორებს მთელ საქართველოში."
+      },
+      "h1": {
+        "en": "Match airport transfers with verified drivers on KEKE Manager",
+        "ka": "აეროპორტის ტრანსფერები ვერიფიცირებულ მძღოლებთან KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "Tbilisi, Kutaisi, and Batumi airports generate thousands of tourist transfers each season. On KEKE Manager, operators create bookings, drivers accept jobs, and both sides see live status — without KEKE operating vehicles.",
+        "ka": "აეროპორტები ქმნიან ათასობებით ტრანსფერს. KEKE Manager-ზე ოპერატორები ქმნიან ჯავშნებს, მძღოლები იღებენ სამუშაოებს და ორივე მხარე ხედავს სტატუსს — ტრანსპორტს ჩვენ არ ვაწვდით."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: dispatch airport jobs to your driver pool",
+          "Agencies: source meet-and-greet partners in one dashboard",
+          "Drivers: receive airport offers from registered companies"
+        ],
+        "ka": [
+          "ტუროკომპანიები: აეროპორტის ტურები თქვენს მძღოლთა აუზიდან",
+          "სააგენტოები: meet & greet პარტნიორები ერთ დაფაზე",
+          "მძღოლები: აეროპორტის შეთავაზებები რეგისტრირებული კომპანიებისგან"
+        ]
+      },
+      "relatedBlog": [
+        "tbilisi-airport-transfer-guide",
+        "booking-management-software-tour-companies",
+        "how-to-find-reliable-tour-driver-georgia"
+      ]
+    },
+    {
+      "slug": "multi-day-tour",
+      "serviceName": { "en": "Multi-day tour fleet management", "ka": "მრავალდღიანი ტურის ფლოტის მართვა" },
+      "title": {
+        "en": "Multi-Day Tour Fleet Management | KEKE Manager",
+        "ka": "მრავალდღიანი ტურის მართვა | KEKE Manager"
+      },
+      "description": {
+        "en": "Plan multi-day itineraries and assign drivers across Georgia on KEKE Manager. Tour companies manage fleet, vouchers, and GPS on one B2B platform.",
+        "ka": "დაგეგმეთ მრავალდღიანი ტურები და მიანიჭეთ მძღოლები KEKE Manager-ზე. ფლოტი, ვაუჩერები და GPS ერთ პლატფორმაზე."
+      },
+      "h1": {
+        "en": "Manage multi-day tours with your driver network on KEKE Manager",
+        "ka": "მართეთ მრავალდღიან ტურები თქვენს მძღოლთა ქსელით KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "Multi-day programs need the same drivers across several days, clear handoffs, and company oversight. KEKE Manager lets operators schedule legs, swap vehicles, and track every day on the platform — connecting companies with 500+ verified drivers.",
+        "ka": "მრავალდღიან პროგრამები მოითხოვს ერთსა და იმავე მძღოლებს, გასაგებ გადაცემებსა და კონტროლს. KEKE Manager-ზე ოპერატორები გეგმავენ ეტაპებს და ადევენათ — 500+ ვერიფიცირებულ მძღოლთან დაკავშირებით."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: multi-day manifests, driver swaps, live GPS",
+          "Agencies: coordinate long itineraries with vetted partners",
+          "Drivers: accept multi-day series from tour companies"
+        ],
+        "ka": [
+          "ტუროკომპანიები: მრავალდღიანი მანიფესტები და ცოცხლი GPS",
+          "სააგენტოები: გრძელი ტურები ვერიფიცირებულ პარტნიორებით",
+          "მძღოლები: მრავალდღიანი სერიები ტუროკომპანიებისგან"
+        ]
+      },
+      "relatedBlog": [
+        "multi-day-tour-planning-georgia",
+        "managing-tourist-driver-fleet",
+        "booking-management-software-tour-companies"
+      ]
+    },
+    {
+      "slug": "wine-tour",
+      "serviceName": { "en": "Wine tour driver network", "ka": "ღვინის ტურის მძღოლთა ქსელი" },
+      "title": {
+        "en": "Wine Tour Drivers Kakheti | KEKE Manager B2B",
+        "ka": "ღვინის ტურის მძღოლები კახეთში | KEKE Manager"
+      },
+      "description": {
+        "en": "Find drivers for Kakheti wine tours through KEKE Manager. Tour companies publish tastings and region loops; drivers join the platform across Georgia.",
+        "ka": "იპოვეთ მძღოლები კახეთის ღვინის ტურებისთვის KEKE Manager-ზე. ტუროკომპანიები ათავსებენ ტურებს; მძღოლები უერთდებიან პლატფორმაზე."
+      },
+      "h1": {
+        "en": "Connect wine tour drivers in Kakheti on KEKE Manager",
+        "ka": "ღვინის ტურის მძღოლები კახეთში KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "Kakheti wine tourism depends on punctual minibus and van partners. KEKE Manager connects wineries, DMCs, and guide-drivers — we provide software and a verified marketplace, not winery transport.",
+        "ka": "კახეთის ღვინის ტურიზმი საჭიროებს სანდო მინივენ/მიკროავტობუს პარტნიორებს. KEKE Manager აკავშირებს ღვინის სახლებს, DMC-ებსა და მძღოლებს — ჩვენ ვაწვდით პლატფორმას, არა ტრანსპორტს."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: assign Kakheti departures to rated drivers",
+          "Agencies: build wine routes with verified partners",
+          "Drivers: list wine-region availability for companies"
+        ],
+        "ka": [
+          "ტუროკომპანიები: კახეთის ტურები ხარისხიან მძღოლებთან",
+          "სააგენტოები: ღვინის მარშრუტები ვერიფიცირებული პარტნიორებით",
+          "მძღოლები: ღვინის რეგიონის ხელმისაწვდომობა კომპანიებისთვის"
+        ]
+      },
+      "relatedBlog": [
+        "kakheti-wine-tour-transport",
+        "how-to-find-reliable-tour-driver-georgia",
+        "tour-transport-pricing-guide-georgia"
+      ]
+    },
+    {
+      "slug": "mountain-tour",
+      "serviceName": { "en": "Mountain & 4x4 driver matching", "ka": "მთის და 4x4 მძღოლების შერჩევა" },
+      "title": {
+        "en": "Mountain Tour Drivers Georgia | KEKE Manager",
+        "ka": "მთის ტურმძღოლები საქართველოში | KEKE Manager"
+      },
+      "description": {
+        "en": "Match mountain and 4x4 trips with verified drivers on KEKE Manager. Tour companies manage remote routes; drivers with suitable vehicles join free.",
+        "ka": "მთის და 4x4 ტურები ვერიფიცირებულ მძღოლებთან KEKE Manager-ზე. ტუროკომპანიები მართავენ შორელ მარშრუტებს; მძღოლები უფასოდ უერთდებიან."
+      },
+      "h1": {
+        "en": "Find 4x4 & mountain tour drivers on KEKE Manager",
+        "ka": "იპოვეთ 4x4 და მთის ტურმძღოლები KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "Svaneti, Kazbegi, and highland roads require experienced drivers and the right fleet. KEKE Manager helps tour operators publish mountain jobs and connect with verified 4x4 and minivan partners nationwide.",
+        "ka": "სვანეთი, ყაზბეგი და მაღალმთიანი გზები გამოცდილ მძღოლებს მოითხოვს. KEKE Manager-ზე ტუროპერატორები ათავსებენ მთის ტურებს და უკავშირდებიან ვერიფიცირებულ 4x4 პარტნიორებთან."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: assign mountain legs with vehicle filters",
+          "Agencies: source 4x4 partners without endless calls",
+          "Drivers: showcase mountain experience to companies"
+        ],
+        "ka": [
+          "ტუროკომპანიები: მთის ეტაპები ფილტრებით ავტოპარკის მიხედით",
+          "სააგენტოები: 4x4 პარტნიორები ტელეფონის ჯაჭის გარეშე",
+          "მძღოლები: მთის გამოცდილება კომპანიებისთვის ხილული"
+        ]
+      },
+      "relatedBlog": [
+        "georgia-mountain-tours-4x4",
+        "best-vehicles-tourist-transport",
+        "tbilisi-kazbegi-day-trip-guide"
+      ]
+    },
+    {
+      "slug": "corporate-transfer",
+      "serviceName": { "en": "Corporate group transport coordination", "ka": "კორპორატიული ტრანსპორტის კოორდინაცია" },
+      "title": {
+        "en": "Corporate Group Transport for Tour Companies | KEKE Manager",
+        "ka": "კორპორატიული ტრანსპორტი ტუროკომპანიებისთვის | KEKE Manager"
+      },
+      "description": {
+        "en": "Tour companies coordinate corporate groups and MICE transport with verified drivers on KEKE Manager. Fleet dashboard, vouchers, and GPS — B2B platform only.",
+        "ka": "ტუროკომპანიები კოორდინირებენ კორპორატიულ ჯგუფებს ვერიფიცირებულ მძღოლებთან KEKE Manager-ზე. ფლოტი, ვაუჩერები, GPS — მხოლოდ B2B პლატფორმა."
+      },
+      "h1": {
+        "en": "Coordinate corporate group transport on KEKE Manager",
+        "ka": "კორპორატიული ტრანსპორტის კოორდინაცია KEKE Manager-ზე"
+      },
+      "intro": {
+        "en": "Conferences, delegations, and incentive groups need multiple vehicles and clear accountability. KEKE Manager lets tour operators assign jobs to their driver network, share vouchers with clients, and track every bus — without acting as a chauffeur company.",
+        "ka": "კონფერენციები და ინსენტივ ჯგუფები მოითხოვს რამდენიმე ავტობუსს და გამჭვირვალობას. KEKE Manager-ზე ტუროპერატორები ანიჭებენ სამუშაოებს მძღოლთა ქსელს, აძლევენ ვაუჩერებს და ადევენათ ავტოპარკს."
+      },
+      "bullets": {
+        "en": [
+          "Tour companies: multi-vehicle manifests and client vouchers",
+          "Agencies: corporate programs with vetted driver pool",
+          "Drivers: accept group jobs from registered operators"
+        ],
+        "ka": [
+          "ტუროკომპანიები: მრავალავტომობილიანი მანიფესტები და ვაუჩერები",
+          "სააგენტოები: კორპორატიული პროგრამები ვერიფიცირებული აუზით",
+          "მძღოლები: ჯგუფური ტურები რეგისტრირებული ოპერატორებისგან"
+        ]
+      },
+      "relatedBlog": [
+        "booking-management-software-tour-companies",
+        "managing-tourist-driver-fleet",
+        "b2b-transport-platforms-vs-traditional-booking"
+      ]
+    }
+  ]
+}
