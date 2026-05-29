@@ -8,6 +8,8 @@ import {
   LOCATION_TYPES,
   type LocationType,
   type LocationValue,
+  isCustomPresetLocation,
+  isPresetLocationName,
   locationUsesPresetDropdown,
   presetOptionsForType,
 } from '../lib/bookingLocations';
@@ -32,15 +34,36 @@ export function LocationPicker({
 }: Props) {
   const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [otherSelected, setOtherSelected] = useState(false);
   const types = allowedTypes.length > 0 ? allowedTypes : LOCATION_TYPES;
   const selectedType = value.type && types.includes(value.type) ? value.type : null;
   const presets = selectedType ? presetOptionsForType(selectedType) : [];
   const useDropdown = selectedType ? locationUsesPresetDropdown(selectedType) : false;
+  const nameTrim = value.name.trim();
+  const isPreset = selectedType ? isPresetLocationName(selectedType, nameTrim) : false;
+  const isCustom =
+    useDropdown &&
+    (otherSelected || isCustomPresetLocation(selectedType, value.name));
+  const otherLabelKey =
+    selectedType === 'train_station'
+      ? 'locationPicker.otherTrainStation'
+      : 'locationPicker.otherAirport';
+  const customPlaceholderKey =
+    selectedType === 'train_station'
+      ? 'locationPicker.customTrainPlaceholder'
+      : 'locationPicker.customAirportPlaceholder';
 
   function selectType(type: LocationType) {
     if (value.type === type) return;
     onChange({ type, name: '' });
+    setOtherSelected(false);
     setDropdownOpen(false);
+  }
+
+  function triggerLabel(): string {
+    if (isPreset) return nameTrim;
+    if (isCustom) return nameTrim || t(otherLabelKey);
+    return presetPlaceholder || t('locationPicker.presetPlaceholder');
   }
 
   return (
@@ -77,10 +100,13 @@ export function LocationPicker({
             onPress={() => setDropdownOpen((o) => !o)}
             style={({ pressed }) => [styles.ddTrigger, pressed && styles.pressed]}
           >
-            <Text style={[styles.ddTriggerText, !value.name.trim() && styles.ddPlaceholder]}>
-              {value.name.trim() ||
-                presetPlaceholder ||
-                t('locationPicker.presetPlaceholder')}
+            <Text
+              style={[
+                styles.ddTriggerText,
+                !isPreset && !isCustom && styles.ddPlaceholder,
+              ]}
+            >
+              {triggerLabel()}
             </Text>
             <Ionicons
               name={dropdownOpen ? 'chevron-up' : 'chevron-down'}
@@ -91,11 +117,12 @@ export function LocationPicker({
           {dropdownOpen ? (
             <View style={styles.ddList}>
               {presets.map((option) => {
-                const active = value.name === option;
+                const active = isPreset && value.name === option;
                 return (
                   <Pressable
                     key={option}
                     onPress={() => {
+                      setOtherSelected(false);
                       onChange({ type: selectedType, name: option });
                       setDropdownOpen(false);
                     }}
@@ -112,7 +139,34 @@ export function LocationPicker({
                   </Pressable>
                 );
               })}
+              <Pressable
+                onPress={() => {
+                  setOtherSelected(true);
+                  onChange({ type: selectedType, name: '' });
+                  setDropdownOpen(false);
+                }}
+                style={({ pressed }) => [
+                  styles.ddItem,
+                  styles.ddItemOther,
+                  isCustom && styles.ddItemActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.ddItemText, isCustom && styles.ddItemTextActive]}>
+                  {LOCATION_TYPE_ICONS[selectedType]} {t(otherLabelKey)}
+                </Text>
+                {isCustom ? <Ionicons name="checkmark" size={16} color={COLORS.gold} /> : null}
+              </Pressable>
             </View>
+          ) : null}
+          {isCustom ? (
+            <TextInput
+              value={value.name}
+              onChangeText={(name) => onChange({ type: selectedType, name })}
+              placeholder={t(customPlaceholderKey)}
+              placeholderTextColor={COLORS.textMuted}
+              style={[styles.textInput, styles.customInput]}
+            />
           ) : null}
         </>
       ) : (
@@ -208,6 +262,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
+  ddItemOther: {
+    borderBottomWidth: 0,
+  },
   ddItemActive: { backgroundColor: COLORS.goldTint },
   ddItemText: { fontSize: 14, color: COLORS.text, flex: 1 },
   ddItemTextActive: { fontWeight: '700', color: COLORS.text },
@@ -220,6 +277,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
     backgroundColor: COLORS.white,
+  },
+  customInput: {
+    marginTop: 8,
   },
   pressed: { opacity: 0.85 },
 });

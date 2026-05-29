@@ -411,6 +411,10 @@
   "locationPicker": {
     "selectTypeHint": "აირჩიეთ ლოკაციის ტიპი",
     "presetPlaceholder": "აირჩიეთ სიიდან",
+    "otherAirport": "სხვა აეროპორტი",
+    "otherTrainStation": "სხვა სადგური",
+    "customAirportPlaceholder": "შეიყვანეთ აეროპორტის სახელი",
+    "customTrainPlaceholder": "შეიყვანეთ სადგურის სახელი",
     "hotelPlaceholder": "მაგ: Hotel Marriott Tbilisi",
     "addressPlaceholder": "მაგ: 12 Rustaveli Ave, Tbilisi",
     "types": {

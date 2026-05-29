@@ -61,6 +61,20 @@ export function presetOptionsForType(type: LocationType): readonly string[] {
   return [];
 }
 
+export function isPresetLocationName(type: LocationType, name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  return (presetOptionsForType(type) as readonly string[]).includes(trimmed);
+}
+
+/** True when type uses presets but the stored name is a custom (non-preset) value. */
+export function isCustomPresetLocation(type: LocationType | null, name: string): boolean {
+  if (!type || !locationUsesPresetDropdown(type)) return false;
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  return !isPresetLocationName(type, trimmed);
+}
+
 export function locationUsesPresetDropdown(type: LocationType | null): boolean {
   return type === 'airport' || type === 'train_station';
 }

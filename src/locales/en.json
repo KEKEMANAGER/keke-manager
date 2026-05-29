@@ -414,6 +414,10 @@
   "locationPicker": {
     "selectTypeHint": "Select a location type",
     "presetPlaceholder": "Choose from list",
+    "otherAirport": "Other airport",
+    "otherTrainStation": "Other station",
+    "customAirportPlaceholder": "Enter airport name",
+    "customTrainPlaceholder": "Enter station name",
     "hotelPlaceholder": "e.g. Hotel Marriott Tbilisi",
     "addressPlaceholder": "e.g. 12 Rustaveli Ave, Tbilisi",
     "types": {
