@@ -41,6 +41,7 @@ import { LANDING, landingFont, sx } from './landingTheme';
 import { LANDING_BP, useLandingBreakpoint } from './useLandingBreakpoint';
 
 import { BRAND_LOGO } from '../../lib/brandLogo';
+import { dismissLcpShell } from '../../lib/lcpShell';
 
 const LANDING_RESPONSIVE_CSS = `
 .landing-feature-card {
@@ -77,9 +78,6 @@ function scrollToSection(id: string) {
 function useLandingMeta(copy: ReturnType<typeof getLandingCopy>) {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    document.getElementById('root')?.classList.add('keke-hydrated');
-    document.getElementById('keke-lcp-shell')?.remove();
-
     const apply = () => {
       document.title = copy.metaTitle;
       const setMeta = (name: string, content: string, prop = false) => {
@@ -130,6 +128,14 @@ type RoleSlide = {
 export function LandingPage() {
   const insets = useSafeAreaInsets();
   const { width, isMobile, isTablet, isDesktop, isWide, containerPadding } = useLandingBreakpoint();
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => dismissLcpShell());
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
   const [lang, setLang] = useState<LandingLangCode>('ka');
   const [langOpen, setLangOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);

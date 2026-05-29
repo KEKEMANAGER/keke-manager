@@ -1,11 +1,6 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
 import {
-  CRITICAL_LANDING_CSS,
-  CRITICAL_LANDING_SHELL,
-  LCP_LOGO_URL,
-} from '../lib/criticalLandingHtml';
-import {
   DEFAULT_SEO_LANG,
   OG_IMAGE_URL,
   SCHEMA_ORGANIZATION,
@@ -64,8 +59,6 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="twitter:image" content={OG_IMAGE_URL} />
 
         <link rel="icon" type="image/png" href="/favicon.ico" />
-        <link rel="preload" href={LCP_LOGO_URL} as="image" type="image/webp" fetchPriority="high" />
-        <style dangerouslySetInnerHTML={{ __html: CRITICAL_LANDING_CSS }} />
 
         <script
           type="application/ld+json"
@@ -82,10 +75,7 @@ export default function Root({ children }: PropsWithChildren) {
 
         <ScrollViewStyleReset />
       </head>
-      <body>
-        <div dangerouslySetInnerHTML={{ __html: CRITICAL_LANDING_SHELL }} />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

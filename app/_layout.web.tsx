@@ -19,7 +19,6 @@ function WebRootStyles() {
       'html,body{height:100%;margin:0;background:#FFFFFF;}',
       'body{overflow:auto;}',
       '#root{height:100%;min-height:100%;display:flex;flex:1;background:#FFFFFF;}',
-      '#keke-lcp-shell.keke-lcp-hidden{display:none!important;}',
     ].join('');
     document.head.appendChild(el);
   }, []);
