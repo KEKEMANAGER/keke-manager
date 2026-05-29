@@ -89,7 +89,32 @@
       "activeSubtitle": "После принятия заказ появится здесь — нажмите «Начать поездку», затем «Завершить».",
       "completedTitle": "Нет завершённых поездок",
       "completedSubtitle": "Завершённые заказы сохраняются здесь."
-    }
+    },
+    "cancelFailed": "Не удалось отменить",
+    "cancelSuccess": "Бронирование отменено",
+    "cancelConfirmTitle": "Вы уверены?",
+    "cancelConfirmMessage": "Отменить бронирование? Компания получит уведомление.",
+    "voucherCompany": "Компания",
+    "voucherDate": "Дата",
+    "voucherType": "Тип",
+    "voucherRoute": "Маршрут",
+    "voucherFrom": "Откуда",
+    "voucherTo": "Куда",
+    "voucherPassengers": "Пассажиры",
+    "voucherVehicle": "Автомобиль",
+    "voucherPassengerName": "Пассажир",
+    "voucherFlight": "Рейс",
+    "voucherTourDays": "Дни тура",
+    "voucherDay": "День {{day}}",
+    "voucherStops": "Остановки",
+    "voucherHotel": "Отель",
+    "voucherOvernight": "Ночёвка водителя",
+    "voucherTotalNights": "Всего ночей: {{count}}",
+    "voucherNotes": "Примечания",
+    "voucherPrice": "Цена",
+    "voucherSharePdf": "Поделиться PDF",
+    "updatedBadge": "📝 Бронирование обновлено",
+    "ackUpdate": "Понятно"
   },
   "dashboard": {
     "greeting": "Здравствуйте,",
@@ -146,7 +171,8 @@
     "bankAccountHint": "Компания переведёт оплату на этот счёт после завершённой поездки.",
     "bankAccountMissing": "IBAN не указан",
     "bankAccountInvalidLength": "IBAN должен содержать 15–34 символа",
-    "bankAccountInvalidChars": "IBAN может содержать только буквы и цифры"
+    "bankAccountInvalidChars": "IBAN может содержать только буквы и цифры",
+    "city": "Город"
   },
   "bookingPayment": {
     "unpaidBadge": "Не оплачено 🔴",
@@ -205,7 +231,13 @@
     "deleteVehicle": "Удалить авто",
     "deleteConfirmMsg": "Удалить этот автомобиль? Это нельзя отменить.",
     "cannotDeleteActive": "Нельзя удалить активный автомобиль. Сначала отключите его.",
-    "vehicleN": "Авто {{n}}"
+    "vehicleN": "Авто {{n}}",
+    "modelCatalog": "Модель",
+    "make": "Марка",
+    "pickMake": "Выберите марку",
+    "pickModel": "Выберите модель",
+    "pickYear": "Выберите год",
+    "catalogSection": "Марка / модель / год"
   },
   "newBooking": {
     "title": "Новый заказ",
@@ -337,8 +369,21 @@
         "zero": "0",
         "dayTourDesc": "напр. маршрут, достопримечательности, время...",
         "stopsExample": "напр. Батуми, Кутаиси",
-        "multiDayTourDesc": "напр. полное описание многодневного тура, отели, города..."
-      }
+        "multiDayTourDesc": "напр. полное описание многодневного тура, отели, города...",
+        "touristHotel": "напр. Hotel Marriott Tbilisi",
+        "driverOvernight": "напр. отель или дом в Боржоми"
+      },
+      "tourCalendar": "Тур — календарь",
+      "tourStartDate": "Дата начала",
+      "tourEndDate": "Дата окончания",
+      "touristHotel": "Отель туристов",
+      "touristHotelHint": "Название отеля, куда водитель отвезёт туристов",
+      "driverOvernight": "Ночёвка водителя",
+      "driverOvernightHint": "Где ночует водитель (может отличаться от отеля туристов)",
+      "totalOvernights": "Всего ночей: {{count}}",
+      "voucherTransferInRoute": "Прилёт: {{datetime}} · {{from}} → {{to}}",
+      "voucherTransferOutRoute": "Вылет: {{datetime}} · {{from}} → {{to}}",
+      "voucherTourRange": "Тур: {{from}} — {{to}}"
     },
     "validation": {
       "airport": "Введите аэропорт",
@@ -358,7 +403,9 @@
       "driverPick": "Выберите водителя или «Отправить всем водителям»",
       "passengers": "Введите количество пассажиров",
       "session": "Сессия не найдена. Войдите снова",
-      "operator": "Выберите оператора"
+      "operator": "Выберите оператора",
+      "tourDates": "Выберите даты начала и окончания тура",
+      "tourEndBeforeStart": "Дата окончания должна быть после даты начала"
     },
     "dayLine": "День {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -372,7 +419,8 @@
       "pdfReady": "PDF загружен",
       "pickFailed": "Не удалось выбрать файл",
       "uploadFailed": "Не удалось загрузить логотип"
-    }
+    },
+    "filterByCity": "Фильтр по городу"
   },
   "locationPicker": {
     "selectTypeHint": "Выберите тип локации",
@@ -441,7 +489,9 @@
     "errorInvalidCredentials": "Неверный email или пароль",
     "errorEmailNotConfirmed": "Email не подтверждён",
     "errorNetwork": "Ошибка сети",
-    "errorSignInFailed": "Не удалось войти"
+    "errorSignInFailed": "Не удалось войти",
+    "passwordConfirm": "Повторите пароль",
+    "passwordsMatch": "Пароли совпадают"
   },
   "driver": {
     "greeting": "Здравствуйте,",
@@ -477,7 +527,9 @@
     "ratingFormat": "{{avg}} ({{count}} оценок)",
     "noRatings": "— (нет оценок)",
     "experienceYears": "{{years}} лет опыта",
-    "driverInfoNotFound": "Информация о водителе не найдена"
+    "driverInfoNotFound": "Информация о водителе не найдена",
+    "hostLabel": "Хост",
+    "operatorsOnTrip": "В туре работают"
   },
   "notifications": {
     "newBookingTitle": "KEKE",
@@ -500,7 +552,14 @@
     "anyVehicleClass": "любой класс",
     "matchingNoDrivers": "Подходящий водитель не найден ({{type}}, {{class}}).",
     "newChatTitle": "{{name}}",
-    "newChatBody": "Новое сообщение"
+    "newChatBody": "Новое сообщение",
+    "bookingUpdatedTitle": "📝 Бронирование обновлено",
+    "bookingUpdatedBody": "Компания изменила детали бронирования",
+    "driverCancelledTitle": "KEKE · Бронирование отменено",
+    "driverCancelledBody": "Водитель отменил бронирование",
+    "driverCancelledBy": "Водитель {{name}} отменил бронирование",
+    "voucherTitle": "KEKE · Ваучер",
+    "voucherBodyPrefix": "Ваучер"
   },
   "booking": {
     "status": {
@@ -566,7 +625,9 @@
     "fields": {
       "companyName": "название компании",
       "name": "имя"
-    }
+    },
+    "passwordConfirmRequired": "Повторите пароль",
+    "cityRequired": "Выберите город"
   },
   "authPending": {
     "title": "Ожидание верификации",
@@ -621,7 +682,8 @@
     "resetSuccess": "Пароль обновлён. Войдите с новым паролем.",
     "resetInvalidLink": "Ссылка недействительна или истекла. Запросите новую.",
     "resetSessionRequired": "Откройте ссылку из письма, затем повторите попытку.",
-    "resetOpenFromEmail": "Откройте ссылку сброса пароля из письма, чтобы продолжить."
+    "resetOpenFromEmail": "Откройте ссылку сброса пароля из письма, чтобы продолжить.",
+    "phone": "Телефон"
   },
   "legal": {
     "document": "Юридический документ",
@@ -811,7 +873,24 @@
     "subNoOpenPool": "Открытые заказы только для host",
     "assignedVehicleTitle": "Назначенный автомобиль",
     "noAssignedVehicle": "Работодатель ещё не назначил автомобиль",
-    "assignedBookingsTitle": "Мои заказы"
+    "assignedBookingsTitle": "Мои заказы",
+    "statusPending": "Ожидание",
+    "invitesTitle": "Приглашения во флот",
+    "inviteCardTitle": "{{host}} приглашает на свой автомобиль",
+    "inviteBannerTitle": "{{host}} приглашает во флот — принять / отклонить",
+    "inviteVehicleUnknown": "Автомобиль",
+    "inviteAccept": "Принять",
+    "inviteDecline": "Отклонить",
+    "invitePushTitle": "KEKE · Приглашение во флот",
+    "invitePushBody": "{{host}} приглашает во флот",
+    "bookingAssignedTitle": "KEKE · Новое бронирование",
+    "bookingAssignedBody": "Новый тур: {{route}}",
+    "bookingAssignedBodyVoucher": "Ваучер {{code}} · {{route}}",
+    "pickSubForBooking": "Назначить водителя",
+    "pickSubForBookingSub": "Какому водителю флота отправить это бронирование?",
+    "myDriver": "Мой водитель: {{name}}",
+    "viewDriverGps": "GPS на карте",
+    "inviteDriverHint": "Пригласите наёмного водителя во флот"
   },
   "adminTracking": {
     "title": "Все водители",
@@ -886,12 +965,11 @@
     "changeRole": "Сменить роль",
     "delete": "Удалить",
     "deleteTitle": "Удалить пользователя?",
-    "deleteMessage": "Профиль будет удалён из базы без возможности восстановления.",
+    "deleteMessage": "Удалить сообщение",
     "deleteConfirm": "Удалить",
     "chatsEmpty": "Нет сообщений",
     "deleteMessageTitle": "Удалить сообщение?",
     "deleteMessageBody": "Сообщение будет удалено навсегда.",
-    "deleteMessage": "Удалить сообщение",
     "bookingsEmpty": "Нет бронирований",
     "bookingUntitled": "Бронирование",
     "bookingKind": "Тип",
@@ -1041,7 +1119,9 @@
     "noBio": "Био не заполнено",
     "noRatings": "Нет оценок",
     "hostOnly": "Экран только для host-водителей",
-    "viewFleet": "Открыть флот"
+    "viewFleet": "Открыть флот",
+    "sendInvite": "Отправить приглашение",
+    "inviteSent": "Приглашение отправлено — водитель должен подтвердить"
   },
   "menu": {
     "appTitle": "KEKE MANAGER",
@@ -1152,5 +1232,86 @@
     "step4": "4. Expo Go → Сканировать QR.",
     "backHint": "После подключения можно вернуться ко входу.",
     "openScreen": "Dev: QR для Expo Go"
+  },
+  "city": {
+    "selectCity": "Выберите город",
+    "searchPlaceholder": "Поиск города…",
+    "allCities": "Все города"
+  },
+  "hiredDriver": {
+    "assignedTripTitle": "Назначенная поездка",
+    "noAssignedBooking": "Назначенного бронирования пока нет",
+    "voucherTitle": "Ваучер",
+    "startTour": "Начать тур",
+    "endTour": "Завершить тур",
+    "enableGps": "Включить GPS",
+    "bookingsGateHint": "Наёмный водитель управляет туром только с панели.",
+    "goDashboard": "На панель"
+  },
+  "bookingChat": {
+    "sectionTitle": "Чат по бронированию",
+    "noThreads": "Чат появится после назначения водителя и хоста.",
+    "threadCompanyHost": "Компания ↔ хост",
+    "threadCompanyDriver": "Компания ↔ водитель",
+    "threadHostDriver": "Хост ↔ водитель"
+  },
+  "companyVoucher": {
+    "title": "Ваучер",
+    "badge": "Ваучер",
+    "brandSubtitle": "B2B транспортная платформа",
+    "bookingId": "Booking ID",
+    "bookingNumber": "Бронирование",
+    "flightNumber": "Номер рейса",
+    "clientPrice": "Цена клиента",
+    "driverPrice": "Водитель",
+    "offeredPrice": "Предложенная цена",
+    "phoneMissing": "Телефон не указан",
+    "updated": "Обновлено",
+    "sectionBooking": "Детали бронирования",
+    "sectionDriver": "Водитель",
+    "sectionVehicle": "Автомобиль",
+    "sectionHost": "Хост",
+    "type": "Тип",
+    "date": "Дата",
+    "route": "Маршрут",
+    "from": "Откуда",
+    "to": "Куда",
+    "passengers": "Пассажиры",
+    "price": "Цена",
+    "languages": "Языки",
+    "city": "Город",
+    "chatDriver": "Чат с водителем",
+    "callDriver": "Позвонить водителю",
+    "makeModelYear": "Марка / модель / год",
+    "plate": "Номер",
+    "color": "Цвет",
+    "vehicleType": "Тип",
+    "vehicleClass": "Класс",
+    "hostName": "Имя хоста",
+    "hostPhone": "Телефон хоста",
+    "host": "Хост",
+    "chatHost": "Чат с хостом",
+    "downloadPdf": "Скачать PDF",
+    "print": "Печать",
+    "loadError": "Не удалось загрузить ваучер"
+  },
+  "editBooking": {
+    "edit": "Редактировать",
+    "title": "Редактирование бронирования",
+    "subtitle": "Изменения автоматически передаются водителю",
+    "from": "Откуда",
+    "to": "Куда",
+    "date": "Дата / время",
+    "passengers": "Пассажиры",
+    "price": "Цена (₾)",
+    "signText": "Имя на табличке",
+    "comment": "Комментарий",
+    "reason": "Причина (необязательно)",
+    "reasonHint": "напр. время рейса изменилось",
+    "save": "Сохранить",
+    "notFound": "Бронирование не найдено",
+    "notAllowed": "Редактирование недоступно для этого статуса",
+    "warnTitle": "Бронирование в процессе",
+    "warnInProgress": "Поездка уже началась. Всё равно сохранить?"
   }
 }
