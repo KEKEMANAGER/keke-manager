@@ -646,6 +646,17 @@
     "subtitle": "Your account is waiting for admin approval. You will get full access once verification is complete.",
     "statusLabel": "Status"
   },
+  "verificationGate": {
+    "reviewTitle": "Your account is under review",
+    "pendingSubtitle": "Upload the required documents and submit them for review to unlock the app.",
+    "submittedSubtitle": "Your documents are under review. You will get full access after admin approval.",
+    "rejectedTitle": "Verification rejected",
+    "rejectedSubtitle": "Update your documents and submit again for review.",
+    "rejectionReasonLabel": "Reason",
+    "uploadCta": "Upload documents",
+    "reuploadCta": "Re-upload documents",
+    "backToStatus": "← Back to status"
+  },
   "authScreen": {
     "signIn": "Sign in",
     "signUp": "Register",

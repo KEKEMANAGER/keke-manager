@@ -71,6 +71,8 @@ type AuthContextValue = {
   /** Freelance driver with 2+ vehicles (dynamic host, not a DB role). */
   isHost: boolean;
   refreshVehicles: () => Promise<void>;
+  /** Reload `users` + `profiles` row for the signed-in user (e.g. after admin verification). */
+  refreshProfile: () => Promise<void>;
   /** True until first session is resolved, or while `user` is set and profile row is loading. */
   loading: boolean;
   signIn: (email: string, password: string) => ReturnType<typeof supabase.auth.signInWithPassword>;
@@ -342,6 +344,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setVehicles(data ?? []);
   }, [user?.id, profile?.role]);
 
+  const refreshProfile = useCallback(async () => {
+    const uid = user?.id;
+    if (!uid) {
+      setProfile(null);
+      return;
+    }
+    const row = await fetchProfile(uid);
+    setProfile(row);
+  }, [user?.id]);
+
   useEffect(() => {
     if (profile?.role === 'driver' && user?.id) {
       void refreshVehicles();
@@ -383,6 +395,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       vehicleCount,
       isHost,
       refreshVehicles,
+      refreshProfile,
       loading,
       signIn,
       signUp,
@@ -397,6 +410,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       vehicleCount,
       isHost,
       refreshVehicles,
+      refreshProfile,
       loading,
       signIn,
       signUp,
