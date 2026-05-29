@@ -9,6 +9,7 @@ export function AuthenticatedRouteGuard() {
   const { user, profile, loading } = useAuth();
   const userId = user?.id;
   const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
   const role = getUserRole(profile);
 
