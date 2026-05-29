@@ -1,11 +1,8 @@
 import { Link } from 'expo-router';
 import { useEffect } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { dismissLcpShell } from '../../lib/lcpShell';
-import { BlogSeoHead } from '../blog/BlogSeoHead';
-import { TryKekeCta } from '../blog/TryKekeCta';
-import { LANDING, landingFont, sx } from '../landing/landingTheme';
-import { getPostBySlug } from '../../lib/blog';
+import { getSeoBlogLinkTitle } from '../../lib/seoRelatedBlog';
 import {
   seoLandingBreadcrumbSchema,
   seoLandingLocalBusinessSchema,
@@ -16,7 +13,10 @@ import {
 import type { SeoLandingPage } from '../../lib/seoLandingPages';
 import { SEO_DRIVER_COUNT } from '../../lib/seoLandingPages';
 import type { SeoLandingLang } from '../../lib/seoLandingPages';
+import { sx } from '../../lib/sx';
+import { BlogSeoHead } from '../blog/BlogSeoHead';
 import { SeoLandingShell } from './SeoLandingShell';
+import { SEO_THEME, seoFont } from './seoTheme';
 
 const UI = {
   ka: {
@@ -34,8 +34,6 @@ const UI = {
     ctaSub: 'ტუროკომპანიებისთვის უფასო — იპოვეთ მძღოლები, მართეთ ფლოტი, გაუშვით ჯავშნები.',
     ctaBtn: 'დაწყება →',
     signUp: 'რეგისტრაცია',
-    otherLocations: 'სხვა ლოკაციები',
-    otherServices: 'სხვა გადაწყვეტილებები',
   },
   en: {
     badge: 'B2B platform · We do not provide transport directly',
@@ -52,8 +50,6 @@ const UI = {
     ctaSub: 'Find verified drivers, manage your fleet, and run bookings on one B2B platform.',
     ctaBtn: 'Get started →',
     signUp: 'Sign up free',
-    otherLocations: 'Other locations',
-    otherServices: 'Other solutions',
   },
 };
 
@@ -87,11 +83,8 @@ export function ProgrammaticSeoPage({
   const bullets = page.bullets[lang];
   const related = page.relatedBlog
     .map((slug) => {
-      const post = getPostBySlug(slug);
-      if (!post) return null;
-      const title =
-        lang === 'en' ? post.title_en || post.title : post.title;
-      return { slug, title };
+      const title = getSeoBlogLinkTitle(slug, lang);
+      return title ? { slug, title } : null;
     })
     .filter(Boolean) as { slug: string; title: string }[];
 
@@ -148,9 +141,29 @@ export function ProgrammaticSeoPage({
           <Link href="/sign-up" style={sx(styles.heroCta)}>
             <Text style={styles.heroCtaText}>{ui.signUp}</Text>
           </Link>
-        ) : null}
+        ) : (
+          <Link href="/sign-up" asChild>
+            <Pressable style={styles.heroCta}>
+              <Text style={styles.heroCtaText}>{ui.signUp}</Text>
+            </Pressable>
+          </Link>
+        )}
 
-        <TryKekeCta title={ui.ctaTitle} subtitle={ui.ctaSub} button={ui.ctaBtn} />
+        <View style={styles.ctaBox}>
+          <Text style={styles.ctaTitle}>{ui.ctaTitle}</Text>
+          <Text style={styles.ctaSub}>{ui.ctaSub}</Text>
+          {Platform.OS === 'web' ? (
+            <Link href="/sign-up" style={sx(styles.ctaBtn)}>
+              <Text style={styles.ctaBtnText}>{ui.ctaBtn}</Text>
+            </Link>
+          ) : (
+            <Link href="/sign-up" asChild>
+              <Pressable style={styles.ctaBtn}>
+                <Text style={styles.ctaBtnText}>{ui.ctaBtn}</Text>
+              </Pressable>
+            </Link>
+          )}
+        </View>
 
         {related.length > 0 ? (
           <View style={styles.section}>
@@ -180,53 +193,44 @@ export function ProgrammaticSeoPage({
   );
 }
 
-const interFamily = Platform.select({
-  web: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  default: 'System',
-});
-
-function seoFont(extra?: object) {
-  return { fontFamily: interFamily, ...landingFont(extra) };
-}
-
 const styles = StyleSheet.create({
   scroll: { paddingBottom: 40 },
   badge: {
     ...seoFont({
       fontSize: 12,
       fontWeight: '700',
-      color: LANDING.accent,
+      color: SEO_THEME.accent,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
       marginBottom: 10,
     }),
   },
   h1: {
-    ...seoFont({ fontSize: 28, fontWeight: '800', color: LANDING.text, lineHeight: 36 }),
+    ...seoFont({ fontSize: 28, fontWeight: '800', color: SEO_THEME.text, lineHeight: 36 }),
     marginBottom: 6,
   },
   h1Alt: {
-    ...seoFont({ fontSize: 16, fontWeight: '600', color: LANDING.muted, lineHeight: 24 }),
+    ...seoFont({ fontSize: 16, fontWeight: '600', color: SEO_THEME.muted, lineHeight: 24 }),
     marginBottom: 12,
   },
   drivers: {
-    ...seoFont({ fontSize: 15, fontWeight: '700', color: LANDING.text, marginBottom: 14 }),
+    ...seoFont({ fontSize: 15, fontWeight: '700', color: SEO_THEME.text, marginBottom: 14 }),
   },
   intro: {
-    ...seoFont({ fontSize: 16, lineHeight: 26, color: LANDING.text, marginBottom: 20 }),
+    ...seoFont({ fontSize: 16, lineHeight: 26, color: SEO_THEME.text, marginBottom: 20 }),
   },
   section: { marginBottom: 20 },
   sectionTitle: {
-    ...seoFont({ fontSize: 17, fontWeight: '800', color: LANDING.text, marginBottom: 10 }),
+    ...seoFont({ fontSize: 17, fontWeight: '800', color: SEO_THEME.text, marginBottom: 10 }),
   },
   bulletRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  bulletDot: { ...seoFont({ fontSize: 16, color: LANDING.accent, lineHeight: 24 }) },
+  bulletDot: { ...seoFont({ fontSize: 16, color: SEO_THEME.accent, lineHeight: 24 }) },
   bulletText: {
-    ...seoFont({ flex: 1, fontSize: 15, lineHeight: 24, color: LANDING.text }),
+    ...seoFont({ flex: 1, fontSize: 15, lineHeight: 24, color: SEO_THEME.text }),
   },
   heroCta: {
     alignSelf: 'flex-start',
-    backgroundColor: LANDING.dark,
+    backgroundColor: SEO_THEME.dark,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 22,
@@ -234,28 +238,55 @@ const styles = StyleSheet.create({
     textDecorationLine: 'none',
   },
   heroCtaText: {
-    ...seoFont({ fontSize: 15, fontWeight: '800', color: LANDING.white }),
+    ...seoFont({ fontSize: 15, fontWeight: '800', color: SEO_THEME.white }),
+  },
+  ctaBox: {
+    backgroundColor: SEO_THEME.accentLight,
+    borderWidth: 1,
+    borderColor: SEO_THEME.accent,
+    borderRadius: 16,
+    padding: 20,
+    marginVertical: 24,
+  },
+  ctaTitle: {
+    ...seoFont({ fontSize: 18, fontWeight: '800', color: SEO_THEME.text }),
+    marginBottom: 6,
+  },
+  ctaSub: {
+    ...seoFont({ fontSize: 14, lineHeight: 20, color: SEO_THEME.muted }),
+    marginBottom: 14,
+  },
+  ctaBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: SEO_THEME.accent,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    textDecorationLine: 'none',
+  },
+  ctaBtnText: {
+    ...seoFont({ fontSize: 15, fontWeight: '800', color: SEO_THEME.text }),
   },
   relatedLink: {
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: LANDING.border,
+    borderBottomColor: SEO_THEME.border,
     textDecorationLine: 'none',
   },
   relatedText: {
-    ...seoFont({ fontSize: 15, fontWeight: '600', color: LANDING.text }),
+    ...seoFont({ fontSize: 15, fontWeight: '600', color: SEO_THEME.text }),
   },
   siblingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   siblingChip: {
     borderWidth: 1,
-    borderColor: LANDING.border,
+    borderColor: SEO_THEME.border,
     borderRadius: 999,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: LANDING.bgSoft,
+    backgroundColor: SEO_THEME.bgSoft,
     textDecorationLine: 'none',
   },
   siblingText: {
-    ...seoFont({ fontSize: 13, fontWeight: '600', color: LANDING.text }),
+    ...seoFont({ fontSize: 13, fontWeight: '600', color: SEO_THEME.text }),
   },
 });

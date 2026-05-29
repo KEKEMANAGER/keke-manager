@@ -9,6 +9,9 @@ import { COLORS } from '../constants/theme';
 import { dismissLcpShell } from '../lib/lcpShell';
 import i18n, { initI18n } from '../src/lib/i18n';
 
+// Keep SEO routes in the main web bundle (async chunks break shared module ids in production).
+import '../components/seo/ProgrammaticSeoPage';
+
 function WebRootStyles() {
   useEffect(() => {
     if (typeof document === 'undefined') return;

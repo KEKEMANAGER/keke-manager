@@ -5,7 +5,8 @@ import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAND_LOGO } from '../../lib/brandLogo';
 import type { SeoLandingLang } from '../../lib/seoLandingPages';
-import { LANDING, landingFont, sx } from '../landing/landingTheme';
+import { sx } from '../../lib/sx';
+import { SEO_THEME, seoFont } from './seoTheme';
 
 const INTER_LINK =
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
@@ -69,19 +70,10 @@ export function SeoLandingShell({ children, lang, onToggleLang }: Props) {
   );
 }
 
-const interFamily = Platform.select({
-  web: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  default: 'System',
-});
-
-function seoFont(extra?: object) {
-  return { fontFamily: interFamily, ...extra };
-}
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: LANDING.white,
+    backgroundColor: SEO_THEME.white,
     ...Platform.select({
       web: { minHeight: '100vh' as const },
       default: {},
@@ -94,8 +86,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: LANDING.border,
-    backgroundColor: LANDING.white,
+    borderBottomColor: SEO_THEME.border,
+    backgroundColor: SEO_THEME.white,
   },
   logoLink: {
     flexDirection: 'row',
@@ -105,27 +97,27 @@ const styles = StyleSheet.create({
   },
   logo: { width: 36, height: 36 },
   logoText: {
-    ...seoFont({ fontSize: 18, fontWeight: '800', color: LANDING.text }),
+    ...seoFont({ fontSize: 18, fontWeight: '800', color: SEO_THEME.text }),
   },
   nav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   navLink: { textDecorationLine: 'none' },
   navText: {
-    ...seoFont({ fontSize: 14, fontWeight: '600', color: LANDING.muted }),
+    ...seoFont({ fontSize: 14, fontWeight: '600', color: SEO_THEME.muted }),
   },
   langBtn: {
-    ...seoFont({ fontSize: 13, fontWeight: '700', color: LANDING.accent }),
+    ...seoFont({ fontSize: 13, fontWeight: '700', color: SEO_THEME.accent }),
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   navCta: {
-    backgroundColor: LANDING.accent,
+    backgroundColor: SEO_THEME.accent,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
     textDecorationLine: 'none',
   },
   navCtaText: {
-    ...seoFont({ fontSize: 13, fontWeight: '800', color: LANDING.text }),
+    ...seoFont({ fontSize: 13, fontWeight: '800', color: SEO_THEME.text }),
   },
   content: {
     flex: 1,
@@ -137,19 +129,19 @@ const styles = StyleSheet.create({
   },
   footer: {
     borderTopWidth: 1,
-    borderTopColor: LANDING.border,
+    borderTopColor: SEO_THEME.border,
     paddingHorizontal: 20,
     paddingTop: 16,
     alignItems: 'center',
     gap: 8,
   },
   footerText: {
-    ...seoFont({ fontSize: 12, color: LANDING.muted }),
+    ...seoFont({ fontSize: 12, color: SEO_THEME.muted }),
     textAlign: 'center',
   },
   footerLinks: { flexDirection: 'row', gap: 16 },
   footerLink: { textDecorationLine: 'none' },
   footerLinkText: {
-    ...seoFont({ fontSize: 13, fontWeight: '600', color: LANDING.text }),
+    ...seoFont({ fontSize: 13, fontWeight: '600', color: SEO_THEME.text }),
   },
 });

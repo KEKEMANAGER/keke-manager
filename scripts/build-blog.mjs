@@ -323,6 +323,33 @@ function ensurePlaceholderCover(slug, title) {
   return `/blog/${slug}-cover.svg`;
 }
 
+function buildSeoBlogLinkTitles(posts) {
+  const seoPath = path.join(ROOT, 'lib', 'seoLandingPages.json');
+  const outPath = path.join(OUT_DIR, 'seoBlogLinkTitles.json');
+  if (!fs.existsSync(seoPath)) {
+    fs.writeFileSync(outPath, JSON.stringify({}, null, 2));
+    return;
+  }
+  const seo = JSON.parse(fs.readFileSync(seoPath, 'utf8'));
+  const slugs = new Set();
+  for (const p of [...(seo.locations ?? []), ...(seo.services ?? [])]) {
+    for (const slug of p.relatedBlog ?? []) {
+      slugs.add(slug);
+    }
+  }
+  const titles = {};
+  for (const slug of slugs) {
+    const post = posts.find((p) => p.slug === slug);
+    if (!post) continue;
+    titles[slug] = {
+      ka: post.title,
+      en: post.title_en || post.title,
+    };
+  }
+  fs.writeFileSync(outPath, JSON.stringify(titles, null, 2));
+  console.log(`SEO blog link titles: ${Object.keys(titles).length} slugs`);
+}
+
 function buildSeoLandingSitemapUrls(today) {
   const seoPath = path.join(ROOT, 'lib', 'seoLandingPages.json');
   if (!fs.existsSync(seoPath)) return [];
@@ -501,6 +528,7 @@ function main() {
 
   posts.sort((a, b) => (a.date < b.date ? 1 : -1));
   fs.writeFileSync(OUT_FILE, JSON.stringify({ generatedAt: new Date().toISOString(), posts }, null, 2));
+  buildSeoBlogLinkTitles(posts);
   buildSitemap(posts);
   buildRss(posts);
 
