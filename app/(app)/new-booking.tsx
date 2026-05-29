@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +17,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AuthInput } from '../../components/AuthInput';
+import { DateTimeField } from '../../components/DateTimeField';
+import {
+  formatDisplayDateTime,
+  toIsoString,
+} from '../../lib/dateTime';
 import { AppLogo } from '../../components/AppLogo';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { UserAvatar } from '../../components/UserAvatar';
@@ -23,33 +29,25 @@ import { SearchableCitySelect } from '../../components/SearchableCitySelect';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   insertBooking,
+  normalizeBookingKind,
   setBookingPickupSignLogoUrl,
   uploadPickupSignLogo,
+  type BookingType as DbBookingType,
+  type ItineraryDay,
   type PickupSignLogoFile,
+  type TourTransferLeg,
 } from '../../lib/bookings';
-import {
-  calcSmartEstimate,
-  composeInsertBookingInput,
-  emptyServiceFlags,
-  isPureTransfer,
-  parseAmountGeorgian,
-  serviceFlagsFromPreset,
-  validateSmartBookingStep1,
-  validateSmartBookingStep2,
-  type CommissionMode,
-  type ServiceFlags,
-} from '../../lib/bookingCompose';
-import { ArrivalTransferSection } from '../../components/newBooking/ArrivalTransferSection';
-import { BookingSummaryStep } from '../../components/newBooking/BookingSummaryStep';
-import { DepartureTransferSection } from '../../components/newBooking/DepartureTransferSection';
-import { ServiceCheckboxStep } from '../../components/newBooking/ServiceCheckboxStep';
-import { TourItinerarySection } from '../../components/newBooking/TourItinerarySection';
-import { TransferExtrasSection } from '../../components/newBooking/TransferExtrasSection';
+import { LocationPicker } from '../../components/LocationPicker';
 import { PickupSignLogoField } from '../../components/PickupSignLogoField';
 import {
   emptyLocationValue,
+  formatLocationDisplay,
+  formatLocationRoute,
+  locationValueIsComplete,
+  persistLocationFields,
   type LocationValue,
 } from '../../lib/bookingLocations';
+import { isPickupSignLogoPdf } from '../../lib/pickupSignLogo';
 import {
   normalizeVehicleClass,
   normalizeVehicleType,
@@ -67,9 +65,16 @@ import {
 } from '../../lib/validation';
 import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
 import {
+  buildTourRouteText,
+  countTourOvernights,
   generateTourDaysFromRange,
+  itineraryFromTourDays,
+  persistTourDaysForDb,
+  tourBookingPrimaryDateIso,
+  tourEndpointsFromDays,
   type TourDayForm,
 } from '../../lib/tourDays';
+import { bookingKindLabel } from '../../lib/bookingLabels';
 import { DriverCategorySelect } from '../../components/DriverCategorySelect';
 import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
 import type { RequestedDriverCategory } from '../../lib/driverCategory';
@@ -78,12 +83,28 @@ import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
 
+type BookingKindUi = 'transfer' | 'tour' | 'dayTour';
+type TransferTab = 'arrival' | 'departure';
+
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 type PaymentWhen = 'now' | 'later' | 'clientCard';
+type CommissionMode = 'gel' | 'percent';
 
 const PAYMENT_OPTIONS: PaymentWhen[] = ['now', 'later', 'clientCard'];
+
+function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): string {
+  const code =
+    ui === 'transfer'
+      ? transferTab === 'departure'
+        ? 'transfer_departure'
+        : 'transfer_arrival'
+      : ui === 'tour'
+        ? 'tour'
+        : 'day_tour';
+  return bookingKindLabel(code);
+}
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -101,6 +122,17 @@ function mapPickupSignLogoError(
   return msg;
 }
 
+function mapBookingType(t: BookingKindUi): DbBookingType {
+  if (t === 'transfer') return 'transfer';
+  if (t === 'tour') return 'tour';
+  return 'day_tour';
+}
+
+function switchTransferTab(setTab: (t: TransferTab) => void, tab: TransferTab) {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  setTab(tab);
+}
+
 function companyDisplayName(profile: Profile | null, user: User | null) {
   const meta = user?.user_metadata as Record<string, unknown> | undefined;
   const cn = meta?.companyName;
@@ -108,6 +140,194 @@ function companyDisplayName(profile: Profile | null, user: User | null) {
   const fn = profile?.full_name?.trim();
   if (fn) return fn;
   return user?.email ?? null;
+}
+
+function calcMockPrice(params: {
+  type: BookingKindUi;
+  passengers: number;
+  vehicleClass: VehicleClassCode;
+}): number {
+  let base = params.type === 'transfer' ? 120 : params.type === 'tour' ? 450 : 280;
+  base += Math.max(0, params.passengers - 1) * 25;
+  const mult =
+    params.vehicleClass === 'premium' ? 1.45 : params.vehicleClass === 'comfort' ? 1.2 : 1;
+  return Math.round(base * mult);
+}
+
+function parseAmountGeorgian(raw: string): number {
+  const t = String(raw).trim().replace(/\s/g, '').replace(',', '.');
+  if (!t) return 0;
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Commission as GEL for display and DB (percent is converted from client price). */
+function commissionGelAmount(
+  clientGel: number,
+  commissionRaw: string,
+  mode: CommissionMode,
+): number {
+  const v = parseAmountGeorgian(commissionRaw);
+  if (v <= 0) return 0;
+  if (mode === 'gel') return Math.round(v * 100) / 100;
+  const pct = Math.min(100, Math.max(0, v));
+  if (clientGel <= 0) return 0;
+  return Math.round(clientGel * (pct / 100) * 100) / 100;
+}
+
+function initialItineraryDay(day = 1): ItineraryDay {
+  return { day, from: '', to: '', stops: '' };
+}
+
+function emptyTransferLeg(): TourTransferLeg {
+  return { date: '', flight: '', passengerName: '' };
+}
+
+function persistItineraryForDb(days: ItineraryDay[]): ItineraryDay[] {
+  return days.map((d, idx) => ({
+    day: idx + 1,
+    from: d.from.trim(),
+    to: d.to.trim(),
+    stops: d.stops.trim(),
+  }));
+}
+
+function buildTourRouteDescription(
+  days: ItineraryDay[],
+  formatDayLine: (day: number, from: string, to: string) => string,
+): string | null {
+  const parts = days
+    .map((d) => {
+      const f = d.from.trim();
+      const to = d.to.trim();
+      if (!f && !to) return null;
+      return formatDayLine(d.day, f || '—', to || '—');
+    })
+    .filter((x): x is string => !!x);
+  return parts.length ? parts.join(' | ') : null;
+}
+
+function tourEndpoints(days: ItineraryDay[]): { from: string | null; to: string | null } {
+  if (!days.length) return { from: null, to: null };
+  const firstFrom = days[0].from.trim();
+  const lastTo = days[days.length - 1].to.trim();
+  return {
+    from: firstFrom || null,
+    to: lastTo || null,
+  };
+}
+
+function OptionalTransferToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        onChange(!value);
+      }}
+      style={({ pressed }) => [
+        styles.tourServiceCheckboxRow,
+        value && styles.tourServiceCheckboxRowActive,
+        pressed && styles.pressed,
+      ]}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: value }}
+    >
+      <View style={[styles.tourServiceCheckboxBox, value && styles.tourServiceCheckboxBoxActive]}>
+        {value ? <Ionicons name="checkmark" size={16} color="#000" /> : null}
+      </View>
+      <Text style={[styles.tourServiceCheckboxLabel, value && styles.tourServiceCheckboxLabelActive]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function TransferSegmented({
+  tab,
+  onChange,
+}: {
+  tab: TransferTab;
+  onChange: (t: TransferTab) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.segmentTrack}>
+      {(
+        [
+          { id: 'arrival' as const, labelKey: 'newBooking.transferTab.arrival' },
+          { id: 'departure' as const, labelKey: 'newBooking.transferTab.departure' },
+        ] as const
+      ).map((item) => {
+        const active = tab === item.id;
+        return (
+          <Pressable
+            key={item.id}
+            onPress={() => switchTransferTab(onChange, item.id)}
+            style={[styles.segmentItem, active && styles.segmentItemActive]}
+          >
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+              {t(item.labelKey)}
+            </Text>
+            {active ? <View style={styles.segmentUnderline} /> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function ServiceKindSelector({
+  value,
+  onChange,
+}: {
+  value: BookingKindUi;
+  onChange: (k: BookingKindUi) => void;
+}) {
+  const { t } = useTranslation();
+  const items: { id: BookingKindUi; label: string }[] = [
+    { id: 'transfer', label: bookingKindLabel('transfer') },
+    { id: 'tour', label: bookingKindLabel('tour') },
+    { id: 'dayTour', label: bookingKindLabel('day_tour') },
+  ];
+  return (
+    <View style={styles.serviceKindWrap}>
+      <Text style={styles.serviceKindSectionLabel}>{t('newBooking.serviceKind')}</Text>
+      <View style={styles.serviceKindRow}>
+        {items.map((item) => {
+          const active = value === item.id;
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                onChange(item.id);
+              }}
+              style={({ pressed }) => [
+                styles.serviceKindBtn,
+                active && styles.serviceKindBtnActive,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text
+                style={[styles.serviceKindBtnText, active && styles.serviceKindBtnTextActive]}
+                numberOfLines={2}
+              >
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 function OperatorPicker({
@@ -589,11 +809,25 @@ export default function NewBookingScreen() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [step1Error, setStep1Error] = useState<string | null>(null);
-  const [serviceFlags, setServiceFlags] = useState<ServiceFlags>(() => emptyServiceFlags());
+  const [booking_kind, set_booking_kind] = useState<BookingKindUi>('transfer');
 
+  const [transferTab, setTransferTab] = useState<TransferTab>('arrival');
+  const [arrivalFrom, setArrivalFrom] = useState<LocationValue>(() => ({
+    type: 'airport',
+    name: '',
+  }));
+  const [arrivalTo, setArrivalTo] = useState<LocationValue>(() => emptyLocationValue());
   const [arrivalFlightNo, setArrivalFlightNo] = useState('');
   const [departureFlightNo, setDepartureFlightNo] = useState('');
+  const [arrivalDateTime, setArrivalDateTime] = useState<Date | null>(null);
+  const [departureFrom, setDepartureFrom] = useState<LocationValue>(() => emptyLocationValue());
+  const [departureTo, setDepartureTo] = useState<LocationValue>(() => ({
+    type: 'airport',
+    name: '',
+  }));
+  const [departureDateTime, setDepartureDateTime] = useState<Date | null>(null);
+
+  const [bookingDateTime, setBookingDateTime] = useState<Date | null>(null);
   const [passengers, setPassengers] = useState('2');
   const [vehicleClass, setVehicleClass] = useState<VehicleClassCode>('comfort');
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
@@ -624,9 +858,15 @@ export default function NewBookingScreen() {
   const [commissionStr, setCommissionStr] = useState('');
   const [commissionMode, setCommissionMode] = useState<CommissionMode>('gel');
   const [comment, setComment] = useState('');
+  const [tourRouteDescription, setTourRouteDescription] = useState('');
 
+  const [days, setDays] = useState<ItineraryDay[]>(() => [initialItineraryDay(1)]);
+  const [transferIn, setTransferIn] = useState<TourTransferLeg>(() => emptyTransferLeg());
+  const [transferOut, setTransferOut] = useState<TourTransferLeg>(() => emptyTransferLeg());
   const [transferInDateTime, setTransferInDateTime] = useState<Date | null>(null);
   const [transferOutDateTime, setTransferOutDateTime] = useState<Date | null>(null);
+  const [hasArrivalTransfer, setHasArrivalTransfer] = useState(false);
+  const [hasDepartureTransfer, setHasDepartureTransfer] = useState(false);
   const [tourStartDate, setTourStartDate] = useState<Date | null>(null);
   const [tourEndDate, setTourEndDate] = useState<Date | null>(null);
   const [tourDays, setTourDays] = useState<TourDayForm[]>([]);
@@ -640,6 +880,8 @@ export default function NewBookingScreen() {
     name: '',
   }));
   const [transferOutHotelLoc, setTransferOutHotelLoc] = useState<LocationValue>(() => emptyLocationValue());
+  const [tourTransferInFlightNo, setTourTransferInFlightNo] = useState('');
+  const [tourTransferOutFlightNo, setTourTransferOutFlightNo] = useState('');
 
   const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('now');
   const [operators, setOperators] = useState<CompanyMember[]>([]);
@@ -677,32 +919,36 @@ export default function NewBookingScreen() {
   );
 
   useEffect(() => {
-    const fromPreset = serviceFlagsFromPreset(preset);
-    if (fromPreset) {
-      setServiceFlags(fromPreset);
+    if (preset === 'transfer' || preset === 'tour' || preset === 'dayTour') {
+      set_booking_kind(preset);
       setStep(2);
-      if (preset === 'dayTour') {
-        const today = new Date();
-        today.setHours(12, 0, 0, 0);
-        setTourStartDate(today);
-        setTourEndDate(today);
-      }
     }
   }, [preset]);
 
   useEffect(() => {
-    if (!serviceFlags.wantTour) return;
+    if (booking_kind === 'dayTour' && days.length > 1) {
+      setDays([initialItineraryDay(1)]);
+    }
+  }, [booking_kind, days.length]);
+
+  useEffect(() => {
+    if (booking_kind !== 'tour') return;
     if (!tourStartDate || !tourEndDate) {
       setTourDays([]);
       return;
     }
     setTourDays((prev) => generateTourDaysFromRange(tourStartDate, tourEndDate, prev));
-  }, [serviceFlags.wantTour, tourStartDate, tourEndDate]);
+  }, [booking_kind, tourStartDate, tourEndDate]);
+
+  const tourOvernightCount = useMemo(
+    () => countTourOvernights(tourDays.length),
+    [tourDays.length],
+  );
 
   const pax = Math.max(1, parseInt(passengers, 10) || 1);
   const estimateGel = useMemo(
-    () => calcSmartEstimate(serviceFlags, pax, vehicleClass),
-    [serviceFlags, pax, vehicleClass],
+    () => calcMockPrice({ type: booking_kind, passengers: pax, vehicleClass }),
+    [booking_kind, pax, vehicleClass],
   );
 
   const offeredGelParsed = useMemo(
@@ -710,6 +956,13 @@ export default function NewBookingScreen() {
     [clientPriceStr],
   );
   const driverOfferGel = offeredGelParsed > 0 ? offeredGelParsed : estimateGel;
+  const commissionGelPreview = useMemo(
+    () =>
+      booking_kind === 'transfer' && offeredGelParsed > 0
+        ? commissionGelAmount(offeredGelParsed, commissionStr, commissionMode)
+        : 0,
+    [booking_kind, offeredGelParsed, commissionStr, commissionMode],
+  );
 
   const previewVoucherId = useMemo(
     () => `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`,
@@ -725,71 +978,85 @@ export default function NewBookingScreen() {
     [t],
   );
 
+  function patchDay(index: number, patch: Partial<ItineraryDay>) {
+    setDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  }
+
   function patchTourDay(index: number, patch: Partial<TourDayForm>) {
     setTourDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   }
 
-  const legState = useMemo(
-    () => ({
-      transferInDateTime,
-      transferInAirportLoc,
-      transferInHotelLoc,
-      arrivalFlightNo,
-      transferOutDateTime,
-      transferOutHotelLoc,
-      transferOutAirportLoc,
-      departureFlightNo,
-      tourStartDate,
-      tourEndDate,
-      tourDays,
-      meetGreet,
-      signText,
-      passengerName,
-      passengerPhone,
-      passengers,
-      comment,
-      clientPriceStr,
-      commissionStr,
-      commissionMode,
-      paymentWhen,
-    }),
-    [
-      transferInDateTime,
-      transferInAirportLoc,
-      transferInHotelLoc,
-      arrivalFlightNo,
-      transferOutDateTime,
-      transferOutHotelLoc,
-      transferOutAirportLoc,
-      departureFlightNo,
-      tourStartDate,
-      tourEndDate,
-      tourDays,
-      meetGreet,
-      signText,
-      passengerName,
-      passengerPhone,
-      passengers,
-      comment,
-      clientPriceStr,
-      commissionStr,
-      commissionMode,
-      paymentWhen,
-    ],
-  );
+  function addDay() {
+    if (booking_kind === 'dayTour') return;
+    setDays((prev) => [...prev, initialItineraryDay(prev.length + 1)]);
+  }
+
+  function removeDay(index: number) {
+    if (index === 0) return;
+    setDays((prev) =>
+      prev.filter((_, i) => i !== index).map((d, i) => ({ ...d, day: i + 1 })),
+    );
+  }
 
   function validateStep2(): string | null {
-    return validateSmartBookingStep2(serviceFlags, legState, t);
+    if (booking_kind === 'transfer') {
+      if (transferTab === 'arrival') {
+        if (!locationValueIsComplete(arrivalFrom)) return t('newBooking.validation.locationFrom');
+        if (!locationValueIsComplete(arrivalTo)) return t('newBooking.validation.locationTo');
+        if (!arrivalDateTime) return t('newBooking.validation.dateTime');
+        return null;
+      }
+      if (!locationValueIsComplete(departureFrom)) return t('newBooking.validation.locationFrom');
+      if (!locationValueIsComplete(departureTo)) return t('newBooking.validation.locationTo');
+      if (!departureDateTime) return t('newBooking.validation.departureDate');
+      return null;
+    }
+    if (booking_kind === 'dayTour') {
+      if (!bookingDateTime) return t('newBooking.validation.dateTime');
+      const desc = tourRouteDescription.trim();
+      const hasFrom = Boolean(days[0]?.from.trim());
+      if (!desc && !hasFrom) {
+        return t('newBooking.validation.tourRoute');
+      }
+      return null;
+    }
+    if (booking_kind === 'tour') {
+      if (!tourStartDate || !tourEndDate) {
+        return t('newBooking.validation.tourDates');
+      }
+      if (tourEndDate.getTime() < tourStartDate.getTime()) {
+        return t('newBooking.validation.tourEndBeforeStart');
+      }
+      if (!tourDays.length || !tourDays.some((d) => d.from.trim())) {
+        return t('newBooking.validation.tourDays');
+      }
+      if (hasArrivalTransfer) {
+        if (!transferInDateTime) return t('newBooking.validation.dateTime');
+        if (!locationValueIsComplete(transferInAirportLoc)) return t('newBooking.validation.locationFrom');
+        if (!locationValueIsComplete(transferInHotelLoc)) return t('newBooking.validation.locationTo');
+      }
+      if (hasDepartureTransfer) {
+        if (!transferOutDateTime) return t('newBooking.validation.departureDate');
+        if (!locationValueIsComplete(transferOutHotelLoc)) return t('newBooking.validation.locationFrom');
+        if (!locationValueIsComplete(transferOutAirportLoc)) return t('newBooking.validation.locationTo');
+      }
+      return null;
+    }
+    return t('newBooking.validation.kind');
   }
 
   function resetWizard() {
     setStep(1);
-    setStep1Error(null);
-    setServiceFlags(emptyServiceFlags());
+    set_booking_kind('transfer');
+    setTransferTab('arrival');
+    setArrivalFrom({ type: 'airport', name: '' });
+    setArrivalTo(emptyLocationValue());
     setArrivalFlightNo('');
-    setDepartureFlightNo('');
-    setTransferInDateTime(null);
-    setTransferOutDateTime(null);
+    setArrivalDateTime(null);
+    setDepartureFrom(emptyLocationValue());
+    setDepartureTo({ type: 'airport', name: '' });
+    setDepartureDateTime(null);
+    setBookingDateTime(null);
     setPassengers('2');
     setVehicleClass('comfort');
     setSelectedVehicleType(VEHICLE_TYPES[0]);
@@ -805,6 +1072,14 @@ export default function NewBookingScreen() {
     setCommissionStr('');
     setCommissionMode('gel');
     setComment('');
+    setTourRouteDescription('');
+    setDays([initialItineraryDay(1)]);
+    setTransferIn(emptyTransferLeg());
+    setTransferOut(emptyTransferLeg());
+    setTransferInDateTime(null);
+    setTransferOutDateTime(null);
+    setHasArrivalTransfer(false);
+    setHasDepartureTransfer(false);
     setTourStartDate(null);
     setTourEndDate(null);
     setTourDays([]);
@@ -812,6 +1087,8 @@ export default function NewBookingScreen() {
     setTransferInHotelLoc(emptyLocationValue());
     setTransferOutAirportLoc({ type: 'airport', name: '' });
     setTransferOutHotelLoc(emptyLocationValue());
+    setTourTransferInFlightNo('');
+    setTourTransferOutFlightNo('');
     setPaymentWhen('now');
     setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
@@ -863,27 +1140,161 @@ export default function NewBookingScreen() {
       return;
     }
 
+    const dbKind = normalizeBookingKind(mapBookingType(booking_kind));
+
     setSubmitting(true);
     setSubmitError(null);
     const offeredGel = offeredGelParsed;
-    const insertPayload = composeInsertBookingInput({
-      flags: serviceFlags,
-      state: legState,
-      t,
-      companyId: user.id,
-      companyName: companyDisplayName(profile, user) ?? t('common.companyDefault'),
-      operatorName,
-      vehicleType: selectedVehicleType,
-      vehicleClass,
-      offeredGel,
-      driverId: driverTargetMode === 'specific' && selectedDriverId ? selectedDriverId : null,
-      vehicleId:
-        driverTargetMode === 'specific' && selectedDriverId ? selectedDriverVehicleId : null,
-      requiredLanguages,
-      requestedDriverCategory: driverCategory,
-    });
+    const commissionGelDb =
+      booking_kind === 'transfer' && commissionStr.trim()
+        ? commissionGelAmount(offeredGel, commissionStr, commissionMode)
+        : null;
+    const isMultiDayTour = booking_kind === 'tour';
+    const isDayTour = booking_kind === 'dayTour';
+    const isTour = isMultiDayTour || isDayTour;
+    const tourDaysDb = isMultiDayTour ? persistTourDaysForDb(tourDays) : null;
+    const itineraryDb = isMultiDayTour
+      ? itineraryFromTourDays(tourDaysDb ?? [])
+      : isDayTour
+        ? persistItineraryForDb(days)
+        : null;
+    const tourEnds = isMultiDayTour
+      ? tourEndpointsFromDays(tourDaysDb ?? [])
+      : isDayTour
+        ? tourEndpoints(itineraryDb ?? [])
+        : { from: null, to: null };
+    const transferInAirportP = persistLocationFields(transferInAirportLoc);
+    const transferInHotelP = persistLocationFields(transferInHotelLoc);
+    const transferOutHotelP = persistLocationFields(transferOutHotelLoc);
+    const transferOutAirportP = persistLocationFields(transferOutAirportLoc);
+    const arrivalFromP = persistLocationFields(arrivalFrom);
+    const arrivalToP = persistLocationFields(arrivalTo);
+    const departureFromP = persistLocationFields(departureFrom);
+    const departureToP = persistLocationFields(departureTo);
 
-    const { id: bookingId, error } = await insertBooking(insertPayload);
+    const transferInDb: TourTransferLeg | null =
+      isMultiDayTour && hasArrivalTransfer && transferInDateTime
+        ? {
+            date: toIsoString(transferInDateTime),
+            airport: transferInAirportP.name ?? undefined,
+            airport_type: transferInAirportP.type,
+            hotel: transferInHotelP.name ?? undefined,
+            hotel_type: transferInHotelP.type,
+            ...(tourTransferInFlightNo.trim()
+              ? { flight: tourTransferInFlightNo.trim() }
+              : {}),
+          }
+        : null;
+    const transferOutDb: TourTransferLeg | null =
+      isMultiDayTour && hasDepartureTransfer && transferOutDateTime
+        ? {
+            date: toIsoString(transferOutDateTime),
+            hotel: transferOutHotelP.name ?? undefined,
+            hotel_type: transferOutHotelP.type,
+            airport: transferOutAirportP.name ?? undefined,
+            airport_type: transferOutAirportP.type,
+            ...(tourTransferOutFlightNo.trim()
+              ? { flight: tourTransferOutFlightNo.trim() }
+              : {}),
+          }
+        : null;
+    const structuredRoute = isMultiDayTour
+      ? buildTourRouteText(tourDaysDb ?? [], (day, from, to) =>
+          t('newBooking.dayLine', { day, from, to }),
+        )
+      : isDayTour
+        ? buildTourRouteDescription(days, (day, from, to) =>
+            t('newBooking.dayLine', { day, from, to }),
+          )
+        : null;
+    const descPart = isDayTour ? tourRouteDescription.trim() : '';
+    const routeForDb =
+      isTour ? [descPart, structuredRoute].filter(Boolean).join('\n\n') || null : null;
+
+    const { id: bookingId, error } = await insertBooking({
+      company_id: user.id,
+      company_name: companyDisplayName(profile, user) ?? t('common.companyDefault'),
+      kind: dbKind,
+      from_location:
+        booking_kind === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalFromP.name
+            : departureFromP.name
+          : tourEnds.from,
+      from_location_type:
+        booking_kind === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalFromP.type
+            : departureFromP.type
+          : null,
+      to_location:
+        booking_kind === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalToP.name
+            : departureToP.name
+          : tourEnds.to,
+      to_location_type:
+        booking_kind === 'transfer'
+          ? transferTab === 'arrival'
+            ? arrivalToP.type
+            : departureToP.type
+          : null,
+      route: routeForDb,
+      date_display: isDayTour
+        ? bookingDateTime
+          ? toIsoString(bookingDateTime)
+          : null
+        : isMultiDayTour
+          ? tourBookingPrimaryDateIso(
+              tourStartDate,
+              hasArrivalTransfer ? transferInDateTime : null,
+              hasDepartureTransfer ? transferOutDateTime : null,
+            )
+          : booking_kind === 'transfer'
+            ? transferTab === 'arrival'
+              ? arrivalDateTime
+                ? toIsoString(arrivalDateTime)
+                : null
+              : departureDateTime
+                ? toIsoString(departureDateTime)
+                : null
+            : bookingDateTime
+              ? toIsoString(bookingDateTime)
+              : null,
+      passengers: pax,
+      vehicle_type: selectedVehicleType,
+      vehicle_class: vehicleClass,
+      flight_number:
+        booking_kind === 'transfer'
+          ? (transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() || null
+          : null,
+      meet_greet: booking_kind === 'transfer' ? meetGreet : false,
+      sign_text:
+        booking_kind === 'transfer' && meetGreet && signText.trim() ? signText.trim() : null,
+      passenger_name: booking_kind === 'transfer' ? passengerName.trim() || null : null,
+      passenger_phone: booking_kind === 'transfer' ? passengerPhone.trim() || null : null,
+      flight_direction: booking_kind === 'transfer' ? transferTab : null,
+      pickup_time: null,
+      client_price: offeredGel,
+      commission:
+        booking_kind === 'transfer' && commissionGelDb !== null && commissionGelDb > 0
+          ? commissionGelDb
+          : null,
+      tour_days: tourDaysDb,
+      itinerary: itineraryDb,
+      transfer_in: transferInDb,
+      transfer_out: transferOutDb,
+      comment: comment.trim() || null,
+      payment_method: paymentWhen,
+      price_gel: offeredGel,
+      created_by_name: operatorName,
+      driver_id:
+        driverTargetMode === 'specific' && selectedDriverId ? selectedDriverId : null,
+      vehicle_id:
+        driverTargetMode === 'specific' && selectedDriverId ? selectedDriverVehicleId : null,
+      required_languages: requiredLanguages.length > 0 ? requiredLanguages : null,
+      requested_driver_category: driverCategory,
+    });
     if (error) {
       setSubmitting(false);
       const message = mapSupabaseError(error);
@@ -938,25 +1349,16 @@ export default function NewBookingScreen() {
             total: 3,
             name:
               step === 1
-                ? t('newBooking.smartForm.step1Title')
+                ? t('newBooking.stepType')
                 : step === 2
                   ? t('newBooking.stepDetails')
                   : t('newBooking.stepSummary'),
           })}
         </Text>
 
-        {step === 1 ? (
-          <View style={styles.block}>
-            <ServiceCheckboxStep
-              flags={serviceFlags}
-              onChange={(next) => {
-                setServiceFlags(next);
-                setStep1Error(null);
-              }}
-              step1Error={step1Error}
-            />
-          </View>
-        ) : null}
+        <ServiceKindSelector value={booking_kind} onChange={set_booking_kind} />
+
+        {step === 1 ? <Text style={styles.hint}>{t('newBooking.pickService')}</Text> : null}
 
         {step >= 2 ? (
           <OperatorPicker
@@ -967,69 +1369,69 @@ export default function NewBookingScreen() {
           />
         ) : null}
 
-        {step === 2 ? (
+        {step === 2 && booking_kind === 'transfer' && (
           <View style={styles.block}>
-            {serviceFlags.wantArrivalTransfer ? (
-              <ArrivalTransferSection
-                transferInDateTime={transferInDateTime}
-                onTransferInDateTimeChange={setTransferInDateTime}
-                transferInAirportLoc={transferInAirportLoc}
-                onTransferInAirportLocChange={setTransferInAirportLoc}
-                transferInHotelLoc={transferInHotelLoc}
-                onTransferInHotelLocChange={setTransferInHotelLoc}
-                arrivalFlightNo={arrivalFlightNo}
-                onArrivalFlightNoChange={setArrivalFlightNo}
-                styles={styles}
-              />
-            ) : null}
+            <TransferSegmented tab={transferTab} onChange={setTransferTab} />
 
-            {serviceFlags.wantTour ? (
-              <TourItinerarySection
-                tourStartDate={tourStartDate}
-                onTourStartDateChange={setTourStartDate}
-                tourEndDate={tourEndDate}
-                onTourEndDateChange={setTourEndDate}
-                tourDays={tourDays}
-                onPatchTourDay={patchTourDay}
-                styles={styles}
-              />
-            ) : null}
+            <View style={styles.accordionPanel}>
+              {transferTab === 'arrival' ? (
+                <>
+                  <LocationPicker
+                    label={t('newBooking.form.pickupLocation')}
+                    value={arrivalFrom}
+                    onChange={setArrivalFrom}
+                  />
+                  <AuthInput
+                    label={t('newBooking.flightNumber')}
+                    value={arrivalFlightNo}
+                    onChangeText={setArrivalFlightNo}
+                    autoCapitalize="characters"
+                    placeholder={t('newBooking.flightNumberPlaceholder')}
+                  />
+                  <DateTimeField
+                    label={t('newBooking.form.dateTime')}
+                    value={arrivalDateTime}
+                    onChange={setArrivalDateTime}
+                    placeholder={t('newBooking.form.placeholders.dateTime')}
+                    minimumDate={new Date()}
+                  />
+                  <LocationPicker
+                    label={t('newBooking.form.dropoffLocation')}
+                    value={arrivalTo}
+                    onChange={setArrivalTo}
+                  />
+                </>
+              ) : (
+                <>
+                  <LocationPicker
+                    label={t('newBooking.form.pickupLocation')}
+                    value={departureFrom}
+                    onChange={setDepartureFrom}
+                  />
+                  <DateTimeField
+                    label={t('newBooking.form.departureDateTime')}
+                    value={departureDateTime}
+                    onChange={setDepartureDateTime}
+                    placeholder={t('newBooking.form.placeholders.dateTime')}
+                    minimumDate={new Date()}
+                  />
+                  <LocationPicker
+                    label={t('newBooking.form.dropoffLocation')}
+                    value={departureTo}
+                    onChange={setDepartureTo}
+                  />
+                  <AuthInput
+                    label={t('newBooking.flightNumber')}
+                    value={departureFlightNo}
+                    onChangeText={setDepartureFlightNo}
+                    autoCapitalize="characters"
+                    placeholder={t('newBooking.flightNumberPlaceholder')}
+                  />
+                </>
+              )}
+            </View>
 
-            {serviceFlags.wantDepartureTransfer ? (
-              <DepartureTransferSection
-                transferOutDateTime={transferOutDateTime}
-                onTransferOutDateTimeChange={setTransferOutDateTime}
-                transferOutHotelLoc={transferOutHotelLoc}
-                onTransferOutHotelLocChange={setTransferOutHotelLoc}
-                transferOutAirportLoc={transferOutAirportLoc}
-                onTransferOutAirportLocChange={setTransferOutAirportLoc}
-                departureFlightNo={departureFlightNo}
-                onDepartureFlightNoChange={setDepartureFlightNo}
-                styles={styles}
-              />
-            ) : null}
-
-            {isPureTransfer(serviceFlags) ? (
-              <TransferExtrasSection
-                meetGreet={meetGreet}
-                onMeetGreetChange={setMeetGreet}
-                signText={signText}
-                onSignTextChange={setSignText}
-                passengerName={passengerName}
-                onPassengerNameChange={setPassengerName}
-                passengerPhone={passengerPhone}
-                onPassengerPhoneChange={setPassengerPhone}
-                pickupSignLogo={pickupSignLogo}
-                onPickupSignLogoChange={setPickupSignLogo}
-                commissionStr={commissionStr}
-                onCommissionStrChange={setCommissionStr}
-                commissionMode={commissionMode}
-                onCommissionModeChange={setCommissionMode}
-                showCommission
-                submitting={submitting}
-                styles={styles}
-              />
-            ) : null}
+            <View style={styles.compactDivider} />
 
             <PassengerStepper value={passengers} onChange={setPassengers} />
             <VehiclePicker
@@ -1045,13 +1447,95 @@ export default function NewBookingScreen() {
               onChange={setRequiredLanguages}
             />
 
-            {!isPureTransfer(serviceFlags) ? (
-              <PickupSignLogoField
-                value={pickupSignLogo}
-                onChange={setPickupSignLogo}
-                disabled={submitting}
+            <View style={styles.compactRow}>
+              <AuthInput
+                label={t('newBooking.form.passengerName')}
+                value={passengerName}
+                onChangeText={setPassengerName}
+              />
+              <AuthInput
+                label={t('newBooking.form.phone')}
+                value={passengerPhone}
+                onChangeText={setPassengerPhone}
+                keyboardType="phone-pad"
+              />
+            </View>
+            <Pressable
+              onPress={() => setMeetGreet((v) => !v)}
+              style={({ pressed }) => [
+                styles.meetToggleCompact,
+                meetGreet ? styles.meetToggleOn : styles.meetToggleOff,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={meetGreet ? styles.meetToggleTextOn : styles.meetToggleTextOff}>
+                {t('newBooking.form.meetGreet')}
+              </Text>
+            </Pressable>
+            {meetGreet ? (
+              <AuthInput
+                label={t('newBooking.form.signText')}
+                value={signText}
+                onChangeText={setSignText}
+                placeholder={t('newBooking.form.placeholders.signName')}
               />
             ) : null}
+            {meetGreet ? (
+              <Text style={styles.orDivider}>{t('newBooking.pickupSignLogo.orAnd')}</Text>
+            ) : null}
+            <PickupSignLogoField
+              value={pickupSignLogo}
+              onChange={setPickupSignLogo}
+              disabled={submitting}
+            />
+
+            <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+            <AuthInput
+              label={t('newBooking.form.clientPrice')}
+              value={clientPriceStr}
+              onChangeText={setClientPriceStr}
+              keyboardType="decimal-pad"
+              placeholder={t('newBooking.form.placeholders.zero')}
+            />
+            <Text style={styles.fieldLabel}>{t('newBooking.form.commission')}</Text>
+            <View style={styles.chips}>
+              <Pressable
+                onPress={() => setCommissionMode('gel')}
+                style={[styles.chip, commissionMode === 'gel' && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, commissionMode === 'gel' && styles.chipTextActive]}>
+                  ₾
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setCommissionMode('percent')}
+                style={[styles.chip, commissionMode === 'percent' && styles.chipActive]}
+              >
+                <Text
+                  style={[styles.chipText, commissionMode === 'percent' && styles.chipTextActive]}
+                >
+                  %
+                </Text>
+              </Pressable>
+            </View>
+            <AuthInput
+              label={
+                commissionMode === 'gel'
+                  ? t('newBooking.form.commissionGel')
+                  : t('newBooking.form.commissionPct')
+              }
+              value={commissionStr}
+              onChangeText={setCommissionStr}
+              keyboardType="decimal-pad"
+              placeholder={
+                commissionMode === 'gel'
+                  ? t('newBooking.form.placeholders.zero')
+                  : t('newBooking.form.placeholders.commissionPctExample')
+              }
+            />
+            <Text style={styles.driverPayNote}>
+              {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
+            </Text>
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
@@ -1062,44 +1546,499 @@ export default function NewBookingScreen() {
               style={styles.textArea}
             />
           </View>
-        ) : null}
+        )}
+
+        {step === 2 && booking_kind === 'dayTour' && (
+          <View style={styles.block}>
+            <Text style={styles.dayTourTitle}>{t('newBooking.form.dayTourDetails')}</Text>
+
+            <AuthInput
+              label={t('newBooking.form.tourDescription')}
+              value={tourRouteDescription}
+              onChangeText={setTourRouteDescription}
+              multiline
+              style={styles.textArea}
+              placeholder={t('newBooking.form.placeholders.dayTourDesc')}
+            />
+
+            <DateTimeField
+              label={t('newBooking.form.dateTime')}
+              value={bookingDateTime}
+              onChange={setBookingDateTime}
+              placeholder={t('newBooking.form.placeholders.dateTime')}
+              minimumDate={new Date()}
+            />
+            <PassengerStepper value={passengers} onChange={setPassengers} />
+            <View style={styles.dayTourCard}>
+              <AuthInput
+                label={t('newBooking.form.from')}
+                value={days[0]?.from ?? ''}
+                onChangeText={(text) => patchDay(0, { from: text })}
+              />
+              <AuthInput
+                label={t('newBooking.form.to')}
+                value={days[0]?.to ?? ''}
+                onChangeText={(text) => patchDay(0, { to: text })}
+              />
+              <AuthInput
+                label={t('newBooking.form.stops')}
+                value={days[0]?.stops ?? ''}
+                onChangeText={(text) => patchDay(0, { stops: text })}
+                placeholder={t('newBooking.form.placeholders.stopsExample')}
+                multiline
+                style={styles.textArea}
+              />
+            </View>
+
+            <VehiclePicker
+              selectedVehicleType={selectedVehicleType}
+              onVehicleTypeChange={setSelectedVehicleType}
+              vehicleClass={vehicleClass}
+              onVehicleClassChange={setVehicleClass}
+            />
+            <LanguageMultiSelect
+              label={t('newBooking.form.requiredLanguages')}
+              hint={t('newBooking.form.requiredLanguagesHint')}
+              value={requiredLanguages}
+              onChange={setRequiredLanguages}
+            />
+
+            <PickupSignLogoField
+              value={pickupSignLogo}
+              onChange={setPickupSignLogo}
+              disabled={submitting}
+            />
+
+            <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+            <AuthInput
+              label={t('newBooking.form.clientPrice')}
+              value={clientPriceStr}
+              onChangeText={setClientPriceStr}
+              keyboardType="decimal-pad"
+              placeholder={t('newBooking.form.placeholders.zero')}
+            />
+            <Text style={styles.driverPayNote}>
+              {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
+            </Text>
+
+            <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
+            <AuthInput
+              label={t('newBooking.form.comment')}
+              value={comment}
+              onChangeText={setComment}
+              multiline
+              style={styles.textArea}
+            />
+          </View>
+        )}
+
+        {step === 2 && booking_kind === 'tour' && (
+          <View style={styles.block}>
+            <OptionalTransferToggle
+              label={t('newBooking.smartForm.arrivalTransfer')}
+              value={hasArrivalTransfer}
+              onChange={setHasArrivalTransfer}
+            />
+            {hasArrivalTransfer ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.transferArrivalSection')}</Text>
+                <DateTimeField
+                  label={t('newBooking.form.dateTime')}
+                  value={transferInDateTime}
+                  onChange={setTransferInDateTime}
+                  placeholder={t('newBooking.form.placeholders.dateTime')}
+                  minimumDate={new Date()}
+                />
+                <LocationPicker
+                  label={t('newBooking.form.transferInFrom')}
+                  value={transferInAirportLoc}
+                  onChange={setTransferInAirportLoc}
+                />
+                <AuthInput
+                  label={t('newBooking.flightNumber')}
+                  value={tourTransferInFlightNo}
+                  onChangeText={setTourTransferInFlightNo}
+                  autoCapitalize="characters"
+                  placeholder={t('newBooking.flightNumberPlaceholder')}
+                />
+                <LocationPicker
+                  label={t('newBooking.form.transferInTo')}
+                  value={transferInHotelLoc}
+                  onChange={setTransferInHotelLoc}
+                />
+              </>
+            ) : null}
+
+            <OptionalTransferToggle
+              label={t('newBooking.smartForm.departureTransfer')}
+              value={hasDepartureTransfer}
+              onChange={setHasDepartureTransfer}
+            />
+            {hasDepartureTransfer ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.transferDepartureSection')}</Text>
+                <DateTimeField
+                  label={t('newBooking.form.departureDateTime')}
+                  value={transferOutDateTime}
+                  onChange={setTransferOutDateTime}
+                  placeholder={t('newBooking.form.placeholders.dateTime')}
+                  minimumDate={new Date()}
+                />
+                <LocationPicker
+                  label={t('newBooking.form.transferOutFrom')}
+                  value={transferOutHotelLoc}
+                  onChange={setTransferOutHotelLoc}
+                />
+                <LocationPicker
+                  label={t('newBooking.form.transferOutTo')}
+                  value={transferOutAirportLoc}
+                  onChange={setTransferOutAirportLoc}
+                />
+                <AuthInput
+                  label={t('newBooking.flightNumber')}
+                  value={tourTransferOutFlightNo}
+                  onChangeText={setTourTransferOutFlightNo}
+                  autoCapitalize="characters"
+                  placeholder={t('newBooking.flightNumberPlaceholder')}
+                />
+              </>
+            ) : null}
+
+            <Text style={styles.sectionHeader}>{t('newBooking.form.tourCalendar')}</Text>
+            <DateTimeField
+              label={t('newBooking.form.tourStartDate')}
+              value={tourStartDate}
+              onChange={setTourStartDate}
+              placeholder={t('newBooking.form.placeholders.dateTime')}
+              minimumDate={new Date()}
+            />
+            <DateTimeField
+              label={t('newBooking.form.tourEndDate')}
+              value={tourEndDate}
+              onChange={setTourEndDate}
+              placeholder={t('newBooking.form.placeholders.dateTime')}
+              minimumDate={tourStartDate ?? new Date()}
+            />
+            {tourDays.length > 0 ? (
+              <Text style={styles.tourOvernightSummary}>
+                {t('newBooking.form.totalOvernights', { count: tourOvernightCount })}
+              </Text>
+            ) : null}
+            {tourDays.map((day, dayIndex) => {
+              const isLastDay = dayIndex === tourDays.length - 1;
+              return (
+                <View key={`tour-day-${day.date}-${dayIndex}`} style={styles.tourDayBlock}>
+                  <Text style={styles.tourDayTitle}>
+                    {t('newBooking.form.dayN', { n: day.day })}
+                  </Text>
+                  <AuthInput
+                    label={t('newBooking.form.from')}
+                    value={day.from}
+                    onChangeText={(text) => patchTourDay(dayIndex, { from: text })}
+                  />
+                  <AuthInput
+                    label={t('newBooking.form.to')}
+                    value={day.to}
+                    onChangeText={(text) => patchTourDay(dayIndex, { to: text })}
+                  />
+                  <AuthInput
+                    label={t('newBooking.form.stops')}
+                    value={day.stops}
+                    onChangeText={(text) => patchTourDay(dayIndex, { stops: text })}
+                    placeholder={t('newBooking.form.placeholders.stopsExample')}
+                    multiline
+                    style={styles.textArea}
+                  />
+                  {!isLastDay ? (
+                    <>
+                      <AuthInput
+                        label={t('newBooking.form.touristHotel')}
+                        value={day.touristHotel}
+                        onChangeText={(text) => patchTourDay(dayIndex, { touristHotel: text })}
+                        placeholder={t('newBooking.form.placeholders.touristHotel')}
+                      />
+                      <Text style={styles.fieldHint}>{t('newBooking.form.touristHotelHint')}</Text>
+                      <AuthInput
+                        label={t('newBooking.form.driverOvernight')}
+                        value={day.driverOvernight}
+                        onChangeText={(text) => patchTourDay(dayIndex, { driverOvernight: text })}
+                        placeholder={t('newBooking.form.placeholders.driverOvernight')}
+                      />
+                      <Text style={styles.fieldHint}>{t('newBooking.form.driverOvernightHint')}</Text>
+                    </>
+                  ) : null}
+                </View>
+              );
+            })}
+
+            <AuthInput
+              label={t('newBooking.form.passengers')}
+              value={passengers}
+              onChangeText={setPassengers}
+              keyboardType="number-pad"
+            />
+            <VehiclePicker
+              selectedVehicleType={selectedVehicleType}
+              onVehicleTypeChange={setSelectedVehicleType}
+              vehicleClass={vehicleClass}
+              onVehicleClassChange={setVehicleClass}
+            />
+            <LanguageMultiSelect
+              label={t('newBooking.form.requiredLanguages')}
+              hint={t('newBooking.form.requiredLanguagesHint')}
+              value={requiredLanguages}
+              onChange={setRequiredLanguages}
+            />
+
+            <PickupSignLogoField
+              value={pickupSignLogo}
+              onChange={setPickupSignLogo}
+              disabled={submitting}
+            />
+
+            <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+            <AuthInput
+              label={t('newBooking.form.clientPrice')}
+              value={clientPriceStr}
+              onChangeText={setClientPriceStr}
+              keyboardType="decimal-pad"
+              placeholder={t('newBooking.form.placeholders.zero')}
+            />
+            <Text style={styles.driverPayNote}>
+              {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
+            </Text>
+
+            <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
+            <AuthInput
+              label={t('newBooking.form.comment')}
+              value={comment}
+              onChangeText={setComment}
+              multiline
+            />
+          </View>
+        )}
 
         {step === 3 && (
           <View style={styles.block}>
-            <BookingSummaryStep
-              flags={serviceFlags}
-              companyName={companyName}
-              operatorName={selectedOperatorName}
-              previewVoucherId={previewVoucherId}
-              selectedVehicleType={selectedVehicleType}
-              vehicleClass={vehicleClass}
-              transferInDateTime={transferInDateTime}
-              transferInAirportLoc={transferInAirportLoc}
-              transferInHotelLoc={transferInHotelLoc}
-              arrivalFlightNo={arrivalFlightNo}
-              transferOutDateTime={transferOutDateTime}
-              transferOutHotelLoc={transferOutHotelLoc}
-              transferOutAirportLoc={transferOutAirportLoc}
-              departureFlightNo={departureFlightNo}
-              tourStartDate={tourStartDate}
-              tourEndDate={tourEndDate}
-              tourDays={tourDays}
-              passengerName={passengerName}
-              meetGreet={meetGreet}
-              signText={signText}
-              pickupSignLogo={pickupSignLogo}
-              pax={pax}
-              paymentWhen={paymentWhen}
-              paymentLabel={paymentLabel}
-              clientPriceStr={clientPriceStr}
-              onClientPriceStrChange={setClientPriceStr}
-              driverOfferGel={driverOfferGel}
-              offeredGelParsed={offeredGelParsed}
-              formatGel={formatGel}
-              paymentOptions={PAYMENT_OPTIONS}
-              onPaymentWhenChange={setPaymentWhen}
-              styles={styles}
-            />
+            <View style={styles.priceBox}>
+              <Text style={styles.priceLabel}>{t('newBooking.form.offeredPriceDriver')}</Text>
+              <Text style={styles.priceBig}>{formatGel(driverOfferGel)}</Text>
+              {offeredGelParsed <= 0 ? (
+                <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceRequiredHint')}</Text>
+              ) : (
+                <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceSameNote')}</Text>
+              )}
+            </View>
+            <Text style={styles.fieldLabel}>{t('newBooking.form.paymentMethod')}</Text>
+            {PAYMENT_OPTIONS.map((p) => (
+              <Pressable
+                key={p}
+                onPress={() => setPaymentWhen(p)}
+                style={[styles.payRow, paymentWhen === p && styles.payRowActive]}
+              >
+                <Text style={[styles.payText, paymentWhen === p && styles.payTextActive]}>
+                  {paymentLabel(p)}
+                </Text>
+              </Pressable>
+            ))}
+            <View style={[styles.voucher, SHADOWS.gold, styles.voucherSpaced]}>
+              <Text style={styles.voucherTitle}>{t('newBooking.form.voucherTitle')}</Text>
+              <Text style={styles.voucherId}>{previewVoucherId}</Text>
+              <View style={styles.vDivider} />
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherCompany')}: {companyName}
+              </Text>
+              {selectedOperatorName?.trim() ? (
+                <Text style={styles.vLine}>
+                  {t('newBooking.form.voucherOperator')}: {selectedOperatorName.trim()}
+                </Text>
+              ) : null}
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherType')}: {bookingKindUiLabel(booking_kind, transferTab)}
+              </Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherVehicle')}: {vehicleTypeLabel(selectedVehicleType)}
+              </Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherClass')}: {vehicleClassLabel(vehicleClass)}
+              </Text>
+              {booking_kind === 'dayTour' && tourRouteDescription.trim() ? (
+                <Text style={styles.vLineMuted}>
+                  {t('newBooking.form.voucherTourDesc')}: {tourRouteDescription.trim()}
+                </Text>
+              ) : null}
+              {booking_kind === 'transfer' ? (
+                <>
+                  <Text style={styles.vLine}>
+                    {transferTab === 'arrival'
+                      ? t('newBooking.form.voucherArrival')
+                      : t('newBooking.form.voucherDeparture')}
+                  </Text>
+                  <Text style={styles.vLine}>
+                    {transferTab === 'arrival'
+                      ? formatLocationRoute(
+                          arrivalFrom.name,
+                          arrivalFrom.type,
+                          arrivalTo.name,
+                          arrivalTo.type,
+                        )
+                      : formatLocationRoute(
+                          departureFrom.name,
+                          departureFrom.type,
+                          departureTo.name,
+                          departureTo.type,
+                        )}
+                  </Text>
+                  {transferTab === 'arrival' && arrivalDateTime ? (
+                    <Text style={styles.vLine}>{formatDisplayDateTime(arrivalDateTime)}</Text>
+                  ) : null}
+                  {transferTab === 'departure' && departureDateTime ? (
+                    <Text style={styles.vLine}>{formatDisplayDateTime(departureDateTime)}</Text>
+                  ) : null}
+                  {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('companyVoucher.flightNumber')}:{' '}
+                      {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim()}
+                    </Text>
+                  ) : null}
+                  {passengerName.trim() ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherPassenger')}: {passengerName.trim()}
+                    </Text>
+                  ) : null}
+                  {meetGreet && signText.trim() ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('bookings.voucherPickupSignName')}: {signText.trim()}
+                    </Text>
+                  ) : null}
+                  {pickupSignLogo ? (
+                    <View style={styles.voucherLogoPreview}>
+                      <Text style={styles.vLineMuted}>{t('bookings.voucherPickupSignMark')}</Text>
+                      {isPickupSignLogoPdf(pickupSignLogo) ? (
+                        <Text style={styles.vLineMuted}>
+                          {t('newBooking.pickupSignLogo.pdfReady')}
+                        </Text>
+                      ) : (
+                        <Image
+                          source={{ uri: pickupSignLogo.uri }}
+                          style={styles.voucherLogoImage}
+                          resizeMode="contain"
+                        />
+                      )}
+                    </View>
+                  ) : null}
+                </>
+              ) : booking_kind === 'dayTour' ? (
+                <>
+                  <Text style={styles.vLine}>
+                    {days[0]?.from.trim() || '—'} → {days[0]?.to.trim() || '—'}
+                  </Text>
+                  {bookingDateTime ? (
+                    <Text style={styles.vLineMuted}>{formatDisplayDateTime(bookingDateTime)}</Text>
+                  ) : null}
+                  {days[0]?.stops.trim() ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherStops')}: {days[0].stops.trim()}
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {hasArrivalTransfer ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherTransferInRoute', {
+                        datetime: transferInDateTime
+                          ? formatDisplayDateTime(transferInDateTime)
+                          : '—',
+                        from: formatLocationDisplay(
+                          transferInAirportLoc.name,
+                          transferInAirportLoc.type,
+                        ),
+                        to: formatLocationDisplay(transferInHotelLoc.name, transferInHotelLoc.type),
+                      })}
+                    </Text>
+                  ) : null}
+                  {tourStartDate && tourEndDate ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherTourRange', {
+                        from: formatDisplayDateTime(tourStartDate),
+                        to: formatDisplayDateTime(tourEndDate),
+                      })}
+                    </Text>
+                  ) : null}
+                  {tourDays.map((d, idx) => {
+                    const isLast = idx === tourDays.length - 1;
+                    return (
+                      <Text key={`preview-tour-day-${d.day}`} style={styles.vLineMuted}>
+                        {d.stops.trim()
+                          ? t('newBooking.form.voucherDayRouteWithStops', {
+                              day: d.day,
+                              from: d.from.trim() || '—',
+                              to: d.to.trim() || '—',
+                              stops: d.stops.trim(),
+                            })
+                          : t('newBooking.dayLine', {
+                              day: d.day,
+                              from: d.from.trim() || '—',
+                              to: d.to.trim() || '—',
+                            })}
+                        {!isLast && d.touristHotel.trim()
+                          ? ` · ${t('newBooking.form.touristHotel')}: ${d.touristHotel.trim()}`
+                          : ''}
+                        {!isLast && d.driverOvernight.trim()
+                          ? ` · ${t('newBooking.form.driverOvernight')}: ${d.driverOvernight.trim()}`
+                          : ''}
+                      </Text>
+                    );
+                  })}
+                  {tourOvernightCount > 0 ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.totalOvernights', { count: tourOvernightCount })}
+                    </Text>
+                  ) : null}
+                  {hasDepartureTransfer ? (
+                    <Text style={styles.vLineMuted}>
+                      {t('newBooking.form.voucherTransferOutRoute', {
+                        datetime: transferOutDateTime
+                          ? formatDisplayDateTime(transferOutDateTime)
+                          : '—',
+                        from: formatLocationDisplay(
+                          transferOutHotelLoc.name,
+                          transferOutHotelLoc.type,
+                        ),
+                        to: formatLocationDisplay(
+                          transferOutAirportLoc.name,
+                          transferOutAirportLoc.type,
+                        ),
+                      })}
+                    </Text>
+                  ) : null}
+                </>
+              )}
+              {pickupSignLogo && booking_kind !== 'transfer' ? (
+                <View style={styles.voucherLogoPreview}>
+                  <Text style={styles.vLineMuted}>{t('bookings.voucherPickupSignMark')}</Text>
+                  {isPickupSignLogoPdf(pickupSignLogo) ? (
+                    <Text style={styles.vLineMuted}>{t('newBooking.pickupSignLogo.pdfReady')}</Text>
+                  ) : (
+                    <Image
+                      source={{ uri: pickupSignLogo.uri }}
+                      style={styles.voucherLogoImage}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              ) : null}
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherPassengers')}: {pax}
+              </Text>
+              <Text style={styles.vLine}>
+                {t('newBooking.form.voucherPayment')}: {paymentLabel(paymentWhen)}
+              </Text>
+              <Text style={styles.vPrice}>
+                {t('newBooking.form.voucherOfferedPrice')}: {formatGel(driverOfferGel)}
+              </Text>
+            </View>
 
             <DriverCategorySelect value={driverCategory} onChange={setDriverCategory} />
 
@@ -1153,15 +2092,6 @@ export default function NewBookingScreen() {
           {step < 3 && (
             <Pressable
               onPress={() => {
-                if (step === 1) {
-                  const step1Err = validateSmartBookingStep1(serviceFlags, t);
-                  if (step1Err) {
-                    setStep1Error(step1Err);
-                    showValidationAlert(step1Err);
-                    return;
-                  }
-                  setStep1Error(null);
-                }
                 if (step === 2) {
                   const step2Error = validateStep2();
                   if (step2Error) {
@@ -1340,6 +2270,45 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
     alignItems: 'center',
     borderWidth: 1,
+  },
+  tourServiceCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    marginBottom: SPACING.sm,
+    minHeight: 52,
+  },
+  tourServiceCheckboxRowActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(245,166,35,0.08)',
+  },
+  tourServiceCheckboxBox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tourServiceCheckboxBoxActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.gold,
+  },
+  tourServiceCheckboxLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  tourServiceCheckboxLabelActive: {
+    fontWeight: '700',
   },
   meetToggle: {
     borderRadius: 14,
