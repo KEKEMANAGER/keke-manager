@@ -455,7 +455,7 @@
     "filters": {
       "all": "All",
       "pending": "Pending",
-      "confirmed": "Confirmed",
+      "confirmed": "Active",
       "completed": "Completed",
       "cancelled": "Cancelled"
     },

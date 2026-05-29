@@ -452,7 +452,7 @@
     "filters": {
       "all": "Все",
       "pending": "Ожидание",
-      "confirmed": "Подтверждённые",
+      "confirmed": "Активные",
       "completed": "Завершённые",
       "cancelled": "Отменённые"
     },

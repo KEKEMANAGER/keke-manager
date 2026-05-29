@@ -19,6 +19,7 @@ import {
   bookingTypeLabel,
   fetchBookingsByCompanyId,
   formatBookingDate,
+  normalizeBookingKind,
   routeSummary,
   subscribeBookingsChanges,
   unsubscribeChannel,
@@ -35,8 +36,10 @@ import {
 } from '../../lib/ratings';
 
 type FilterKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
+type KindFilterKey = 'all' | 'transfer' | 'tour' | 'day_tour';
 
 const FILTERS: FilterKey[] = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
+const KIND_FILTERS: KindFilterKey[] = ['all', 'transfer', 'tour', 'day_tour'];
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -58,6 +61,11 @@ function statusColor(status: BookingStatus) {
     default:
       return COLORS.gray;
   }
+}
+
+function matchesKindFilter(row: BookingRow, kindFilter: KindFilterKey): boolean {
+  if (kindFilter === 'all') return true;
+  return normalizeBookingKind(row.kind) === kindFilter;
 }
 
 function matchesFilter(row: BookingRow, filter: FilterKey): boolean {
@@ -87,7 +95,18 @@ export default function CompanyHistoryScreen() {
     [t],
   );
 
+  const kindFilterLabels = useMemo(
+    (): Record<KindFilterKey, string> => ({
+      all: t('historyPage.filters.all'),
+      transfer: t('booking.type.transfer'),
+      tour: t('booking.type.tour'),
+      day_tour: t('booking.type.day_tour'),
+    }),
+    [t],
+  );
+
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [kindFilter, setKindFilter] = useState<KindFilterKey>('all');
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,7 +161,17 @@ export default function CompanyHistoryScreen() {
     return () => unsubscribeChannel(ch);
   }, [userId, load]);
 
-  const filtered = useMemo(() => rows.filter((r) => matchesFilter(r, filter)), [rows, filter]);
+  const filtered = useMemo(
+    () => rows.filter((r) => matchesFilter(r, filter) && matchesKindFilter(r, kindFilter)),
+    [rows, filter, kindFilter],
+  );
+
+  const activeFilterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (filter !== 'all') parts.push(filterLabels[filter]);
+    if (kindFilter !== 'all') parts.push(kindFilterLabels[kindFilter]);
+    return parts.join(' · ');
+  }, [filter, kindFilter, filterLabels, kindFilterLabels]);
 
   function historyEmptyMessages(f: FilterKey): {
     icon: 'calendar' | 'archive' | 'time-outline';
@@ -188,28 +217,6 @@ export default function CompanyHistoryScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.filterStrip,
-          { paddingLeft: SPACING.lg, paddingTop: insets.top + SPACING.sm },
-        ]}
-        style={styles.filterScroll}
-      >
-        {FILTERS.map((f) => (
-          <Pressable
-            key={f}
-            onPress={() => setFilter(f)}
-            style={[styles.filterChip, filter === f && styles.filterChipActive]}
-          >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-              {filterLabels[f]}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      <ScrollView
         contentContainerStyle={[
           styles.list,
           {
@@ -229,6 +236,43 @@ export default function CompanyHistoryScreen() {
         }
       >
         <Text style={styles.title}>{t('historyPage.title')}</Text>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterStrip}
+        >
+          {FILTERS.map((f) => (
+            <Pressable
+              key={f}
+              onPress={() => setFilter(f)}
+              style={[styles.filterChip, filter === f && styles.filterChipActive]}
+            >
+              <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+                {filterLabels[f]}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.kindFilterStrip}
+        >
+          {KIND_FILTERS.map((k) => (
+            <Pressable
+              key={k}
+              onPress={() => setKindFilter(k)}
+              style={[styles.filterChip, kindFilter === k && styles.filterChipActive]}
+            >
+              <Text style={[styles.filterText, kindFilter === k && styles.filterTextActive]}>
+                {kindFilterLabels[k]}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
         {error ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
@@ -240,7 +284,7 @@ export default function CompanyHistoryScreen() {
 
         <Text style={styles.sub}>
           {t('historyPage.shownCount', { count: filtered.length })}
-          {filter !== 'all' ? t('historyPage.filterActive', { filter: filterLabels[filter] }) : ''}
+          {activeFilterSummary ? t('historyPage.filterActive', { filter: activeFilterSummary }) : ''}
         </Text>
 
         {loading ? (
@@ -319,13 +363,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  filterScroll: {
-    flexGrow: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
   filterStrip: {
-    paddingRight: SPACING.lg,
+    paddingBottom: SPACING.sm,
+    gap: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  kindFilterStrip: {
     paddingBottom: SPACING.md,
     gap: SPACING.sm,
     flexDirection: 'row',
