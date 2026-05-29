@@ -1,6 +1,7 @@
 import { usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { isCurrentRoute } from '../lib/routerPaths';
 import { getUserRole } from '../lib/role';
 
 /** Redirects authenticated / unauthenticated users inside (auth), (app), and (driver) groups. */
@@ -8,7 +9,6 @@ export function AuthenticatedRouteGuard() {
   const { user, profile, loading } = useAuth();
   const userId = user?.id;
   const segments = useSegments();
-  const pathname = usePathname();
   const router = useRouter();
   const role = getUserRole(profile);
 
@@ -43,10 +43,10 @@ export function AuthenticatedRouteGuard() {
       target = null;
     }
 
-    if (target && pathname !== target) {
+    if (target && !isCurrentRoute(segments, target)) {
       router.replace(target);
     }
-  }, [loading, userId, role, segments, pathname, router]);
+  }, [loading, userId, role, segments, router]);
 
   return null;
 }

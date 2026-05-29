@@ -1,4 +1,4 @@
-import { Slot, usePathname, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
@@ -19,6 +19,7 @@ import {
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../constants/theme';
 import { getUserRole } from '../lib/role';
+import { isCurrentRoute } from '../lib/routerPaths';
 import i18n, { initI18n } from '../src/lib/i18n';
 
 function WebRootStyles() {
@@ -41,7 +42,6 @@ function NavigationShell() {
   const { user, profile, loading } = useAuth();
   const userId = user?.id;
   const segments = useSegments();
-  const pathname = usePathname();
   const router = useRouter();
   const role = getUserRole(profile);
 
@@ -58,10 +58,10 @@ function NavigationShell() {
       target = '/';
     }
 
-    if (target && pathname !== target) {
+    if (target && !isCurrentRoute(segments, target)) {
       router.replace(target);
     }
-  }, [loading, userId, role, segments, pathname, router]);
+  }, [loading, userId, role, segments, router]);
 
   return (
     <View style={styles.shell}>

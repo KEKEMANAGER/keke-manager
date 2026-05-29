@@ -263,8 +263,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [applySession, alertSessionExpiredOnce, clearHadSessionMarkerNative, maybeWarnSessionExpiryOnColdStart]);
 
-  /** Block UI only until session is known; profile loads in background (dashboard must not hang). */
-  const loading = !sessionHydrated || profileLoading;
+  /** Block UI until session is known and the signed-in user's profile row has loaded. */
+  const loading = !sessionHydrated || (!!user && profileLoading);
 
   const signIn = useCallback(async (email: string, password: string) => {
     return supabase.auth.signInWithPassword({ email, password });

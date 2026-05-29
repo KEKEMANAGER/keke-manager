@@ -1,5 +1,5 @@
 import { useRouter, useSegments } from 'expo-router';
-import { useCallback, useEffect, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,7 @@ export function DriverVerificationGuard({ children }: Props) {
   const insets = useSafeAreaInsets();
   const userId = user?.id;
   const onVerification = isDriverVerificationRoute(segments as string[]);
+  const onDashboard = (segments as string[]).includes('dashboard');
   const gateMode = getDriverVerificationGateMode(profile);
   const hasFullAccess = driverHasFullAppAccess(profile);
 
@@ -48,14 +49,10 @@ export function DriverVerificationGuard({ children }: Props) {
     };
   }, [userId, loading, hasFullAccess, refreshProfile]);
 
-  const blockDeepLink = useCallback(() => {
-    if (loading || hasFullAccess || onVerification) return;
-    router.replace('/(driver)/dashboard' as never);
-  }, [loading, hasFullAccess, onVerification, router]);
-
   useEffect(() => {
-    blockDeepLink();
-  }, [blockDeepLink, segments]);
+    if (loading || hasFullAccess || onVerification || onDashboard) return;
+    router.replace('/(driver)/dashboard' as never);
+  }, [loading, hasFullAccess, onVerification, onDashboard, router]);
 
   if (loading) {
     return (
