@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,7 +23,7 @@ import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 
-export function AdminUsersSection() {
+export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }) {
   const { t } = useTranslation();
   const router = useRouter();
   const [rows, setRows] = useState<AdminUserRow[]>([]);
@@ -52,6 +52,16 @@ export function AdminUsersSection() {
       void load();
     }, [load]),
   );
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((u) => {
+      const name = (u.full_name ?? '').trim().toLowerCase();
+      const email = (u.email ?? '').trim().toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }, [rows, searchQuery]);
 
   function typeLabel(u: AdminUserRow): string {
     if (u.role === 'company') return t('adminPanel.typeCompany');
@@ -150,7 +160,7 @@ export function AdminUsersSection() {
       {rows.length === 0 ? (
         <Text style={adminStyles.empty}>{t('adminPanel.usersEmpty')}</Text>
       ) : (
-        rows.map((u) => (
+        filteredRows.map((u) => (
           <View key={u.id} style={adminStyles.card}>
             <Pressable onPress={() => openUserDetail(u)} style={({ pressed }) => pressed && { opacity: 0.9 }}>
               <Text style={adminStyles.cardTitle}>{u.full_name?.trim() || u.email || '—'}</Text>

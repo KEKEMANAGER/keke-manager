@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -42,7 +42,7 @@ const VEHICLE_PHOTO_SLOTS: DocSlot[] = [
   { key: 'vehicle_rear', labelKey: 'vehicleScreen.photoRear' },
 ];
 
-export function AdminVerifySection() {
+export function AdminVerifySection({ searchQuery = '' }: { searchQuery?: string }) {
   const { t } = useTranslation();
   const [rows, setRows] = useState<AdminVerificationUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +71,17 @@ export function AdminVerifySection() {
       void load();
     }, [load]),
   );
+
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((u) => {
+      const name = (u.full_name ?? '').trim().toLowerCase();
+      const email = (u.email ?? '').trim().toLowerCase();
+      const companyEmail = (u.company_email ?? '').trim().toLowerCase();
+      return name.includes(q) || email.includes(q) || companyEmail.includes(q);
+    });
+  }, [rows, searchQuery]);
 
   function promptRejectReason(): Promise<string | null> {
     if (Platform.OS === 'web') {
@@ -227,7 +238,7 @@ export function AdminVerifySection() {
         {rows.length === 0 ? (
           <Text style={adminStyles.empty}>{t('adminVerify.emptyPending')}</Text>
         ) : (
-          rows.map((u) => (
+          filteredRows.map((u) => (
             <View key={u.id} style={adminStyles.card}>
               <Text style={adminStyles.cardTitle}>{u.full_name?.trim() || u.email || '—'}</Text>
               <Text style={adminStyles.cardMeta}>

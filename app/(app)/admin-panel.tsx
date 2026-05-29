@@ -9,8 +9,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AdminBookingsSection } from '../../components/admin/AdminBookingsSection';
@@ -21,8 +23,33 @@ import { AdminAdsSection } from '../../components/admin/AdminAdsSection';
 import { AdminTabBar, type AdminTabId } from '../../components/admin/AdminTabBar';
 import { AdminUsersSection } from '../../components/admin/AdminUsersSection';
 import { AdminVerifySection } from '../../components/admin/AdminVerifySection';
-import { COLORS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+
+function AdminSearchInput({
+  value,
+  onChangeText,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+}) {
+  return (
+    <View style={styles.searchWrap}>
+      <Ionicons name="search-outline" size={20} color={COLORS.textMuted} style={styles.searchIcon} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder="Search by name or email"
+        placeholderTextColor={COLORS.gray}
+        style={styles.searchInput}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+        clearButtonMode="while-editing"
+      />
+    </View>
+  );
+}
 
 const TAB_IDS: AdminTabId[] = ['users', 'verify', 'chats', 'bookings', 'gps', 'stats', 'ads'];
 
@@ -41,10 +68,15 @@ export default function AdminPanelScreen() {
   const admin = profile?.role === 'admin';
 
   const [tab, setTab] = useState<AdminTabId>(() => parseTab(params.tab));
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setTab(parseTab(params.tab));
   }, [params.tab]);
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [tab]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -106,8 +138,18 @@ export default function AdminPanelScreen() {
 
       <AdminTabBar tabs={tabs} active={tab} onChange={setTab} />
 
-      {tab === 'users' ? <AdminUsersSection /> : null}
-      {tab === 'verify' ? <AdminVerifySection /> : null}
+      {tab === 'users' ? (
+        <>
+          <AdminSearchInput value={searchQuery} onChangeText={setSearchQuery} />
+          <AdminUsersSection searchQuery={searchQuery} />
+        </>
+      ) : null}
+      {tab === 'verify' ? (
+        <>
+          <AdminSearchInput value={searchQuery} onChangeText={setSearchQuery} />
+          <AdminVerifySection searchQuery={searchQuery} />
+        </>
+      ) : null}
       {tab === 'chats' ? <AdminChatsSection /> : null}
       {tab === 'bookings' ? <AdminBookingsSection /> : null}
       {tab === 'gps' ? <AdminGpsSection /> : null}
@@ -155,5 +197,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: SPACING.md,
+  },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.button,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  searchIcon: {
+    marginRight: SPACING.sm,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    color: COLORS.text,
+    fontSize: 15,
   },
 });
