@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION public.has_active_booking_with_user(target_user_id uu
 RETURNS boolean
 LANGUAGE sql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT EXISTS (

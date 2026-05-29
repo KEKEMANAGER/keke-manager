@@ -98,20 +98,30 @@ const USER_PROFILE_SELECT =
   'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, is_guide_driver, available_for_hire, company_email, company_phone, company_id_code, company_director, city, bank_account';
 
 async function fetchProfile(userId: string): Promise<Profile | null> {
-  const [usersRes, profilesRes] = await Promise.all([
-    supabase.from('users').select(USER_PROFILE_SELECT).eq('id', userId).maybeSingle(),
-    supabase.from('profiles').select('is_verified').eq('id', userId).maybeSingle(),
-  ]);
+  const usersRes = await supabase
+    .from('users')
+    .select(USER_PROFILE_SELECT)
+    .eq('id', userId)
+    .maybeSingle();
 
   if (usersRes.error) {
-    if (__DEV__) {
-      console.warn('[AuthContext] fetchProfile users', usersRes.error.message);
-    }
+    console.error('[AuthContext] fetchProfile users', usersRes.error.message);
     return null;
   }
   if (!usersRes.data) return null;
 
   const row = usersRes.data as Profile;
+
+  const profilesRes = await supabase
+    .from('profiles')
+    .select('is_verified')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profilesRes.error) {
+    console.warn('[AuthContext] fetchProfile profiles', profilesRes.error.message);
+  }
+
   const profilesVerified = (profilesRes.data as { is_verified?: boolean | null } | null)?.is_verified;
   const isVerified = row.is_verified === true || profilesVerified === true;
 
@@ -253,7 +263,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [applySession, alertSessionExpiredOnce, clearHadSessionMarkerNative, maybeWarnSessionExpiryOnColdStart]);
 
-  const loading = !sessionHydrated || (!!user && profileLoading);
+  /** Block UI only until session is known; profile loads in background (dashboard must not hang). */
+  const loading = !sessionHydrated || profileLoading;
 
   const signIn = useCallback(async (email: string, password: string) => {
     return supabase.auth.signInWithPassword({ email, password });
