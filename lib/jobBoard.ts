@@ -9,6 +9,7 @@ import {
   type JobBoardLangCode,
 } from './spokenLanguages';
 import { supabase } from './supabase';
+import { USERS_DIRECTORY } from './usersDirectory';
 
 export {
   JOB_BOARD_LANG_CODES,
@@ -68,18 +69,9 @@ export async function fetchHiredDriversForBoard(
     }
   }
 
-  let usersQuery = supabase
-    .from('users')
-    .select('id, full_name, email, avatar_url, bio, languages, available_for_hire')
-    .eq('role', 'driver')
-    .eq('is_hired_driver', true)
-    .eq('is_verified', true);
-
-  if (onlyLooking) {
-    usersQuery = usersQuery.eq('available_for_hire', true);
-  }
-
-  const { data: users, error: usersErr } = await usersQuery;
+  const { data: users, error: usersErr } = await supabase.rpc('list_job_board_hired_drivers', {
+    p_only_looking: onlyLooking,
+  });
 
   if (usersErr) return { data: [], error: new Error(usersErr.message) };
 
@@ -93,7 +85,7 @@ export async function fetchHiredDriversForBoard(
     available_for_hire: boolean | null;
   };
 
-  const candidates = (users as Row[] ?? []).filter((u) => !excluded.has(u.id));
+  const candidates = (users as Row[] ?? []).filter((u) => !excluded.has(String(u.id)));
   if (candidates.length === 0) return { data: [], error: null };
 
   const ratings = await Promise.all(
@@ -193,7 +185,7 @@ export async function fetchHiredDriverStatus(driverId: string): Promise<{
   if (fleetRow) {
     const hostId = (fleetRow as { host_driver_id: string }).host_driver_id;
     const { data: host } = await supabase
-      .from('users')
+      .from(USERS_DIRECTORY)
       .select('full_name')
       .eq('id', hostId)
       .maybeSingle();

@@ -1,6 +1,7 @@
 import type { ChatThreadType, ParticipantRole } from './bookingChat';
 import { notifyChatMessageRecipient } from './notifications';
 import { supabase } from './supabase';
+import { USERS_DIRECTORY } from './usersDirectory';
 import { trimUserId } from './userId';
 
 /** Bookings where company and driver may chat (assigned driver required). */
@@ -55,7 +56,7 @@ async function resolveSenderDisplayName(senderId: string): Promise<string> {
   const id = trimUserId(senderId);
   if (!id) return '';
   const { data } = await supabase
-    .from('users')
+    .from(USERS_DIRECTORY)
     .select('full_name')
     .eq('id', id)
     .maybeSingle();
@@ -206,7 +207,7 @@ export async function fetchConversations(userId: string): Promise<{
   if (otherIds.length === 0) return { data: [], error: null };
 
   const { data: users } = await supabase
-    .from('users')
+    .from(USERS_DIRECTORY)
     .select('id, full_name, avatar_url')
     .in('id', otherIds);
 

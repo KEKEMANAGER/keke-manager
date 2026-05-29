@@ -145,27 +145,20 @@ export async function filterDriverIdsAvailableForWindow(
   const ids = [...new Set(driverIds.map((d) => d.trim()).filter(Boolean))];
   if (!ids.length) return { availableIds: [], error: null };
 
-  const { data: blocks, error } = await fetchOverlappingSchedulesForDrivers(
-    ids,
-    window.start,
-    window.end,
-  );
-  if (error) return { availableIds: [], error };
+  const { data, error } = await supabase.rpc('filter_drivers_available_for_window', {
+    p_driver_ids: ids,
+    p_range_start: toIsoString(window.start),
+    p_range_end: toIsoString(window.end),
+    p_buffer_ms: bufferMs,
+  });
 
-  const busyDriverIds = new Set<string>();
-  for (const block of blocks) {
-    const bStart = parseStoredDateTime(block.start_time);
-    const bEnd = parseStoredDateTime(block.end_time);
-    if (!bStart || !bEnd) continue;
-    if (intervalsOverlap(window.start, window.end, bStart, bEnd, bufferMs)) {
-      busyDriverIds.add(block.driver_id);
-    }
-  }
+  if (error) return { availableIds: [], error: new Error(error.message) };
 
-  return {
-    availableIds: ids.filter((id) => !busyDriverIds.has(id)),
-    error: null,
-  };
+  const availableIds = Array.isArray(data)
+    ? (data as string[]).filter((id) => typeof id === 'string' && id.length > 0)
+    : [];
+
+  return { availableIds, error: null };
 }
 
 export async function createBookingScheduleBlock(

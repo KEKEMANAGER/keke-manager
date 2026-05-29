@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { USERS_DIRECTORY } from './usersDirectory';
 
 export type DriverLocationRow = {
   driver_id: string;
@@ -82,7 +83,7 @@ export async function fetchAllLocationsWithInfo(): Promise<{
   const ids = locs.map((l) => (l as DriverLocationRow).driver_id);
 
   const [{ data: users }, { data: bookings }] = await Promise.all([
-    supabase.from('users').select('id, full_name').in('id', ids),
+    supabase.from(USERS_DIRECTORY).select('id, full_name').in('id', ids),
     supabase
       .from('bookings')
       .select('id, driver_id, status, vehicle_type, vehicle_class')
@@ -142,7 +143,7 @@ export async function fetchLocationsForDriverIds(
       .from('driver_locations')
       .select('driver_id, latitude, longitude, updated_at')
       .in('driver_id', ids),
-    supabase.from('users').select('id, full_name').in('id', ids),
+    supabase.from(USERS_DIRECTORY).select('id, full_name').in('id', ids),
   ]);
 
   if (locErr) return { data: [], error: new Error(locErr.message) };

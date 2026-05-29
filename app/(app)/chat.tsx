@@ -89,7 +89,7 @@ export default function CompanyChatScreen() {
     }
     void (async () => {
       const { data } = await supabase
-        .from('users')
+        .from('users_directory')
         .select('is_verified, avatar_url')
         .eq('id', otherUserId)
         .maybeSingle();

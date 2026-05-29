@@ -18,6 +18,7 @@ import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { formatTourBookingNotificationBody } from './tourDays';
 import { supabase } from './supabase';
+import { USERS_DIRECTORY } from './usersDirectory';
 import {
   normalizeVehicleClass,
   normalizeVehicleType,
@@ -252,7 +253,7 @@ export async function fetchMatchingDriverPushRecipients(
       .in('id', driverIds)
       .not('push_token', 'is', null),
     supabase
-      .from('users')
+      .from(USERS_DIRECTORY)
       .select('id, is_verified, languages, is_hired_driver, is_guide_driver')
       .in('id', driverIds),
   ]);
@@ -342,7 +343,7 @@ export async function fetchDriverPushRecipientsById(
 
   const [profileRes, userRes] = await Promise.all([
     supabase.from('profiles').select('push_token, is_verified').eq('id', id).maybeSingle(),
-    supabase.from('users').select('is_verified').eq('id', id).maybeSingle(),
+    supabase.from(USERS_DIRECTORY).select('is_verified').eq('id', id).maybeSingle(),
   ]);
 
   if (profileRes.error) {

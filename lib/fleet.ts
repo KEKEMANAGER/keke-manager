@@ -1,6 +1,7 @@
 import type { DriverLocationRow } from './locations';
 import { notifyFleetInviteToSub } from './fleetNotifications';
 import { supabase } from './supabase';
+import { USERS_DIRECTORY } from './usersDirectory';
 import type { VehicleRow } from './vehicles';
 
 export type FleetInviteStatus = 'pending' | 'accepted' | 'rejected';
@@ -49,9 +50,6 @@ export type FleetContext =
   | FleetHostContext
   | { kind: 'none' };
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 function fleetStatus(row: { status?: string | null }): FleetInviteStatus {
   const s = row.status?.trim().toLowerCase();
   if (s === 'pending' || s === 'rejected') return s;
@@ -76,18 +74,13 @@ export async function resolveDriverUserId(
   const raw = emailOrId.trim();
   if (!raw) return { userId: null, error: null };
 
-  let query = supabase.from('users').select('id, role, email').eq('role', 'driver');
-
-  if (UUID_RE.test(raw)) {
-    query = query.eq('id', raw);
-  } else {
-    query = query.ilike('email', raw);
-  }
-
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await supabase.rpc('resolve_driver_for_fleet_invite', {
+    p_lookup: raw,
+  });
   if (error) return { userId: null, error: new Error(error.message) };
-  if (!data) return { userId: null, error: new Error('მძღოლი ვერ მოიძებნა') };
-  return { userId: (data as { id: string }).id, error: null };
+  const userId = data ? String(data) : null;
+  if (!userId) return { userId: null, error: new Error('მძღოლი ვერ მოიძებნა') };
+  return { userId, error: null };
 }
 
 /** Sub / hired driver: host-assigned vehicle from accepted `driver_fleet`. */
@@ -109,7 +102,7 @@ export async function fetchFleetContext(driverId: string): Promise<FleetContext>
   if (subRow) {
     const row = subRow as { id: string; host_driver_id: string; vehicle_id: string };
     const [{ data: host }, { data: vehicle, error: vehicleErr }] = await Promise.all([
-      supabase.from('users').select('full_name').eq('id', row.host_driver_id).maybeSingle(),
+      supabase.from(USERS_DIRECTORY).select('full_name').eq('id', row.host_driver_id).maybeSingle(),
       supabase
         .from('vehicles')
         .select(
@@ -187,8 +180,8 @@ export async function fetchFleetForHost(
   const subIds = fleet.map((f) => f.sub_driver_id);
   const vehicleIds = fleet.map((f) => f.vehicle_id);
 
-  const [{ data: users }, { data: vehicles }, { data: locs }] = await Promise.all([
-    supabase.from('users').select('id, full_name, email').in('id', subIds),
+  const [{ data: fleetMembers }, { data: vehicles }, { data: locs }] = await Promise.all([
+    supabase.rpc('get_fleet_members_directory', { p_host_driver_id: hostDriverId }),
     supabase
       .from('vehicles')
       .select('id, model, plate, type, class, is_active, photo_front')
@@ -199,9 +192,14 @@ export async function fetchFleetForHost(
       .in('driver_id', subIds),
   ]);
 
-  type U = { id: string; full_name: string | null; email: string | null };
+  type FleetMemberDir = { sub_driver_id: string; full_name: string | null; email: string | null };
   type V = FleetMemberView['vehicle'];
-  const userMap = new Map((users as U[] ?? []).map((u) => [u.id, u]));
+  const userMap = new Map(
+    ((fleetMembers ?? []) as FleetMemberDir[]).map((u) => [
+      u.sub_driver_id,
+      { id: u.sub_driver_id, full_name: u.full_name, email: u.email },
+    ]),
+  );
   const vehicleMap = new Map((vehicles as V[] ?? []).map((v) => [v!.id, v]));
   const locMap = new Map(
     (locs as DriverLocationRow[] ?? []).map((l) => [l.driver_id, l]),
@@ -268,7 +266,7 @@ export async function fetchPendingFleetInvitesForSub(subDriverId: string): Promi
   const vehicleIds = fleet.map((f) => f.vehicle_id);
 
   const [{ data: hosts }, { data: vehicles }] = await Promise.all([
-    supabase.from('users').select('id, full_name').in('id', hostIds),
+    supabase.from(USERS_DIRECTORY).select('id, full_name').in('id', hostIds),
     supabase
       .from('vehicles')
       .select('id, model, plate, type, class')
@@ -352,7 +350,7 @@ export async function sendFleetInvite(
   }
 
   const { data: subUser } = await supabase
-    .from('users')
+    .from(USERS_DIRECTORY)
     .select('id, is_hired_driver, is_verified')
     .eq('id', subDriverId)
     .maybeSingle();

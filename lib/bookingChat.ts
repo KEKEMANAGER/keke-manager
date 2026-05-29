@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { USERS_DIRECTORY } from './usersDirectory';
 import { trimUserId } from './userId';
 
 export type ParticipantRole = 'company' | 'host' | 'driver';
@@ -168,7 +169,7 @@ export async function fetchBookingChatThreads(
     const otherRole = myRole === def.roles[0] ? def.roles[1] : def.roles[0];
 
     const { data: userRow } = await supabase
-      .from('users')
+      .from(USERS_DIRECTORY)
       .select('full_name')
       .eq('id', otherUserId)
       .maybeSingle();

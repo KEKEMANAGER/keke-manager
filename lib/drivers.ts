@@ -4,6 +4,7 @@ import { firstVehiclePhotoUrl } from './vehiclePhotos';
 import { fetchVehiclesByDriver } from './vehicles';
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { supabase } from './supabase';
+import { USERS_DIRECTORY } from './usersDirectory';
 import {
   driverEligibleForOpenJobBroadcast,
   driverMatchesRequestedCategory,
@@ -159,8 +160,8 @@ export async function fetchMatchingDrivers(
 
   const [usersRes, vehiclesRes, ratingsRes] = await Promise.all([
     supabase
-      .from('users')
-      .select('id, full_name, city, avatar_url, languages, experience_years, role, is_verified')
+      .from(USERS_DIRECTORY)
+      .select('id, full_name, city, avatar_url, languages, experience_years, role, is_verified, is_guide_driver')
       .in('id', ids),
     supabase
       .from('vehicles')
@@ -329,7 +330,7 @@ export async function fetchDriverProfile(
   const preferredId = options?.bookingVehicleId?.trim() || null;
   const [userRes, profileRes, vehiclesRes, ratingRes] = await Promise.all([
     supabase
-      .from('users')
+      .from(USERS_DIRECTORY)
       .select('full_name, bio, languages, experience_years, is_verified, is_guide_driver, avatar_url')
       .eq('id', driverUserId)
       .maybeSingle(),
