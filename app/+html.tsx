@@ -33,6 +33,7 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="alternate" hrefLang="ru" href={`${SITE_URL}/?lang=ru`} />
         <link rel="alternate" hrefLang="x-default" href={`${SITE_URL}/`} />
         <link rel="canonical" href={`${SITE_URL}/`} />
+        <link rel="ai-info" href={`${SITE_URL}/llms.txt`} type="text/plain" />
 
         <meta property="og:type" content="website" />
         <meta property="og:url" content={SITE_URL} />

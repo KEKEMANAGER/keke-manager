@@ -24,4 +24,11 @@ Disallow: /fleet-map
 Disallow: /gps
 Disallow: /find-drivers
 
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+# GEO — structured information for AI crawlers (ChatGPT, Claude, Perplexity, Gemini, etc.)
+# Summary: https://kekemanager.com/llms.txt
+# Full: https://kekemanager.com/llms-full.txt
+
 Sitemap: https://kekemanager.com/sitemap.xml

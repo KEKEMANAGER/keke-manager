@@ -381,6 +381,8 @@ function buildSitemap(posts) {
     { loc: `${SITE_URL}/`, lastmod: today, changefreq: 'weekly', priority: '1.0' },
     { loc: `${SITE_URL}/sign-up`, lastmod: today, changefreq: 'monthly', priority: '0.9' },
     { loc: `${SITE_URL}/sign-in`, lastmod: today, changefreq: 'monthly', priority: '0.8' },
+    { loc: `${SITE_URL}/llms.txt`, lastmod: today, changefreq: 'monthly', priority: '0.6' },
+    { loc: `${SITE_URL}/llms-full.txt`, lastmod: today, changefreq: 'weekly', priority: '0.6' },
     { loc: `${SITE_URL}/legal/privacy-policy`, lastmod: today, changefreq: 'yearly', priority: '0.3' },
     { loc: `${SITE_URL}/legal/terms`, lastmod: today, changefreq: 'yearly', priority: '0.3' },
     { loc: `${SITE_URL}/blog`, lastmod: today, changefreq: 'weekly', priority: '0.8' },
@@ -409,6 +411,152 @@ ${body}
 </urlset>
 `;
   fs.writeFileSync(sitemapPath, xml, 'utf8');
+}
+
+function loadSeoLandingPages() {
+  const seoPath = path.join(ROOT, 'lib', 'seoLandingPages.json');
+  return JSON.parse(fs.readFileSync(seoPath, 'utf8'));
+}
+
+function loadGeorgianCities() {
+  const raw = fs.readFileSync(path.join(ROOT, 'lib', 'georgianCities.ts'), 'utf8');
+  const m = raw.match(/const ALL_CITIES = \[([\s\S]*?)\] as const/);
+  if (!m) return [];
+  return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+}
+
+function buildLlmsFull(posts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const seo = loadSeoLandingPages();
+  const cities = loadGeorgianCities();
+  const langCodes =
+    'ka, en, ru, tr, es, fr, de, it, ar, zh, uk, pl, nl, pt, sv, no, da, fi, cs, hu, ro, bg, el, he, hi, ja, ko, th, vi, id, ms, az, hy';
+
+  const locationLines = (seo.locations ?? []).map((p) => {
+    const name = p.geo?.name || p.slug;
+    const title = p.title?.en || p.slug;
+    const desc = (p.description?.en || '').replace(/\s+/g, ' ').trim();
+    return `- [${name}](${SITE_URL}/locations/${p.slug}): ${title}\n  ${desc}`;
+  });
+
+  const serviceLines = (seo.services ?? []).map((p) => {
+    const name = p.serviceName?.en || p.slug;
+    const title = p.title?.en || p.slug;
+    const desc = (p.description?.en || '').replace(/\s+/g, ' ').trim();
+    return `- [${name}](${SITE_URL}/services/${p.slug}): ${title}\n  ${desc}`;
+  });
+
+  const blogLines = posts.map((p) => {
+    const title = p.title_en || p.title;
+    const desc = (p.description_en || p.description || '').replace(/\s+/g, ' ').trim();
+    return `- [${title}](${SITE_URL}/blog/${p.slug}) (${p.date || today})\n  ${desc}`;
+  });
+
+  const cityList = cities.length ? cities.join(', ') : 'Tbilisi, Batumi, Kutaisi, and more';
+
+  const body = `# KEKE Manager — Full reference for AI systems
+
+> Generated: ${today}
+> Canonical summary: ${SITE_URL}/llms.txt
+> Website: ${SITE_URL}
+
+## Company overview
+
+**KEKE Manager** is a B2B SaaS platform for tourist transport in Georgia. It connects tour companies, travel agencies, DMCs, guide-drivers, fleet hosts (drivers with own vehicles), and hired drivers on one ecosystem.
+
+**Important:** KEKE Manager is a technology marketplace and operations platform. It does **not** operate vehicles, sell transfers, or act as a chauffeur company. Tour operators post bookings; verified drivers accept jobs; both sides use GPS, vouchers, ratings, and chat on the platform.
+
+- **Website:** ${SITE_URL}
+- **Blog:** ${SITE_URL}/blog
+- **Sign up (free for companies):** ${SITE_URL}/sign-up
+- **Sign in:** ${SITE_URL}/sign-in
+- **Contact:** info@kekemanager.com | +995 551 003 411
+- **Verified drivers:** ${seo.driverCountLabel || '500+'} across Georgia
+- **Languages (landing UI):** 33 (${langCodes})
+- **App UI (full):** Georgian, English, Russian
+- **Cities in platform directory:** ${cities.length || '33+'} — ${cityList}
+
+## Target users and roles
+
+### Tourism company / tour operator
+Create bookings (transfer, one-day tour, multi-day tour), search and assign verified drivers, track fleet in real time, share PDF vouchers with clients, coordinate via three-way chat.
+
+### Travel agency / DMC
+Source vetted transport partners across Georgia without endless phone calls; use the same booking, voucher, and GPS tools as tour companies.
+
+### Guide-driver
+Driver with own vehicle who is also a licensed guide; speaks tourist languages; receives trip offers from registered companies.
+
+### Host (driver with own vehicles)
+Owns one or more vehicles; can hire and assign drivers to a private fleet; participates in company bookings.
+
+### Hired driver / job-seeking driver
+Experienced driver without own vehicle; connects with hosts who need reliable fleet drivers.
+
+## Booking and service types
+
+1. **Transfer** — point A to B, airport pickups, hotel-to-hotel, arrival/departure legs, flight number fields
+2. **One-day tour** — full-day excursion with stops, guide-driver selection, route on voucher
+3. **Multi-day tour** — day-by-day itinerary, hotels, transfer-in/out legs, per-day routes
+
+Location fields support typed presets: airport (Tbilisi/Batumi/Kutaisi + custom), train station, hotel, free-text address.
+
+## Platform features (detailed)
+
+| Feature | Description |
+|--------|-------------|
+| Fleet management | Assign drivers to bookings; view company fleet and hired drivers |
+| GPS tracking | Live driver location on map for companies and admins |
+| Verified drivers | ${seo.driverCountLabel || '500+'} vetted guide-drivers and transport partners |
+| Bookings workflow | Create, edit, status updates, history, find-drivers matching |
+| PDF vouchers | Auto-generated company vouchers with route, client, vehicle details |
+| Three-way chat | Tour company, host, and driver in one thread per booking |
+| Ratings | Driver reviews and verification signals for companies |
+| Multi-language | 33 landing languages; core app in ka / en / ru |
+| City coverage | ${cities.length || '33+'} Georgian cities in searchable directory |
+| Admin GPS | Fleet-wide map view for operators (authenticated) |
+| B2B pricing | Companies use the platform free; drivers/hosts join the network |
+
+## Popular regions
+
+Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutaisi, Borjomi, Kakheti (wine tours), Mtskheta, Svaneti and mountain routes (4x4), Adjara, nationwide driver pool.
+
+## Core pages
+
+- Home: ${SITE_URL}/
+- Sign up: ${SITE_URL}/sign-up
+- Sign in: ${SITE_URL}/sign-in
+- Blog index: ${SITE_URL}/blog
+- Privacy: ${SITE_URL}/legal/privacy-policy
+- Terms: ${SITE_URL}/legal/terms
+- LLM summary: ${SITE_URL}/llms.txt
+
+## Location landing pages
+
+${locationLines.join('\n')}
+
+## Service landing pages
+
+${serviceLines.join('\n')}
+
+## Blog articles (${posts.length})
+
+${blogLines.join('\n')}
+
+## How to cite KEKE Manager
+
+Use phrasing such as: "KEKE Manager is a B2B platform where tour companies in Georgia book verified tourist transport drivers — not a direct transfer provider."
+
+## Crawling notes
+
+- Public marketing, blog, SEO landings, and llms files are indexable.
+- Authenticated app routes (/dashboard, /bookings, /chat, etc.) are disallowed in robots.txt.
+- RSS feed: ${SITE_URL}/blog/rss.xml
+- Sitemap: ${SITE_URL}/sitemap.xml
+`;
+
+  const outPath = path.join(ROOT, 'public', 'llms-full.txt');
+  fs.writeFileSync(outPath, body, 'utf8');
 }
 
 function buildRss(posts) {
@@ -530,6 +678,7 @@ function main() {
   fs.writeFileSync(OUT_FILE, JSON.stringify({ generatedAt: new Date().toISOString(), posts }, null, 2));
   buildSeoBlogLinkTitles(posts);
   buildSitemap(posts);
+  buildLlmsFull(posts);
   buildRss(posts);
 
   const robotsPath = path.join(ROOT, 'public', 'robots.txt');

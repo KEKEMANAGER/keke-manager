@@ -19,6 +19,18 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://kekemanager.com/llms.txt</loc>
+    <lastmod>2026-05-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://kekemanager.com/llms-full.txt</loc>
+    <lastmod>2026-05-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://kekemanager.com/legal/privacy-policy</loc>
     <lastmod>2026-05-29</lastmod>
     <changefreq>yearly</changefreq>
