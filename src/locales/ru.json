@@ -140,7 +140,21 @@
     "driving": "Вождение",
     "vehicleSaveFailed": "Не удалось сохранить настройки автомобиля",
     "savedTitle": "Сохранено",
-    "savedMessage": "Профиль обновлён"
+    "savedMessage": "Профиль обновлён",
+    "bankAccount": "Банковский счёт (IBAN)",
+    "bankAccountPlaceholder": "GE00TB0000000000000000",
+    "bankAccountHint": "Компания переведёт оплату на этот счёт после завершённой поездки.",
+    "bankAccountMissing": "IBAN не указан",
+    "bankAccountInvalidLength": "IBAN должен содержать 15–34 символа",
+    "bankAccountInvalidChars": "IBAN может содержать только буквы и цифры"
+  },
+  "bookingPayment": {
+    "unpaidBadge": "Не оплачено 🔴",
+    "paidBadge": "Оплачено ✅",
+    "paidConfirmed": "Оплата получена ✅",
+    "confirmReceived": "Я получил оплату ✅",
+    "ibanLabel": "IBAN",
+    "ibanMissing": "Водитель не указал IBAN"
   },
   "vehicleScreen": {
     "title": "Фото автомобиля",

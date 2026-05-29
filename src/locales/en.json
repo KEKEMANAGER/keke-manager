@@ -168,7 +168,21 @@
     "driving": "Driving",
     "vehicleSaveFailed": "Could not save vehicle settings",
     "savedTitle": "Saved",
-    "savedMessage": "Profile updated"
+    "savedMessage": "Profile updated",
+    "bankAccount": "Bank account (IBAN)",
+    "bankAccountPlaceholder": "GE00TB0000000000000000",
+    "bankAccountHint": "Companies transfer payment to this account after a completed trip.",
+    "bankAccountMissing": "No IBAN on file",
+    "bankAccountInvalidLength": "IBAN must be 15–34 characters",
+    "bankAccountInvalidChars": "IBAN may only contain letters and digits"
+  },
+  "bookingPayment": {
+    "unpaidBadge": "Unpaid 🔴",
+    "paidBadge": "Paid ✅",
+    "paidConfirmed": "Payment received ✅",
+    "confirmReceived": "I received payment ✅",
+    "ibanLabel": "IBAN",
+    "ibanMissing": "Driver has not set an IBAN"
   },
   "vehicleScreen": {
     "title": "Vehicle photos",

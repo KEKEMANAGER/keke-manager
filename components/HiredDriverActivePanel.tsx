@@ -15,6 +15,7 @@ import { formatTourBookingNotificationBody } from '../lib/tourDays';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import { shareVoucherPDF } from '../lib/voucher';
 import { mapSupabaseError, showErrorAlert } from '../lib/validation';
+import { BookingPaymentConfirm } from './BookingPaymentConfirm';
 import { BookingChatThreads } from './BookingChatThreads';
 
 type Props = {
@@ -71,6 +72,7 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
 
   const canStart = booking.status === 'accepted';
   const canComplete = booking.status === 'in_progress';
+  const isCompleted = booking.status === 'completed';
 
   return (
     <View style={[styles.card, SHADOWS.card]}>
@@ -107,6 +109,13 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
           >
             <Text style={styles.secondaryBtnText}>{t('hiredDriver.endTour')}</Text>
           </Pressable>
+        ) : null}
+        {isCompleted ? (
+          <BookingPaymentConfirm
+            booking={booking}
+            driverUserId={driverUserId}
+            onUpdated={onTripUpdated}
+          />
         ) : null}
         <Pressable
           onPress={() => void shareVoucherPDF(booking)}

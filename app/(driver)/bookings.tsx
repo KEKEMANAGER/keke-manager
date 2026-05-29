@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookingChangedBadge } from '../../components/BookingChangedBadge';
+import { BookingPaymentConfirm } from '../../components/BookingPaymentConfirm';
 import { BookingVoucherModal } from '../../components/BookingVoucherModal';
 import { EmptyState } from '../../components/EmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
@@ -669,8 +670,14 @@ export default function DriverBookingsScreen() {
                       )}
                     </Pressable>
                   </View>
-                ) : item.status === 'completed' ? (
-                  <Text style={styles.completedLabel}>{t('bookings.completedLabel')}</Text>
+                ) : item.status === 'completed' && user?.id ? (
+                  <BookingPaymentConfirm
+                    booking={item}
+                    driverUserId={user.id}
+                    actingId={actingId}
+                    setActingId={setActingId}
+                    onUpdated={() => void load('silent')}
+                  />
                 ) : null}
               </View>
             </View>

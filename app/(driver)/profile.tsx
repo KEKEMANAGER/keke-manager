@@ -66,6 +66,11 @@ import {
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
+import {
+  formatBankAccountForDisplay,
+  normalizeBankAccount,
+  validateBankAccount,
+} from '../../lib/bankAccount';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function DriverProfileScreen() {
@@ -79,7 +84,7 @@ export default function DriverProfileScreen() {
     () => vehicleClassUiOptions(),
     [i18n.language, i18n.resolvedLanguage],
   );
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -106,6 +111,7 @@ export default function DriverProfileScreen() {
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [bankAccount, setBankAccount] = useState('');
   const [city, setCity] = useState<string | null>(null);
   const [bio, setBio] = useState('');
   const [spokenLanguages, setSpokenLanguages] = useState<string[]>([]);
@@ -142,7 +148,9 @@ export default function DriverProfileScreen() {
     setSaveError(null);
     const { data, error } = await supabase
       .from('users')
-      .select('full_name, phone, city, bio, languages, experience_years, available_for_hire')
+      .select(
+        'full_name, phone, city, bio, languages, experience_years, available_for_hire, bank_account',
+      )
       .eq('id', user.id)
       .maybeSingle();
     setProfileLoading(false);
@@ -155,11 +163,14 @@ export default function DriverProfileScreen() {
       languages?: string[] | null;
       experience_years?: number | null;
       available_for_hire?: boolean | null;
+      bank_account?: string | null;
     };
     if (typeof row.full_name === 'string' && row.full_name.trim()) {
       setName(row.full_name.trim());
     }
     setPhone(row.phone?.trim() ?? profile?.phone?.trim() ?? '');
+    const iban = row.bank_account?.trim() || profile?.bank_account?.trim() || '';
+    setBankAccount(iban ? formatBankAccountForDisplay(iban) : '');
     const cityVal = row.city?.trim();
     setCity(cityVal && isValidGeorgianCity(cityVal) ? cityVal : null);
     setBio(row.bio?.trim() ?? '');
@@ -179,7 +190,7 @@ export default function DriverProfileScreen() {
       setBirthDateLoaded(bd);
       setBirthDate(parseBirthDate(bd));
     }
-  }, [user?.id, profile?.phone]);
+  }, [user?.id, profile?.phone, profile?.bank_account]);
 
   const loadHiredStatus = useCallback(async () => {
     if (!user?.id || !isHired) return;
@@ -322,15 +333,28 @@ export default function DriverProfileScreen() {
       return;
     }
 
+    const ibanErr = validateBankAccount(bankAccount);
+    if (ibanErr) {
+      const msg =
+        ibanErr === 'invalid_length'
+          ? t('profilePage.bankAccountInvalidLength')
+          : t('profilePage.bankAccountInvalidChars');
+      setSaveError(msg);
+      showValidationAlert(msg);
+      return;
+    }
+
     setSaveBusy(true);
     setSaveError(null);
     const years = parseInt(experienceYears.trim(), 10);
+    const bankStored = bankAccount.trim() ? normalizeBankAccount(bankAccount) : null;
     const userPatch = {
       full_name: name.trim() || null,
       phone: phone.trim() || null,
       city,
       bio: bio.trim() || null,
       experience_years: Number.isFinite(years) && years > 0 ? years : null,
+      bank_account: bankStored,
       ...(isHired ? { available_for_hire: availableForHire } : {}),
     };
 
@@ -401,6 +425,7 @@ export default function DriverProfileScreen() {
     }
     setBirthDateLoaded(birthIso);
     setIsEditing(false);
+    void refreshProfile();
     void loadProfileFields();
     if (isHired) void loadHiredStatus();
     else void loadVehiclePreferences();
@@ -598,6 +623,14 @@ export default function DriverProfileScreen() {
               onChangeText={setExperienceYears}
               keyboardType="number-pad"
             />
+            <Field
+              label={t('profilePage.bankAccount')}
+              value={bankAccount}
+              onChangeText={setBankAccount}
+              autoCapitalize="characters"
+              placeholder={t('profilePage.bankAccountPlaceholder')}
+            />
+            <Text style={styles.fieldHint}>{t('profilePage.bankAccountHint')}</Text>
             {!isHired ? (
               <>
                 <OptionChips
@@ -631,6 +664,10 @@ export default function DriverProfileScreen() {
               <ViewField label={t('profilePage.phone')} value="—" />
             )}
             <ViewField label={t('profilePage.city')} value={city || '—'} />
+            <ViewField
+              label={t('profilePage.bankAccount')}
+              value={bankAccount.trim() ? bankAccount : t('profilePage.bankAccountMissing')}
+            />
             <ViewField
               label={t('profilePage.birthDate')}
               value={formatStoredBirthDateForDisplay(birthDateLoaded)}
@@ -749,6 +786,7 @@ function Field({
   multiline,
   placeholder,
   keyboardType,
+  autoCapitalize,
 }: {
   label: string;
   value: string;
@@ -756,6 +794,7 @@ function Field({
   multiline?: boolean;
   placeholder?: string;
   keyboardType?: 'default' | 'number-pad';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }) {
   return (
     <View style={styles.field}>
@@ -766,6 +805,7 @@ function Field({
         multiline={multiline}
         placeholder={placeholder}
         keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
         placeholderTextColor={COLORS.gray}
         style={[styles.input, multiline && styles.inputMulti]}
       />
@@ -862,6 +902,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: SPACING.md,
     textTransform: 'uppercase',
+  },
+  fieldHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: -4,
+    marginBottom: SPACING.sm,
+    lineHeight: 18,
   },
   availabilityHint: {
     fontSize: 13,

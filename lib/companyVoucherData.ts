@@ -20,6 +20,7 @@ export type CompanyVoucherDriver = {
   userId: string;
   fullName: string | null;
   phone: string | null;
+  bankAccount: string | null;
   avatarUrl: string | null;
   isVerified: boolean;
   isGuideDriver: boolean;
@@ -214,7 +215,7 @@ async function fetchDriverBlock(
   const [userRes, profileRes, ratingRes, vehicleRow] = await Promise.all([
     supabase
       .from('users')
-      .select('full_name, phone, avatar_url, languages, city, is_verified, is_guide_driver')
+      .select('full_name, phone, bank_account, avatar_url, languages, city, is_verified, is_guide_driver')
       .eq('id', driverId)
       .maybeSingle(),
     supabase.from('profiles').select('full_name, avatar_url').eq('id', driverId).maybeSingle(),
@@ -225,6 +226,7 @@ async function fetchDriverBlock(
   const user = userRes.data as {
     full_name?: string | null;
     phone?: string | null;
+    bank_account?: string | null;
     avatar_url?: string | null;
     languages?: string[] | null;
     city?: string | null;
@@ -245,6 +247,7 @@ async function fetchDriverBlock(
       booking.driver_display_name?.trim() ||
       null,
     phone: user?.phone?.trim() || booking.driver_phone?.trim() || null,
+    bankAccount: user?.bank_account?.trim() || null,
     avatarUrl: resolveProfileAvatarUrl(profile?.avatar_url, user?.avatar_url),
     isVerified: !!user?.is_verified || !!booking.driver_is_verified,
     isGuideDriver: user?.is_guide_driver === true || booking.driver_is_guide_driver === true,

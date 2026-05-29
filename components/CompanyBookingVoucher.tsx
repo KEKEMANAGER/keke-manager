@@ -31,7 +31,9 @@ import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
 import { formatLocationDisplay } from '../lib/bookingLocations';
 import { formatBookingDisplayNumber, formatVoucherPriceGel } from '../lib/bookingVoucherDisplay';
+import { formatBankAccountForDisplay } from '../lib/bankAccount';
 import { shareCompanyVoucherPDF } from '../lib/voucher';
+import { BookingPaymentBadge } from './BookingPaymentBadge';
 import { GuideDriverBadge } from './GuideDriverBadge';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { UserAvatar } from './UserAvatar';
@@ -159,6 +161,14 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
 
           <Text style={styles.voucherCode}>{voucherCode}</Text>
           <Text style={styles.statusLine}>{bookingStatusLabel(booking.status)}</Text>
+          {booking.status === 'completed' ? (
+            <View style={styles.paymentBadgeWrap}>
+              <BookingPaymentBadge
+                paymentStatus={booking.payment_status}
+                bookingStatus={booking.status}
+              />
+            </View>
+          ) : null}
 
           <SectionHeader title={`📋 ${t('companyVoucher.sectionBooking')}`} />
           <DetailRow label={t('companyVoucher.type')} value={bookingKindLabel(booking.kind, booking.flight_direction)} />
@@ -329,6 +339,15 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                 ) : (
                   <Text style={styles.metaLine}>{t('companyVoucher.phoneMissing')}</Text>
                 )}
+                {booking.status === 'completed' ? (
+                  driver.bankAccount ? (
+                    <Text style={styles.ibanLine}>
+                      🏦 {t('bookingPayment.ibanLabel')}: {formatBankAccountForDisplay(driver.bankAccount)}
+                    </Text>
+                  ) : (
+                    <Text style={styles.metaLine}>{t('bookingPayment.ibanMissing')}</Text>
+                  )
+                ) : null}
               </View>
             </View>
             <View style={styles.actionRow}>
@@ -578,6 +597,8 @@ const styles = StyleSheet.create({
   },
   bookingIdLine: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   statusLine: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  paymentBadgeWrap: { marginBottom: SPACING.sm },
+  ibanLine: { fontSize: 13, color: COLORS.text, marginTop: 4 },
   sectionHeader: {
     fontSize: 15,
     fontWeight: '800',

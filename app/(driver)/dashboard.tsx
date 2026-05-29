@@ -22,6 +22,7 @@ import { ListEmptyState } from '../../components/ListEmptyState';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRealtimeRecord, BookingRow } from '../../lib/bookings';
+import { isBookingPaymentPaid } from '../../lib/bookingPayments';
 import {
   aggregateDriverStats,
   bookingStatusLabel,
@@ -327,7 +328,16 @@ export default function DriverDashboardScreen() {
       .filter((b) => (activeStatuses as readonly string[]).includes(b.status))
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] ?? null;
 
-  const hasActive = !!activeBooking;
+  const completedUnpaidBooking = hideOpenPool
+    ? (assigned
+        .filter((b) => b.status === 'completed' && !isBookingPaymentPaid(b))
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] ??
+      null)
+    : null;
+
+  const hiredPanelBooking = hideOpenPool ? (activeBooking ?? completedUnpaidBooking) : activeBooking;
+
+  const hasActive = !!hiredPanelBooking;
 
   const vehiclePhotoUri = assignedVehicle?.photo_front
     ? withCacheBust(assignedVehicle.photo_front) ?? assignedVehicle.photo_front
@@ -515,7 +525,7 @@ export default function DriverDashboardScreen() {
         <BookingListSkeleton variant="driver" />
       ) : hideOpenPool && userId ? (
         <HiredDriverActivePanel
-          booking={activeBooking}
+          booking={hiredPanelBooking}
           driverUserId={userId}
           onTripUpdated={() => void load('silent')}
         />

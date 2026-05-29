@@ -166,7 +166,21 @@
     "driving": "ძალისმიერი მართვა",
     "vehicleSaveFailed": "ავტომობილის პარამეტრები ვერ შეინახა",
     "savedTitle": "შენახულია",
-    "savedMessage": "პროფილი განახლდა"
+    "savedMessage": "პროფილი განახლდა",
+    "bankAccount": "საბანკო ანგარიში (IBAN)",
+    "bankAccountPlaceholder": "GE00TB0000000000000000",
+    "bankAccountHint": "კომპანია გადაგირიცხავს ამ ანგარიშზე დასრულებული ჯავშნის შემდეგ.",
+    "bankAccountMissing": "IBAN არ არის მითითებული",
+    "bankAccountInvalidLength": "IBAN უნდა იყოს 15–34 სიმბოლო",
+    "bankAccountInvalidChars": "IBAN-ში დაშვებულია მხოლოდ ასოები და ციფრები"
+  },
+  "bookingPayment": {
+    "unpaidBadge": "გადაუხდელი 🔴",
+    "paidBadge": "გადახდილი ✅",
+    "paidConfirmed": "გადახდილია ✅",
+    "confirmReceived": "გადახდა მივიღე ✅",
+    "ibanLabel": "IBAN",
+    "ibanMissing": "მძღოლმა IBAN არ მიუთითა"
   },
   "vehicleScreen": {
     "title": "ავტომობილის ფოტოები",

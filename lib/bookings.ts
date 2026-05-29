@@ -336,7 +336,12 @@ export type BookingRow = {
   transfer_out: TourTransferLeg | null;
   comment: string | null;
   payment_method: string | null;
+  payment_status?: string | null;
+  payment_confirmed_at?: string | null;
+  payment_confirmed_by?: string | null;
   price_gel: number;
+  /** Populated when listing bookings for companies (driver bank account). */
+  driver_bank_account?: string | null;
   company_name: string | null;
   driver_display_name: string | null;
   driver_phone: string | null;
