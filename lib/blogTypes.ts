@@ -92,5 +92,5 @@ export const BLOG_AUTHORS: BlogAuthorProfile[] = [
 
 export const BLOG_TEAM_BIO = {
   en: 'Akaki Kachibaia and Ani Kekelia founded KEKE Manager — a B2B platform connecting tour companies, guide-drivers, and fleet owners across Georgia.',
-  ka: 'აკაკი კაჩიბაიასა და ანი კეკელიას მიერ დაარსებული KEKE Manager — B2B პლატფორმა, რომელიც აერთიანებს ტურისტულ კომპანიებს, გიდ-მძღოლებსა და ფლოტის მფლობელებს საქართველოში.',
+  ka: 'აკაკი ქაჩიბაიასა და ანი კეკელიას მიერ დაარსებული KEKE Manager — B2B პლატფორმა, რომელიც აერთიანებს ტურისტულ კომპანიებს, გიდ-მძღოლებსა და ფლოტის მფლობელებს საქართველოში.',
 };
