@@ -28,11 +28,10 @@ import { UserAvatar } from '../../components/UserAvatar';
 import { SearchableCitySelect } from '../../components/SearchableCitySelect';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
+  bookingKindFromUi,
   insertBooking,
-  normalizeBookingKind,
   setBookingPickupSignLogoUrl,
   uploadPickupSignLogo,
-  type BookingType as DbBookingType,
   type ItineraryDay,
   type PickupSignLogoFile,
   type TourTransferLeg,
@@ -122,11 +121,6 @@ function mapPickupSignLogoError(
   return msg;
 }
 
-function mapBookingType(t: BookingKindUi): DbBookingType {
-  if (t === 'transfer') return 'transfer';
-  if (t === 'tour') return 'tour';
-  return 'day_tour';
-}
 
 function switchTransferTab(setTab: (t: TransferTab) => void, tab: TransferTab) {
   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -1140,7 +1134,7 @@ export default function NewBookingScreen() {
       return;
     }
 
-    const dbKind = normalizeBookingKind(mapBookingType(booking_kind));
+    const dbKind = bookingKindFromUi(booking_kind);
 
     setSubmitting(true);
     setSubmitError(null);

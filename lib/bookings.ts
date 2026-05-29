@@ -67,17 +67,39 @@ export type BookingType =
   | 'tour'
   | 'day_tour';
 
+/** Values allowed by `bookings_kind_check` / strict `booking_type` checks. */
+export type DbCanonicalKind = 'transfer' | 'tour' | 'day_tour';
+
 export function isTransferKind(kind: string): boolean {
   return kind === 'transfer' || kind === 'transfer_arrival' || kind === 'transfer_departure';
 }
 
-/** Canonical `kind` for DB NOT NULL: transfer | tour | day_tour */
-export function normalizeBookingKind(kind: BookingType | string): BookingType {
-  const k = String(kind).trim();
-  if (k === 'transfer' || k === 'transfer_arrival' || k === 'transfer_departure') return 'transfer';
-  if (k === 'tour') return 'tour';
-  if (k === 'day_tour' || k === 'dayTour') return 'day_tour';
+/** Canonical `kind` / strict `booking_type` for DB: transfer | tour | day_tour */
+export function normalizeBookingKind(kind: BookingType | string): DbCanonicalKind {
+  const k = String(kind ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (k === 'transfer' || k === 'transfer_arrival' || k === 'transfer_departure') {
+    return 'transfer';
+  }
+  if (k === 'tour' || k === 'multi_day_tour') return 'tour';
+  if (k === 'day_tour' || k === 'daytour') return 'day_tour';
   return 'transfer';
+}
+
+/** Map new-booking UI tab to DB `kind` / `booking_type`. */
+export function bookingKindFromUi(ui: 'transfer' | 'tour' | 'dayTour'): DbCanonicalKind {
+  if (ui === 'transfer') return 'transfer';
+  if (ui === 'tour') return 'tour';
+  return 'day_tour';
+}
+
+/** Strict DB columns: always canonical; arrival/departure nuance lives in `flight_direction`. */
+export function resolveBookingTypeForInsert(
+  canonicalKind: DbCanonicalKind,
+): DbCanonicalKind {
+  return canonicalKind;
 }
 
 function hydrateBookingRow(raw: Record<string, unknown>): BookingRow {
@@ -243,8 +265,17 @@ function shouldRetryBookingInsertAlternateRouteColumn(message: string): boolean 
   );
 }
 
-function isTourServiceKind(kind: BookingType): boolean {
-  return kind === 'tour' || kind === 'day_tour';
+function isTourServiceKind(kind: DbCanonicalKind | BookingType): boolean {
+  const canonical = normalizeBookingKind(kind);
+  return canonical === 'tour' || canonical === 'day_tour';
+}
+
+function isBookingsKindConstraintError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('bookings_kind_check') ||
+    (m.includes('check constraint') && m.includes('kind') && !m.includes('booking_type'))
+  );
 }
 
 /** DB/cache missing tour-specific columns → retry without JSON legs (detail stays in route). */
@@ -702,14 +733,15 @@ export async function insertBooking(row: InsertBookingInput) {
 
   function buildBookingInsertBody(
     routeCol: 'route' | 'route_description',
-    bookingKindForDb: BookingType,
+    canonicalKind: DbCanonicalKind,
     opts: { includeTourColumns: boolean; includeKindColumn: boolean },
   ): Record<string, unknown> {
+    const bookingTypeForDb = resolveBookingTypeForInsert(canonicalKind);
     const body: Record<string, unknown> = {
       company_id: companyUserId,
       voucher_code: voucherCode,
       company_name: row.company_name,
-      booking_type: bookingKindForDb,
+      booking_type: bookingTypeForDb,
       from_location: row.from_location,
       from_location_type: row.from_location_type ?? null,
       to_location: row.to_location,
@@ -744,10 +776,10 @@ export async function insertBooking(row: InsertBookingInput) {
     };
 
     if (opts.includeKindColumn) {
-      body.kind = bookingKindForDb;
+      body.kind = canonicalKind;
     }
 
-    if (opts.includeTourColumns && isTourServiceKind(bookingKindForDb)) {
+    if (opts.includeTourColumns && isTourServiceKind(canonicalKind)) {
       body.tour_days = row.tour_days;
       body.itinerary = row.itinerary;
       body.transfer_in = row.transfer_in;
@@ -764,13 +796,13 @@ export async function insertBooking(row: InsertBookingInput) {
   }
 
   async function tryInsertRouteVariants(
-    bookingKindForDb: BookingType,
+    canonicalKind: DbCanonicalKind,
     includeTourColumns: boolean,
     includeKindColumn: boolean,
   ) {
     for (let r = 0; r < 2; r++) {
       const routeCol = r === 0 ? ('route' as const) : ('route_description' as const);
-      const payload = buildBookingInsertBody(routeCol, bookingKindForDb, {
+      const payload = buildBookingInsertBody(routeCol, canonicalKind, {
         includeTourColumns,
         includeKindColumn,
       });
@@ -793,21 +825,21 @@ export async function insertBooking(row: InsertBookingInput) {
   }
 
   async function runWithStrippedTourAndKindOptions(
-    bookingKindForDb: BookingType,
+    canonicalKind: DbCanonicalKind,
     initialTourCols: boolean,
     initialKindCol: boolean,
   ) {
     let tourCols = initialTourCols;
     let kindCol = initialKindCol;
-    let res = await tryInsertRouteVariants(bookingKindForDb, tourCols, kindCol);
+    let res = await tryInsertRouteVariants(canonicalKind, tourCols, kindCol);
 
     if (res.error && tourCols && shouldRetryBookingInsertWithoutTourColumns(res.error.message)) {
       tourCols = false;
-      res = await tryInsertRouteVariants(bookingKindForDb, tourCols, kindCol);
+      res = await tryInsertRouteVariants(canonicalKind, tourCols, kindCol);
     }
     if (res.error && kindCol && shouldRetryBookingInsertWithoutKindColumn(res.error.message)) {
       kindCol = false;
-      res = await tryInsertRouteVariants(bookingKindForDb, tourCols, kindCol);
+      res = await tryInsertRouteVariants(canonicalKind, tourCols, kindCol);
     }
     return res;
   }
@@ -819,7 +851,8 @@ export async function insertBooking(row: InsertBookingInput) {
     result.error &&
     kind === 'day_tour' &&
     dbKind === 'day_tour' &&
-    isBookingsBookingTypeConstraintError(result.error.message)
+    (isBookingsBookingTypeConstraintError(result.error.message) ||
+      isBookingsKindConstraintError(result.error.message))
   ) {
     dbKind = 'tour';
     result = await runWithStrippedTourAndKindOptions(dbKind, isTourServiceKind(kind), true);
