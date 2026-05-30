@@ -29,6 +29,7 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
+import { EmergencyReplacementModal } from '../../components/EmergencyReplacementModal';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { BookingChatThreads } from '../../components/BookingChatThreads';
 import { DriverProfileCard } from '../../components/DriverProfileCard';
@@ -146,6 +147,7 @@ export default function CompanyDashboardScreen() {
   const [ads, setAds] = useState<AdCard[]>([]);
   const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
   const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(() => new Set());
+  const [emergencyOpen, setEmergencyOpen] = useState(false);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -239,6 +241,11 @@ export default function CompanyDashboardScreen() {
 
   const pendingCount = useMemo(
     () => bookings.filter((b) => b.status === 'pending').length,
+    [bookings],
+  );
+
+  const assignableEmergencyBookings = useMemo(
+    () => bookings.filter((b) => b.status === 'pending'),
     [bookings],
   );
 
@@ -416,6 +423,13 @@ export default function CompanyDashboardScreen() {
           <Text style={styles.quickTitle}>{t('common.dayTour')}</Text>
         </Pressable>
       </View>
+
+      <Pressable
+        onPress={() => setEmergencyOpen(true)}
+        style={({ pressed }) => [styles.emergencyBtn, pressed && styles.pressed]}
+      >
+        <Text style={styles.emergencyBtnText}>{t('emergencyReplacement.button')}</Text>
+      </Pressable>
 
       <View style={styles.sectionDivider} />
       <View style={styles.sectionHead}>
@@ -731,6 +745,14 @@ export default function CompanyDashboardScreen() {
       visible={!!voucherBooking}
       onClose={() => setVoucherBooking(null)}
     />
+
+    <EmergencyReplacementModal
+      visible={emergencyOpen}
+      onClose={() => setEmergencyOpen(false)}
+      companyUserId={userId}
+      assignableBookings={assignableEmergencyBookings}
+      onAssigned={() => load('silent')}
+    />
     </>
   );
 }
@@ -933,6 +955,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.sm,
     marginBottom: SPACING.md,
+  },
+  emergencyBtn: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: RADIUS.card,
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.lg,
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  emergencyBtnText: {
+    color: '#B91C1C',
+    fontWeight: '800',
+    fontSize: 15,
   },
   quickCard: {
     flex: 1,

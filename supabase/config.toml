@@ -5,6 +5,3 @@ verify_jwt = true
 
 [functions.booking-reminders]
 verify_jwt = false
-
-[functions.booking-reminders.cron]
-schedule = "0 * * * *"

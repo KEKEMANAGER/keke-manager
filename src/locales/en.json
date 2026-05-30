@@ -500,6 +500,31 @@
     "searchPlaceholder": "Search city…",
     "allCities": "All cities"
   },
+  "driverAvailability": {
+    "available": "I'm available",
+    "unavailable": "Unavailable",
+    "cityLabel": "City",
+    "cityRequired": "Select a city",
+    "activeInCity": "Available in: {{city}}"
+  },
+  "emergencyReplacement": {
+    "button": "🆘 Emergency replacement",
+    "title": "Emergency replacement",
+    "cityLabel": "Select city",
+    "search": "Find drivers",
+    "searchHint": "Select a city and tap search",
+    "foundCount": "Found: {{count}}",
+    "noDrivers": "No available drivers in this city",
+    "call": "Call",
+    "assign": "Assign",
+    "assignTitle": "Assign driver",
+    "assignSuccess": "Driver assigned — notification sent",
+    "assignFailed": "Could not assign driver",
+    "noPhone": "No phone number on file",
+    "noPendingBookings": "No pending bookings to assign",
+    "pickBooking": "Choose a booking",
+    "pickBookingHint": "Enter number (1, 2, …)"
+  },
   "auth": {
     "tagline": "B2B transport platform",
     "email": "Email",

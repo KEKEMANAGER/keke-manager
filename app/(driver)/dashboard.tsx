@@ -39,6 +39,7 @@ import { sendExpoPushNotification } from '../../lib/expoPush';
 import { getTestNotificationContent } from '../../lib/notifications';
 import { registerForPushNotificationsAsync } from '../../lib/pushRegistration';
 import { fetchDriverAverageRating } from '../../lib/ratings';
+import { DriverAvailabilityPanel } from '../../components/DriverAvailabilityPanel';
 import { FleetInvitePanel } from '../../components/FleetInvitePanel';
 import { HostMyDriverPanel } from '../../components/HostMyDriverPanel';
 import {
@@ -84,7 +85,7 @@ function StatIcon({
 
 export default function DriverDashboardScreen() {
   const { t } = useTranslation();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const router = useRouter();
   const layout = useAppLayoutInsets();
   const firstName =
@@ -401,6 +402,15 @@ export default function DriverDashboardScreen() {
           <Text style={styles.balanceValue}>{formatGel(earnings)}</Text>
         </View>
       </View>
+
+      {!isHired && !isFleetSub ? (
+        <DriverAvailabilityPanel
+          userId={userId}
+          isAvailable={profile?.is_available === true}
+          currentCity={profile?.current_city ?? profile?.city ?? null}
+          onUpdated={() => refreshProfile()}
+        />
+      ) : null}
 
       {fleetInvitesError ? (
         <View style={styles.inviteErrorBanner}>

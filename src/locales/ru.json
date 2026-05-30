@@ -1250,6 +1250,31 @@
     "searchPlaceholder": "Поиск города…",
     "allCities": "Все города"
   },
+  "driverAvailability": {
+    "available": "Я доступен",
+    "unavailable": "Недоступен",
+    "cityLabel": "Город",
+    "cityRequired": "Выберите город",
+    "activeInCity": "Доступен: {{city}}"
+  },
+  "emergencyReplacement": {
+    "button": "🆘 Срочная замена",
+    "title": "Срочная замена",
+    "cityLabel": "Выберите город",
+    "search": "Найти водителей",
+    "searchHint": "Выберите город и нажмите «Найти»",
+    "foundCount": "Найдено: {{count}}",
+    "noDrivers": "Нет доступных водителей в этом городе",
+    "call": "Позвонить",
+    "assign": "Назначить",
+    "assignTitle": "Назначить водителя",
+    "assignSuccess": "Водитель назначен — уведомление отправлено",
+    "assignFailed": "Не удалось назначить водителя",
+    "noPhone": "Телефон не указан",
+    "noPendingBookings": "Нет ожидающих бронирований для назначения",
+    "pickBooking": "Выберите бронирование",
+    "pickBookingHint": "Введите номер (1, 2, …)"
+  },
   "hiredDriver": {
     "assignedTripTitle": "Назначенная поездка",
     "noAssignedBooking": "Назначенного бронирования пока нет",

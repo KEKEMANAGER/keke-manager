@@ -52,6 +52,9 @@ export type Profile = {
   company_director: string | null;
   city: string | null;
   bank_account: string | null;
+  current_city: string | null;
+  is_available: boolean | null;
+  available_updated_at: string | null;
 };
 
 export type CompanySignUpMeta = {
@@ -95,7 +98,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const USER_PROFILE_SELECT =
-  'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, is_guide_driver, available_for_hire, company_email, company_phone, company_id_code, company_director, city, bank_account';
+  'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, is_guide_driver, available_for_hire, company_email, company_phone, company_id_code, company_director, city, bank_account, current_city, is_available, available_updated_at';
 
 async function fetchProfile(userId: string): Promise<Profile | null> {
   const usersRes = await supabase

@@ -497,6 +497,31 @@
     "searchPlaceholder": "ქალაქის ძიება…",
     "allCities": "ყველა ქალაქი"
   },
+  "driverAvailability": {
+    "available": "ხელმისაწვდომი ვარ",
+    "unavailable": "მიუწვდომელი",
+    "cityLabel": "ქალაქი",
+    "cityRequired": "აირჩიეთ ქალაქი",
+    "activeInCity": "ხელმისაწვდომი: {{city}}"
+  },
+  "emergencyReplacement": {
+    "button": "🆘 გადაუდებელი ჩანაცვლება",
+    "title": "გადაუდებელი ჩანაცვლება",
+    "cityLabel": "აირჩიეთ ქალაქი",
+    "search": "მძღოლების ძებნა",
+    "searchHint": "აირჩიეთ ქალაქი და დააჭირეთ ძებნას",
+    "foundCount": "ნაპოვნია: {{count}}",
+    "noDrivers": "ამ ქალაქში ხელმისაწვდომი მძღოლი არ არის",
+    "call": "დარეკვა",
+    "assign": "დანიშვნა",
+    "assignTitle": "მძღოლის დანიშვნა",
+    "assignSuccess": "მძღოლი დანიშნულია — შეტყობინება გაეგზავნა",
+    "assignFailed": "დანიშვნა ვერ მოხერხდა",
+    "noPhone": "ტელეფონი არ არის მითითებული",
+    "noPendingBookings": "მოლოდინში ჯავშანი არ არის დასანიშნად",
+    "pickBooking": "აირჩიეთ ჯავშანი",
+    "pickBookingHint": "შეიყვანეთ ნომერი (1, 2, …)"
+  },
   "auth": {
     "tagline": "B2B სატრანსპორტო პლატფორმა",
     "email": "ელფოსტა",
