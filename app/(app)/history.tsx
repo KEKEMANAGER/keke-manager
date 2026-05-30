@@ -38,6 +38,8 @@ import {
 type FilterKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
 type KindFilterKey = 'all' | 'transfer' | 'tour' | 'day_tour';
 
+const FILTER_ACTIVE = '#EF9F27';
+
 const FILTERS: FilterKey[] = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
 const KIND_FILTERS: KindFilterKey[] = ['all', 'transfer', 'tour', 'day_tour'];
 
@@ -384,8 +386,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   filterChipActive: {
-    borderColor: COLORS.gold,
-    backgroundColor: 'rgba(245,166,35,0.12)',
+    borderColor: FILTER_ACTIVE,
+    backgroundColor: 'rgba(239, 159, 39, 0.15)',
   },
   filterText: {
     color: COLORS.grayLight,
@@ -393,7 +395,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   filterTextActive: {
-    color: COLORS.gold,
+    color: FILTER_ACTIVE,
+    fontWeight: '700',
   },
   list: {
     flexGrow: 1,
