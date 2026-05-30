@@ -18,3 +18,27 @@ For local testing, use `supabase functions serve` and `.env` as documented in Su
 ### Client
 
 The app calls `supabase.functions.invoke('admin-delete-user', { body: { userId } })` with the logged-in admin session (JWT).
+
+## `booking-reminders`
+
+Scheduled Edge Function (hourly cron) that sends Expo push notifications for upcoming assigned bookings:
+
+| Timing | Recipient | Message (ka) |
+|--------|-----------|--------------|
+| ~24h before | Driver | `ხვალ გაქვს [type]: [route] - [date/time]` |
+| ~1h before | Driver | `1 საათში გაქვს [type]: [route]. შეძლებ? გთხოვ დაადასტურე` |
+| 30 min after 1h reminder, no confirm | Company | `მძღოლმა ვერ დაადასტურა ჯავშანი. გთხოვ სხვა მძღოლი დანიშნო` |
+
+Requires migration `20260530120000_booking_reminder_columns.sql` (`reminder_*`, `driver_confirmed_1h`, etc.).
+
+### Deploy
+
+```bash
+supabase db push   # or apply migration on hosted project
+
+supabase functions deploy booking-reminders --project-ref <REF>
+```
+
+Cron is declared in `supabase/config.toml` (`0 * * * *`). On hosted Supabase, redeploy after changing the schedule. The function uses `SUPABASE_SERVICE_ROLE_KEY` (injected automatically) and reads `profiles.push_token` (fallback `users.push_token`).
+
+Drivers confirm in the app via `lib/bookingReminders.ts` → sets `driver_confirmed_1h = true`.

@@ -393,6 +393,11 @@ export type BookingRow = {
   company_avatar_url?: string | null;
   driver_update_pending?: boolean | null;
   update_change_summary?: Record<string, { old: string; new: string; label: string }> | null;
+  reminder_24h_sent?: boolean | null;
+  reminder_1h_sent?: boolean | null;
+  driver_confirmed_1h?: boolean | null;
+  reminder_1h_sent_at?: string | null;
+  company_unconfirmed_alert_sent?: boolean | null;
 };
 
 export type InsertBookingInput = {

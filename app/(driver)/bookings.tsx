@@ -24,6 +24,11 @@ import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { BookingRealtimeRecord, BookingRow, BookingStatus } from '../../lib/bookings';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
+  canDriverConfirmUpcomingBooking,
+  confirmDriverOneHourBooking,
+  isDriverOneHourConfirmed,
+} from '../../lib/bookingReminders';
+import {
   acceptBooking,
   bookingStatusLabel,
   bookingTypeLabel,
@@ -403,6 +408,22 @@ export default function DriverBookingsScreen() {
     );
   }
 
+  async function onConfirmUpcoming(item: BookingRow) {
+    if (!user?.id) return;
+    setActingId(item.id);
+    const res = await confirmDriverOneHourBooking(item.id, user.id);
+    setActingId(null);
+    if (!res.ok) {
+      crossInfoAlert(
+        t('common.error'),
+        getSupabaseErrorMessage(res.error) || t('bookings.confirmUpcomingFailed'),
+      );
+      void load('silent');
+      return;
+    }
+    void load('silent');
+  }
+
   async function onStartTrip(item: BookingRow) {
     if (!user?.id) return;
     setActingId(item.id);
@@ -580,6 +601,26 @@ export default function DriverBookingsScreen() {
               <Text style={styles.date}>{formatBookingDate(item)}</Text>
               <Text style={styles.route}>{routeSummary(item)}</Text>
               <BookingChangedBadge booking={item} onAcknowledged={() => void load('silent')} />
+              {item.status === 'accepted' &&
+              (isDriverOneHourConfirmed(item) || canDriverConfirmUpcomingBooking(item)) ? (
+                <View style={styles.confirmRow}>
+                  {isDriverOneHourConfirmed(item) ? (
+                    <Text style={styles.confirmDoneText}>{t('bookings.confirmedUpcoming')}</Text>
+                  ) : (
+                    <Pressable
+                      onPress={() => void onConfirmUpcoming(item)}
+                      disabled={actingId === item.id}
+                      style={({ pressed }) => [styles.confirmBtn, pressed && styles.pressed]}
+                    >
+                      {actingId === item.id ? (
+                        <ActivityIndicator color={COLORS.white} size="small" />
+                      ) : (
+                        <Text style={styles.confirmBtnText}>{t('bookings.confirmUpcoming')}</Text>
+                      )}
+                    </Pressable>
+                  )}
+                </View>
+              ) : null}
               <Pressable
                 onPress={() => setVoucherBooking(item)}
                 style={({ pressed }) => [styles.voucherBtn, pressed && styles.pressed]}
@@ -864,6 +905,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: SPACING.sm,
+  },
+  confirmRow: {
+    marginBottom: SPACING.sm,
+  },
+  confirmBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#059669',
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.button,
+  },
+  confirmBtnText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  confirmDoneText: {
+    color: '#047857',
+    fontWeight: '700',
+    fontSize: 14,
   },
   voucherBtn: {
     alignSelf: 'flex-start',
