@@ -12,14 +12,6 @@ const ALIASES = {
   ],
 };
 
-function pickEnv(names) {
-  for (const name of names) {
-    const val = process.env[name]?.trim();
-    if (val) return val;
-  }
-  return '';
-}
-
 function normalizeExpoEnv() {
   for (const [target, aliases] of Object.entries(ALIASES)) {
     if (process.env[target]?.trim()) continue;
@@ -36,19 +28,23 @@ function normalizeExpoEnv() {
 
 normalizeExpoEnv();
 
-const url = pickEnv(['EXPO_PUBLIC_SUPABASE_URL', ...ALIASES.EXPO_PUBLIC_SUPABASE_URL]);
-const key = pickEnv(['EXPO_PUBLIC_SUPABASE_ANON_KEY', ...ALIASES.EXPO_PUBLIC_SUPABASE_ANON_KEY]);
-
-if (!url || !key) {
-  console.error('\nnormalize-expo-env: Missing Supabase credentials for production build.\n');
-  console.error('Set these in Cloudflare Pages → Settings → Environment variables');
-  console.error('(Production AND Preview — used during the build step):\n');
-  console.error('  EXPO_PUBLIC_SUPABASE_URL');
-  console.error('  EXPO_PUBLIC_SUPABASE_ANON_KEY\n');
-  console.error('Accepted aliases (auto-mapped):');
-  console.error('  SUPABASE_URL → EXPO_PUBLIC_SUPABASE_URL');
-  console.error('  SUPABASE_ANON_KEY → EXPO_PUBLIC_SUPABASE_ANON_KEY\n');
-  process.exit(1);
+if (!process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()) {
+  process.env.EXPO_PUBLIC_SUPABASE_URL = '';
+}
+if (!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim()) {
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = '';
 }
 
-console.log('normalize-expo-env: OK (Supabase URL + anon key present)');
+const url = process.env.EXPO_PUBLIC_SUPABASE_URL.trim();
+const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.trim();
+
+if (!url || !key) {
+  console.warn(
+    'normalize-expo-env: Supabase credentials not found in build env — continuing with empty fallbacks.',
+  );
+  console.warn(
+    'Web runtime will use window.__KEKE_ENV__ (injected by patch-web-html.mjs when vars are available).',
+  );
+} else {
+  console.log('normalize-expo-env: OK (Supabase URL + anon key present)');
+}
