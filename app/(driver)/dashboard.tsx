@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { ListEmptyState } from '../../components/ListEmptyState';
+import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRealtimeRecord, BookingRow } from '../../lib/bookings';
@@ -388,7 +389,11 @@ export default function DriverDashboardScreen() {
         <AppLogo size="header" />
         <View style={styles.headerText}>
           <Text style={styles.greeting}>{t('driver.greeting')}</Text>
-          <Text style={styles.name}>{firstName}</Text>
+          <NameWithVerifiedBadge
+            name={firstName}
+            verified={profile?.is_verified}
+            textStyle={styles.name}
+          />
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={14} color={COLORS.gold} />
             <Text style={styles.ratingLine}>
