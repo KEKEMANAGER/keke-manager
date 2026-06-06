@@ -10,7 +10,7 @@ author: "Akaki Kachibaia"
 category: routes
 categoryName: "მარშრუტები"
 readingTime: 5
-featuredImage: "/blog/manage-tour-company-drivers-georgia-cover.svg"
+featuredImage: "/blog/manage-tour-company-drivers-georgia-cover.png"
 language: ka
 verified: true
 faq:
