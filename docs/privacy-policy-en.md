@@ -1,15 +1,17 @@
 # KEKE Manager — Privacy Policy
 
-**Last updated:** May 22, 2026  
-**Effective date:** May 22, 2026
+**Last updated:** May 29, 2026  
+**Effective date:** May 29, 2026
 
 ---
 
 ## 1. Introduction
 
-This Privacy Policy explains how **KEKE Manager** (“**we**”, “**us**”, “**our**”) collects, uses, stores, shares, and protects personal data when you use our mobile application **KEKE Manager** and related services (collectively, the “**Service**”).
+This Privacy Policy explains how **KEKE Manager** (“**we**”, “**us**”, “**our**”) collects, uses, stores, shares, and protects personal data when you use our mobile application **KEKE Manager**, our website, and related services (collectively, the “**Service**”).
 
-By creating an account or using the Service, you acknowledge that you have read this Privacy Policy. If you do not agree, please do not use the Service.
+By creating an account or using the Service, you acknowledge that you have read this Privacy Policy. If you do not agree, do not use the Service.
+
+This Policy is designed to meet transparency expectations under **Apple App Store Review Guidelines**, **Google Play Developer Program Policies**, the **EU General Data Protection Regulation (GDPR)** where applicable, and **Georgian personal data protection law**.
 
 **Data controller**
 
@@ -20,7 +22,7 @@ By creating an account or using the Service, you acknowledge that you have read 
 | **Founders** | Akaki Kachibaia, Ani Kekelia |
 | **Privacy contact** | [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com) |
 
-We **do not sell** your personal data to third parties. We **do not send marketing emails** for promotional purposes.
+We **do not sell** your personal data. We **do not** use third-party advertising or analytics SDKs in the current application build. We **do not send marketing emails** for promotional purposes.
 
 ---
 
@@ -30,109 +32,87 @@ The Service is designed for business users in the transportation and tour-manage
 
 | Role | Description |
 |------|-------------|
-| **Company** | Creates and manages bookings, tracks drivers, chats with drivers, rates completed trips |
+| **Company** | Creates and manages bookings, tracks drivers on active assignments, chats with drivers, rates completed trips |
 | **Driver with own vehicle** | Accepts bookings, shares GPS during active trips, manages vehicle and verification documents, may host sub-drivers |
 | **Driver (hired)** | Works under a host driver; limited vehicle/fleet features; job-board visibility |
 | **Administrator** | Internal operators who verify users, moderate accounts, view operational data |
 
-You must be **at least 18 years old** to use the Service.
+You must be **at least 18 years old** to use the Service. The Service is **not directed to children**.
 
 ---
 
 ## 3. Data we collect
 
-We collect only data necessary to operate the Service, as reflected in our application and database design.
+We collect only data necessary to operate the Service.
 
 ### 3.1 Account and identity data
 
-- Full name  
-- Email address  
+- Full name, email address, phone number (where provided)  
 - Password (stored by our authentication provider as a **one-way cryptographic hash** — never in plain text; industry-standard hashing such as **bcrypt** via Supabase Auth)  
 - Account role (company, driver, admin)  
-- Phone number (where provided)  
-- Profile photo (avatar)  
-- Bio, spoken languages, years of experience (drivers)  
+- Profile photo (avatar), bio, spoken languages, years of experience (drivers)  
 - Company name, company email, company phone, company identification code, director name (companies)  
-- Hired-driver status and job-board availability preferences  
-- Account verification status, block status, subscription-related fields shown in the app  
+- Hired-driver status, job-board preferences, verification status, block status  
 
 ### 3.2 Driver verification documents
 
-For drivers, we collect images and metadata for identity and compliance, including:
+For drivers, we collect images and metadata for identity and compliance, including driver’s license, national ID, vehicle registration/technical passport, and related photos. Documents are uploaded to secure cloud storage and linked to your profile.
 
-- Driver’s license (front/back)  
-- National ID (front/back)  
-- Vehicle technical passport / registration (front/back)  
-- Legacy single-photo fields where applicable  
-
-Documents are uploaded to secure cloud storage and linked to your user profile. **Camera and photo-library access** on your device is used **only** to capture or select images for verification and profile/vehicle photos—not for unrelated purposes.
+**Photo library access** on your device is used **only** to select images for verification, profile, and vehicle photos. **We do not request camera access** in the current iOS/Android build configuration.
 
 ### 3.3 Vehicle data
 
-- Vehicle type and class  
-- Model, color, year, license plate  
-- Vehicle photographs (multiple angles)  
-- Active vehicle selection for matching and notifications  
+Vehicle type, class, model, color, year, license plate, photographs, and active vehicle selection.
 
 ### 3.4 Booking and trip data
 
-- Pickup/drop-off locations, routes, tour descriptions, itinerary (including multi-day tours)  
-- Dates and times  
-- Passenger count  
-- Flight numbers and transfer details  
-- Passenger name and phone (for transfers)  
-- Pricing: client price, commission, driver payment (GEL), payment timing  
-- Voucher codes, operator/staff name who created the booking  
-- Required driver languages  
-- Booking status (pending, accepted, in progress, completed, cancelled, rejected)  
-- Assigned driver and company identifiers  
+Pickup/drop-off locations, routes, itinerary, dates, passenger count, flight numbers, passenger name and phone (for transfers), pricing in GEL, voucher codes, booking status, assigned driver and company identifiers, and related operational fields.
 
 ### 3.5 Location data (GPS)
 
-- **Latitude and longitude** while you actively run GPS tracking in the app during an **active trip**  
-- We store the **current** driver location pin for live tracking (not a long-term GPS history trail in the app design)  
+- **Latitude and longitude** only while you **actively run GPS tracking** in the app during an **active trip**  
+- We store the **current** driver location pin for live tracking — **not** a long-term GPS history trail  
 - Location is **not collected** when GPS tracking is off or no trip is active  
+- On Android, a **foreground service notification** may appear while background tracking is enabled  
 
-Background location on Android may use a **foreground service notification** while tracking is enabled.
+See **Section 4** for permission disclosures required by Apple and Google.
 
 ### 3.6 Communications
 
-- In-app chat messages (text), sender/receiver IDs, optional booking link, read status  
-- In-app notification records (title, body, type, metadata such as booking or chat references)  
-- Push notification device tokens (Expo push token stored on your profile)  
+In-app chat messages, notification records, and Expo push notification device tokens stored on your profile.
 
 ### 3.7 Ratings and feedback
 
-- Star rating and optional text review after completed bookings  
-- Optional feedback messages submitted from the profile screen  
+Star ratings, optional review text after completed bookings, and optional feedback submitted from the profile screen.
 
-### 3.8 Fleet and job board (drivers)
+### 3.8 Fleet and job board
 
-- Host–sub-driver fleet relationships  
-- Vehicle assignments for sub-drivers  
-- Job-board profile views and hire-status notifications  
+Host–sub-driver relationships, vehicle assignments, and job-board visibility data.
 
-### 3.9 Technical and local data
+### 3.9 Technical data
 
-- Authentication session tokens (stored locally via secure async storage patterns)  
-- App language preference (stored on device)  
-- Temporary local keys for background GPS session state (driver ID, active booking ID)  
+Server-side logs and security records generated by our hosting providers (limited retention; see Section 10).
 
-We do **not** use third-party advertising or analytics SDKs in the current application build.
+We do **not** knowingly collect special categories of personal data (e.g. health, biometric templates) unless you voluntarily include such information in free-text fields — please avoid doing so.
 
 ---
 
-## 4. Device permissions
+## 4. Device permissions and location disclosures
 
-The app may request the following permissions. You can deny some permissions, but related features will not work.
+The app may request the following permissions. Denying a permission disables related features but does not block unrelated features.
 
-| Permission | Purpose |
-|------------|---------|
-| **Location (foreground)** | Show maps and send live position during active GPS tracking |
-| **Location (background)** | Continue trip tracking when the app is minimized (drivers only, during active tracking) |
-| **Notifications** | Booking alerts, chat messages, verification and job-board notices |
-| **Photos / media library** | Upload avatar, vehicle photos, and verification documents |
-| **Camera** (where declared by the OS) | Optional capture path for document photos; primary flow uses the photo library |
+| Permission | When requested | Purpose | Data collected |
+|------------|----------------|---------|----------------|
+| **Location (When In Use)** | When a driver starts GPS tracking or opens map features | Show maps and share live position during an **active trip** | Approximate/precise coordinates during active session |
+| **Location (Always / Background)** | When a driver enables tracking that continues in the background (iOS/Android system prompt) | Continue trip tracking when the app is minimized | Coordinates only while tracking is **on**; stops when tracking ends |
+| **Notifications** | When the app registers for push (after you opt in via an in-app action or system prompt) | Booking alerts, chat, verification, and job-board notices | Push token; notification content you receive |
+| **Photos / media library** | When you choose to upload a photo or document | Avatar, vehicle photos, verification documents, pickup logos | Images you select (uploaded to our servers) |
+
+**We do not request camera permission** in the current app configuration. All photo uploads use the **photo library** picker.
+
+**Who sees location data:** drivers see their own position; **companies see a driver’s live pin only when that driver is assigned to the company’s active, non-cancelled booking**; administrators may see operational map data for moderation and support; other users do not receive your GPS data.
+
+You may withdraw location or notification permission at any time in **device Settings**; tracking cannot continue without the relevant permission.
 
 ---
 
@@ -140,125 +120,156 @@ The app may request the following permissions. You can deny some permissions, bu
 
 We use personal data to:
 
-1. Create and authenticate accounts  
-2. Match companies with suitable drivers (vehicle type/class, languages, availability, verification)  
-3. Operate bookings end-to-end (create, assign, accept, complete, cancel)  
-4. Display live driver tracking to authorized companies and administrators  
+1. Create, authenticate, and manage accounts  
+2. Match companies with suitable drivers  
+3. Operate bookings (create, assign, accept, complete, cancel)  
+4. Display authorized live driver tracking  
 5. Deliver chat and push notifications  
 6. Verify driver and company identities  
-7. Calculate and display ratings and operational statistics  
-8. Administer the platform (moderation, user support, fraud prevention)  
-9. Comply with legal obligations and enforce our Terms of Service  
+7. Display ratings and operational statistics  
+8. Administer the platform (moderation, support, fraud prevention)  
+9. Comply with law and enforce our Terms of Service  
 
-**Automated decisions:** Matching drivers to bookings uses rules (vehicle, language, schedule overlap, verification). No solely automated legal decisions with significant effects are intended.
-
----
-
-## 6. Legal bases (summary)
-
-Where the GDPR or similar laws apply (e.g., because data is hosted in the EU), we rely on:
-
-- **Contract** — providing the Service you signed up for  
-- **Legitimate interests** — security, fraud prevention, improving reliability  
-- **Consent** — where required for optional permissions (location, notifications, photos)  
-- **Legal obligation** — when law requires retention or disclosure  
+**Automated processing:** Driver matching uses rules (vehicle, language, schedule, verification status). We do not intend solely automated decisions with legal or similarly significant effects without human review.
 
 ---
 
-## 7. Third-party services and processors
+## 6. Legal bases (GDPR and similar laws)
 
-We use trusted providers who process data on our instructions:
+Where the GDPR or comparable laws apply (including because data is hosted in the EU), we process personal data on these bases:
 
-| Provider | Role | Data involved |
-|----------|------|----------------|
-| **Supabase** (EU — **Frankfurt, Germany** region) | Authentication, PostgreSQL database, file storage, realtime subscriptions, Edge Functions | Account data, bookings, messages, locations, document URLs, push tokens |
-| **Expo / Expo Application Services (EAS)** | App builds, push notification delivery (`exp.host` API), optional OTA updates infrastructure | Push tokens, notification payloads |
-| **Apple / Google** | App distribution (App Store, Google Play) | Per their store policies |
-| **Apple Maps / Google Maps** (via `react-native-maps`) | Map display on iOS/Android | Map tiles; location shown on device maps |
+| Purpose | Legal basis |
+|---------|-------------|
+| Providing the Service under your account | **Performance of a contract** (Art. 6(1)(b) GDPR) |
+| Security, fraud prevention, service reliability | **Legitimate interests** (Art. 6(1)(f) GDPR), balanced against your rights |
+| Location, notifications, photo library (where required) | **Consent** via OS permission prompts (Art. 6(1)(a) GDPR); withdraw in device Settings |
+| Legal retention, lawful requests | **Legal obligation** (Art. 6(1)(c) GDPR) |
 
-We do **not** authorize these providers to use your data for their own marketing. Contracts and industry-standard safeguards apply.
-
-**Admin operations:** You can delete your own account in the app (see Section 10). Administrators may also remove accounts for moderation via a secured Supabase Edge Function (`admin-delete-user`) using server-side credentials never embedded in the mobile app.
+Where consent is the basis, you may withdraw it without affecting the lawfulness of processing before withdrawal.
 
 ---
 
-## 8. Storage, security, and confidentiality
+## 7. Processors, sharing, and international transfers
 
-- Data is stored in **Supabase** infrastructure in the **Frankfurt (Germany)** region, within the European Union data-center footprint.  
-- Connections use **TLS/HTTPS** encryption in transit.  
-- Passwords are stored as **hashes**, not readable text.  
-- Row Level Security (RLS) and role-based access limit database access by authenticated user role.  
-- Verification and media files are stored in a cloud storage bucket; URLs may be public if shared—access is still gated by app authorization for listing.  
+We share data only as needed to operate the Service:
 
-No method of transmission or storage is 100% secure. We apply reasonable technical and organizational measures appropriate to the risk.
+| Provider | Role | Location |
+|----------|------|----------|
+| **Supabase** | Auth, database, storage, realtime, Edge Functions | **Frankfurt, Germany (EU)** |
+| **Expo / EAS** | App builds, push delivery (`exp.host`), optional OTA updates | United States / EU (per Expo policies) |
+| **Apple / Google** | App distribution | Per store policies |
+| **Apple Maps / Google Maps** (via `react-native-maps`) | Map tiles on device | Per map provider |
+
+Processors act on our instructions under contractual safeguards. We do **not** authorize them to use your data for their own marketing.
+
+**Admin moderation:** You may delete your own account in the app (Section 10). Administrators may remove accounts for moderation via a secured Supabase Edge Function (`admin-delete-user`); service credentials are never embedded in the mobile app.
+
+**International transfers:** Primary storage is in the **EU**. If data is processed outside the EEA (e.g. by Expo push infrastructure), we rely on appropriate safeguards where required (such as Standard Contractual Clauses or equivalent mechanisms offered by our providers).
+
+---
+
+## 8. Security and incident notification
+
+We apply reasonable technical and organizational measures, including:
+
+- **TLS/HTTPS** in transit  
+- **Hashed passwords** (not readable plain text)  
+- **Row Level Security (RLS)** and role-based access in the database  
+- Least-privilege access policies for sensitive data such as live driver locations  
+
+No method of transmission or storage is 100% secure.
+
+**Personal data breach notification:** If we become aware of a personal data breach that is likely to result in a risk to your rights and freedoms, we will notify the relevant supervisory authority where required by law (including within **72 hours** under GDPR where applicable) and notify **affected users without undue delay** when required by law, describing the nature of the incident, likely consequences, and measures taken or proposed.
+
+Report suspected security issues to **[akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com)**.
 
 ---
 
 ## 9. Who can access your data
 
-Access depends on your role and the feature:
+Access depends on role and context:
 
 | Data | Company | Driver | Admin |
 |------|---------|--------|-------|
 | Own profile | Yes | Yes | Yes |
-| Other users’ directory (names, roles for matching/chat) | Limited | Limited | Full |
 | Bookings you participate in | Yes | Yes | Full |
-| Passenger details on bookings | If company creator | If assigned driver | Full |
-| Live GPS of drivers | Assigned/active context | Own only | Full map |
-| Chat threads | Participants only | Participants only | Moderation access |
+| Passenger details on bookings | If booking creator / assigned | If assigned driver | Full |
+| Live GPS | **Only drivers on your active, non-cancelled bookings** | Own only | Operational map |
+| Chat threads | Participants | Participants | Moderation |
 | Verification documents | Own | Own | Review |
 
-Administrators can block accounts, change roles, approve verification, delete messages, and delete accounts per operational policy.
+Administrators may block accounts, approve verification, delete messages, and remove accounts per operational policy.
 
 ---
 
 ## 10. Data retention
 
-| Data type | Retention |
-|-----------|-----------|
-| Active account data | While account is active |
-| **Account deletion** | When you delete your account in the app (**Settings → Delete account**, or from the **driver verification screen**), your profile and associated app data are removed **immediately** and permanently. No administrator approval or 30-day waiting period applies. Short-lived backup copies at our hosting provider may exist only per their technical retention policies. Where law requires keeping specific records (e.g. tax or accounting), only those legally required items are retained. |
+| Data type | Retention period |
+|-----------|------------------|
+| Active account data | While your account is active |
+| **Account deletion** | When you delete your account in the app (**Settings → Delete account**, or the **driver verification screen**), profile and associated app data are removed **immediately** and permanently. **No administrator approval** or **30-day waiting period** applies. Short-lived backup copies at our hosting provider may exist only per their technical retention policies. Where law requires keeping specific records (e.g. tax or accounting), only those legally required items are retained. |
 | **GPS location** | Current pin only during active tracking; removed when tracking stops |
-| **Driver verification documents** | Must be **refreshed every 3 months**; outdated documents may invalidate verification status |
-| Bookings, messages, ratings | While your account is active, retained for operational needs; **deleted with your account** when you use in-app deletion |
-| Logs and backups | Limited retention per provider policies |
+| **Driver verification documents** | While account is active; must be **refreshed every 3 months**; outdated documents may invalidate verification |
+| Bookings, messages, ratings | While account is active for operational needs; **deleted with your account** when you use in-app deletion |
+| Server logs and backups | Limited retention per provider policies (typically days to weeks for operational logs) |
+| Legally required records | As mandated by applicable law after deletion |
 
 ---
 
 ## 11. Your rights
 
-Subject to applicable law (including Georgian personal data law and, where relevant, GDPR), you may have the right to:
+Subject to applicable law (GDPR, Georgian personal data law, and other mandatory rules), you may have the right to:
 
-- Access your personal data  
-- Correct inaccurate data (via profile or by contacting us)  
-- Delete your account at any time in the app (**Settings → Delete account**, or from the **driver verification screen**); deletion is **immediate and permanent** (no admin confirmation step)
-- Restrict or object to certain processing  
-- Withdraw consent for permissions (via device settings)  
-- Lodge a complaint with a supervisory authority  
+- **Access** — obtain confirmation and a copy of your personal data  
+- **Rectification** — correct inaccurate data via profile settings or by contacting us  
+- **Erasure** — delete your account in the app (**Settings → Delete account**, or the **driver verification screen**); deletion is **immediate and permanent**  
+- **Restriction** — limit certain processing in defined circumstances  
+- **Data portability** — receive data you provided in a structured, commonly used format where technically feasible  
+- **Object** — object to processing based on legitimate interests where applicable  
+- **Withdraw consent** — for permission-based processing (location, notifications, photos) via device Settings  
+- **Lodge a complaint** with a supervisory authority  
 
-To exercise rights, email **akachibaia1410@gmail.com**. We will respond within a reasonable time.
+**EU/EEA users** may contact your local data protection authority. **Georgian users** may contact the Personal Data Protection Service of Georgia. **UK users** (if applicable) may contact the ICO.
 
----
-
-## 12. Children
-
-The Service is not directed to anyone under **18**. We do not knowingly collect data from minors. If you believe a minor has registered, contact us for deletion.
+To exercise rights, email **[akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com)** with your account email and request. We respond within **one month**, extendable by two months for complex requests as permitted by law. We may need to verify your identity.
 
 ---
 
-## 13. International transfers
+## 12. Local storage on your device
 
-Primary storage is in **Germany (EU)**. If you access the Service from Georgia or elsewhere, your data may be processed in the EU and in Georgia (our operations). We take steps to ensure appropriate safeguards where required.
+The mobile app stores limited data **locally on your device** using **AsyncStorage** (and equivalent secure local storage mechanisms):
+
+| Item | Purpose | When removed |
+|------|---------|--------------|
+| Authentication session | Keep you signed in | Sign-out or account deletion |
+| Language preference (EN/KA/RU) | App UI language | Sign-out or app uninstall |
+| Background GPS session keys | Resume active trip tracking after app restart | When tracking stops or sign-out |
+
+This local data is **not sold** and is **not used for advertising**. It is not shared with other apps. Server-side personal data is governed by Sections 3 and 10 above.
+
+On **web**, similar preferences may use browser local storage for session and language.
 
 ---
 
-## 14. Changes to this policy
+## 13. Children
+
+The Service is not directed to anyone under **18**. We do not knowingly collect data from minors. If you believe a minor has registered, contact us for prompt deletion.
+
+---
+
+## 14. Sanctions and prohibited use
+
+You may not use the Service if you are located in, ordinarily resident in, or subject to comprehensive sanctions in a jurisdiction where use would violate applicable **sanctions or export-control laws** (including those of Georgia, the EU, the United States, or the United Nations). We may restrict access where required by law.
+
+---
+
+## 15. Changes to this policy
 
 We may update this Privacy Policy. The “Last updated” date will change. Material changes may be notified in-app or by email where appropriate. Continued use after the effective date constitutes acceptance of the updated policy.
 
 ---
 
-## 15. Contact
+## 16. Contact
 
 **KEKE Manager**  
 Tbilisi, Georgia  
@@ -269,4 +280,4 @@ Tbilisi, Georgia
 
 ---
 
-*This document is provided for App Store and Google Play compliance and user transparency. It should be read together with our Terms of Service.*
+*Read this Policy together with our [Terms of Service](./terms-of-service-en.md). For App Store Connect, the Privacy Policy URL should point to the current published version of this document.*
