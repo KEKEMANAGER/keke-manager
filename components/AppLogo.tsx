@@ -15,7 +15,7 @@ export function AppLogo({ size = 'auth', style }: Props) {
   return (
     <Image
       source={BRAND_LOGO}
-      style={sx(dimensions, style)}
+      style={sx(dimensions, style) as ImageStyle}
       resizeMode="contain"
       accessibilityLabel="KEKE MANAGER"
     />

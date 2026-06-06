@@ -64,6 +64,7 @@ export const SPACING = {
 
 export const RADIUS = {
   sm: 6,
+  md: 10,
   input: 8,
   button: 10,
   card: 12,

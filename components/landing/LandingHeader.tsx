@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ImageStyle,
 } from 'react-native';
 import type { LandingCopy } from '../../lib/landingCopy';
 import {
@@ -86,7 +87,7 @@ export function LandingHeader({
               style={sx(
                 styles.navLogo,
                 isMobile ? styles.navLogoMobile : isTablet ? styles.navLogoTablet : styles.navLogoDesktop,
-              )}
+              ) as ImageStyle}
               resizeMode="contain"
             />
             {!isMobile ? (

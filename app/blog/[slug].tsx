@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { ArticleHero } from '../../components/blog/ArticleHero';
 import { AuthorBio } from '../../components/blog/AuthorBio';
 import { BlogMarkdownBody } from '../../components/blog/BlogMarkdownBody';
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
       web: { position: 'sticky' as const, top: 80, alignSelf: 'flex-start' },
       default: {},
     }),
-  },
+  } as ViewStyle,
   notFound: {
     ...landingFont({ fontSize: 18, padding: 24 }),
   },

@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { BookingRow, TourDayPersisted } from '../lib/bookings';
 import { bookingStatusLabel, formatBookingDate, routeSummary } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
+import { formatLocationRoute } from '../lib/bookingLocations';
 import type { CompanyVoucherData } from '../lib/companyVoucherData';
 import {
   enrichCompanyVoucherFromBooking,

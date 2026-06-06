@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { BlogLang } from '../../lib/blogTypes';
 import { LANDING, landingFont } from '../landing/landingTheme';
 
 type Props = {
   title: string;
   subtitle: string;
-  lang?: 'ka' | 'en';
+  lang?: BlogLang;
 };
 
 export function NewsletterSignup({ title, subtitle, lang = 'ka' }: Props) {
@@ -32,7 +33,9 @@ export function NewsletterSignup({ title, subtitle, lang = 'ka' }: Props) {
           style={styles.input}
         />
         <Pressable onPress={onSubmit} style={styles.btn}>
-          <Text style={styles.btnText}>{lang === 'ka' ? 'გამოწერა' : 'Subscribe'}</Text>
+          <Text style={styles.btnText}>
+            {lang === 'ka' ? 'გამოწერა' : lang === 'ru' ? 'Подписаться' : 'Subscribe'}
+          </Text>
         </Pressable>
       </View>
     </View>

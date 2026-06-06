@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAND_LOGO } from '../../lib/brandLogo';
 import type { SeoLandingLang } from '../../lib/seoLandingPages';
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
       web: { minHeight: '100vh' as const },
       default: {},
     }),
-  },
+  } as ViewStyle,
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LANDING, landingFont, sx } from '../landing/landingTheme';
 
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
       web: { minHeight: '100vh' as const },
       default: {},
     }),
-  },
+  } as ViewStyle,
   header: {
     flexDirection: 'row',
     alignItems: 'center',

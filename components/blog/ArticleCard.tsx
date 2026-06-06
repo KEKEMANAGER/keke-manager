@@ -11,7 +11,7 @@ type Props = {
 };
 
 export function ArticleCard({ post, lang = 'ka' }: Props) {
-  const href = (lang === 'ka' ? `/blog/${post.slug}` : `/blog/${post.slug}?lang=${lang}`) as const;
+  const href = lang === 'ka' ? `/blog/${post.slug}` : `/blog/${post.slug}?lang=${lang}`;
   const imageUri = post.featuredImage.startsWith('http')
     ? post.featuredImage
     : `https://kekemanager.com${post.featuredImage}`;

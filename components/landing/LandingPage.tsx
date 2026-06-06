@@ -329,7 +329,6 @@ export function LandingPage() {
                     resizeMode="contain"
                     {...(Platform.OS === 'web'
                       ? ({
-                          // @ts-expect-error RN Web image attrs for LCP
                           fetchPriority: 'high',
                           loading: 'eager',
                         } as { fetchPriority?: 'high' | 'low' | 'auto'; loading?: 'eager' | 'lazy' })

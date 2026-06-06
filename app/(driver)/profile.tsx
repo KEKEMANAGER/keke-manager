@@ -793,7 +793,7 @@ function Field({
   onChangeText: (t: string) => void;
   multiline?: boolean;
   placeholder?: string;
-  keyboardType?: 'default' | 'number-pad';
+  keyboardType?: 'default' | 'number-pad' | 'phone-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }) {
   return (
