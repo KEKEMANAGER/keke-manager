@@ -24,6 +24,33 @@ function readLogoDataUri() {
   return `data:image/webp;base64,${b64}`;
 }
 
+function normalizeSupabaseEnv() {
+  if (!process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() && process.env.SUPABASE_URL?.trim()) {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = process.env.SUPABASE_URL.trim();
+  }
+  if (!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() && process.env.SUPABASE_ANON_KEY?.trim()) {
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY.trim();
+  }
+}
+
+normalizeSupabaseEnv();
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    'patch-web-html: Supabase env missing — web app will fail until Cloudflare Build variables are set',
+  );
+}
+
+const RUNTIME_ENV_SCRIPT = supabaseUrl && supabaseAnonKey
+  ? `<script id="keke-runtime-env">window.__KEKE_ENV__=${JSON.stringify({
+      EXPO_PUBLIC_SUPABASE_URL: supabaseUrl,
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
+    })};</script>`
+  : '';
+
 const LOGO_DATA_URI = readLogoDataUri();
 
 const CRITICAL_LANDING_CSS = `
@@ -67,9 +94,12 @@ const CRITICAL_LANDING_SHELL = `
 `.trim();
 
 const HEAD_INJECT = [
+  RUNTIME_ENV_SCRIPT,
   `<link rel="preload" href="/logo.webp" as="image" type="image/webp" fetchpriority="high" />`,
   `<style id="keke-critical-css">${CRITICAL_LANDING_CSS}</style>`,
-].join('\n    ');
+]
+  .filter(Boolean)
+  .join('\n    ');
 
 if (!fs.existsSync(indexPath)) {
   console.error('patch-web-html: dist/index.html not found');
@@ -82,6 +112,7 @@ html = html.replace(/<link rel="preload" href="\/logo\.webp"[^>]*>\s*/g, '');
 html = html.replace(/<style id="keke-critical-css">[\s\S]*?<\/style>\s*/g, '');
 html = html.replace(/<div id="keke-lcp-shell">[\s\S]*?<\/div>\s*/g, '');
 html = html.replace(/<script id="keke-lcp-route-dismiss">[\s\S]*?<\/script>\s*/g, '');
+html = html.replace(/<script id="keke-runtime-env">[\s\S]*?<\/script>\s*/g, '');
 
 if (!html.includes('</head>')) {
   console.error('patch-web-html: invalid dist/index.html');

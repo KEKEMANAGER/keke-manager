@@ -6,6 +6,7 @@ import {
   ensureAndroidNotificationChannel,
 } from './notifications';
 import { saveDriverPushToken } from './profiles';
+import { getSupabaseAnonKey, getSupabaseUrl } from './supabaseEnv';
 
 function resolveEasProjectId(): string | undefined {
   const env = process.env.EXPO_PUBLIC_EAS_PROJECT_ID?.trim();
@@ -36,8 +37,8 @@ export async function registerForPushNotificationsAsync(
   configureNotificationHandler();
   await ensureAndroidNotificationChannel();
 
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const url = getSupabaseUrl();
+  const anon = getSupabaseAnonKey();
   if (!url || !anon) {
     console.warn('[push] Missing Supabase env');
     return null;

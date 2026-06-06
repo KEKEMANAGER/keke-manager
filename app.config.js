@@ -48,6 +48,17 @@ function loadEnvFile() {
 
 loadEnvFile();
 
+function normalizeSupabaseEnv() {
+  if (!process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() && process.env.SUPABASE_URL?.trim()) {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = process.env.SUPABASE_URL.trim();
+  }
+  if (!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() && process.env.SUPABASE_ANON_KEY?.trim()) {
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY.trim();
+  }
+}
+
+normalizeSupabaseEnv();
+
 const appJson = require('./app.json');
 
 /** @type {import('@expo/config').ExpoConfig} */
@@ -86,6 +97,8 @@ module.exports = {
     ],
     extra: {
       ...(appJson.expo.extra ?? {}),
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '',
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || '',
       expoConnectUrl: process.env.EXPO_PUBLIC_EXPO_CONNECT_URL?.trim() || '',
       eas: {
         ...(appJson.expo.extra?.eas ?? {}),
