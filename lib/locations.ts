@@ -118,8 +118,9 @@ export async function fetchAllLocationsWithInfo(): Promise<{
 }
 
 export function subscribeToAllLocations(onChange: () => void) {
+  const channelName = `all-driver-locs-${Math.random().toString(36).slice(2, 10)}`;
   return supabase
-    .channel('all-driver-locs')
+    .channel(channelName)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations' }, () => {
       onChange();
     })
@@ -166,13 +167,14 @@ export function subscribeToDriverLocations(
   onChange: () => void,
 ) {
   const ids = driverIds.filter(Boolean);
+  const channelName = `fleet-locs-${Math.random().toString(36).slice(2, 10)}`;
   if (ids.length === 0) {
-    return supabase.channel('fleet-locs-empty').subscribe();
+    return supabase.channel(channelName).subscribe();
   }
   const filter =
     ids.length === 1 ? `driver_id=eq.${ids[0]}` : `driver_id=in.(${ids.join(',')})`;
   return supabase
-    .channel(`fleet-locs-${ids.join('-').slice(0, 40)}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'driver_locations', filter },

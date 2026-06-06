@@ -173,8 +173,11 @@ export function adminGpsCityOptions(locations: AdminGpsDriverLocation[]): string
 }
 
 export function subscribeAdminGpsLocations(onChange: () => void) {
+  // Unique name per subscription — compact + full-screen AdminGpsPanel can mount together;
+  // reusing `supabase.channel(name)` after `.subscribe()` throws on a second `.on()`.
+  const channelName = `admin-gps-all-locs-${Math.random().toString(36).slice(2, 10)}`;
   return supabase
-    .channel('admin-gps-all-locs')
+    .channel(channelName)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations' }, () => {
       onChange();
     })
