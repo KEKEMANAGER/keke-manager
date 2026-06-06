@@ -8,7 +8,8 @@ type Block =
   | { type: 'h1' | 'h2' | 'h3'; text: string }
   | { type: 'p'; text: string }
   | { type: 'hr' }
-  | { type: 'ul'; items: string[] };
+  | { type: 'ul'; items: string[] }
+  | { type: 'table'; rows: string[][] };
 
 function stripInlineMarkdown(text: string): string {
   return text
@@ -16,6 +17,23 @@ function stripInlineMarkdown(text: string): string {
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+}
+
+function parseTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function isTableSeparatorRow(cells: string[]): boolean {
+  return cells.length > 0 && cells.every((cell) => /^:?-{2,}:?$/.test(cell) || cell === '');
+}
+
+function isTableLine(line: string): boolean {
+  return line.trim().startsWith('|');
 }
 
 function parseMarkdown(md: string): Block[] {
@@ -30,12 +48,32 @@ function parseMarkdown(md: string): Block[] {
     listItems = null;
   };
 
-  for (const raw of lines) {
-    const line = raw.trimEnd();
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trimEnd();
     const trimmed = line.trim();
 
     if (!trimmed) {
       flushList();
+      continue;
+    }
+
+    if (isTableLine(trimmed)) {
+      flushList();
+      const tableLines: string[] = [];
+      while (i < lines.length && isTableLine(lines[i].trim())) {
+        tableLines.push(lines[i].trim());
+        i += 1;
+      }
+      i -= 1;
+
+      const rows = tableLines
+        .map(parseTableRow)
+        .filter((cells) => cells.some((cell) => cell.length > 0))
+        .filter((cells) => !isTableSeparatorRow(cells));
+
+      if (rows.length > 0) {
+        blocks.push({ type: 'table', rows });
+      }
       continue;
     }
 
@@ -64,12 +102,6 @@ function parseMarkdown(md: string): Block[] {
     if (trimmed.startsWith('- ')) {
       if (!listItems) listItems = [];
       listItems.push(stripInlineMarkdown(trimmed.slice(2)));
-      continue;
-    }
-
-    if (trimmed.startsWith('|')) {
-      flushList();
-      blocks.push({ type: 'p', text: stripInlineMarkdown(trimmed) });
       continue;
     }
 
@@ -194,6 +226,33 @@ export function LegalMarkdownView({ markdown }: { markdown: string }) {
             </View>
           );
         }
+        if (block.type === 'table') {
+          return (
+            <View key={index} style={styles.table}>
+              {block.rows.map((row, rowIndex) => (
+                <View
+                  key={rowIndex}
+                  style={[
+                    styles.tableRow,
+                    rowIndex === 0 ? styles.tableHeaderRow : styles.tableBodyRow,
+                  ]}
+                >
+                  {row.map((cell, cellIndex) => (
+                    <View
+                      key={cellIndex}
+                      style={[
+                        styles.tableCell,
+                        cellIndex < row.length - 1 ? styles.tableCellBorder : undefined,
+                      ]}
+                    >
+                      <RichLine text={cell} onInternalLink={onInternalLink} />
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          );
+        }
         return (
           <RichLine key={index} text={block.text} onInternalLink={onInternalLink} />
         );
@@ -257,5 +316,31 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: COLORS.goldDark,
     marginTop: 1,
+  },
+  table: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginVertical: SPACING.xs,
+  },
+  tableRow: {
+    flexDirection: 'row',
+  },
+  tableHeaderRow: {
+    backgroundColor: COLORS.background,
+  },
+  tableBodyRow: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  tableCell: {
+    flex: 1,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  tableCellBorder: {
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
   },
 });
