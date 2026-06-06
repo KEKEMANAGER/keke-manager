@@ -5,6 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { normalizeSupabaseBuildEnv, runtimeEnvScriptContent } from './supabaseEnvBuild.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
@@ -24,31 +25,17 @@ function readLogoDataUri() {
   return `data:image/webp;base64,${b64}`;
 }
 
-function normalizeSupabaseEnv() {
-  if (!process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() && process.env.SUPABASE_URL?.trim()) {
-    process.env.EXPO_PUBLIC_SUPABASE_URL = process.env.SUPABASE_URL.trim();
-  }
-  if (!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() && process.env.SUPABASE_ANON_KEY?.trim()) {
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY.trim();
-  }
-}
-
-normalizeSupabaseEnv();
-
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = normalizeSupabaseBuildEnv();
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
-    'patch-web-html: Supabase env missing — web app will fail until Cloudflare Build variables are set',
+    'patch-web-html: Supabase env missing at build — runtime script skipped (may exist in exported HTML from +html.tsx)',
   );
 }
 
-const RUNTIME_ENV_SCRIPT = supabaseUrl && supabaseAnonKey
-  ? `<script id="keke-runtime-env">window.__KEKE_ENV__=${JSON.stringify({
-      EXPO_PUBLIC_SUPABASE_URL: supabaseUrl,
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey,
-    })};</script>`
+const runtimeEnvInline = runtimeEnvScriptContent(supabaseUrl, supabaseAnonKey);
+const RUNTIME_ENV_SCRIPT = runtimeEnvInline
+  ? `<script id="keke-runtime-env">${runtimeEnvInline}</script>`
   : '';
 
 const LOGO_DATA_URI = readLogoDataUri();

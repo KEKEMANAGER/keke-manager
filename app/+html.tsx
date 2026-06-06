@@ -1,4 +1,5 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
+import Constants from 'expo-constants';
 import type { PropsWithChildren } from 'react';
 import {
   DEFAULT_SEO_LANG,
@@ -11,6 +12,18 @@ import {
 
 const meta = SEO_META[DEFAULT_SEO_LANG];
 const en = SEO_META.en;
+
+function resolveRuntimeSupabaseEnv() {
+  const extra = Constants.expoConfig?.extra as
+    | { supabaseUrl?: string; supabaseAnonKey?: string }
+    | undefined;
+  const url = (extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim();
+  const anonKey = (extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
+  if (!url || !anonKey) return null;
+  return { url, anonKey };
+}
+
+const runtimeSupabase = resolveRuntimeSupabaseEnv();
 
 /** Leaflet CSS via CDN — Metro cannot bundle `url(...)` assets in leaflet.css. */
 export default function Root({ children }: PropsWithChildren) {
@@ -60,6 +73,18 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="twitter:image" content={OG_IMAGE_URL} />
 
         <link rel="icon" type="image/png" href="/favicon.ico" />
+
+        {runtimeSupabase ? (
+          <script
+            id="keke-runtime-env"
+            dangerouslySetInnerHTML={{
+              __html: `window.__KEKE_ENV__=${JSON.stringify({
+                EXPO_PUBLIC_SUPABASE_URL: runtimeSupabase.url,
+                EXPO_PUBLIC_SUPABASE_ANON_KEY: runtimeSupabase.anonKey,
+              })};`,
+            }}
+          />
+        ) : null}
 
         <script
           type="application/ld+json"

@@ -48,12 +48,28 @@ function loadEnvFile() {
 
 loadEnvFile();
 
-function normalizeSupabaseEnv() {
-  if (!process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() && process.env.SUPABASE_URL?.trim()) {
-    process.env.EXPO_PUBLIC_SUPABASE_URL = process.env.SUPABASE_URL.trim();
+function firstEnv(names) {
+  for (const name of names) {
+    const val = process.env[name]?.trim();
+    if (val) return val;
   }
-  if (!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() && process.env.SUPABASE_ANON_KEY?.trim()) {
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY.trim();
+  return '';
+}
+
+function normalizeSupabaseEnv() {
+  if (!process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()) {
+    const url = firstEnv(['SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL']);
+    if (url) process.env.EXPO_PUBLIC_SUPABASE_URL = url;
+  }
+  if (!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim()) {
+    const key = firstEnv([
+      'SUPABASE_ANON_KEY',
+      'SUPABASE_KEY',
+      'EXPO_PUBLIC_SUPABASE_KEY',
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      'VITE_SUPABASE_ANON_KEY',
+    ]);
+    if (key) process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = key;
   }
 }
 
