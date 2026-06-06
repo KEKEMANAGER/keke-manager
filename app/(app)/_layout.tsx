@@ -106,6 +106,15 @@ function CompanyTabs() {
             }}
           />
           <Tabs.Screen
+            name="gps"
+            options={{
+              title: t('tabs.gps'),
+              tabBarIcon: ({ color, focused }) => (
+                <TabBarIcon name="navigate-outline" color={color} focused={focused} />
+              ),
+            }}
+          />
+          <Tabs.Screen
             name="chat-list"
             options={{
               title: t('tabs.chat'),

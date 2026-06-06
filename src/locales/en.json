@@ -947,6 +947,13 @@
     "fleetTitle": "Fleet GPS",
     "fleetDrivers": "{{count}} drivers on map"
   },
+  "companyGps": {
+    "empty": "No drivers on active tours",
+    "emptyHint": "When a booking is accepted or in progress, assigned drivers will appear here.",
+    "activeDrivers": "{{count}} drivers on map",
+    "route": "Route",
+    "noRoute": "Route not set"
+  },
   "fleet": {
     "title": "Fleet",
     "subtitle": "Hired Drivers",
