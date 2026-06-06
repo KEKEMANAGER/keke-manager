@@ -23,10 +23,14 @@ function resolveEasProjectId(): string | undefined {
 }
 
 /**
- * Requests notification permissions, obtains an Expo push token, and stores it on `public.profiles.push_token`.
+ * Obtains an Expo push token and stores it on `public.profiles.push_token`.
+ * Does not show the system permission dialog unless `requestPermission` is true.
  * @returns Expo push token string, or `null` if unavailable (web, denied, or misconfigured).
  */
-export async function registerForPushNotificationsAsync(userId: string): Promise<string | null> {
+export async function registerForPushNotificationsAsync(
+  userId: string,
+  options?: { requestPermission?: boolean },
+): Promise<string | null> {
   if (Platform.OS === 'web') return null;
 
   configureNotificationHandler();
@@ -42,6 +46,9 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
   if (existing !== 'granted') {
+    if (!options?.requestPermission) {
+      return null;
+    }
     const { status } = await Notifications.requestPermissionsAsync({
       ios: {
         allowAlert: true,

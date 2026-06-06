@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../AppLogo';
+import { DeleteAccountModal } from '../DeleteAccountModal';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { DriverVerificationGateMode } from '../../lib/driverVerificationGate';
 import { pressableSx, sx } from '../../lib/sx';
@@ -21,6 +22,7 @@ export function DriverVerificationGate({ mode, rejectionReason }: Props) {
   const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   const isRejected = mode === 'rejected';
   const isSubmitted = mode === 'submitted';
@@ -98,7 +100,26 @@ export function DriverVerificationGate({ mode, rejectionReason }: Props) {
             <Text style={styles.signOutText}>{t('common.logout')}</Text>
           )}
         </Pressable>
+
+        <Pressable
+          onPress={() => setDeleteModalVisible(true)}
+          disabled={signingOut}
+          style={({ pressed }) => [styles.deleteBtn, pressed && styles.deleteBtnPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.deleteAccount')}
+        >
+          <Text style={styles.deleteBtnText}>{t('settings.deleteAccount')}</Text>
+        </Pressable>
       </View>
+
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onDeleted={() => {
+          setDeleteModalVisible(false);
+          router.replace('/sign-in');
+        }}
+      />
     </View>
   );
 }
@@ -192,6 +213,17 @@ const styles = StyleSheet.create({
   signOutText: {
     color: COLORS.textSecondary,
     fontSize: 15,
+    fontWeight: '600',
+  },
+  deleteBtn: {
+    marginTop: SPACING.xs,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.lg,
+  },
+  deleteBtnPressed: { opacity: 0.85 },
+  deleteBtnText: {
+    color: COLORS.error,
+    fontSize: 14,
     fontWeight: '600',
   },
 });

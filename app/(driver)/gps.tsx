@@ -91,10 +91,6 @@ export default function DriverGpsScreen() {
     await attachForegroundWatch();
   }, [user?.id, params.bookingId, t, attachForegroundWatch]);
 
-  useEffect(() => {
-    void Location.requestForegroundPermissionsAsync();
-  }, []);
-
   /** Restore tracking state if background task is already running (e.g. screen re-mounted mid-trip). */
   useEffect(() => {
     if (Platform.OS === 'web') return;

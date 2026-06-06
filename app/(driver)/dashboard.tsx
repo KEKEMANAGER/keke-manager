@@ -259,7 +259,7 @@ export default function DriverDashboardScreen() {
     setTestPushSending(true);
     let token = pushToken;
     if (!token) {
-      token = await registerForPushNotificationsAsync(userId);
+      token = await registerForPushNotificationsAsync(userId, { requestPermission: true });
       setPushToken(token);
     }
     setTestPushSending(false);

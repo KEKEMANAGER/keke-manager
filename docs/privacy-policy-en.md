@@ -178,7 +178,7 @@ We use trusted providers who process data on our instructions:
 
 We do **not** authorize these providers to use your data for their own marketing. Contracts and industry-standard safeguards apply.
 
-**Admin operations:** User deletion may be performed via a secured Supabase Edge Function (`admin-delete-user`) using server-side credentials never embedded in the mobile app.
+**Admin operations:** You can delete your own account in the app (see Section 10). Administrators may also remove accounts for moderation via a secured Supabase Edge Function (`admin-delete-user`) using server-side credentials never embedded in the mobile app.
 
 ---
 
@@ -217,10 +217,10 @@ Administrators can block accounts, change roles, approve verification, delete me
 | Data type | Retention |
 |-----------|-----------|
 | Active account data | While account is active |
-| **Account deletion** | After you request deletion and an administrator confirms, personal data is deleted within **30 days**, except where law requires longer retention |
+| **Account deletion** | When you delete your account in the app (**Settings → Delete account**, or from the **driver verification screen**), your profile and associated app data are removed **immediately** and permanently. No administrator approval or 30-day waiting period applies. Short-lived backup copies at our hosting provider may exist only per their technical retention policies. Where law requires keeping specific records (e.g. tax or accounting), only those legally required items are retained. |
 | **GPS location** | Current pin only during active tracking; removed when tracking stops |
 | **Driver verification documents** | Must be **refreshed every 3 months**; outdated documents may invalidate verification status |
-| Bookings, messages, ratings | Retained for business and legal needs while account exists; handled under deletion process |
+| Bookings, messages, ratings | While your account is active, retained for operational needs; **deleted with your account** when you use in-app deletion |
 | Logs and backups | Limited retention per provider policies |
 
 ---
@@ -231,7 +231,7 @@ Subject to applicable law (including Georgian personal data law and, where relev
 
 - Access your personal data  
 - Correct inaccurate data (via profile or by contacting us)  
-- Request deletion (via in-app request + admin confirmation)  
+- Delete your account at any time in the app (**Settings → Delete account**, or from the **driver verification screen**); deletion is **immediate and permanent** (no admin confirmation step)
 - Restrict or object to certain processing  
 - Withdraw consent for permissions (via device settings)  
 - Lodge a complaint with a supervisory authority  

@@ -177,13 +177,16 @@ You may stop using the Service at any time.
 
 ## 13. Account deletion
 
-To delete your account:
+You may delete your account at any time **directly in the app**:
 
-1. Submit a **deletion request** through the app (or email [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com))  
-2. An **administrator confirms** the request  
-3. Personal data is deleted within **30 days**, except data we must retain by law  
+- **Settings → Delete account** (company and driver accounts), or  
+- **Delete account** on the **driver verification screen** (if you have not yet completed verification)
 
-Deletion is irreversible. Active bookings must be resolved before deletion where reasonably possible.
+When you confirm deletion (by typing the confirmation word shown in the app), your account and associated personal data in the Service are removed **immediately**. You are signed out right away. **No administrator approval** or **30-day waiting period** applies.
+
+Deletion is **irreversible**. Resolve active bookings where reasonably possible before deleting. If you cannot access the app, you may contact [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com) for assistance.
+
+We may retain only data we are **legally required** to keep (e.g. tax or accounting records), as described in our Privacy Policy.
 
 ---
 
