@@ -27,7 +27,6 @@ import { EditModeButtons } from '../../components/EditModeButtons';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { LegalSettingsLinks } from '../../components/LegalSettingsLinks';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
-import { MOCK_COMPANY_SUBSCRIPTION } from '../../constants/companyMocks';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   addCompanyMember,
@@ -511,23 +510,8 @@ export default function CompanyProfileScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('companyProfile.subscription')}</Text>
-        <View style={styles.subRow}>
-          <View>
-            <Text style={styles.subTier}>{MOCK_COMPANY_SUBSCRIPTION.tier}</Text>
-            <Text style={styles.subMeta}>
-              {t('companyProfile.monthlyLimit', {
-                used: MOCK_COMPANY_SUBSCRIPTION.usedThisMonth,
-                limit: MOCK_COMPANY_SUBSCRIPTION.monthlyLimit,
-              })}
-            </Text>
-            <Text style={styles.subMeta}>
-              {t('companyProfile.validUntil', { date: MOCK_COMPANY_SUBSCRIPTION.validUntil })}
-            </Text>
-          </View>
-          <View style={styles.subBadge}>
-            <Text style={styles.subBadgeText}>{t('companyProfile.subscriptionActive')}</Text>
-          </View>
-        </View>
+        <Text style={styles.subTier}>{t('companyProfile.planFree')}</Text>
+        <Text style={styles.subMeta}>{t('companyProfile.planFreeSubtitle')}</Text>
       </View>
 
     </ScrollView>
@@ -709,12 +693,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: SPACING.sm,
   },
-  subRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: SPACING.md,
-  },
   subTier: {
     color: COLORS.gold,
     fontSize: 20,
@@ -724,17 +702,6 @@ const styles = StyleSheet.create({
     color: COLORS.grayLight,
     fontSize: 14,
     marginTop: 6,
-  },
-  subBadge: {
-    backgroundColor: 'rgba(76,175,80,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  subBadgeText: {
-    color: COLORS.success,
-    fontSize: 12,
-    fontWeight: '800',
   },
   membersHint: {
     color: COLORS.grayLight,

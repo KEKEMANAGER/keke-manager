@@ -263,10 +263,6 @@ export default function CompanyDashboardScreen() {
   }, [bookings]);
 
   async function handleCancelBooking(b: BookingRow) {
-    if (__DEV__) {
-      console.log('Cancelling booking ID:', b.id);
-    }
-
     if (!userId) {
       if (Platform.OS === 'web') {
         window.alert(t('companyDashboard.sessionInactive'));
@@ -286,9 +282,6 @@ export default function CompanyDashboardScreen() {
     }
 
     const run = async () => {
-      if (__DEV__) {
-        console.log('Cancelling booking ID (confirmed):', b.id);
-      }
       setCancellingId(b.id);
       try {
         const res = await cancelBookingByCompany(b.id, userId);

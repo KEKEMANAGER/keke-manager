@@ -803,6 +803,8 @@
     "operatorPlaceholder": "e.g. Annie, Monika",
     "operatorNameRequired": "operator name",
     "subscriptionActive": "Active",
+    "planFree": "Plan: Free ✓",
+    "planFreeSubtitle": "Free for tour companies",
     "monthlyLimit": "Monthly limit: {{used}} / {{limit}} bookings",
     "validUntil": "Valid until: {{date}}",
     "deleteOperatorA11y": "Delete {{name}}"

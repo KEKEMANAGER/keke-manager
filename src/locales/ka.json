@@ -800,6 +800,8 @@
     "operatorPlaceholder": "მაგ: ანი, მონიკა",
     "operatorNameRequired": "ოპერატორის სახელი",
     "subscriptionActive": "აქტიური",
+    "planFree": "გეგმა: უფასო ✓",
+    "planFreeSubtitle": "ტურისტული კომპანიებისთვის უფასოა",
     "monthlyLimit": "თვიური ლიმიტი: {{used}} / {{limit}} ჯავშანი",
     "validUntil": "ვადა: {{date}}",
     "deleteOperatorA11y": "{{name}} წაშლა"

@@ -752,6 +752,8 @@
     "operatorPlaceholder": "напр. Анна, Моника",
     "operatorNameRequired": "имя оператора",
     "subscriptionActive": "Активна",
+    "planFree": "Тариф: бесплатно ✓",
+    "planFreeSubtitle": "Бесплатно для туристических компаний",
     "monthlyLimit": "Месячный лимит: {{used}} / {{limit}} бронирований",
     "validUntil": "Действует до: {{date}}",
     "deleteOperatorA11y": "Удалить {{name}}"
