@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import defaults from './supabasePublicConfig.json';
 
 declare global {
   // Injected by scripts/patch-web-html.mjs during production build.
@@ -40,6 +41,7 @@ export function getSupabaseUrl(): string {
     process.env.SUPABASE_URL,
     extra.supabaseUrl,
     runtime?.EXPO_PUBLIC_SUPABASE_URL,
+    defaults.url,
   );
 }
 
@@ -52,6 +54,7 @@ export function getSupabaseAnonKey(): string {
     process.env.SUPABASE_ANON_KEY,
     extra.supabaseAnonKey,
     runtime?.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    defaults.anonKey,
   );
 }
 

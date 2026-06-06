@@ -1,4 +1,12 @@
 /** Shared Supabase env resolution for Cloudflare / Expo production builds. */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PUBLIC_DEFAULTS = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', 'lib', 'supabasePublicConfig.json'), 'utf8'),
+);
 
 export const SUPABASE_URL_NAMES = [
   'EXPO_PUBLIC_SUPABASE_URL',
@@ -48,10 +56,21 @@ export function normalizeSupabaseBuildEnv() {
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = '';
   }
 
-  return {
-    url: process.env.EXPO_PUBLIC_SUPABASE_URL.trim(),
-    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.trim(),
-  };
+  let url = process.env.EXPO_PUBLIC_SUPABASE_URL.trim();
+  let anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY.trim();
+
+  if (!url && PUBLIC_DEFAULTS.url) {
+    url = PUBLIC_DEFAULTS.url;
+    process.env.EXPO_PUBLIC_SUPABASE_URL = url;
+    console.log('supabase-env: using committed public Supabase URL default');
+  }
+  if (!anonKey && PUBLIC_DEFAULTS.anonKey) {
+    anonKey = PUBLIC_DEFAULTS.anonKey;
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = anonKey;
+    console.log('supabase-env: using committed public Supabase anon key default');
+  }
+
+  return { url, anonKey };
 }
 
 export function runtimeEnvScriptContent(url, anonKey) {

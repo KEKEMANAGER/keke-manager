@@ -75,6 +75,10 @@ function normalizeSupabaseEnv() {
 
 normalizeSupabaseEnv();
 
+const supabaseDefaults = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'lib', 'supabasePublicConfig.json'), 'utf8'),
+);
+
 const appJson = require('./app.json');
 
 /** @type {import('@expo/config').ExpoConfig} */
@@ -113,8 +117,10 @@ module.exports = {
     ],
     extra: {
       ...(appJson.expo.extra ?? {}),
-      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || '',
-      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || '',
+      supabaseUrl:
+        process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || supabaseDefaults.url || '',
+      supabaseAnonKey:
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || supabaseDefaults.anonKey || '',
       expoConnectUrl: process.env.EXPO_PUBLIC_EXPO_CONNECT_URL?.trim() || '',
       eas: {
         ...(appJson.expo.extra?.eas ?? {}),
