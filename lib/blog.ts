@@ -1,4 +1,5 @@
-import manifest from './generated/blogManifest.json';
+import { Platform } from 'react-native';
+import bundledManifest from './generated/blogManifest.json';
 import type { BlogCategory, BlogLang, BlogPost } from './blogTypes';
 import { BLOG_CATEGORIES, categoryLabel } from './blogTypes';
 
@@ -7,8 +8,38 @@ type Manifest = {
   posts: BlogPost[];
 };
 
-const data = manifest as Manifest;
-const allPosts: BlogPost[] = data.posts ?? [];
+let manifestData = bundledManifest as Manifest;
+
+function allPostsRaw(): BlogPost[] {
+  return manifestData.posts ?? [];
+}
+
+/** On web, load /blogManifest.json so new posts work without rebundling the JS entry. */
+export async function hydrateBlogManifestFromWeb(): Promise<boolean> {
+  if (Platform.OS !== 'web' || typeof fetch === 'undefined') return false;
+
+  try {
+    const res = await fetch('/blogManifest.json', { cache: 'no-store' });
+    if (!res.ok) return false;
+
+    const remote = (await res.json()) as Manifest;
+    if (!Array.isArray(remote.posts) || remote.posts.length === 0) return false;
+
+    const bundledAt = manifestData.generatedAt ?? '';
+    const remoteAt = remote.generatedAt ?? '';
+    const bundledCount = allPostsRaw().length;
+    const shouldUseRemote =
+      remote.posts.length > bundledCount ||
+      (remoteAt && (!bundledAt || remoteAt >= bundledAt));
+
+    if (!shouldUseRemote) return false;
+
+    manifestData = remote;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function localizedHtml(post: BlogPost, lang: BlogLang): string {
   if (lang === 'en' && post.html_en?.trim()) return post.html_en;
@@ -52,28 +83,29 @@ function postLang(post: BlogPost, lang?: BlogLang): BlogPost {
 }
 
 export function getAllPosts(language?: BlogLang): BlogPost[] {
-  return allPosts.map((p) => postLang(p, language));
+  return allPostsRaw().map((p) => postLang(p, language));
 }
 
 export function getPostBySlug(slug: string, language?: BlogLang): BlogPost | null {
-  const post = allPosts.find((p) => p.slug === slug);
+  const post = allPostsRaw().find((p) => p.slug === slug);
   return post ? postLang(post, language) : null;
 }
 
 export function getRelatedPosts(slug: string, limit = 4, language?: BlogLang): BlogPost[] {
-  const current = allPosts.find((p) => p.slug === slug);
+  const posts = allPostsRaw();
+  const current = posts.find((p) => p.slug === slug);
   if (!current) return getAllPosts(language).slice(0, limit);
 
   const relatedSlugs = new Set(current.related ?? []);
   const picked: BlogPost[] = [];
 
   for (const s of relatedSlugs) {
-    const p = allPosts.find((x) => x.slug === s);
+    const p = posts.find((x) => x.slug === s);
     if (p) picked.push(postLang(p, language));
     if (picked.length >= limit) return picked;
   }
 
-  for (const p of allPosts) {
+  for (const p of posts) {
     if (p.slug === slug) continue;
     if (p.category === current.category) {
       picked.push(postLang(p, language));
@@ -111,7 +143,7 @@ export function searchPosts(query: string, language?: BlogLang): BlogPost[] {
 }
 
 export function getAllSlugs(): string[] {
-  return allPosts.map((p) => p.slug);
+  return allPostsRaw().map((p) => p.slug);
 }
 
 export function paginatePosts(

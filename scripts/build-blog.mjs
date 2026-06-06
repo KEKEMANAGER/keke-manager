@@ -676,7 +676,19 @@ function main() {
   }
 
   posts.sort((a, b) => (a.date < b.date ? 1 : -1));
-  fs.writeFileSync(OUT_FILE, JSON.stringify({ generatedAt: new Date().toISOString(), posts }, null, 2));
+
+  const mdFiles = fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith('.md'));
+  if (posts.length !== mdFiles.length) {
+    console.error(
+      `Blog manifest mismatch: ${mdFiles.length} markdown files but ${posts.length} posts parsed`,
+    );
+    process.exit(1);
+  }
+
+  const manifestPayload = { generatedAt: new Date().toISOString(), posts };
+  const manifestJson = JSON.stringify(manifestPayload, null, 2);
+  fs.writeFileSync(OUT_FILE, manifestJson);
+  fs.writeFileSync(path.join(ROOT, 'public', 'blogManifest.json'), manifestJson);
   buildSeoBlogLinkTitles(posts);
   buildSitemap(posts);
   buildLlmsFull(posts);
@@ -689,7 +701,7 @@ function main() {
     fs.writeFileSync(robotsPath, robots, 'utf8');
   }
 
-  console.log(`Built ${posts.length} blog posts → ${OUT_FILE}`);
+  console.log(`Built ${posts.length} blog posts → ${OUT_FILE} + public/blogManifest.json`);
   } catch (err) {
     console.error(err);
     process.exit(1);

@@ -8,6 +8,7 @@ import { CategoryFilter } from '../../components/blog/CategoryFilter';
 import { NewsletterSignup } from '../../components/blog/NewsletterSignup';
 import { TryKekeCta } from '../../components/blog/TryKekeCta';
 import { getAllPosts, paginatePosts, searchPosts } from '../../lib/blog';
+import { useBlogManifestReady } from '../../lib/BlogManifestProvider';
 import { blogIndexSeo } from '../../lib/blogSeoMeta';
 import type { BlogCategoryId } from '../../lib/blogTypes';
 import { useBlogLang } from '../../lib/useBlogLang';
@@ -48,6 +49,7 @@ export default function BlogIndexScreen() {
   const params = useLocalSearchParams<{ category?: string; page?: string }>();
   const lang = useBlogLang();
   const copy = COPY[lang === 'en' ? 'en' : 'ka'];
+  const { version: manifestVersion } = useBlogManifestReady();
 
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<BlogCategoryId | 'all'>(
@@ -60,7 +62,7 @@ export default function BlogIndexScreen() {
     if (category !== 'all') posts = posts.filter((p) => p.category === category);
     if (query.trim()) posts = searchPosts(query, lang).filter((p) => category === 'all' || p.category === category);
     return posts;
-  }, [lang, category, query]);
+  }, [lang, category, query, manifestVersion]);
 
   const { items, totalPages, page: safePage } = paginatePosts(filtered, page, PER_PAGE);
   const seo = blogIndexSeo(lang);

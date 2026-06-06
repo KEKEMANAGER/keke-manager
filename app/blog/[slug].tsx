@@ -13,6 +13,7 @@ import { ShareButtons } from '../../components/blog/ShareButtons';
 import { TableOfContents } from '../../components/blog/TableOfContents';
 import { TryKekeCta } from '../../components/blog/TryKekeCta';
 import { getAllSlugs, getPostBySlug, getRelatedPosts } from '../../lib/blog';
+import { useBlogManifestReady } from '../../lib/BlogManifestProvider';
 import {
   blogArticleSeo,
   blogBreadcrumbSchema,
@@ -84,11 +85,12 @@ export default function BlogArticleScreen() {
   const lang = useBlogLang();
   const copy = COPY[lang === 'en' ? 'en' : 'ka'];
   const { isDesktop } = useLandingBreakpoint();
+  const { version: manifestVersion } = useBlogManifestReady();
 
-  const post = useMemo(() => (slug ? getPostBySlug(slug, lang) : null), [slug, lang]);
+  const post = useMemo(() => (slug ? getPostBySlug(slug, lang) : null), [slug, lang, manifestVersion]);
   const related = useMemo(
     () => (slug ? getRelatedPosts(slug, 4, lang) : []),
-    [slug, lang],
+    [slug, lang, manifestVersion],
   );
 
   const seo = post ? blogArticleSeo(post, lang) : null;

@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { BLOG_WEB_CSS } from '../../components/blog/blogWebStyles';
+import { BlogManifestProvider } from '../../lib/BlogManifestProvider';
 
 export default function BlogLayout() {
   useEffect(() => {
@@ -15,11 +16,13 @@ export default function BlogLayout() {
   }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: '#ffffff' },
-      }}
-    />
+    <BlogManifestProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#ffffff' },
+        }}
+      />
+    </BlogManifestProvider>
   );
 }
