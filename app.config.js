@@ -83,7 +83,6 @@ module.exports = {
           enableBackgroundRemoteNotifications: true,
         },
       ],
-      'expo-router',
     ],
     extra: {
       ...(appJson.expo.extra ?? {}),

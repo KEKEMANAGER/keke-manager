@@ -3,6 +3,12 @@
     "name": "KEKE Manager",
     "slug": "keke-manager-app",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/42888595-a62e-427b-9446-680bf289be23"
+    },
     "scheme": "kekemanager",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -65,9 +71,9 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "აპს სჭირდება ლოკაცია GPS ტრეკინგისთვის.",
-          "locationAlwaysAndWhenInUsePermission": "აპს სჭირდება ფონური ლოკაცია, რომ ტურის მიმდინარეობისას შენი პოზიცია კომპანიას გადასცეს.",
-          "locationAlwaysPermission": "აპს სჭირდება ფონური ლოკაცია, რომ ტურის მიმდინარეობისას შენი პოზიცია კომპანიას გადასცეს.",
+          "locationWhenInUsePermission": "KEKE uses your location to share your live position with the company during an active trip.",
+          "locationAlwaysAndWhenInUsePermission": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
+          "locationAlwaysPermission": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
