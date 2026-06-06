@@ -5,8 +5,22 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Fri, 29 May 2026 09:39:06 GMT</lastBuildDate>
+    <lastBuildDate>Sat, 06 Jun 2026 18:50:39 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[როგორ მართო ტურ-კომპანიის მძღოლები საქართველოში — სრული გზამკვლევი]]></title>
+      <link>https://kekemanager.com/blog/manage-tour-company-drivers-georgia</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/manage-tour-company-drivers-georgia</guid>
+      <pubDate>Sat, 06 Jun 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[KEKE Manager — B2B პლატფორმა ტურ-კომპანიებისა და მძღოლებისთვის საქართველოში. GPS ტრეკინგი, ციფრული ვაუჩერი, ჯავშნების მართვა ერთ სისტემაში.]]></description>
+    </item>
+    <item>
+      <title><![CDATA[How to manage tour company drivers in Georgia — a complete guide]]></title>
+      <link>https://kekemanager.com/blog/manage-tour-company-drivers-georgia-en</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/manage-tour-company-drivers-georgia-en</guid>
+      <pubDate>Sat, 06 Jun 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[KEKE Manager is a B2B platform for tour operators and drivers in Georgia. GPS tracking, digital vouchers, and booking management — all in one system.]]></description>
+    </item>
     <item>
       <title><![CDATA[B2B ტრანსპორტის პლატფორმა vs ტრადიციული ჯავშანი]]></title>
       <link>https://kekemanager.com/blog/b2b-transport-platforms-vs-traditional-booking</link>
@@ -132,20 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/managing-tourist-driver-fleet</guid>
       <pubDate>Sun, 03 May 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[ფლოტის დაგეგმვა, რეზერვი, მოვლა და ტუროპერატორთან კოორდინაცია.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[ტურისტული ტრანსპორტის ფასების გზამკვლევი საქართველოში]]></title>
-      <link>https://kekemanager.com/blog/tour-transport-pricing-guide-georgia</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/tour-transport-pricing-guide-georgia</guid>
-      <pubDate>Sat, 02 May 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[როგორ დააფიქსიროთ ტარიფები, დამატებითი საათები და სეზონური კოეფიციენტები B2B-ში.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[როგორ ვიპოვოთ სანდო ტურისტული მძღოლი საქართველოში]]></title>
-      <link>https://kekemanager.com/blog/how-to-find-reliable-tour-driver-georgia</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/how-to-find-reliable-tour-driver-georgia</guid>
-      <pubDate>Fri, 01 May 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[პრაქტიკული გზამკვლევი ტუროპერატორებისთვის: როგორ შეაფასოთ მძღოლი, მანქანა და კომუნიკაცია B2B ეკოსისტემაში.]]></description>
     </item>
   </channel>
 </rss>

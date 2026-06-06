@@ -660,6 +660,7 @@ function main() {
       language: fm.language || 'ka',
       faq: Array.isArray(fm.faq) ? fm.faq : [],
       related: parseRelated(fm.related),
+      verified: fm.verified === true || fm.verified === 'true',
       excerpt: excerptFromBody(kaBody),
       excerpt_en: enBody ? excerptFromBody(enBody) : excerptFromBody(kaBody),
       html: markdownToHtml(kaBody),

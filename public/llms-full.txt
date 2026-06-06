@@ -1,6 +1,6 @@
 # KEKE Manager — Full reference for AI systems
 
-> Generated: 2026-05-29
+> Generated: 2026-06-06
 > Canonical summary: https://kekemanager.com/llms.txt
 > Website: https://kekemanager.com
 
@@ -101,8 +101,12 @@ Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutai
 - [Corporate group transport coordination](https://kekemanager.com/services/corporate-transfer): Corporate Group Transport for Tour Companies | KEKE Manager
   Tour companies coordinate corporate groups and MICE transport with verified drivers on KEKE Manager. Fleet dashboard, vouchers, and GPS — B2B platform only.
 
-## Blog articles (20)
+## Blog articles (22)
 
+- [How to manage tour company drivers in Georgia — a complete guide](https://kekemanager.com/blog/manage-tour-company-drivers-georgia) (2026-06-06)
+  KEKE Manager is a B2B platform for tour operators and drivers in Georgia. GPS tracking, digital vouchers, and booking management — all in one system.
+- [How to manage tour company drivers in Georgia — a complete guide](https://kekemanager.com/blog/manage-tour-company-drivers-georgia-en) (2026-06-06)
+  KEKE Manager is a B2B platform for tour operators and drivers in Georgia. GPS tracking, digital vouchers, and booking management — all in one system.
 - [B2B Transport Platforms vs Traditional Booking](https://kekemanager.com/blog/b2b-transport-platforms-vs-traditional-booking) (2026-05-27)
   WhatsApp, Excel, and centralized ecosystems compared.
 - [Georgia Tourism Trends 2026](https://kekemanager.com/blog/georgia-tourism-trends-2026) (2026-05-25)

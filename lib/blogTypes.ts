@@ -30,6 +30,7 @@ export type BlogPostFrontmatter = {
   language: BlogLang;
   faq: BlogFaqItem[];
   related: string[];
+  verified?: boolean;
 };
 
 export type BlogTocItem = {
