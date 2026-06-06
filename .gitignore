@@ -48,3 +48,10 @@ yarn-error.*
 
 # Cursor / Claude local settings
 .claude/
+
+# Local build artifacts
+build-*.log
+verbose-build.log
+dist-test/
+stdout
+supabase/.temp/
