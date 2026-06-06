@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { User } from '@supabase/supabase-js';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -15,6 +15,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type LayoutRectangle,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { BookingRow, BookingStatus } from '../../lib/bookings';
@@ -30,6 +31,10 @@ import {
   unsubscribeChannel,
 } from '../../lib/bookings';
 import { EmergencyReplacementModal } from '../../components/EmergencyReplacementModal';
+import {
+  CompanyOnboardingOverlay,
+  type OnboardingTargetRects,
+} from '../../components/CompanyOnboardingOverlay';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { BookingChatThreads } from '../../components/BookingChatThreads';
 import { DriverProfileCard } from '../../components/DriverProfileCard';
@@ -39,6 +44,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { supabase } from '../../lib/supabase';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { APP_HEADER_BODY_HEIGHT } from '../../constants/layout';
 import type { DriverProfile } from '../../lib/drivers';
 import { fetchDriverProfile } from '../../lib/drivers';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
@@ -54,6 +60,12 @@ import {
 } from '../../lib/ratings';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
+import {
+  getCompanyOnboardingDone,
+  setCompanyOnboardingDone,
+} from '../../lib/companyOnboarding';
+import { getUserRole } from '../../lib/role';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -128,11 +140,19 @@ function statusLabelColor(status: BookingStatus): { color: string } {
 
 export default function CompanyDashboardScreen() {
   const { t } = useTranslation();
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const layout = useAppLayoutInsets();
+  const safeInsets = useSafeAreaInsets();
+  const role = getUserRole(profile);
   const name = companyDisplayName(profile, user, t('common.company'));
   const userId = user?.id;
+
+  const newBookingLinkRef = useRef<View>(null);
+  const emergencyBtnRef = useRef<View>(null);
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [onboardingTargets, setOnboardingTargets] = useState<OnboardingTargetRects>({});
 
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -215,6 +235,70 @@ export default function CompanyDashboardScreen() {
     });
     return () => unsubscribeChannel(ch);
   }, [userId, load]);
+
+  const menuButtonRect = useMemo((): LayoutRectangle => {
+    const w = Dimensions.get('window').width;
+    return {
+      x: w - 56,
+      y: safeInsets.top + 4,
+      width: 48,
+      height: APP_HEADER_BODY_HEIGHT - 8,
+    };
+  }, [safeInsets.top]);
+
+  const measureOnboardingTargets = useCallback(() => {
+    const measureRef = (ref: RefObject<View | null>) =>
+      new Promise<LayoutRectangle | null>((resolve) => {
+        if (!ref.current) {
+          resolve(null);
+          return;
+        }
+        ref.current.measureInWindow((x, y, width, height) => {
+          resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
+        });
+      });
+
+    void Promise.all([measureRef(newBookingLinkRef), measureRef(emergencyBtnRef)]).then(
+      ([newBookingLink, emergencyBtn]) => {
+        setOnboardingTargets({
+          newBookingLink,
+          emergencyBtn,
+          menuButton: menuButtonRect,
+        });
+      },
+    );
+  }, [menuButtonRect]);
+
+  useEffect(() => {
+    if (authLoading || role !== 'company' || !userId || loading || onboardingChecked) return;
+    void (async () => {
+      const done = await getCompanyOnboardingDone(userId);
+      setOnboardingChecked(true);
+      if (!done && totalCount === 0) {
+        setOnboardingVisible(true);
+      }
+    })();
+  }, [authLoading, role, userId, loading, totalCount, onboardingChecked]);
+
+  useEffect(() => {
+    if (authLoading || !role || role === 'company') return;
+    setOnboardingVisible(false);
+  }, [authLoading, role]);
+
+  useEffect(() => {
+    if (!onboardingVisible) return;
+    const t1 = setTimeout(() => void measureOnboardingTargets(), 200);
+    const t2 = setTimeout(() => void measureOnboardingTargets(), 600);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [onboardingVisible, measureOnboardingTargets]);
+
+  async function finishOnboarding() {
+    if (userId) await setCompanyOnboardingDone(userId);
+    setOnboardingVisible(false);
+  }
 
   function openWizard(preset: 'transfer' | 'tour' | 'dayTour') {
     router.push({
@@ -417,19 +501,23 @@ export default function CompanyDashboardScreen() {
         </Pressable>
       </View>
 
-      <Pressable
-        onPress={() => setEmergencyOpen(true)}
-        style={({ pressed }) => [styles.emergencyBtn, pressed && styles.pressed]}
-      >
-        <Text style={styles.emergencyBtnText}>{t('emergencyReplacement.button')}</Text>
-      </Pressable>
+      <View ref={emergencyBtnRef} collapsable={false}>
+        <Pressable
+          onPress={() => setEmergencyOpen(true)}
+          style={({ pressed }) => [styles.emergencyBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.emergencyBtnText}>{t('emergencyReplacement.button')}</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.sectionDivider} />
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t('company.activeBookings')}</Text>
-        <Pressable onPress={() => router.push('/(app)/new-booking')}>
-          <Text style={styles.link}>{t('company.newBookingLink')}</Text>
-        </Pressable>
+        <View ref={newBookingLinkRef} collapsable={false}>
+          <Pressable onPress={() => router.push('/(app)/new-booking')}>
+            <Text style={styles.link}>{t('company.newBookingLink')}</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.topStatsRow}>
@@ -745,6 +833,13 @@ export default function CompanyDashboardScreen() {
       companyUserId={userId}
       assignableBookings={assignableEmergencyBookings}
       onAssigned={() => load('silent')}
+    />
+
+    <CompanyOnboardingOverlay
+      visible={onboardingVisible && role === 'company'}
+      targets={onboardingTargets}
+      onComplete={() => void finishOnboarding()}
+      onSkip={() => void finishOnboarding()}
     />
     </>
   );

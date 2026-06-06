@@ -576,6 +576,38 @@
     "experienceYears": "{{years}} years of experience",
     "driverInfoNotFound": "Driver info not found"
   },
+  "companyOnboarding": {
+    "skip": "Skip",
+    "next": "Next",
+    "start": "Get started",
+    "menuDriversHint": "Menu → Drivers",
+    "steps": {
+      "welcome": {
+        "title": "Welcome! 👋 Glad you're here!",
+        "body": "KEKE Manager connects tour companies with verified drivers — bookings, vouchers, and communication in one place."
+      },
+      "newBooking": {
+        "title": "➕ Create your first booking",
+        "body": "Here you can create a transfer, tour, or day tour"
+      },
+      "drivers": {
+        "title": "🚗 Find a driver",
+        "body": "70+ verified drivers are ready!"
+      },
+      "voucher": {
+        "title": "📄 Automatic voucher",
+        "body": "After every booking a PDF voucher is generated automatically"
+      },
+      "emergency": {
+        "title": "🆘 Emergency replacement",
+        "body": "Vehicle broke down? A new driver in 2 minutes!"
+      },
+      "done": {
+        "title": "✅ You're ready!",
+        "body": "Start with KEKE Manager and forget the chaos!"
+      }
+    }
+  },
   "notifications": {
     "newBookingTitle": "KEKE",
     "newBookingBody": "New booking! 🚗",
