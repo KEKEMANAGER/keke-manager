@@ -6,6 +6,17 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const MS_HOUR = 60 * 60 * 1000;
 const MS_MIN = 60 * 1000;
 
+/** First reminder: ~12 hours before trip (±1 hour window for hourly cron). */
+const REMINDER_12H_TARGET_MS = 12 * MS_HOUR;
+const REMINDER_12H_WINDOW_MS = 1 * MS_HOUR;
+
+/** Confirmation request: ~1 hour 45 minutes before trip (±5 minutes). */
+const REMINDER_CONFIRM_TARGET_MS = 105 * MS_MIN;
+const REMINDER_CONFIRM_WINDOW_MS = 5 * MS_MIN;
+
+/** Auto-reassign if driver did not confirm within 24 minutes of the confirm push. */
+const REASSIGN_AFTER_MS = 24 * MS_MIN;
+
 const ACTIVE_STATUSES = ['accepted', 'in_progress', 'confirmed'];
 
 type BookingRow = {
@@ -20,11 +31,28 @@ type BookingRow = {
   to_location: string | null;
   route: string | null;
   date_display: string | null;
+  vehicle_type: string | null;
+  vehicle_class: string | null;
+  required_languages: string[] | null;
+  requested_driver_category: string | null;
   reminder_24h_sent: boolean;
   reminder_1h_sent: boolean;
   driver_confirmed_1h: boolean | null;
   reminder_1h_sent_at: string | null;
   company_unconfirmed_alert_sent: boolean;
+};
+
+type DriverCandidate = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  is_guide_driver: boolean | null;
+  is_hired_driver: boolean | null;
+  languages: string[] | null;
+  is_available: boolean | null;
+  available_updated_at: string | null;
+  vehicle_plate: string | null;
+  vehicle_id: string | null;
 };
 
 type PushResult = { ok: true } | { ok: false; error: string };
@@ -61,7 +89,7 @@ Deno.serve(async (req) => {
     const { data: rows, error: fetchErr } = await admin
       .from('bookings')
       .select(
-        'id, company_id, driver_id, status, kind, booking_type, flight_direction, from_location, to_location, route, date_display, reminder_24h_sent, reminder_1h_sent, driver_confirmed_1h, reminder_1h_sent_at, company_unconfirmed_alert_sent',
+        'id, company_id, driver_id, status, kind, booking_type, flight_direction, from_location, to_location, route, date_display, vehicle_type, vehicle_class, required_languages, requested_driver_category, reminder_24h_sent, reminder_1h_sent, driver_confirmed_1h, reminder_1h_sent_at, company_unconfirmed_alert_sent',
       )
       .not('driver_id', 'is', null)
       .in('status', ACTIVE_STATUSES)
@@ -73,9 +101,10 @@ Deno.serve(async (req) => {
     }
 
     const bookings = (rows ?? []) as BookingRow[];
-    let sent24h = 0;
-    let sent1h = 0;
-    let sentCompany = 0;
+    let sent12h = 0;
+    let sentConfirm = 0;
+    let reassigned = 0;
+    let notifiedCompany = 0;
     const errors: string[] = [];
 
     for (const booking of bookings) {
@@ -83,93 +112,142 @@ Deno.serve(async (req) => {
       if (startMs === null || startMs <= now) continue;
 
       const msUntilStart = startMs - now;
-      const needs24h =
-        !booking.reminder_24h_sent && msUntilStart >= 23 * MS_HOUR && msUntilStart <= 25 * MS_HOUR;
-      const needs1h =
-        !booking.reminder_1h_sent && msUntilStart >= 50 * MS_MIN && msUntilStart <= 70 * MS_MIN;
+      const needs12h =
+        !booking.reminder_24h_sent &&
+        inWindow(msUntilStart, REMINDER_12H_TARGET_MS, REMINDER_12H_WINDOW_MS);
+      const needsConfirm =
+        !booking.reminder_1h_sent &&
+        inWindow(msUntilStart, REMINDER_CONFIRM_TARGET_MS, REMINDER_CONFIRM_WINDOW_MS);
       const sentAtMs = booking.reminder_1h_sent_at ? Date.parse(booking.reminder_1h_sent_at) : NaN;
-      const needsCompany =
+      const needsReassign =
         booking.reminder_1h_sent &&
         booking.driver_confirmed_1h == null &&
         !booking.company_unconfirmed_alert_sent &&
         !Number.isNaN(sentAtMs) &&
-        now - sentAtMs >= 30 * MS_MIN;
+        now - sentAtMs >= REASSIGN_AFTER_MS;
 
-      if (!needs24h && !needs1h && !needsCompany) continue;
+      if (!needs12h && !needsConfirm && !needsReassign) continue;
 
       const route = routeSummary(booking);
       const typeLabel = bookingTypeLabelKa(booking);
       const dateTimeLabel = formatBookingDateTimeKa(startMs);
 
-      if (needs24h) {
+      if (needs12h) {
         const driverId = String(booking.driver_id ?? '').trim();
         const token = await fetchPushToken(admin, driverId);
         if (!token) {
-          errors.push(`24h: no push token for booking ${booking.id}`);
+          errors.push(`12h: no push token for booking ${booking.id}`);
         } else {
-          const body = `ხვალ გაქვს ${typeLabel}: ${route} - ${dateTimeLabel}`;
+          const body = `12 საათში გაქვს ${typeLabel}: ${route} - ${dateTimeLabel}`;
           const push = await sendExpoPush(token, 'KEKE Manager', body, {
-            type: 'booking_reminder_24h',
+            type: 'booking_reminder_12h',
             bookingId: booking.id,
           });
           if (!push.ok) {
-            errors.push(`24h push ${booking.id}: ${push.error}`);
+            errors.push(`12h push ${booking.id}: ${push.error}`);
           } else {
             const { error: updErr } = await admin
               .from('bookings')
               .update({ reminder_24h_sent: true })
               .eq('id', booking.id);
-            if (updErr) errors.push(`24h flag ${booking.id}: ${updErr.message}`);
-            else sent24h += 1;
+            if (updErr) errors.push(`12h flag ${booking.id}: ${updErr.message}`);
+            else sent12h += 1;
           }
         }
       }
 
-      if (needs1h) {
+      if (needsConfirm) {
         const driverId = String(booking.driver_id ?? '').trim();
         const token = await fetchPushToken(admin, driverId);
         if (!token) {
-          errors.push(`1h: no push token for booking ${booking.id}`);
+          errors.push(`confirm: no push token for booking ${booking.id}`);
         } else {
-          const body = `1 საათში გაქვს ${typeLabel}: ${route}. შეძლებ? გთხოვ დაადასტურე`;
+          const body = `1 საათ 45 წუთში გაქვს ${typeLabel}: ${route}. შეძლებ? გთხოვ დაადასტურე`;
           const push = await sendExpoPush(token, 'KEKE Manager', body, {
-            type: 'booking_reminder_1h',
+            type: 'booking_reminder_confirm',
             bookingId: booking.id,
           });
           if (!push.ok) {
-            errors.push(`1h push ${booking.id}: ${push.error}`);
+            errors.push(`confirm push ${booking.id}: ${push.error}`);
           } else {
             const sentAt = new Date().toISOString();
             const { error: updErr } = await admin
               .from('bookings')
               .update({ reminder_1h_sent: true, reminder_1h_sent_at: sentAt })
               .eq('id', booking.id);
-            if (updErr) errors.push(`1h flag ${booking.id}: ${updErr.message}`);
-            else sent1h += 1;
+            if (updErr) errors.push(`confirm flag ${booking.id}: ${updErr.message}`);
+            else sentConfirm += 1;
           }
         }
       }
 
-      if (needsCompany) {
-        const companyId = String(booking.company_id ?? '').trim();
-        const token = await fetchPushToken(admin, companyId);
-        if (!token) {
-          errors.push(`company alert: no push token for booking ${booking.id}`);
-        } else {
-          const body = 'მძღოლმა ვერ დაადასტურა ჯავშანი. გთხოვ სხვა მძღოლი დანიშნო';
-          const push = await sendExpoPush(token, 'KEKE Manager', body, {
-            type: 'booking_driver_unconfirmed',
-            bookingId: booking.id,
-          });
-          if (!push.ok) {
-            errors.push(`company push ${booking.id}: ${push.error}`);
+      if (needsReassign) {
+        const oldDriverId = String(booking.driver_id ?? '').trim();
+        const replacement = await findReplacementDriver(admin, booking, oldDriverId);
+
+        if (replacement) {
+          const { error: updErr } = await admin
+            .from('bookings')
+            .update({
+              driver_id: replacement.id,
+              driver_display_name: replacement.full_name?.trim() || null,
+              driver_phone: replacement.phone?.trim() || null,
+              driver_plate: replacement.vehicle_plate?.trim() || null,
+              vehicle_id: replacement.vehicle_id,
+              driver_confirmed_1h: null,
+              reminder_1h_sent: false,
+              reminder_1h_sent_at: null,
+              company_unconfirmed_alert_sent: true,
+              status: 'accepted',
+            })
+            .eq('id', booking.id)
+            .eq('driver_id', oldDriverId);
+
+          if (updErr) {
+            errors.push(`reassign update ${booking.id}: ${updErr.message}`);
           } else {
-            const { error: updErr } = await admin
-              .from('bookings')
-              .update({ company_unconfirmed_alert_sent: true })
-              .eq('id', booking.id);
-            if (updErr) errors.push(`company flag ${booking.id}: ${updErr.message}`);
-            else sentCompany += 1;
+            reassigned += 1;
+            const newToken = await fetchPushToken(admin, replacement.id);
+            if (newToken) {
+              const body = `გადაგინიშნეს ${typeLabel}: ${route} - ${dateTimeLabel}. გთხოვ დაადასტურე`;
+              const push = await sendExpoPush(newToken, 'KEKE Manager', body, {
+                type: 'booking_reassigned',
+                bookingId: booking.id,
+              });
+              if (!push.ok) errors.push(`reassign push ${booking.id}: ${push.error}`);
+            }
+            const companyId = String(booking.company_id ?? '').trim();
+            const companyToken = await fetchPushToken(admin, companyId);
+            if (companyToken) {
+              const body = `მძღოლმა ვერ დაადასტურა. ჯავშანი ავტომატურად გადაენიჭა სხვა მძღოლს: ${replacement.full_name?.trim() || 'მძღოლი'}`;
+              await sendExpoPush(companyToken, 'KEKE Manager', body, {
+                type: 'booking_auto_reassigned',
+                bookingId: booking.id,
+              });
+            }
+          }
+        } else {
+          const companyId = String(booking.company_id ?? '').trim();
+          const token = await fetchPushToken(admin, companyId);
+          if (!token) {
+            errors.push(`reassign fallback: no company push token for ${booking.id}`);
+          } else {
+            const body =
+              'მძღოლმა ვერ დაადასტურა ჯავშანი. შესაბამისი მძღოლი ვერ მოიძებნა — გთხოვ ხელით დანიშნო';
+            const push = await sendExpoPush(token, 'KEKE Manager', body, {
+              type: 'booking_driver_unconfirmed',
+              bookingId: booking.id,
+            });
+            if (!push.ok) {
+              errors.push(`company fallback push ${booking.id}: ${push.error}`);
+            } else {
+              const { error: updErr } = await admin
+                .from('bookings')
+                .update({ company_unconfirmed_alert_sent: true })
+                .eq('id', booking.id);
+              if (updErr) errors.push(`company flag ${booking.id}: ${updErr.message}`);
+              else notifiedCompany += 1;
+            }
           }
         }
       }
@@ -179,9 +257,10 @@ Deno.serve(async (req) => {
       {
         ok: true,
         processed: bookings.length,
-        sent24h,
-        sent1h,
-        sentCompany,
+        sent12h,
+        sentConfirm,
+        reassigned,
+        notifiedCompany,
         errors,
       },
       200,
@@ -192,6 +271,135 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: msg }, 500);
   }
 });
+
+function inWindow(msUntilStart: number, targetMs: number, windowMs: number): boolean {
+  const low = targetMs - windowMs;
+  const high = targetMs + windowMs;
+  return msUntilStart >= low && msUntilStart <= high;
+}
+
+function normalizeCategory(raw: string | null | undefined): 'all' | 'guide' | 'own_vehicle' {
+  const v = String(raw ?? '').trim();
+  if (v === 'guide' || v === 'own_vehicle') return v;
+  return 'all';
+}
+
+function driverMatchesCategory(
+  driver: { is_guide_driver?: boolean | null; is_hired_driver?: boolean | null },
+  category: 'all' | 'guide' | 'own_vehicle',
+): boolean {
+  if (category === 'all') return driver.is_hired_driver !== true;
+  const guide = driver.is_guide_driver === true;
+  const hired = driver.is_hired_driver === true;
+  if (hired) return false;
+  if (category === 'guide') return guide;
+  return !guide;
+}
+
+function driverMatchesLanguages(
+  driverLangs: string[] | null | undefined,
+  required: string[] | null | undefined,
+): boolean {
+  const req = (required ?? []).filter((x) => typeof x === 'string' && x.trim().length > 0);
+  if (req.length === 0) return true;
+  const have = new Set((driverLangs ?? []).map((x) => String(x).trim().toLowerCase()));
+  return req.some((r) => have.has(String(r).trim().toLowerCase()));
+}
+
+async function findReplacementDriver(
+  admin: ReturnType<typeof createClient>,
+  booking: BookingRow,
+  excludeDriverId: string,
+): Promise<DriverCandidate | null> {
+  const vehicleType = String(booking.vehicle_type ?? '').trim().toLowerCase();
+  const vehicleClass = String(booking.vehicle_class ?? '').trim().toLowerCase();
+  if (!vehicleType || !vehicleClass) return null;
+
+  const { data: vehicleRows, error: vErr } = await admin
+    .from('vehicles')
+    .select('id, driver_id, type, class, plate')
+    .eq('is_active', true);
+
+  if (vErr || !vehicleRows?.length) return null;
+
+  const vehicleByDriver = new Map<string, { id: string; plate: string | null }>();
+  for (const row of vehicleRows as {
+    id: string;
+    driver_id: string;
+    type?: string | null;
+    class?: string | null;
+    plate?: string | null;
+  }[]) {
+    const did = String(row.driver_id ?? '').trim();
+    if (!did || did === excludeDriverId) continue;
+    const vt = String(row.type ?? '').trim().toLowerCase();
+    const vc = String(row.class ?? '').trim().toLowerCase();
+    if (vt !== vehicleType || vc !== vehicleClass) continue;
+    if (!vehicleByDriver.has(did)) {
+      vehicleByDriver.set(did, { id: row.id, plate: row.plate ?? null });
+    }
+  }
+
+  const driverIds = [...vehicleByDriver.keys()];
+  if (driverIds.length === 0) return null;
+
+  const { data: users, error: uErr } = await admin
+    .from('users')
+    .select(
+      'id, full_name, phone, role, is_verified, is_guide_driver, is_hired_driver, languages, is_available, available_updated_at',
+    )
+    .in('id', driverIds)
+    .eq('role', 'driver')
+    .eq('is_verified', true);
+
+  if (uErr || !users?.length) return null;
+
+  const category = normalizeCategory(booking.requested_driver_category);
+  const candidates: DriverCandidate[] = [];
+
+  for (const u of users as {
+    id: string;
+    full_name?: string | null;
+    phone?: string | null;
+    is_guide_driver?: boolean | null;
+    is_hired_driver?: boolean | null;
+    languages?: string[] | null;
+    is_available?: boolean | null;
+    available_updated_at?: string | null;
+  }[]) {
+    const id = String(u.id);
+    if (id === excludeDriverId) continue;
+    if (!driverMatchesCategory(u, category)) continue;
+    if (!driverMatchesLanguages(u.languages, booking.required_languages)) continue;
+    const vehicle = vehicleByDriver.get(id);
+    if (!vehicle) continue;
+    candidates.push({
+      id,
+      full_name: u.full_name ?? null,
+      phone: u.phone ?? null,
+      is_guide_driver: u.is_guide_driver ?? null,
+      is_hired_driver: u.is_hired_driver ?? null,
+      languages: u.languages ?? null,
+      is_available: u.is_available ?? null,
+      available_updated_at: u.available_updated_at ?? null,
+      vehicle_plate: vehicle.plate,
+      vehicle_id: vehicle.id,
+    });
+  }
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => {
+    const avA = a.is_available === true ? 1 : 0;
+    const avB = b.is_available === true ? 1 : 0;
+    if (avB !== avA) return avB - avA;
+    const tA = a.available_updated_at ? Date.parse(a.available_updated_at) : 0;
+    const tB = b.available_updated_at ? Date.parse(b.available_updated_at) : 0;
+    return tB - tA;
+  });
+
+  return candidates[0] ?? null;
+}
 
 function parseBookingStartMs(value: string | null): number | null {
   const raw = value?.trim();

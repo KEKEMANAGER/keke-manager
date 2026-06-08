@@ -4,14 +4,15 @@ import { isBookingRowUuid } from './bookings';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
 
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+/** Driver may confirm from 1h45 before trip until departure (matches reminder push). */
+const CONFIRM_WINDOW_MS = 105 * 60 * 1000;
 
 export function bookingStartMs(row: Pick<BookingRow, 'date_display'>): number | null {
   const parsed = parseStoredDateTime(row.date_display);
   return parsed ? parsed.getTime() : null;
 }
 
-/** Show „დაადასტურე“ from 2 hours before trip start until departure. */
+/** Show „დაადასტურე“ from 1h45 before trip start until departure. */
 export function canDriverConfirmUpcomingBooking(
   row: Pick<BookingRow, 'status' | 'date_display' | 'driver_confirmed_1h'>,
   nowMs = Date.now(),
@@ -20,7 +21,7 @@ export function canDriverConfirmUpcomingBooking(
   if (row.driver_confirmed_1h === true) return false;
   const start = bookingStartMs(row);
   if (start === null || start <= nowMs) return false;
-  return start - nowMs <= TWO_HOURS_MS;
+  return start - nowMs <= CONFIRM_WINDOW_MS;
 }
 
 export function isDriverOneHourConfirmed(

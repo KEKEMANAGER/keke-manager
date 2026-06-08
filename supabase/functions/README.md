@@ -25,9 +25,10 @@ Scheduled Edge Function (hourly cron) that sends Expo push notifications for upc
 
 | Timing | Recipient | Message (ka) |
 |--------|-----------|--------------|
-| ~24h before | Driver | `ხვალ გაქვს [type]: [route] - [date/time]` |
-| ~1h before | Driver | `1 საათში გაქვს [type]: [route]. შეძლებ? გთხოვ დაადასტურე` |
-| 30 min after 1h reminder, no confirm | Company | `მძღოლმა ვერ დაადასტურა ჯავშანი. გთხოვ სხვა მძღოლი დანიშნო` |
+| ~12h before | Driver | `12 საათში გაქვს [type]: [route] - [date/time]` |
+| ~1h 45m before | Driver | `1 საათ 45 წუთში გაქვს [type]: [route]. შეძლებ? გთხოვ დაადასტურე` |
+| 24 min after confirm push, no response | Auto | Reassign to next matching driver (vehicle type/class, category, languages); notify company + new driver |
+| Reassign failed (no driver) | Company | Manual assignment needed |
 
 Requires migration `20260530120000_booking_reminder_columns.sql` (`reminder_*`, `driver_confirmed_1h`, etc.).
 
