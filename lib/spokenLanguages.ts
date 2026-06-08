@@ -1,4 +1,7 @@
 import i18n from '../src/lib/i18n';
+import en from '../src/locales/en.json';
+import ka from '../src/locales/ka.json';
+import ru from '../src/locales/ru.json';
 
 /** Canonical language codes stored in `users.languages`, `profiles.languages`, `bookings.required_languages`. */
 export const SPOKEN_LANGUAGE_CODES = [
@@ -141,9 +144,20 @@ export function languageCodesFromList(languages: string[] | null | undefined): S
   return [...set];
 }
 
-export function spokenLanguageLabel(code: string): string {
+export function spokenLanguageLabel(code: string, lang?: string): string {
   const norm = normalizeSpokenLanguageCode(code);
   if (!norm) return code;
+  const bundleLang = (lang ?? String(i18n.resolvedLanguage || i18n.language || 'ka')).split('-')[0]?.toLowerCase() ?? 'ka';
+  if (bundleLang === 'ru') {
+    const label = (ru.spokenLanguages as Record<string, string>)[norm];
+    if (label) return label;
+  } else if (bundleLang === 'en') {
+    const label = (en.spokenLanguages as Record<string, string>)[norm];
+    if (label) return label;
+  } else {
+    const label = (ka.spokenLanguages as Record<string, string>)[norm];
+    if (label) return label;
+  }
   const key = `spokenLanguages.${norm}`;
   if (i18n.exists(key)) return i18n.t(key);
   return norm.toUpperCase();
@@ -154,10 +168,10 @@ export function languageBadgeLabel(code: JobBoardLangCode | string): string {
   return spokenLanguageLabel(code);
 }
 
-export function formatSpokenLanguagesList(codes: string[]): string {
+export function formatSpokenLanguagesList(codes: string[], lang?: string): string {
   const normalized = languageCodesFromList(codes);
   if (!normalized.length) return '';
-  return normalized.map((c) => spokenLanguageLabel(c)).join(', ');
+  return normalized.map((c) => spokenLanguageLabel(c, lang)).join(', ');
 }
 
 /**

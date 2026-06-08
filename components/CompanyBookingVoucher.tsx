@@ -37,6 +37,7 @@ import { BookingPaymentBadge } from './BookingPaymentBadge';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { TouristBookingVoucherContent } from './TouristBookingVoucher';
 import { UserAvatar } from './UserAvatar';
+import { VoucherModeTabs, type VoucherMode } from './VoucherModeTabs';
 
 const VOUCHER_LOCATION = { withIcon: false as const };
 
@@ -61,38 +62,6 @@ function SectionHeader({ title }: { title: string }) {
   return <Text style={styles.sectionHeader}>{stripVoucherEmojis(title)}</Text>;
 }
 
-type VoucherMode = 'company' | 'tourist';
-
-function VoucherModeTabs({
-  mode,
-  onChange,
-}: {
-  mode: VoucherMode;
-  onChange: (mode: VoucherMode) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <View style={styles.modeTabs}>
-      <Pressable
-        onPress={() => onChange('company')}
-        style={[styles.modeTab, mode === 'company' && styles.modeTabActive]}
-      >
-        <Text style={[styles.modeTabText, mode === 'company' && styles.modeTabTextActive]}>
-          {t('companyVoucher.tabCompany')}
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={() => onChange('tourist')}
-        style={[styles.modeTab, mode === 'tourist' && styles.modeTabActive]}
-      >
-        <Text style={[styles.modeTabText, mode === 'tourist' && styles.modeTabTextActive]}>
-          {t('companyVoucher.tabTourist')}
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
-
 export function CompanyBookingVoucherContent({ data, onClose, showClose = true }: ContentProps) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -101,15 +70,14 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
   const [printing, setPrinting] = useState(false);
   const [voucherMode, setVoucherMode] = useState<VoucherMode>('company');
 
-  const modeTabs = <VoucherModeTabs mode={voucherMode} onChange={setVoucherMode} />;
-
   if (voucherMode === 'tourist') {
     return (
       <TouristBookingVoucherContent
         data={data}
         onClose={onClose}
         showClose={showClose}
-        topSlot={modeTabs}
+        voucherMode={voucherMode}
+        onVoucherModeChange={setVoucherMode}
       />
     );
   }
@@ -171,7 +139,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
         ) : null}
         <Text style={styles.brandLogo}>KEKE MANAGER</Text>
         <Text style={styles.brandSub}>{t('companyVoucher.brandSubtitle')}</Text>
-        {modeTabs}
+        <VoucherModeTabs mode={voucherMode} onChange={setVoucherMode} />
       </View>
 
       <ScrollView
@@ -600,26 +568,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   brandSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  modeTabs: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-  },
-  modeTab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: RADIUS.button,
-    borderWidth: 1,
-    borderColor: 'rgba(245,166,35,0.35)',
-    alignItems: 'center',
-  },
-  modeTabActive: {
-    backgroundColor: COLORS.gold,
-    borderColor: COLORS.gold,
-  },
-  modeTabText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
-  modeTabTextActive: { color: COLORS.black },
   closeTop: { position: 'absolute', right: SPACING.md, top: SPACING.md, zIndex: 2 },
   scroll: { flex: 1 },
   scrollContent: { padding: SPACING.md, gap: SPACING.md },

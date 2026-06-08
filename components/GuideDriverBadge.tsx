@@ -6,13 +6,16 @@ type Props = {
   compact?: boolean;
   /** Voucher / print layouts — text only, no emoji prefix. */
   hideEmoji?: boolean;
+  /** Override translated label (e.g. tourist voucher locale). */
+  label?: string;
 };
 
-export function GuideDriverBadge({ compact, hideEmoji }: Props) {
+export function GuideDriverBadge({ compact, hideEmoji, label }: Props) {
   const { t } = useTranslation();
+  const text = label ?? t('driver.guideBadge');
   return (
     <Text style={[styles.badge, compact && styles.badgeCompact]} accessibilityRole="text">
-      {hideEmoji ? t('driver.guideBadge') : `🎓 ${t('driver.guideBadge')}`}
+      {hideEmoji ? text : `🎓 ${text}`}
     </Text>
   );
 }

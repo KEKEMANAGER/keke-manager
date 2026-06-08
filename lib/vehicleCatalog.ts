@@ -92,19 +92,25 @@ function lookupAlias<T extends string>(raw: string, aliases: Record<string, T>, 
   return aliases[lower] ?? aliases[trimmed] ?? null;
 }
 
-export function vehicleTypeLabel(code: VehicleTypeCode | string | null | undefined): string {
+export function vehicleTypeLabel(
+  code: VehicleTypeCode | string | null | undefined,
+  lang?: string,
+): string {
   const c = normalizeVehicleType(code);
   if (!c) return '—';
-  const row = vehicleBundle(currentLangCode()).type as Record<string, string>;
+  const row = vehicleBundle(lang ?? currentLangCode()).type as Record<string, string>;
   const fromLocale = row[c]?.trim();
   if (fromLocale) return fromLocale;
   return TYPE_LABELS_EN[c] ?? c;
 }
 
-export function vehicleClassLabel(code: VehicleClassCode | string | null | undefined): string {
+export function vehicleClassLabel(
+  code: VehicleClassCode | string | null | undefined,
+  lang?: string,
+): string {
   const c = normalizeVehicleClass(code);
   if (!c) return '—';
-  const row = vehicleBundle(currentLangCode()).class as Record<string, string>;
+  const row = vehicleBundle(lang ?? currentLangCode()).class as Record<string, string>;
   const fromLocale = row[c]?.trim();
   if (fromLocale) return fromLocale;
   return CLASS_LABELS_EN[c] ?? c;

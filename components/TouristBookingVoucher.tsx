@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,12 +15,21 @@ import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import type { TourDayPersisted } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
-import { formatLocationRoute, formatLocationDisplay } from '../lib/bookingLocations';
 import { formatBookingDisplayNumber, stripVoucherEmojis } from '../lib/bookingVoucherDisplay';
 import type { CompanyVoucherData } from '../lib/companyVoucherData';
 import { vehicleMakeModelYearLine } from '../lib/companyVoucherData';
-import { formatStoredDateForDisplay, parseStoredDateTime } from '../lib/dateTime';
+import { parseStoredDateTime } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
+import {
+  formatTouristLocationDisplay,
+  formatTouristLocationRoute,
+  formatTouristStoredDate,
+  localizeTouristCity,
+  localizeTouristColor,
+  localizeTouristLanguagesLabel,
+  localizeTouristVehicleClass,
+  localizeTouristVehicleType,
+} from '../lib/touristVoucherDisplay';
 import {
   touristVoucherDateLocale,
   touristVoucherStrings,
@@ -29,8 +38,7 @@ import {
 import { shareTouristVoucherPDF } from '../lib/voucher';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { UserAvatar } from './UserAvatar';
-
-const VOUCHER_LOCATION = { withIcon: false as const };
+import { VoucherModeTabs, type VoucherMode } from './VoucherModeTabs';
 
 const LOCALE_OPTIONS: { code: TouristVoucherLocale; labelKey: 'langKa' | 'langEn' | 'langRu' }[] = [
   { code: 'ka', labelKey: 'langKa' },
@@ -42,7 +50,8 @@ type Props = {
   data: CompanyVoucherData;
   onClose?: () => void;
   showClose?: boolean;
-  topSlot?: ReactNode;
+  voucherMode: VoucherMode;
+  onVoucherModeChange: (mode: VoucherMode) => void;
 };
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -77,7 +86,13 @@ function formatDateForLocale(dateDisplay: string | null | undefined, locale: Tou
   });
 }
 
-export function TouristBookingVoucherContent({ data, onClose, showClose = true, topSlot }: Props) {
+export function TouristBookingVoucherContent({
+  data,
+  onClose,
+  showClose = true,
+  voucherMode,
+  onVoucherModeChange,
+}: Props) {
   const { i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const [locale, setLocale] = useState<TouristVoucherLocale>(() => {
@@ -121,7 +136,7 @@ export function TouristBookingVoucherContent({ data, onClose, showClose = true, 
         ) : null}
         <Text style={styles.brandLogo}>KEKE MANAGER</Text>
         <Text style={styles.brandSub}>{s.brandSubtitle}</Text>
-        {topSlot}
+        <VoucherModeTabs mode={voucherMode} onChange={onVoucherModeChange} locale={locale} />
       </View>
 
       <ScrollView
@@ -176,13 +191,23 @@ export function TouristBookingVoucherContent({ data, onClose, showClose = true, 
           {booking.from_location ? (
             <DetailRow
               label={s.from}
-              value={formatLocationDisplay(booking.from_location, booking.from_location_type, VOUCHER_LOCATION)}
+              value={formatTouristLocationDisplay(
+                booking.from_location,
+                booking.from_location_type,
+                locale,
+                { withIcon: false },
+              )}
             />
           ) : null}
           {booking.to_location ? (
             <DetailRow
               label={s.to}
-              value={formatLocationDisplay(booking.to_location, booking.to_location_type, VOUCHER_LOCATION)}
+              value={formatTouristLocationDisplay(
+                booking.to_location,
+                booking.to_location_type,
+                locale,
+                { withIcon: false },
+              )}
             />
           ) : null}
           <DetailRow label={s.passengers} value={String(booking.passengers ?? 1)} />
@@ -217,24 +242,26 @@ export function TouristBookingVoucherContent({ data, onClose, showClose = true, 
           {isTour && booking.transfer_in && (booking.transfer_in.airport || booking.transfer_in.hotel) ? (
             <DetailRow
               label={s.transferArrival}
-              value={formatLocationRoute(
+              value={formatTouristLocationRoute(
                 booking.transfer_in.airport,
                 booking.transfer_in.airport_type,
                 booking.transfer_in.hotel,
                 booking.transfer_in.hotel_type,
-                VOUCHER_LOCATION,
+                locale,
+                { withIcon: false },
               )}
             />
           ) : null}
           {isTour && booking.transfer_out && (booking.transfer_out.airport || booking.transfer_out.hotel) ? (
             <DetailRow
               label={s.transferDeparture}
-              value={formatLocationRoute(
+              value={formatTouristLocationRoute(
                 booking.transfer_out.hotel,
                 booking.transfer_out.hotel_type,
                 booking.transfer_out.airport,
                 booking.transfer_out.airport_type,
-                VOUCHER_LOCATION,
+                locale,
+                { withIcon: false },
               )}
             />
           ) : null}
@@ -257,8 +284,7 @@ export function TouristBookingVoucherContent({ data, onClose, showClose = true, 
                 return (
                   <View key={`${d.day}-${d.date}`} style={styles.tourDayCard}>
                     <Text style={styles.tourDayHead}>
-                      {interpolate(s.day, { day: d.day })} ·{' '}
-                      {formatStoredDateForDisplay(d.date)}
+                      {interpolate(s.day, { day: d.day })} · {formatTouristStoredDate(d.date, locale)}
                     </Text>
                     <Text style={styles.tourDayRoute}>
                       {(d.fromPlace || '—').trim()} → {(d.toPlace || '—').trim()}
@@ -302,6 +328,7 @@ export function TouristBookingVoucherContent({ data, onClose, showClose = true, 
                     verified={driver.isVerified}
                     isGuide={driver.isGuideDriver}
                     plainGuideBadge
+                    guideBadgeLabel={s.guideDriver}
                     textStyle={styles.driverName}
                   />
                 </View>
@@ -313,14 +340,19 @@ export function TouristBookingVoucherContent({ data, onClose, showClose = true, 
                       })
                     : '—'}
                 </Text>
-                {driver.languagesLabel ? (
+                {driver.languagesLabel || (driver.languageCodes?.length ?? 0) > 0 ? (
                   <Text style={styles.metaLine}>
-                    {s.languages}: {driver.languagesLabel}
+                    {s.languages}:{' '}
+                    {localizeTouristLanguagesLabel(
+                      driver.languagesLabel,
+                      driver.languageCodes,
+                      locale,
+                    )}
                   </Text>
                 ) : null}
                 {driver.city ? (
                   <Text style={styles.metaLine}>
-                    {s.city}: {driver.city}
+                    {s.city}: {localizeTouristCity(driver.city, locale)}
                   </Text>
                 ) : null}
                 {driver.phone ? (
@@ -343,9 +375,21 @@ export function TouristBookingVoucherContent({ data, onClose, showClose = true, 
             ) : null}
             <DetailRow label={s.makeModelYear} value={vehicleMakeModelYearLine(vehicle)} />
             {vehicle.plate ? <DetailRow label={s.plate} value={vehicle.plate} /> : null}
-            {vehicle.color ? <DetailRow label={s.color} value={vehicle.color} /> : null}
-            {vehicle.typeLabel ? <DetailRow label={s.vehicleType} value={vehicle.typeLabel} /> : null}
-            {vehicle.classLabel ? <DetailRow label={s.vehicleClass} value={vehicle.classLabel} /> : null}
+            {vehicle.color ? (
+              <DetailRow label={s.color} value={localizeTouristColor(vehicle.color, locale)} />
+            ) : null}
+            {vehicle.typeCode || vehicle.typeLabel ? (
+              <DetailRow
+                label={s.vehicleType}
+                value={localizeTouristVehicleType(vehicle.typeCode ?? vehicle.typeLabel, locale)}
+              />
+            ) : null}
+            {vehicle.classCode || vehicle.classLabel ? (
+              <DetailRow
+                label={s.vehicleClass}
+                value={localizeTouristVehicleClass(vehicle.classCode ?? vehicle.classLabel, locale)}
+              />
+            ) : null}
           </View>
         ) : null}
       </ScrollView>

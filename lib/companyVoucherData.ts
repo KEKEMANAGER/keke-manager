@@ -2,7 +2,7 @@ import type { BookingRow } from './bookings';
 import { enrichBookingsForList, fetchBookingById } from './bookings';
 import { fetchDriverAverageRating } from './ratings';
 import { resolveProfileAvatarUrl } from './profileAvatar';
-import { formatSpokenLanguagesList } from './spokenLanguages';
+import { formatSpokenLanguagesList, sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
 import { fetchVehicleMakeById, fetchVehicleModelById } from './vehicleData';
@@ -27,6 +27,7 @@ export type CompanyVoucherDriver = {
   ratingAverage: number;
   ratingCount: number;
   languagesLabel: string | null;
+  languageCodes: string[];
   city: string | null;
 };
 
@@ -38,6 +39,8 @@ export type CompanyVoucherVehicle = {
   year: number | null;
   plate: string | null;
   color: string | null;
+  typeCode: string | null;
+  classCode: string | null;
   typeLabel: string | null;
   classLabel: string | null;
 };
@@ -203,6 +206,8 @@ function buildVehicle(v: VehicleJoinRow, makeName: string | null, modelName: str
     year: v.year ?? null,
     plate: v.plate?.trim() || null,
     color: v.color?.trim() || null,
+    typeCode: typeCode ?? (v.type?.trim() || null),
+    classCode: classCode ?? (v.class?.trim() || null),
     typeLabel: typeCode ? vehicleTypeLabel(typeCode) : v.type?.trim() || null,
     classLabel: classCode ? vehicleClassLabel(classCode) : v.class?.trim() || null,
   };
@@ -254,6 +259,7 @@ async function fetchDriverBlock(
     ratingAverage: ratingRes.average,
     ratingCount: ratingRes.count,
     languagesLabel: user?.languages?.length ? formatSpokenLanguagesList(user.languages) : null,
+    languageCodes: sanitizeLanguageCodes(user?.languages ?? []),
     city: user?.city?.trim() || null,
   };
 
@@ -270,6 +276,8 @@ async function fetchDriverBlock(
       year: null,
       plate: booking.driver_plate.trim(),
       color: null,
+      typeCode: booking.vehicle_type ?? null,
+      classCode: booking.vehicle_class ?? null,
       typeLabel: booking.vehicle_type ? vehicleTypeLabel(booking.vehicle_type) : null,
       classLabel: booking.vehicle_class ? vehicleClassLabel(booking.vehicle_class) : null,
     };

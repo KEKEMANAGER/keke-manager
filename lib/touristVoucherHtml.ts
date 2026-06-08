@@ -3,8 +3,17 @@ import { bookingKindLabel } from './bookingLabels';
 import { formatBookingDisplayNumber, stripVoucherEmojis } from './bookingVoucherDisplay';
 import type { CompanyVoucherData } from './companyVoucherData';
 import { vehicleMakeModelYearLine } from './companyVoucherData';
-import { formatStoredDateForDisplay, parseStoredDateTime } from './dateTime';
+import { parseStoredDateTime } from './dateTime';
 import { tourVoucherHtmlRows, type TourVoucherHtmlLabels } from './tourDays';
+import {
+  formatTouristLocationDisplay,
+  formatTouristStoredDate,
+  localizeTouristCity,
+  localizeTouristColor,
+  localizeTouristLanguagesLabel,
+  localizeTouristVehicleClass,
+  localizeTouristVehicleType,
+} from './touristVoucherDisplay';
 import {
   touristVoucherDateLocale,
   touristVoucherStrings,
@@ -105,7 +114,7 @@ function tourLabels(
     touristHotel: s.hotel,
     driverOvernight: s.overnight,
     totalNights: s.totalNights,
-    formatDayDate: (date) => formatDayDateForLocale(date, locale),
+    formatDayDate: (date) => formatTouristStoredDate(date, locale),
   };
 }
 
@@ -153,10 +162,20 @@ export function generateTouristVoucherHTML(
     row(s.type, bookingKindLabel(booking.kind, booking.flight_direction, locale)),
     row(s.date, formatBookingDateForLocale(booking.date_display, locale)),
     booking.from_location
-      ? row(s.from, formatLocationDisplay(booking.from_location, booking.from_location_type, { withIcon: false }))
+      ? row(
+          s.from,
+          formatTouristLocationDisplay(booking.from_location, booking.from_location_type, locale, {
+            withIcon: false,
+          }),
+        )
       : '',
     booking.to_location
-      ? row(s.to, formatLocationDisplay(booking.to_location, booking.to_location_type, { withIcon: false }))
+      ? row(
+          s.to,
+          formatTouristLocationDisplay(booking.to_location, booking.to_location_type, locale, {
+            withIcon: false,
+          }),
+        )
       : '',
     row(s.passengers, String(booking.passengers ?? 1)),
     booking.flight_number?.trim() ? row(s.flightNumber, booking.flight_number.trim()) : '',
@@ -198,8 +217,13 @@ export function generateTouristVoucherHTML(
           <div>${badges}</div>
           <div style="font-size:12px;margin-top:4px">${escapeHtml(ratingLine)}</div>
           ${driver.phone ? `<div style="font-size:12px;margin-top:4px"><a href="tel:${escapeHtml(driver.phone.replace(/\s/g, ''))}">${escapeHtml(driver.phone)}</a></div>` : `<div style="font-size:12px;margin-top:4px;color:#888">${escapeHtml(s.phoneMissing)}</div>`}
-          ${driver.languagesLabel ? row(s.languages, driver.languagesLabel) : ''}
-          ${driver.city ? row(s.city, driver.city) : ''}
+          ${driver.languagesLabel || (driver.languageCodes?.length ?? 0)
+            ? row(
+                s.languages,
+                localizeTouristLanguagesLabel(driver.languagesLabel, driver.languageCodes, locale),
+              )
+            : ''}
+          ${driver.city ? row(s.city, localizeTouristCity(driver.city, locale)) : ''}
         </div>
       </div>`;
   }
@@ -215,9 +239,13 @@ export function generateTouristVoucherHTML(
       ${img}
       ${row(s.makeModelYear, mmY)}
       ${vehicle.plate ? row(s.plate, vehicle.plate) : ''}
-      ${vehicle.color ? row(s.color, vehicle.color) : ''}
-      ${vehicle.typeLabel ? row(s.vehicleType, vehicle.typeLabel) : ''}
-      ${vehicle.classLabel ? row(s.vehicleClass, vehicle.classLabel) : ''}`;
+      ${vehicle.color ? row(s.color, localizeTouristColor(vehicle.color, locale)) : ''}
+      ${vehicle.typeCode || vehicle.typeLabel
+        ? row(s.vehicleType, localizeTouristVehicleType(vehicle.typeCode ?? vehicle.typeLabel, locale))
+        : ''}
+      ${vehicle.classCode || vehicle.classLabel
+        ? row(s.vehicleClass, localizeTouristVehicleClass(vehicle.classCode ?? vehicle.classLabel, locale))
+        : ''}`;
   }
 
   const footerDate = new Date().toLocaleDateString(touristVoucherDateLocale(locale));
@@ -255,5 +283,3 @@ export function formatTouristBookingDate(
 ): string {
   return formatBookingDateForLocale(dateDisplay, locale);
 }
-
-export { formatStoredDateForDisplay };
