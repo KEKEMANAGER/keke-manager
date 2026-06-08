@@ -64,6 +64,19 @@ export function EmergencyReplacementModal({
     onClose();
   }
 
+  const sharedVehicleFilter = useMemo(() => {
+    if (assignableBookings.length === 0) return null;
+    const firstType = assignableBookings[0]?.vehicle_type?.trim() ?? '';
+    const firstClass = assignableBookings[0]?.vehicle_class?.trim() ?? '';
+    const sameForAll = assignableBookings.every(
+      (b) =>
+        (b.vehicle_type?.trim() ?? '') === firstType &&
+        (b.vehicle_class?.trim() ?? '') === firstClass,
+    );
+    if (!sameForAll || !firstType) return null;
+    return { vehicleType: firstType, vehicleClass: firstClass || undefined };
+  }, [assignableBookings]);
+
   async function handleSearch() {
     const trimmed = city?.trim();
     if (!trimmed) {
@@ -73,7 +86,7 @@ export function EmergencyReplacementModal({
     setLoading(true);
     setError(null);
     setSearched(true);
-    const res = await findAvailableDriversInCity(trimmed);
+    const res = await findAvailableDriversInCity(trimmed, sharedVehicleFilter ?? undefined);
     setLoading(false);
     if (res.error) {
       setDrivers([]);

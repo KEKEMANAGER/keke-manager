@@ -155,7 +155,7 @@ type DriverPushRow = {
 };
 
 /** Persist rows in `public.notifications` for in-app history (parallel to pushes). */
-async function insertInAppNotifications(
+export async function insertInAppNotifications(
   rows: {
     user_id: string;
     type: string;
@@ -163,12 +163,22 @@ async function insertInAppNotifications(
     body: string;
     data: Record<string, unknown>;
   }[],
-): Promise<void> {
-  if (rows.length === 0) return;
-  const { error } = await supabase.from('notifications').insert(rows);
-  if (error && __DEV__) {
-    console.warn('[notifications] insert public.notifications:', error.message);
+): Promise<Error | null> {
+  if (rows.length === 0) return null;
+  const { error } = await supabase.rpc('create_user_notifications', {
+    p_rows: rows.map((r) => ({
+      user_id: r.user_id,
+      type: r.type,
+      title: r.title,
+      body: r.body,
+      data: r.data,
+    })),
+  });
+  if (error) {
+    if (__DEV__) console.warn('[notifications] create_user_notifications:', error.message);
+    return new Error(error.message);
   }
+  return null;
 }
 
 /** Canonical lowercase codes for vehicle matching. */

@@ -58,15 +58,26 @@ export async function setDriverUnavailable(driverUserId: string) {
   return { ok: true as const, error: null };
 }
 
-export async function findAvailableDriversInCity(city: string) {
+export async function findAvailableDriversInCity(
+  city: string,
+  opts?: { vehicleType?: string | null; vehicleClass?: string | null },
+) {
   const trimmedCity = city.trim();
   if (!trimmedCity) {
     return { data: [] as AvailableDriverRow[], error: new Error('ქალაქი სავალდებულოა') };
   }
 
-  const { data, error } = await supabase.rpc('list_available_drivers_in_city', {
-    p_city: trimmedCity,
-  });
+  const rpcParams: {
+    p_city: string;
+    p_vehicle_type?: string;
+    p_vehicle_class?: string;
+  } = { p_city: trimmedCity };
+  const vt = opts?.vehicleType?.trim();
+  const vc = opts?.vehicleClass?.trim();
+  if (vt) rpcParams.p_vehicle_type = vt;
+  if (vc) rpcParams.p_vehicle_class = vc;
+
+  const { data, error } = await supabase.rpc('list_available_drivers_in_city', rpcParams);
 
   if (error) {
     return { data: [] as AvailableDriverRow[], error: new Error(error.message) };
@@ -109,11 +120,23 @@ export async function assignEmergencyDriverToBooking(
     return { ok: false as const, error: new Error('მხოლოდ მოლოდინში მყოფ ჯავშანზე დანიშვნა შეიძლება') };
   }
 
+  const bookingVehicleType =
+    (bookingRow as { vehicle_type?: string | null }).vehicle_type ?? driver.vehicle_type;
+  const bookingVehicleClass =
+    (bookingRow as { vehicle_class?: string | null }).vehicle_class ?? driver.vehicle_class;
+
   const vehicleId = await resolveVehicleIdForBooking({
     driverId,
-    vehicleType: (bookingRow as { vehicle_type?: string | null }).vehicle_type ?? driver.vehicle_type,
-    vehicleClass: (bookingRow as { vehicle_class?: string | null }).vehicle_class ?? driver.vehicle_class,
+    vehicleType: bookingVehicleType,
+    vehicleClass: bookingVehicleClass,
   });
+
+  if (!vehicleId) {
+    return {
+      ok: false as const,
+      error: new Error('მძღოლს არ აქვს შესაბამისი ტიპის/კლასის მანქანა ამ ჯავშნისთვის'),
+    };
+  }
 
   const { data, error } = await supabase
     .from('bookings')

@@ -1,5 +1,6 @@
 import i18n from '../src/lib/i18n';
 import { sendExpoPushNotification } from './expoPush';
+import { insertInAppNotifications } from './notifications';
 import { supabase } from './supabase';
 
 async function pushToUser(
@@ -11,13 +12,15 @@ async function pushToUser(
   const id = userId.trim();
   if (!id) return;
 
-  await supabase.from('notifications').insert({
-    user_id: id,
-    type: String(data.type ?? 'general'),
-    title,
-    body,
-    data,
-  });
+  await insertInAppNotifications([
+    {
+      user_id: id,
+      type: String(data.type ?? 'general'),
+      title,
+      body,
+      data,
+    },
+  ]);
 
   const { data: profile } = await supabase
     .from('profiles')

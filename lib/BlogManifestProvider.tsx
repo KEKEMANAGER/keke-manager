@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: Platform.OS === 'web' ? ('100vh' as const) : undefined,
+    minHeight: Platform.OS === 'web' ? '100%' : undefined,
     backgroundColor: LANDING.white,
   },
 });

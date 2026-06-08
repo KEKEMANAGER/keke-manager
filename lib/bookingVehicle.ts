@@ -39,5 +39,6 @@ export async function resolveVehicleIdForBooking(
   });
 
   if (matching.length > 0) return matching[0].id;
+  if (bookingClass) return null;
   return vehicles[0]?.id ?? null;
 }

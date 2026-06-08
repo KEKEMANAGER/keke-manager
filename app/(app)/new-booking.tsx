@@ -1366,7 +1366,11 @@ export default function NewBookingScreen() {
     }
 
     if (bookingId && pickupSignLogo) {
-      const { url, error: uploadErr } = await uploadPickupSignLogo(bookingId, pickupSignLogo);
+      const { url, error: uploadErr } = await uploadPickupSignLogo(
+        user.id,
+        bookingId,
+        pickupSignLogo,
+      );
       if (uploadErr || !url) {
         const uploadMsg = mapPickupSignLogoError(uploadErr, t);
         showErrorAlert(uploadMsg);

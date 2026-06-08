@@ -8,6 +8,7 @@ import {
   normalizeLanguageCode,
   type JobBoardLangCode,
 } from './spokenLanguages';
+import { insertInAppNotifications } from './notifications';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
 
@@ -138,16 +139,17 @@ export async function notifyJobBoardProfileViewed(targetDriverId: string): Promi
   const title = i18n.t('jobBoard.profileViewedTitle');
   const body = i18n.t('jobBoard.profileViewedBody');
 
-  const { error: insertErr } = await supabase.from('notifications').insert({
-    user_id: id,
-    type: 'profile_viewed',
-    title,
-    body,
-    data: { type: 'profile_viewed' },
-  });
-
+  const insertErr = await insertInAppNotifications([
+    {
+      user_id: id,
+      type: 'profile_viewed',
+      title,
+      body,
+      data: { type: 'profile_viewed' },
+    },
+  ]);
   if (insertErr) {
-    return { error: new Error(insertErr.message) };
+    return { error: insertErr };
   }
 
   const { data: profile } = await supabase

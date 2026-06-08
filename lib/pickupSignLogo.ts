@@ -36,10 +36,14 @@ export function validatePickupSignLogoFile(file: PickupSignLogoFile): string | n
   return null;
 }
 
-export function pickupSignLogoObjectPath(bookingId: string, mimeType: string): string {
+export function pickupSignLogoObjectPath(
+  companyId: string,
+  bookingId: string,
+  mimeType: string,
+): string {
   const lower = mimeType.toLowerCase();
   const ext = lower === 'application/pdf' ? 'pdf' : lower.includes('png') ? 'png' : 'jpg';
-  return `${bookingId.trim()}/${Date.now()}.${ext}`;
+  return `${companyId.trim()}/${bookingId.trim()}/${Date.now()}.${ext}`;
 }
 
 async function uploadToPickupSignBucket(
@@ -70,10 +74,15 @@ async function uploadToPickupSignBucket(
 }
 
 export async function uploadPickupSignLogo(
+  companyId: string,
   bookingId: string,
   file: PickupSignLogoFile,
 ): Promise<{ url: string | null; error: Error | null }> {
+  const cid = companyId.trim();
   const id = bookingId.trim();
+  if (!cid) {
+    return { url: null, error: new Error('pickupSignLogo.missingCompanyId') };
+  }
   if (!id) {
     return { url: null, error: new Error('pickupSignLogo.missingBookingId') };
   }
@@ -82,7 +91,7 @@ export async function uploadPickupSignLogo(
     return { url: null, error: new Error(validationKey) };
   }
   try {
-    const path = pickupSignLogoObjectPath(id, file.mimeType);
+    const path = pickupSignLogoObjectPath(cid, id, file.mimeType);
     const url = await uploadToPickupSignBucket(path, file);
     return { url, error: null };
   } catch (e: unknown) {
