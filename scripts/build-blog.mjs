@@ -384,7 +384,7 @@ function buildSitemap(posts) {
     { loc: `${SITE_URL}/llms.txt`, lastmod: today, changefreq: 'monthly', priority: '0.6' },
     { loc: `${SITE_URL}/llms-full.txt`, lastmod: today, changefreq: 'weekly', priority: '0.6' },
     { loc: `${SITE_URL}/legal/privacy-policy`, lastmod: today, changefreq: 'yearly', priority: '0.3' },
-    { loc: `${SITE_URL}/legal/terms`, lastmod: today, changefreq: 'yearly', priority: '0.3' },
+    { loc: `${SITE_URL}/legal/terms-of-service`, lastmod: today, changefreq: 'yearly', priority: '0.3' },
     { loc: `${SITE_URL}/blog`, lastmod: today, changefreq: 'weekly', priority: '0.8' },
   ];
   const blogUrls = posts.map((p) => ({
@@ -528,7 +528,7 @@ Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutai
 - Sign in: ${SITE_URL}/sign-in
 - Blog index: ${SITE_URL}/blog
 - Privacy: ${SITE_URL}/legal/privacy-policy
-- Terms: ${SITE_URL}/legal/terms
+- Terms: ${SITE_URL}/legal/terms-of-service
 - LLM summary: ${SITE_URL}/llms.txt
 
 ## Location landing pages

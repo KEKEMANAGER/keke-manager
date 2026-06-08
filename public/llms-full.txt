@@ -72,7 +72,7 @@ Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutai
 - Sign in: https://kekemanager.com/sign-in
 - Blog index: https://kekemanager.com/blog
 - Privacy: https://kekemanager.com/legal/privacy-policy
-- Terms: https://kekemanager.com/legal/terms
+- Terms: https://kekemanager.com/legal/terms-of-service
 - LLM summary: https://kekemanager.com/llms.txt
 
 ## Location landing pages

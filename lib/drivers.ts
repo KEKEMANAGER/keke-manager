@@ -11,7 +11,24 @@ import {
   normalizeRequestedDriverCategory,
   type RequestedDriverCategory,
 } from './driverCategory';
-import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
+import {
+  normalizeVehicleClass,
+  normalizeVehicleType,
+  type VehicleClassCode,
+  type VehicleTypeCode,
+} from './vehicleCatalog';
+
+/** Booking vehicle type + class must match the driver's vehicle row exactly. */
+function vehicleMatchesSelection(
+  type: string | null | undefined,
+  vehicleClass: string | null | undefined,
+  normType: VehicleTypeCode,
+  normClass: VehicleClassCode,
+): boolean {
+  const vt = normalizeVehicleType(type ?? '');
+  const vc = normalizeVehicleClass(vehicleClass ?? '');
+  return vt === normType && vc === normClass;
+}
 
 export type DriverProfile = {
   user_id: string;
@@ -205,7 +222,7 @@ export async function fetchMatchingDrivers(
       photo_rear?: string | null;
     }
   >();
-  for (const v of (vehiclesRes.data ?? []) as {
+  type VehicleRow = {
     id: string;
     driver_id: string;
     type?: string | null;
@@ -220,23 +237,21 @@ export async function fetchMatchingDrivers(
     photo_right?: string | null;
     photo_interior?: string | null;
     photo_rear?: string | null;
-  }[]) {
+    is_active?: boolean | null;
+  };
+
+  for (const v of (vehiclesRes.data ?? []) as VehicleRow[]) {
+    if (!vehicleMatchesSelection(v.type, v.class, normType, normClass)) {
+      continue;
+    }
     const key = String(v.driver_id);
-    const vt = normalizeVehicleType(v.type ?? '');
-    const vc = normalizeVehicleClass(v.class ?? '');
-    const matchesFilter =
-      vt === normType && (!normClass || !vc || vc === normClass);
     const existing = vehicleByDriver.get(key);
     if (!existing) {
       vehicleByDriver.set(key, v);
       continue;
     }
-    const existingMatches =
-      normalizeVehicleType(existing.type ?? '') === normType &&
-      (!normClass ||
-        !normalizeVehicleClass(existing.class ?? '') ||
-        normalizeVehicleClass(existing.class ?? '') === normClass);
-    if (matchesFilter && !existingMatches) {
+    // Prefer active vehicle when multiple rows match the same category.
+    if (v.is_active && !existing.is_active) {
       vehicleByDriver.set(key, v);
     }
   }
@@ -273,6 +288,25 @@ export async function fetchMatchingDrivers(
       continue;
     }
 
+    const profileType = normalizeVehicleType(row.vehicle_type ?? '');
+    const profileClass = normalizeVehicleClass(row.vehicle_class ?? '');
+    if (profileType !== normType || profileClass !== normClass) {
+      continue;
+    }
+
+    const vehicle = vehicleByDriver.get(driverId) ?? null;
+    if (!vehicle || !vehicleMatchesSelection(vehicle.type, vehicle.class, normType, normClass)) {
+      continue;
+    }
+
+    if (minPassengerCapacity != null && minPassengerCapacity > 0) {
+      const cap =
+        vehicle.passenger_capacity != null ? Number(vehicle.passenger_capacity) : null;
+      if (cap == null || cap < minPassengerCapacity) {
+        continue;
+      }
+    }
+
     const profileName =
       typeof row.full_name === 'string' && row.full_name.trim()
         ? row.full_name.trim()
@@ -285,7 +319,6 @@ export async function fetchMatchingDrivers(
 
     const avatar_url = resolveProfileAvatarUrl(row.avatar_url, user?.avatar_url);
 
-    const vehicle = vehicleByDriver.get(driverId) ?? null;
     const ratingStats = ratingByDriver.get(driverId);
     const avgRating =
       ratingStats && ratingStats.count > 0 ? ratingStats.average.toFixed(1) : null;

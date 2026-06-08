@@ -1,18 +1,22 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { AppLogo } from './AppLogo';
+import { DeleteAccountModal } from './DeleteAccountModal';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import { pressableSx, sx } from '../lib/sx';
 import { useAuth } from '../contexts/AuthContext';
 
 export function PendingVerificationScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   const status = profile?.verification_status?.trim();
 
@@ -55,7 +59,26 @@ export function PendingVerificationScreen() {
             <Text style={styles.signOutText}>{t('common.logout')}</Text>
           )}
         </Pressable>
+
+        <Pressable
+          onPress={() => setDeleteModalVisible(true)}
+          disabled={signingOut}
+          style={({ pressed }) => [styles.deleteBtn, pressed && styles.deleteBtnPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.deleteAccount')}
+        >
+          <Text style={styles.deleteBtnText}>{t('settings.deleteAccount')}</Text>
+        </Pressable>
       </View>
+
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onDeleted={() => {
+          setDeleteModalVisible(false);
+          router.replace('/sign-in');
+        }}
+      />
     </View>
   );
 }
@@ -125,5 +148,16 @@ const styles = StyleSheet.create({
     color: COLORS.black,
     fontSize: 16,
     fontWeight: '800',
+  },
+  deleteBtn: {
+    marginTop: SPACING.md,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.lg,
+  },
+  deleteBtnPressed: { opacity: 0.85 },
+  deleteBtnText: {
+    color: COLORS.error,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

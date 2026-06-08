@@ -30,7 +30,9 @@
         "NSLocationWhenInUseUsageDescription": "KEKE uses your location to share your live position with the company during an active trip.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
         "NSLocationAlwaysUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
-        "NSPhotoLibraryUsageDescription": "KEKE needs access to your photo library to upload profile photos, vehicle photos, and verification documents."
+        "NSPhotoLibraryUsageDescription": "KEKE needs access to your photo library to upload profile photos, vehicle photos, and verification documents.",
+        "NSCameraUsageDescription": "KEKE Manager uses camera for profile and vehicle photos",
+        "NSUserNotificationsUsageDescription": "KEKE Manager sends booking and driver notifications"
       }
     },
     "android": {

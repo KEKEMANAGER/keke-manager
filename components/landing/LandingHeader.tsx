@@ -184,6 +184,15 @@ export function LandingHeader({
                 </Text>
               </Pressable>
             ))}
+            {Platform.OS === 'web' ? (
+              <Link href="/blog" asChild>
+                <Pressable style={styles.mobileNavItem} onPress={onCloseMenus}>
+                  <Text style={sx(styles.mobileNavItemText, landingFont({ fontWeight: '500' }))}>
+                    Blog
+                  </Text>
+                </Pressable>
+              </Link>
+            ) : null}
             <View style={styles.mobileNavDivider} />
             <Link href="/sign-in" asChild>
               <Pressable style={styles.mobileNavAuthItem} onPress={onCloseMenus}>
