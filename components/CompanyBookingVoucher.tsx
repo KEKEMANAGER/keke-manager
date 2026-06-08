@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import { useAuth } from '../contexts/AuthContext';
 import type { BookingRow, TourDayPersisted } from '../lib/bookings';
-import { bookingStatusLabel, formatBookingDate, routeSummary } from '../lib/bookings';
+import { bookingStatusLabel, formatBookingDate } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
 import { formatLocationRoute } from '../lib/bookingLocations';
 import type { CompanyVoucherData } from '../lib/companyVoucherData';
@@ -174,7 +174,6 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
           <SectionHeader title={`📋 ${t('companyVoucher.sectionBooking')}`} />
           <DetailRow label={t('companyVoucher.type')} value={bookingKindLabel(booking.kind, booking.flight_direction)} />
           <DetailRow label={t('companyVoucher.date')} value={formatBookingDate(booking)} />
-          <DetailRow label={t('companyVoucher.route')} value={routeSummary(booking)} />
           {booking.from_location ? (
             <DetailRow
               label={t('companyVoucher.from')}
