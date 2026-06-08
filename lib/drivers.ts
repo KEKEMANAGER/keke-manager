@@ -32,6 +32,26 @@ function vehicleMatchesSelection(
   return vt === normType && vc === normClass;
 }
 
+type DriverMatchExclusion = {
+  driverId: string;
+  step: string;
+  detail?: Record<string, unknown>;
+};
+
+function logFetchMatchingDrivers(step: string, detail?: Record<string, unknown>): void {
+  if (!__DEV__) return;
+  console.log(`[fetchMatchingDrivers] ${step}`, detail ?? '');
+}
+
+function logDriverExclusion(exclusions: DriverMatchExclusion[], entry: DriverMatchExclusion): void {
+  exclusions.push(entry);
+  if (!__DEV__) return;
+  console.log(
+    `[fetchMatchingDrivers] EXCLUDED ${entry.driverId} @ ${entry.step}`,
+    entry.detail ?? '',
+  );
+}
+
 export type DriverProfile = {
   user_id: string;
   full_name: string | null;
@@ -143,12 +163,32 @@ export async function fetchMatchingDrivers(
   const normType = normalizeVehicleType(vehicleType);
   const normClass = normalizeVehicleClass(vehicleClass);
 
+  const exclusions: DriverMatchExclusion[] = [];
+
   if (!normType || !normClass) {
+    logFetchMatchingDrivers('abort: invalid vehicle type/class', {
+      vehicleType,
+      vehicleClass,
+      normType,
+      normClass,
+    });
     return { data: [], error: null };
   }
 
   const typeVariants = vehicleTypeRawValues(normType);
   const classVariants = vehicleClassRawValues(normClass);
+
+  logFetchMatchingDrivers('1. vehicles query', {
+    table: 'vehicles',
+    filters: { type: typeVariants, class: classVariants },
+    order: 'is_active desc',
+    normType,
+    normClass,
+    minPassengerCapacity,
+    driverCategory: category,
+    cityFilter: cityNorm,
+    requiredLanguages,
+  });
 
   const vehiclesRes = await supabase
     .from('vehicles')
@@ -160,8 +200,33 @@ export async function fetchMatchingDrivers(
     .order('is_active', { ascending: false });
 
   if (vehiclesRes.error) {
+    logFetchMatchingDrivers('vehicles query error', { message: vehiclesRes.error.message });
     return { data: [], error: new Error(vehiclesRes.error.message) };
   }
+
+  logFetchMatchingDrivers('1. vehicles query result', {
+    rowCount: vehiclesRes.data?.length ?? 0,
+    driverIds: [...new Set((vehiclesRes.data ?? []).map((v) => String((v as { driver_id: string }).driver_id)))],
+    rows: (vehiclesRes.data ?? []).map((v) => {
+      const row = v as {
+        driver_id: string;
+        type?: string | null;
+        class?: string | null;
+        model?: string | null;
+        passenger_capacity?: number | null;
+        is_active?: boolean | null;
+      };
+      return {
+        driver_id: row.driver_id,
+        type: row.type,
+        class: row.class,
+        model: row.model,
+        passenger_capacity: row.passenger_capacity,
+        is_active: row.is_active,
+        normalizedMatch: vehicleMatchesSelection(row.type, row.class, normType, normClass),
+      };
+    }),
+  });
 
   type VehicleRow = {
     id: string;
@@ -185,6 +250,16 @@ export async function fetchMatchingDrivers(
 
   for (const v of (vehiclesRes.data ?? []) as VehicleRow[]) {
     if (!vehicleMatchesSelection(v.type, v.class, normType, normClass)) {
+      logDriverExclusion(exclusions, {
+        driverId: String(v.driver_id),
+        step: '2. vehicle row normalization',
+        detail: {
+          rawType: v.type,
+          rawClass: v.class,
+          normType,
+          normClass,
+        },
+      });
       continue;
     }
     const key = String(v.driver_id);
@@ -200,9 +275,34 @@ export async function fetchMatchingDrivers(
   }
 
   const candidateDriverIds = [...vehicleByDriver.keys()];
+  logFetchMatchingDrivers('2. vehicle match candidates', {
+    count: candidateDriverIds.length,
+    driverIds: candidateDriverIds,
+    vehiclesByDriver: Object.fromEntries(
+      [...vehicleByDriver.entries()].map(([id, v]) => [
+        id,
+        {
+          id: v.id,
+          type: v.type,
+          class: v.class,
+          model: v.model,
+          passenger_capacity: v.passenger_capacity,
+          is_active: v.is_active,
+        },
+      ]),
+    ),
+  });
+
   if (candidateDriverIds.length === 0) {
+    logFetchMatchingDrivers('done: no vehicles matched', { exclusions });
     return { data: [], error: null };
   }
+
+  logFetchMatchingDrivers('3. parallel queries', {
+    profiles: { table: 'profiles', filter: { id: candidateDriverIds } },
+    users: { table: USERS_DIRECTORY, filter: { id: candidateDriverIds } },
+    ratings: { table: 'ratings', filter: { driver_id: candidateDriverIds } },
+  });
 
   const [profilesRes, usersRes, ratingsRes] = await Promise.all([
     supabase
@@ -235,6 +335,32 @@ export async function fetchMatchingDrivers(
     profileById.set(String(row.id), row);
   }
 
+  logFetchMatchingDrivers('3. parallel query results', {
+    profiles: (profilesRes.data ?? []).map((p) => {
+      const row = p as ProfileMatchRow;
+      return {
+        id: row.id,
+        vehicle_type: row.vehicle_type,
+        vehicle_class: row.vehicle_class,
+        full_name: row.full_name,
+      };
+    }),
+    users: (usersRes.data ?? []).map((u) => {
+      const row = u as UserRow;
+      return {
+        id: row.id,
+        role: row.role,
+        is_verified: row.is_verified,
+        is_hired_driver: row.is_hired_driver,
+        is_guide_driver: row.is_guide_driver,
+        city: row.city,
+        languages: row.languages,
+        full_name: row.full_name,
+      };
+    }),
+    missingFromUsersDirectory: candidateDriverIds.filter((id) => !userById.has(id)),
+  });
+
   const ratingByDriver = computeRatingAverages(
     (ratingsRes.data ?? []) as { driver_id: string; overall: number }[],
   );
@@ -252,37 +378,86 @@ export async function fetchMatchingDrivers(
     const user = userById.get(driverId) ?? null;
 
     if (user?.role && user.role !== 'driver') {
+      logDriverExclusion(exclusions, {
+        driverId,
+        step: '4. role check',
+        detail: { role: user.role },
+      });
       continue;
     }
 
     if (!driverEligibleForOpenJobBroadcast(user ?? {})) {
+      logDriverExclusion(exclusions, {
+        driverId,
+        step: '5. open job broadcast (hired driver)',
+        detail: { is_hired_driver: user?.is_hired_driver ?? null },
+      });
       continue;
     }
 
     if (!driverMatchesRequestedCategory(user ?? {}, category)) {
+      logDriverExclusion(exclusions, {
+        driverId,
+        step: '6. driver category',
+        detail: {
+          category,
+          is_guide_driver: user?.is_guide_driver ?? null,
+          is_hired_driver: user?.is_hired_driver ?? null,
+        },
+      });
       continue;
     }
 
     const driverLangs = user?.languages ?? [];
     if (!driverMatchesRequiredLanguages(driverLangs, requiredLanguages)) {
+      logDriverExclusion(exclusions, {
+        driverId,
+        step: '7. required languages',
+        detail: { driverLangs, requiredLanguages },
+      });
       continue;
     }
 
     const driverCity = user?.city?.trim() ?? null;
     if (cityNorm && driverCity !== cityNorm) {
+      logDriverExclusion(exclusions, {
+        driverId,
+        step: '8. city filter',
+        detail: { driverCity, cityFilter: cityNorm },
+      });
       continue;
     }
 
     const vehicle = vehicleByDriver.get(driverId) ?? null;
     if (!vehicle || !vehicleMatchesSelection(vehicle.type, vehicle.class, normType, normClass)) {
+      logDriverExclusion(exclusions, {
+        driverId,
+        step: '9. vehicle row missing or mismatch',
+        detail: {
+          vehicle: vehicle
+            ? { type: vehicle.type, class: vehicle.class, model: vehicle.model }
+            : null,
+        },
+      });
       continue;
     }
 
     if (minPassengerCapacity != null && minPassengerCapacity > 0) {
       const cap =
         vehicle.passenger_capacity != null ? Number(vehicle.passenger_capacity) : null;
-      if (cap == null || cap < minPassengerCapacity) {
+      // Unknown capacity (null) must not exclude — many legacy vehicles lack passenger_capacity.
+      if (cap != null && cap < minPassengerCapacity) {
+        logDriverExclusion(exclusions, {
+          driverId,
+          step: '10. min passenger capacity',
+          detail: { cap, minPassengerCapacity },
+        });
         continue;
+      }
+      if (cap == null && __DEV__) {
+        logFetchMatchingDrivers(`10. min seats: ${driverId} kept (capacity unknown)`, {
+          minPassengerCapacity,
+        });
       }
     }
 
@@ -331,6 +506,13 @@ export async function fetchMatchingDrivers(
   }
 
   drivers.sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'ka'));
+
+  logFetchMatchingDrivers('done', {
+    matchedCount: drivers.length,
+    matchedIds: drivers.map((d) => d.id),
+    excludedCount: exclusions.length,
+    exclusions,
+  });
 
   return { data: drivers, error: null };
 }
