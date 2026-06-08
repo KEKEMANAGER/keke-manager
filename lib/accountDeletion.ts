@@ -48,6 +48,17 @@ async function listPrefixPaths(bucket: string, prefix: string): Promise<string[]
     .map((item) => `${prefix}/${item.name}`);
 }
 
+async function listOdometerObjectPaths(userId: string): Promise<string[]> {
+  const base = `odometer/${userId}`;
+  const bookingFolders = await listPrefixPaths(MEDIA_BUCKET, base);
+  const filePaths: string[] = [];
+  for (const folder of bookingFolders) {
+    const files = await listPrefixPaths(MEDIA_BUCKET, folder);
+    for (const file of files) filePaths.push(file);
+  }
+  return filePaths;
+}
+
 async function removeStoragePaths(bucket: string, paths: string[]): Promise<void> {
   const unique = [...new Set(paths.filter(Boolean))];
   if (!unique.length) return;
@@ -115,6 +126,9 @@ async function deleteUserStorageFiles(userId: string): Promise<void> {
 
   for (const p of verificationList) paths.add(p);
   for (const p of legacyVerificationList) paths.add(p);
+
+  const odometerPaths = await listOdometerObjectPaths(userId);
+  for (const p of odometerPaths) paths.add(p);
 
   await removeStoragePaths(MEDIA_BUCKET, [...paths]);
   await removeStoragePaths(PICKUP_SIGN_LOGO_BUCKET, pickupPaths);

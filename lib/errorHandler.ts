@@ -50,6 +50,9 @@ export function getSupabaseErrorMessage(error: unknown): string {
   if (lower.includes('invalid login credentials')) {
     return 'ელფოსტა ან პაროლი არასწორია.';
   }
+  if (lower.includes('account_blocked')) {
+    return 'ანგარიში დაბლოკილია. დაუკავშირდით მხარდაჭერას: akachibaia1410@gmail.com';
+  }
   if (lower.includes('email not confirmed')) {
     return 'ელფოსტა არ არის დადასტურებული.';
   }

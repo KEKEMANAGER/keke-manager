@@ -1173,6 +1173,8 @@
   "system": {
     "sessionExpiredTitle": "სესია",
     "sessionExpiredMessage": "სესია ამოიწურა, გთხოვთ გაიაროთ ავტორიზაცია",
+    "accountBlockedTitle": "ანგარიში დაბლოკილია",
+    "accountBlockedMessage": "თქვენი ანგარიში დაბლოკილია. დაუკავშირდით: akachibaia1410@gmail.com",
     "errorTitle": "შეცდომა",
     "noticeTitle": "შეტყობინება"
   },

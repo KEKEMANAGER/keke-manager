@@ -1176,6 +1176,8 @@
   "system": {
     "sessionExpiredTitle": "Session",
     "sessionExpiredMessage": "Your session has expired. Please sign in again.",
+    "accountBlockedTitle": "Account blocked",
+    "accountBlockedMessage": "Your account has been blocked. Contact support at akachibaia1410@gmail.com",
     "errorTitle": "Error",
     "noticeTitle": "Notice"
   },

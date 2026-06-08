@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { Alert, Platform } from 'react-native';
 import { resolveAppMenuRole, isHostDriver, type AppMenuRole } from '../lib/menuRole';
+import { accountBlockedAuthError, fetchUserIsBlocked } from '../lib/accountBlocked';
 import { clearProfilePushToken } from '../lib/profiles';
 import { supabase } from '../lib/supabase';
 import { fetchVehiclesByDriver, type VehicleRow } from '../lib/vehicles';
@@ -55,6 +56,7 @@ export type Profile = {
   current_city: string | null;
   is_available: boolean | null;
   available_updated_at: string | null;
+  is_blocked: boolean | null;
 };
 
 export type CompanySignUpMeta = {
@@ -98,7 +100,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const USER_PROFILE_SELECT =
-  'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, is_guide_driver, available_for_hire, company_email, company_phone, company_id_code, company_director, city, bank_account, current_city, is_available, available_updated_at';
+  'id, role, full_name, email, phone, avatar_url, bio, languages, balance, rating, is_verified, verification_status, subscription_type, subscription_expires_at, created_at, experience_years, license_photo, id_photo, vehicle_registration_photo, rejection_reason, is_hired_driver, is_guide_driver, available_for_hire, company_email, company_phone, company_id_code, company_director, city, bank_account, current_city, is_available, available_updated_at, is_blocked';
 
 async function fetchProfile(userId: string): Promise<Profile | null> {
   const usersRes = await supabase
@@ -178,6 +180,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await clearHadSessionMarkerNative();
   }, [clearHadSessionMarkerNative]);
 
+  const alertAccountBlockedOnce = useCallback(async () => {
+    Alert.alert(i18n.t('system.accountBlockedTitle'), i18n.t('system.accountBlockedMessage'));
+  }, []);
+
+  const signOutBlockedUser = useCallback(async () => {
+    userInitiatedSignOutRef.current = true;
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      userInitiatedSignOutRef.current = false;
+    }
+    profileUserIdRef.current = null;
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    setProfileLoading(false);
+    await clearHadSessionMarkerNative();
+  }, [clearHadSessionMarkerNative]);
+
   const maybeWarnSessionExpiryOnColdStart = useCallback(async () => {
     if (Platform.OS === 'web' || userInitiatedSignOutRef.current) return;
     try {
@@ -208,13 +229,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const row = await fetchProfile(nextUser.id);
+      if (row?.is_blocked === true) {
+        await signOutBlockedUser();
+        await alertAccountBlockedOnce();
+        return;
+      }
       setProfile(row);
     } finally {
       if (userChanged) {
         setProfileLoading(false);
       }
     }
-  }, [markHadSessionNative]);
+  }, [markHadSessionNative, signOutBlockedUser, alertAccountBlockedOnce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -270,8 +296,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = !sessionHydrated || (!!user && profileLoading);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    return supabase.auth.signInWithPassword({ email, password });
-  }, []);
+    const result = await supabase.auth.signInWithPassword({ email, password });
+    if (!result.error && result.data.user?.id) {
+      const blocked = await fetchUserIsBlocked(result.data.user.id);
+      if (blocked) {
+        await signOutBlockedUser();
+        await alertAccountBlockedOnce();
+        return { data: { user: null, session: null }, error: accountBlockedAuthError() };
+      }
+    }
+    return result;
+  }, [signOutBlockedUser, alertAccountBlockedOnce]);
 
   const signUp = useCallback(
     async (
@@ -366,8 +401,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     const row = await fetchProfile(uid);
+    if (row?.is_blocked === true) {
+      await signOutBlockedUser();
+      await alertAccountBlockedOnce();
+      return;
+    }
     setProfile(row);
-  }, [user?.id]);
+  }, [user?.id, signOutBlockedUser, alertAccountBlockedOnce]);
 
   useEffect(() => {
     if (profile?.role === 'driver' && user?.id) {

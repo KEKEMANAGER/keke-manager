@@ -1,7 +1,7 @@
 # KEKE Manager — Terms of Service
 
-**Last updated:** May 29, 2026  
-**Effective date:** May 29, 2026
+**Last updated:** July 2, 2026  
+**Effective date:** July 2, 2026
 
 These Terms of Service (“**Terms**”) govern your use of **KEKE Manager**. Please read them together with our [Privacy Policy](./privacy-policy-en.md).
 

@@ -1,7 +1,7 @@
 # KEKE Manager — Privacy Policy
 
-**Last updated:** May 29, 2026  
-**Effective date:** May 29, 2026
+**Last updated:** July 2, 2026  
+**Effective date:** July 2, 2026
 
 ---
 
@@ -58,7 +58,7 @@ We collect only data necessary to operate the Service.
 
 For drivers, we collect images and metadata for identity and compliance, including driver’s license, national ID, vehicle registration/technical passport, and related photos. Documents are uploaded to secure cloud storage and linked to your profile.
 
-**Photo library access** on your device is used **only** to select images for verification, profile, and vehicle photos. **We do not request camera access** in the current iOS/Android build configuration.
+**Camera and photo library** on your device are used when you upload images for verification, profile, vehicle photos, pickup logos, and **odometer dashboard photos** at tour start and end (tours only). On mobile, the camera opens directly for odometer capture; other uploads may use the photo library.
 
 ### 3.3 Vehicle data
 
@@ -66,7 +66,7 @@ Vehicle type, class, model, color, year, license plate, photographs, and active 
 
 ### 3.4 Booking and trip data
 
-Pickup/drop-off locations, routes, itinerary, dates, passenger count, flight numbers, passenger name and phone (for transfers), pricing in GEL, voucher codes, booking status, assigned driver and company identifiers, and related operational fields.
+Pickup/drop-off locations, routes, itinerary, dates, passenger count, flight numbers, passenger name and phone (for transfers), pricing in GEL, voucher codes, booking status, assigned driver and company identifiers, **odometer photos and timestamps** (tours only), and related operational fields.
 
 ### 3.5 Location data (GPS)
 
@@ -106,9 +106,10 @@ The app may request the following permissions. Denying a permission disables rel
 | **Location (When In Use)** | When a driver starts GPS tracking or opens map features | Show maps and share live position during an **active trip** | Approximate/precise coordinates during active session |
 | **Location (Always / Background)** | When a driver enables tracking that continues in the background (iOS/Android system prompt) | Continue trip tracking when the app is minimized | Coordinates only while tracking is **on**; stops when tracking ends |
 | **Notifications** | When the app registers for push (after you opt in via an in-app action or system prompt) | Booking alerts, chat, verification, and job-board notices | Push token; notification content you receive |
-| **Photos / media library** | When you choose to upload a photo or document | Avatar, vehicle photos, verification documents, pickup logos | Images you select (uploaded to our servers) |
+| **Camera** | When a driver starts or completes a **tour** (not transfers) | Capture **odometer dashboard** photo for fuel accounting | Photo you take (uploaded to our servers) |
+| **Photos / media library** | When you choose to upload a photo or document from gallery | Avatar, vehicle photos, verification documents, pickup logos; fallback on web if camera unavailable | Images you select (uploaded to our servers) |
 
-**We do not request camera permission** in the current app configuration. All photo uploads use the **photo library** picker.
+**Odometer photos** are required only for **tour** and **day_tour** bookings. **Transfers** do not use odometer capture.
 
 **Who sees location data:** drivers see their own position; **companies see a driver’s live pin only when that driver is assigned to the company’s active, non-cancelled booking**; administrators may see operational map data for moderation and support; other users do not receive your GPS data.
 
@@ -142,7 +143,7 @@ Where the GDPR or comparable laws apply (including because data is hosted in the
 |---------|-------------|
 | Providing the Service under your account | **Performance of a contract** (Art. 6(1)(b) GDPR) |
 | Security, fraud prevention, service reliability | **Legitimate interests** (Art. 6(1)(f) GDPR), balanced against your rights |
-| Location, notifications, photo library (where required) | **Consent** via OS permission prompts (Art. 6(1)(a) GDPR); withdraw in device Settings |
+| Location, notifications, camera, photo library (where required) | **Consent** via OS permission prompts (Art. 6(1)(a) GDPR); withdraw in device Settings |
 | Legal retention, lawful requests | **Legal obligation** (Art. 6(1)(c) GDPR) |
 
 Where consent is the basis, you may withdraw it without affecting the lawfulness of processing before withdrawal.
@@ -195,6 +196,7 @@ Access depends on role and context:
 | Bookings you participate in | Yes | Yes | Full |
 | Passenger details on bookings | If booking creator / assigned | If assigned driver | Full |
 | Live GPS | **Only drivers on your active, non-cancelled bookings** | Own only | Operational map |
+| Odometer photos (tours) | **On your tour bookings** | Own uploads | Operational review |
 | Chat threads | Participants | Participants | Moderation |
 | Verification documents | Own | Own | Review |
 
