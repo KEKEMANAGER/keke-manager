@@ -34,6 +34,7 @@ import { formatBookingDisplayNumber, formatVoucherPriceGel, stripVoucherEmojis }
 import { formatBankAccountForDisplay } from '../lib/bankAccount';
 import { shareCompanyVoucherPDF } from '../lib/voucher';
 import { BookingPaymentBadge } from './BookingPaymentBadge';
+import { BookingOdometerSection, shouldShowBookingOdometer } from './BookingOdometerSection';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { TouristBookingVoucherContent } from './TouristBookingVoucher';
 import { UserAvatar } from './UserAvatar';
@@ -388,6 +389,12 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                 </Pressable>
               ) : null}
             </View>
+          </View>
+        ) : null}
+
+        {shouldShowBookingOdometer(booking) ? (
+          <View style={[styles.card, SHADOWS.card]}>
+            <BookingOdometerSection booking={booking} />
           </View>
         ) : null}
 

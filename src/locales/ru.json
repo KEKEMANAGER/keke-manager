@@ -177,6 +177,16 @@
     "bankAccountInvalidChars": "IBAN может содержать только буквы и цифры",
     "city": "Город"
   },
+  "bookingOdometer": {
+    "sectionTitle": "Одометр",
+    "start": "Начало",
+    "end": "Конец",
+    "waitingStart": "Водитель загрузит фото при старте тура",
+    "waitingEnd": "Фото в конце появится после завершения тура",
+    "cameraDenied": "Для фото одометра нужен доступ к камере",
+    "uploadFailed": "Не удалось загрузить фото",
+    "saveFailed": "Не удалось сохранить фото одометра"
+  },
   "bookingPayment": {
     "unpaidBadge": "Не оплачено 🔴",
     "paidBadge": "Оплачено ✅",

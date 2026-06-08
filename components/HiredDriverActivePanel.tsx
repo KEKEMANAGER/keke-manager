@@ -8,10 +8,16 @@ import {
   bookingStatusLabel,
   completeBooking,
   formatBookingDate,
+  isTourBookingKind,
   routeSummary,
   startBookingTrip,
 } from '../lib/bookings';
 import { formatTourBookingNotificationBody } from '../lib/tourDays';
+import {
+  completeTourTripWithOdometer,
+  odometerErrorMessageKey,
+  startTourTripWithOdometer,
+} from '../lib/tourTripLifecycle';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 import { shareVoucherPDF } from '../lib/voucher';
 import { mapSupabaseError, showErrorAlert } from '../lib/validation';
@@ -39,16 +45,38 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
       setBusy(true);
       const res =
         action === 'start'
-          ? await startBookingTrip(booking.id, driverUserId)
-          : await completeBooking(booking.id, driverUserId);
+          ? isTourBookingKind(booking.kind)
+            ? await startTourTripWithOdometer(booking, driverUserId)
+            : await startBookingTrip(booking.id, driverUserId).then((r) =>
+                r.ok
+                  ? { ok: true as const }
+                  : { ok: false as const, error: r.error ?? new Error('start_failed') },
+              )
+          : isTourBookingKind(booking.kind)
+            ? await completeTourTripWithOdometer(booking, driverUserId)
+            : await completeBooking(booking.id, driverUserId).then((r) =>
+                r.ok
+                  ? { ok: true as const }
+                  : { ok: false as const, error: r.error ?? new Error('complete_failed') },
+              );
       setBusy(false);
       if (!res.ok) {
-        showErrorAlert(mapSupabaseError(res.error));
+        if ('cancelled' in res && res.cancelled) return;
+        const err = 'error' in res ? res.error : null;
+        showErrorAlert(
+          mapSupabaseError(err) || t(odometerErrorMessageKey(err)),
+        );
         return;
       }
       onTripUpdated?.();
+      if (action === 'start' && Platform.OS !== 'web') {
+        router.push({
+          pathname: '/(driver)/gps',
+          params: { autoStart: '1', bookingId: booking.id },
+        });
+      }
     },
-    [booking?.id, driverUserId, onTripUpdated],
+    [booking, driverUserId, onTripUpdated, router],
   );
 
   if (!booking) {

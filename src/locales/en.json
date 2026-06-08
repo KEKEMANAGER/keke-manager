@@ -179,6 +179,16 @@
     "bankAccountInvalidLength": "IBAN must be 15–34 characters",
     "bankAccountInvalidChars": "IBAN may only contain letters and digits"
   },
+  "bookingOdometer": {
+    "sectionTitle": "Odometer",
+    "start": "Start",
+    "end": "End",
+    "waitingStart": "Driver will upload a photo when the tour starts",
+    "waitingEnd": "End photo appears when the tour is finished",
+    "cameraDenied": "Camera access is required for the odometer photo",
+    "uploadFailed": "Could not upload photo",
+    "saveFailed": "Could not save odometer photo"
+  },
   "bookingPayment": {
     "unpaidBadge": "Unpaid 🔴",
     "paidBadge": "Paid ✅",

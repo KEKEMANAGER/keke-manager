@@ -270,6 +270,11 @@ function isTourServiceKind(kind: DbCanonicalKind | BookingType): boolean {
   return canonical === 'tour' || canonical === 'day_tour';
 }
 
+/** Tours that require odometer photos at start/end (not transfers). */
+export function isTourBookingKind(kind: BookingType | string): boolean {
+  return isTourServiceKind(kind);
+}
+
 function isBookingsKindConstraintError(message: string): boolean {
   const m = message.toLowerCase();
   return (
@@ -398,6 +403,10 @@ export type BookingRow = {
   driver_confirmed_1h?: boolean | null;
   reminder_1h_sent_at?: string | null;
   company_unconfirmed_alert_sent?: boolean | null;
+  odometer_start_photo_url?: string | null;
+  odometer_start_at?: string | null;
+  odometer_end_photo_url?: string | null;
+  odometer_end_at?: string | null;
 };
 
 export type InsertBookingInput = {

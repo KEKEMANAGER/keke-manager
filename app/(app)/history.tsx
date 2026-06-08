@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { EmptyState } from '../../components/EmptyState';
+import { BookingOdometerSection } from '../../components/BookingOdometerSection';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -321,6 +322,7 @@ export default function CompanyHistoryScreen() {
                   <Text style={styles.editBtnText}>✏️ {t('editBooking.edit')}</Text>
                 </Pressable>
               ) : null}
+              <BookingOdometerSection booking={r} compact />
               <Pressable
                 onPress={() => openCompanyVoucher(router, r.id, setVoucherBooking, r)}
                 style={styles.voucherBtn}

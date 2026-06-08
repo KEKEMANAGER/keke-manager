@@ -40,6 +40,7 @@ import {
   formatBookingDate,
   hostAcceptBookingForSub,
   isNewOpenPendingBookingInsert,
+  isTourBookingKind,
   rejectBooking,
   routeSummary,
   startBookingTrip,
@@ -47,6 +48,11 @@ import {
   unsubscribeChannel,
 } from '../../lib/bookings';
 import { fetchAcceptedFleetMembersForHost, fetchFleetContext } from '../../lib/fleet';
+import {
+  completeTourTripWithOdometer,
+  odometerErrorMessageKey,
+  startTourTripWithOdometer,
+} from '../../lib/tourTripLifecycle';
 import type { FleetMemberView } from '../../lib/fleet';
 import { stopBackgroundLocation } from '../../lib/backgroundLocation';
 import { clearDriverLocation } from '../../lib/locations';
@@ -362,12 +368,19 @@ export default function DriverBookingsScreen() {
   async function onComplete(item: BookingRow) {
     if (!user?.id) return;
     setActingId(item.id);
-    const res = await completeBooking(item.id, user.id);
+    const res = isTourBookingKind(item.kind)
+      ? await completeTourTripWithOdometer(item, user.id)
+      : await completeBooking(item.id, user.id).then((r) =>
+          r.ok ? { ok: true as const } : { ok: false as const, error: r.error ?? new Error('complete_failed') },
+        );
     setActingId(null);
     if (!res.ok) {
+      if ('cancelled' in res && res.cancelled) return;
       crossInfoAlert(
         t('common.error'),
-        getSupabaseErrorMessage(res.error) || t('bookings.completeFailed'),
+        getSupabaseErrorMessage('error' in res ? res.error : null) ||
+          t(odometerErrorMessageKey('error' in res ? res.error : null)) ||
+          t('bookings.completeFailed'),
       );
       void load('silent');
       return;
@@ -427,12 +440,19 @@ export default function DriverBookingsScreen() {
   async function onStartTrip(item: BookingRow) {
     if (!user?.id) return;
     setActingId(item.id);
-    const res = await startBookingTrip(item.id, user.id);
+    const res = isTourBookingKind(item.kind)
+      ? await startTourTripWithOdometer(item, user.id)
+      : await startBookingTrip(item.id, user.id).then((r) =>
+          r.ok ? { ok: true as const } : { ok: false as const, error: r.error ?? new Error('start_failed') },
+        );
     setActingId(null);
     if (!res.ok) {
+      if ('cancelled' in res && res.cancelled) return;
       crossInfoAlert(
         t('common.error'),
-        getSupabaseErrorMessage(res.error) || t('bookings.startFailed'),
+        getSupabaseErrorMessage('error' in res ? res.error : null) ||
+          t(odometerErrorMessageKey('error' in res ? res.error : null)) ||
+          t('bookings.startFailed'),
       );
       void load('silent');
       return;
@@ -694,12 +714,14 @@ export default function DriverBookingsScreen() {
                   <View style={styles.actions}>
                     <Pressable
                       onPress={() =>
-                        crossAlert(
-                          t('bookings.completeTitle'),
-                          t('bookings.completeMessage'),
-                          () => void onComplete(item),
-                          t('bookings.complete'),
-                        )
+                        isTourBookingKind(item.kind)
+                          ? void onComplete(item)
+                          : crossAlert(
+                              t('bookings.completeTitle'),
+                              t('bookings.completeMessage'),
+                              () => void onComplete(item),
+                              t('bookings.complete'),
+                            )
                       }
                       disabled={actingId === item.id}
                       style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}

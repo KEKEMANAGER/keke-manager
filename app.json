@@ -30,8 +30,8 @@
         "NSLocationWhenInUseUsageDescription": "KEKE uses your location to share your live position with the company during an active trip.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
         "NSLocationAlwaysUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
+        "NSCameraUsageDescription": "KEKE Manager uses the camera for odometer photos at tour start and end, plus profile and vehicle photos.",
         "NSPhotoLibraryUsageDescription": "KEKE needs access to your photo library to upload profile photos, vehicle photos, and verification documents.",
-        "NSCameraUsageDescription": "KEKE Manager uses camera for profile and vehicle photos",
         "NSUserNotificationsUsageDescription": "KEKE Manager sends booking and driver notifications"
       }
     },
@@ -49,7 +49,8 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA"
       ]
     },
     "web": {
@@ -84,7 +85,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "KEKE needs access to your photo library to upload profile photos, vehicle photos, and verification documents."
+          "photosPermission": "KEKE needs access to your photo library to upload profile photos, vehicle photos, and verification documents.",
+          "cameraPermission": "KEKE uses the camera for odometer photos at tour start and end."
         }
       ]
     ]

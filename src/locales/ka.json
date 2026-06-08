@@ -177,6 +177,16 @@
     "bankAccountInvalidLength": "IBAN უნდა იყოს 15–34 სიმბოლო",
     "bankAccountInvalidChars": "IBAN-ში დაშვებულია მხოლოდ ასოები და ციფრები"
   },
+  "bookingOdometer": {
+    "sectionTitle": "ოდომეტრი",
+    "start": "დაწყება",
+    "end": "დასრულება",
+    "waitingStart": "მძღოლი დაწყებისას გადაიღებს ფოტოს",
+    "waitingEnd": "ტურის ბოლოს გამოჩნდება საბოლოო ფოტო",
+    "cameraDenied": "კამერის უფლება საჭიროა ოდომეტრის ფოტოსთვის",
+    "uploadFailed": "ფოტოს ატვირთვა ვერ მოხერხდა",
+    "saveFailed": "ოდომეტრის შენახვა ვერ მოხერხდა"
+  },
   "bookingPayment": {
     "unpaidBadge": "გადაუხდელი 🔴",
     "paidBadge": "გადახდილი ✅",

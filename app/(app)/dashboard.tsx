@@ -40,6 +40,7 @@ import { BookingChatThreads } from '../../components/BookingChatThreads';
 import { DriverProfileCard } from '../../components/DriverProfileCard';
 import { UserAvatar } from '../../components/UserAvatar';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
+import { BookingOdometerSection } from '../../components/BookingOdometerSection';
 import { EmptyState } from '../../components/EmptyState';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { supabase } from '../../lib/supabase';
@@ -649,6 +650,7 @@ export default function CompanyDashboardScreen() {
                 </View>
               </View>
             ) : null}
+            <BookingOdometerSection booking={b} compact />
             {b.status === 'completed' && b.driver_id ? (
               isBookingAlreadyRated(b.id, ratedBookingIds) ? (
                 <Pressable
