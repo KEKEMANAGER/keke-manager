@@ -368,6 +368,7 @@
       "voucherTransferOut": "Departure",
       "voucherPassengers": "Passengers",
       "voucherPayment": "Payment",
+      "voucherOfferedPrice": "Offered price",
       "voucherClientPrice": "Client price",
       "voucherCommission": "Commission",
       "voucherIncome": "Income",

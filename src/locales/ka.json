@@ -365,6 +365,7 @@
       "voucherTransferOut": "გამგზავრება",
       "voucherPassengers": "მგზავრები",
       "voucherPayment": "გადახდა",
+      "voucherOfferedPrice": "შეთავაზებული ფასი",
       "voucherClientPrice": "კლიენტის ფასი",
       "voucherCommission": "კომისია",
       "voucherIncome": "შემოსავალი",

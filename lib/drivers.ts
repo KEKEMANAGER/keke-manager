@@ -14,6 +14,8 @@ import {
 import {
   normalizeVehicleClass,
   normalizeVehicleType,
+  vehicleClassRawValues,
+  vehicleTypeRawValues,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from './vehicleCatalog';
@@ -145,83 +147,22 @@ export async function fetchMatchingDrivers(
     return { data: [], error: null };
   }
 
-  let profileRows: ProfileMatchRow[] | null = null;
-  let profileError: { message: string } | null = null;
+  const typeVariants = vehicleTypeRawValues(normType);
+  const classVariants = vehicleClassRawValues(normClass);
 
-  const primary = await supabase
-    .from('profiles')
-    .select('id, full_name, avatar_url, vehicle_type, vehicle_class')
-    .eq('vehicle_type', normType)
-    .eq('vehicle_class', normClass);
+  const vehiclesRes = await supabase
+    .from('vehicles')
+    .select(
+      'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active',
+    )
+    .in('type', typeVariants)
+    .in('class', classVariants)
+    .order('is_active', { ascending: false });
 
-  if (!primary.error) {
-    profileRows = (primary.data ?? []) as ProfileMatchRow[];
-  } else {
-    const fallback = await supabase
-      .from('profiles')
-      .select('id, avatar_url, vehicle_type, vehicle_class')
-      .eq('vehicle_type', normType)
-      .eq('vehicle_class', normClass);
-    profileRows = (fallback.data ?? []) as ProfileMatchRow[];
-    profileError = fallback.error;
-  }
-
-  if (profileError) {
-    return { data: [], error: new Error(profileError.message) };
-  }
-  if (!profileRows?.length) {
-    return { data: [], error: null };
-  }
-
-  const ids = profileRows.map((r) => String(r.id));
-
-  const [usersRes, vehiclesRes, ratingsRes] = await Promise.all([
-    supabase
-      .from(USERS_DIRECTORY)
-      .select('id, full_name, city, avatar_url, languages, experience_years, role, is_verified, is_guide_driver')
-      .in('id', ids),
-    supabase
-      .from('vehicles')
-      .select(
-        'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active',
-      )
-      .in('driver_id', ids)
-      .order('is_active', { ascending: false }),
-    supabase.from('ratings').select('driver_id, overall').in('driver_id', ids),
-  ]);
-
-  if (usersRes.error) {
-    return { data: [], error: new Error(usersRes.error.message) };
-  }
   if (vehiclesRes.error) {
     return { data: [], error: new Error(vehiclesRes.error.message) };
   }
 
-  const userById = new Map<string, UserRow>();
-  if (usersRes.data) {
-    for (const u of usersRes.data as UserRow[]) {
-      userById.set(String(u.id), u);
-    }
-  }
-
-  const vehicleByDriver = new Map<
-    string,
-    {
-      id?: string;
-      type?: string | null;
-      class?: string | null;
-      model?: string | null;
-      year?: number | null;
-      color?: string | null;
-      plate?: string | null;
-      passenger_capacity?: number | null;
-      photo_front?: string | null;
-      photo_left?: string | null;
-      photo_right?: string | null;
-      photo_interior?: string | null;
-      photo_rear?: string | null;
-    }
-  >();
   type VehicleRow = {
     id: string;
     driver_id: string;
@@ -240,6 +181,8 @@ export async function fetchMatchingDrivers(
     is_active?: boolean | null;
   };
 
+  const vehicleByDriver = new Map<string, VehicleRow>();
+
   for (const v of (vehiclesRes.data ?? []) as VehicleRow[]) {
     if (!vehicleMatchesSelection(v.type, v.class, normType, normClass)) {
       continue;
@@ -256,14 +199,56 @@ export async function fetchMatchingDrivers(
     }
   }
 
+  const candidateDriverIds = [...vehicleByDriver.keys()];
+  if (candidateDriverIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const [profilesRes, usersRes, ratingsRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url, vehicle_type, vehicle_class')
+      .in('id', candidateDriverIds),
+    supabase
+      .from(USERS_DIRECTORY)
+      .select(
+        'id, full_name, city, avatar_url, languages, experience_years, role, is_verified, is_guide_driver, is_hired_driver',
+      )
+      .in('id', candidateDriverIds),
+    supabase.from('ratings').select('driver_id, overall').in('driver_id', candidateDriverIds),
+  ]);
+
+  if (profilesRes.error) {
+    return { data: [], error: new Error(profilesRes.error.message) };
+  }
+  if (usersRes.error) {
+    return { data: [], error: new Error(usersRes.error.message) };
+  }
+
+  const userById = new Map<string, UserRow>();
+  for (const u of (usersRes.data ?? []) as UserRow[]) {
+    userById.set(String(u.id), u);
+  }
+
+  const profileById = new Map<string, ProfileMatchRow>();
+  for (const row of (profilesRes.data ?? []) as ProfileMatchRow[]) {
+    profileById.set(String(row.id), row);
+  }
+
   const ratingByDriver = computeRatingAverages(
     (ratingsRes.data ?? []) as { driver_id: string; overall: number }[],
   );
 
   const drivers: MatchingDriver[] = [];
 
-  for (const row of profileRows) {
-    const driverId = String(row.id);
+  for (const driverId of candidateDriverIds) {
+    const row = profileById.get(driverId) ?? {
+      id: driverId,
+      vehicle_type: null,
+      vehicle_class: null,
+      full_name: null,
+      avatar_url: null,
+    };
     const user = userById.get(driverId) ?? null;
 
     if (user?.role && user.role !== 'driver') {
@@ -285,12 +270,6 @@ export async function fetchMatchingDrivers(
 
     const driverCity = user?.city?.trim() ?? null;
     if (cityNorm && driverCity !== cityNorm) {
-      continue;
-    }
-
-    const profileType = normalizeVehicleType(row.vehicle_type ?? '');
-    const profileClass = normalizeVehicleClass(row.vehicle_class ?? '');
-    if (profileType !== normType || profileClass !== normClass) {
       continue;
     }
 

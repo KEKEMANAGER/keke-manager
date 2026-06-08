@@ -118,6 +118,24 @@ export function normalizeVehicleClass(raw: string | null | undefined): VehicleCl
   return lookupAlias(String(raw ?? ''), CLASS_ALIASES, VEHICLE_CLASSES);
 }
 
+/** All DB / UI raw strings that normalize to the given canonical type (for Supabase `.in()`). */
+export function vehicleTypeRawValues(code: VehicleTypeCode): string[] {
+  const out = new Set<string>([code]);
+  for (const [alias, mapped] of Object.entries(TYPE_ALIASES)) {
+    if (mapped === code) out.add(alias);
+  }
+  return [...out];
+}
+
+/** All DB / UI raw strings that normalize to the given canonical class (for Supabase `.in()`). */
+export function vehicleClassRawValues(code: VehicleClassCode): string[] {
+  const out = new Set<string>([code]);
+  for (const [alias, mapped] of Object.entries(CLASS_ALIASES)) {
+    if (mapped === code) out.add(alias);
+  }
+  return [...out];
+}
+
 export function isVehicleTypeCode(value: string): value is VehicleTypeCode {
   return (VEHICLE_TYPES as readonly string[]).includes(value);
 }

@@ -353,6 +353,7 @@
       "voucherTransferOut": "Вылет",
       "voucherPassengers": "Пассажиры",
       "voucherPayment": "Оплата",
+      "voucherOfferedPrice": "Предложенная цена",
       "voucherClientPrice": "Цена клиента",
       "voucherCommission": "Комиссия",
       "voucherIncome": "Доход",
