@@ -122,8 +122,8 @@ DROP POLICY IF EXISTS "vehicles_authenticated_update" ON public.vehicles;
 DROP POLICY IF EXISTS "vehicles_update_own" ON public.vehicles;
 CREATE POLICY "vehicles_update_own" ON public.vehicles
   FOR UPDATE TO authenticated
-  USING (driver_id = (auth.uid())::text)
-  WITH CHECK (driver_id = (auth.uid())::text);
+  USING (driver_id::text = auth.uid()::text)
+  WITH CHECK (driver_id::text = auth.uid()::text);
 
 -- ---------------------------------------------------------------------------
 -- 4. notifications — no direct INSERT; RPC only (create_user_notifications)

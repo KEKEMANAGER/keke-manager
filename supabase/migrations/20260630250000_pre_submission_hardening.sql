@@ -370,7 +370,7 @@ AS $$
       vv.class,
       vv.plate
     FROM public.vehicles vv
-    WHERE vv.driver_id = u.id::text
+    WHERE vv.driver_id::text = u.id::text
       AND COALESCE(vv.is_active, true) = true
     ORDER BY vv.is_active DESC NULLS LAST, vv.updated_at DESC NULLS LAST
     LIMIT 1

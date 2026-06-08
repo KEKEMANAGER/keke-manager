@@ -46,7 +46,7 @@ AS $$
     (
       SELECT v.plate
       FROM public.vehicles v
-      WHERE v.driver_id = u.id::text
+      WHERE v.driver_id::text = u.id::text
         AND COALESCE(v.is_active, true) = true
       ORDER BY v.updated_at DESC NULLS LAST
       LIMIT 1
