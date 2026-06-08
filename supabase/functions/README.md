@@ -39,6 +39,12 @@ supabase db push   # or apply migration on hosted project
 supabase functions deploy booking-reminders --project-ref <REF>
 ```
 
-Cron is declared in `supabase/config.toml` (`0 * * * *`). On hosted Supabase, redeploy after changing the schedule. The function uses `SUPABASE_SERVICE_ROLE_KEY` (injected automatically) and reads `profiles.push_token` (fallback `users.push_token`).
+Cron is set via migration `20260701120000_booking_reminders_cron.sql` (`pg_cron`, hourly `0 * * * *`). Apply on hosted Supabase (SQL Editor or `db push`). Verify with:
+
+```sql
+SELECT jobid, jobname, schedule, active FROM cron.job WHERE jobname = 'booking-reminders-hourly';
+```
+
+The function uses `SUPABASE_SERVICE_ROLE_KEY` (injected automatically) and reads `profiles.push_token` (fallback `users.push_token`).
 
 Drivers confirm in the app via `lib/bookingReminders.ts` → sets `driver_confirmed_1h = true`.
