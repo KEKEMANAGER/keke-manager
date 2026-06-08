@@ -206,22 +206,50 @@ export function formatTourBookingNotificationBody(booking: {
 }
 
 /** HTML rows for voucher PDF. */
-export function tourVoucherHtmlRows(booking: {
-  tour_days?: TourDayPersisted[] | null;
-  transfer_in?: TourTransferLeg | null;
-  transfer_out?: TourTransferLeg | null;
-}): string {
+export type TourVoucherHtmlLabels = {
+  transferArrival: string;
+  transferDeparture: string;
+  dateDay: (day: number) => string;
+  route: string;
+  stops: string;
+  touristHotel: string;
+  driverOvernight: string;
+  totalNights: string;
+  formatDayDate?: (date: string) => string;
+};
+
+const DEFAULT_TOUR_VOUCHER_LABELS: TourVoucherHtmlLabels = {
+  transferArrival: 'ჩამოსვლის ტრანსფერი',
+  transferDeparture: 'გამგზავრების ტრანსფერი',
+  dateDay: (day) => `თარიღი (დღე ${day})`,
+  route: 'მარშრუტი',
+  stops: 'გაჩერებები',
+  touristHotel: 'ტურისტების სასტუმრო',
+  driverOvernight: 'მძღოლის ღამისთევა',
+  totalNights: 'სულ ღამე',
+};
+
+export function tourVoucherHtmlRows(
+  booking: {
+    tour_days?: TourDayPersisted[] | null;
+    transfer_in?: TourTransferLeg | null;
+    transfer_out?: TourTransferLeg | null;
+  },
+  labels: TourVoucherHtmlLabels = DEFAULT_TOUR_VOUCHER_LABELS,
+): string {
+  const L = labels;
+  const formatDay = L.formatDayDate ?? formatDayDate;
   const rows: string[] = [];
   const tin = booking.transfer_in;
   if (tin && (tin.date || tin.airport || tin.hotel)) {
-    const from = formatLocationDisplay(tin.airport, tin.airport_type);
-    const to = formatLocationDisplay(tin.hotel, tin.hotel_type);
+    const from = formatLocationDisplay(tin.airport, tin.airport_type, { withIcon: false });
+    const to = formatLocationDisplay(tin.hotel, tin.hotel_type, { withIcon: false });
     const route =
       from !== '—' && to !== '—'
         ? `${from} → ${to}`
         : [from !== '—' ? from : '', to !== '—' ? to : ''].filter(Boolean).join(' → ');
     rows.push(
-      `<div class="row"><span class="label">ჩამოსვლის ტრანსფერი</span><span class="value">${escapeHtml(
+      `<div class="row"><span class="label">${escapeHtml(L.transferArrival)}</span><span class="value">${escapeHtml(
         [formatStoredDateForDisplay(tin.date), route].filter((x) => x && x !== '—').join(' · '),
       )}</span></div>`,
     );
@@ -233,28 +261,28 @@ export function tourVoucherHtmlRows(booking: {
       rows.push('<div class="divider"></div>');
     }
     rows.push(
-      `<div class="row"><span class="label">თარიღი (დღე ${d.day})</span><span class="value">${escapeHtml(
-        formatDayDate(d.date),
+      `<div class="row"><span class="label">${escapeHtml(L.dateDay(d.day))}</span><span class="value">${escapeHtml(
+        formatDay(d.date),
       )}</span></div>`,
     );
     rows.push(
-      `<div class="row"><span class="label">მარშრუტი</span><span class="value">${escapeHtml(
+      `<div class="row"><span class="label">${escapeHtml(L.route)}</span><span class="value">${escapeHtml(
         `${d.fromPlace || '—'} → ${d.toPlace || '—'}`,
       )}</span></div>`,
     );
     rows.push(
-      `<div class="row"><span class="label">გაჩერებები</span><span class="value">${escapeHtml(
+      `<div class="row"><span class="label">${escapeHtml(L.stops)}</span><span class="value">${escapeHtml(
         stopsToString(d.stops) || '—',
       )}</span></div>`,
     );
     if (!isLast) {
       rows.push(
-        `<div class="row"><span class="label">ტურისტების სასტუმრო</span><span class="value">${escapeHtml(
+        `<div class="row"><span class="label">${escapeHtml(L.touristHotel)}</span><span class="value">${escapeHtml(
           readTourDayHotel(d) || '—',
         )}</span></div>`,
       );
       rows.push(
-        `<div class="row"><span class="label">მძღოლის ღამისთევა</span><span class="value">${escapeHtml(
+        `<div class="row"><span class="label">${escapeHtml(L.driverOvernight)}</span><span class="value">${escapeHtml(
           readTourDayOvernight(d) || '—',
         )}</span></div>`,
       );
@@ -264,19 +292,19 @@ export function tourVoucherHtmlRows(booking: {
   if (nights > 0) {
     rows.push('<div class="divider"></div>');
     rows.push(
-      `<div class="row"><span class="label">სულ ღამე</span><span class="value">${nights}</span></div>`,
+      `<div class="row"><span class="label">${escapeHtml(L.totalNights)}</span><span class="value">${nights}</span></div>`,
     );
   }
   const tout = booking.transfer_out;
   if (tout && (tout.date || tout.airport || tout.hotel)) {
-    const from = formatLocationDisplay(tout.hotel, tout.hotel_type);
-    const to = formatLocationDisplay(tout.airport, tout.airport_type);
+    const from = formatLocationDisplay(tout.hotel, tout.hotel_type, { withIcon: false });
+    const to = formatLocationDisplay(tout.airport, tout.airport_type, { withIcon: false });
     const route =
       from !== '—' && to !== '—'
         ? `${from} → ${to}`
         : [from !== '—' ? from : '', to !== '—' ? to : ''].filter(Boolean).join(' → ');
     rows.push(
-      `<div class="row"><span class="label">გამგზავრების ტრანსფერი</span><span class="value">${escapeHtml(
+      `<div class="row"><span class="label">${escapeHtml(L.transferDeparture)}</span><span class="value">${escapeHtml(
         [formatStoredDateForDisplay(tout.date), route].filter((x) => x && x !== '—').join(' · '),
       )}</span></div>`,
     );

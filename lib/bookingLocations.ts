@@ -106,9 +106,11 @@ export function persistLocationFields(value: LocationValue): {
 export function formatLocationDisplay(
   name: string | null | undefined,
   type: string | null | undefined,
+  options?: { withIcon?: boolean },
 ): string {
   const n = name?.trim();
   if (!n) return '—';
+  if (options?.withIcon === false) return n;
   if (isLocationType(type)) {
     return `${LOCATION_TYPE_ICONS[type]} ${n}`;
   }
@@ -120,9 +122,10 @@ export function formatLocationRoute(
   fromType: string | null | undefined,
   toName: string | null | undefined,
   toType: string | null | undefined,
+  options?: { withIcon?: boolean },
 ): string {
-  const from = formatLocationDisplay(fromName, fromType);
-  const to = formatLocationDisplay(toName, toType);
+  const from = formatLocationDisplay(fromName, fromType, options);
+  const to = formatLocationDisplay(toName, toType, options);
   if (from === '—' && to === '—') return '—';
   if (from === '—') return to;
   if (to === '—') return from;

@@ -57,7 +57,6 @@ export function LandingPageScroll({
   return (
     <>
       <View nativeID="hero" style={sx(styles.sectionBand, styles.hero, isWide ? styles.heroWide : undefined)}>
-        <View style={styles.heroGlow} />
         <View style={containerStyle}>{heroChildren}</View>
       </View>
 
@@ -206,18 +205,6 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     paddingTop: 48,
     paddingBottom: 80,
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -80,
-    left: '10%',
-    right: '10%',
-    maxWidth: 700,
-    height: 400,
-    borderRadius: 300,
-    backgroundColor: LANDING.accent,
-    opacity: 0.12,
-    alignSelf: 'center',
   },
   rolesSection: { backgroundColor: LANDING.bgSoft, paddingVertical: 56 },
   sectionTitle: { fontSize: 28, color: LANDING.text, textAlign: 'center', marginBottom: 28 },

@@ -10,3 +10,11 @@ export function formatVoucherPriceGel(price: number | null | undefined): string 
   if (!Number.isFinite(n) || n < 0) return '—';
   return `${n.toLocaleString('ka-GE')} GEL`;
 }
+
+/** Strip emoji from voucher/PDF text (UI labels stay emoji-free). */
+export function stripVoucherEmojis(text: string): string {
+  return text
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE0F}\u{200D}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}

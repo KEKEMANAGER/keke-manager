@@ -2,6 +2,11 @@ import type { BookingRow } from './bookings';
 import type { CompanyVoucherData } from './companyVoucherData';
 import { fetchCompanyVoucherData } from './companyVoucherData';
 import { generateCompanyVoucherHTML } from './companyVoucherHtml';
+import { generateTouristVoucherHTML } from './touristVoucherHtml';
+import {
+  touristVoucherPdfDialogTitle,
+  type TouristVoucherLocale,
+} from './touristVoucherLocale';
 
 export async function shareCompanyVoucherPDF(data: CompanyVoucherData): Promise<void> {
   const voucherCode =
@@ -12,6 +17,21 @@ export async function shareCompanyVoucherPDF(data: CompanyVoucherData): Promise<
   win.document.write(generateCompanyVoucherHTML(data));
   win.document.close();
   win.document.title = `ვაუჩერი ${voucherCode}`;
+  win.print();
+}
+
+export async function shareTouristVoucherPDF(
+  data: CompanyVoucherData,
+  locale: TouristVoucherLocale,
+): Promise<void> {
+  const voucherCode =
+    data.booking.voucher_code?.trim() ||
+    `KEKE-${data.booking.id.slice(0, 6).toUpperCase()}`;
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(generateTouristVoucherHTML(data, locale));
+  win.document.close();
+  win.document.title = touristVoucherPdfDialogTitle(locale, voucherCode);
   win.print();
 }
 

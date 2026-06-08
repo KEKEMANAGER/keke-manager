@@ -1,7 +1,6 @@
 import { Link } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import {
-  Animated,
   Image,
   Linking,
   Platform,
@@ -140,22 +139,9 @@ export function LandingPage() {
   const [langOpen, setLangOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [slide, setSlide] = useState(0);
-  const floatAnim = useRef(new Animated.Value(0)).current;
   const copy = useMemo(() => getLandingCopy(lang), [lang]);
 
   useLandingMeta(copy);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, { toValue: 1, duration: 2200, useNativeDriver: true }),
-        Animated.timing(floatAnim, { toValue: 0, duration: 2200, useNativeDriver: true }),
-      ]),
-    ).start();
-  }, [floatAnim]);
-
-  const floatY = floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
 
   const slides: RoleSlide[] = useMemo(
     () => [
@@ -320,40 +306,32 @@ export function LandingPage() {
                   style={sx(
                     styles.heroBrandBlock,
                     isMobile ? styles.heroBrandBlockMobile : undefined,
-                    Platform.OS !== 'web' ? { transform: [{ translateY: floatY }] } : undefined,
                   )}
                 >
-                  <Image
-                    source={BRAND_LOGO}
-                    style={{ width: heroLogoSize, height: heroLogoSize, marginBottom: 8 }}
-                    resizeMode="contain"
-                    {...(Platform.OS === 'web'
-                      ? ({
-                          fetchPriority: 'high',
-                          loading: 'eager',
-                        } as { fetchPriority?: 'high' | 'low' | 'auto'; loading?: 'eager' | 'lazy' })
-                      : {})}
-                  />
-                  <Text
-                    style={sx(
-                      styles.heroKeke,
-                      landingFont({ fontWeight: '900' }),
-                      isDesktop ? styles.heroKekeDesktop : undefined,
-                      isMobile ? styles.heroKekeMobile : undefined,
-                    )}
+                  <View
+                    style={[
+                      styles.heroLogoWrap,
+                      {
+                        width: heroLogoSize * 1.55,
+                        height: heroLogoSize * 1.4,
+                        marginBottom: 8,
+                      },
+                    ]}
                   >
-                    KEKE
-                  </Text>
-                  <Text
-                    style={sx(
-                      styles.heroManager,
-                      landingFont({ fontWeight: '700' }),
-                      isDesktop ? styles.heroManagerDesktop : undefined,
-                      isMobile ? styles.heroManagerMobile : undefined,
-                    )}
-                  >
-                    MANAGER
-                  </Text>
+                    <View style={styles.heroLogoGlow} />
+                    <Image
+                      source={BRAND_LOGO}
+                      style={{ width: heroLogoSize, height: heroLogoSize }}
+                      resizeMode="contain"
+                      accessibilityLabel="KEKE MANAGER"
+                      {...(Platform.OS === 'web'
+                        ? ({
+                            fetchPriority: 'high',
+                            loading: 'eager',
+                          } as { fetchPriority?: 'high' | 'low' | 'auto'; loading?: 'eager' | 'lazy' })
+                        : {})}
+                    />
+                  </View>
                 </View>
               </View>
 
@@ -441,27 +419,21 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
   },
+  heroLogoWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  heroLogoGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 9999,
+    backgroundColor: LANDING.accentLight,
+    opacity: 0.95,
+  },
   heroContent: {
     width: '100%',
     alignItems: 'center',
   },
-  heroGlow: {
-    position: 'absolute',
-    top: -80,
-    left: '10%',
-    right: '10%',
-    maxWidth: 700,
-    height: 400,
-    borderRadius: 300,
-    backgroundColor: LANDING.accent,
-    opacity: 0.12,
-    alignSelf: 'center'},
-  heroKeke: { fontSize: 40, color: LANDING.text, letterSpacing: 2 },
-  heroKekeDesktop: { fontSize: 52, letterSpacing: 4 },
-  heroKekeMobile: { fontSize: 34, letterSpacing: 2 },
-  heroManager: { fontSize: 16, color: LANDING.text, letterSpacing: 6, marginTop: -4 },
-  heroManagerDesktop: { fontSize: 20, letterSpacing: 10 },
-  heroManagerMobile: { fontSize: 13, letterSpacing: 5, marginTop: 0 },
   heroBadge: {
     marginTop: 20,
     backgroundColor: LANDING.accentLight,

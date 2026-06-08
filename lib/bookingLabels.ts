@@ -72,9 +72,10 @@ export function resolveBookingKindLabelCode(
 export function bookingKindLabel(
   kind: string | null | undefined,
   flightDirection?: string | null,
+  lang?: string,
 ): string {
   const code = resolveBookingKindLabelCode(kind, flightDirection);
-  const row = bookingBundle(currentLangCode()).type as Record<string, string>;
+  const row = bookingBundle(lang ?? currentLangCode()).type as Record<string, string>;
   const fromLocale = row[code]?.trim();
   if (fromLocale) return fromLocale;
   return FALLBACK_EN[code] ?? code;

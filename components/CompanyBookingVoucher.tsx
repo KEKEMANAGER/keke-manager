@@ -20,7 +20,6 @@ import { useAuth } from '../contexts/AuthContext';
 import type { BookingRow, TourDayPersisted } from '../lib/bookings';
 import { bookingStatusLabel, formatBookingDate } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
-import { formatLocationRoute } from '../lib/bookingLocations';
 import type { CompanyVoucherData } from '../lib/companyVoucherData';
 import {
   enrichCompanyVoucherFromBooking,
@@ -30,14 +29,16 @@ import {
 import { formatStoredDateForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
-import { formatLocationDisplay } from '../lib/bookingLocations';
-import { formatBookingDisplayNumber, formatVoucherPriceGel } from '../lib/bookingVoucherDisplay';
+import { formatLocationRoute, formatLocationDisplay } from '../lib/bookingLocations';
+import { formatBookingDisplayNumber, formatVoucherPriceGel, stripVoucherEmojis } from '../lib/bookingVoucherDisplay';
 import { formatBankAccountForDisplay } from '../lib/bankAccount';
 import { shareCompanyVoucherPDF } from '../lib/voucher';
 import { BookingPaymentBadge } from './BookingPaymentBadge';
-import { GuideDriverBadge } from './GuideDriverBadge';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
+import { TouristBookingVoucherContent } from './TouristBookingVoucher';
 import { UserAvatar } from './UserAvatar';
+
+const VOUCHER_LOCATION = { withIcon: false as const };
 
 type ContentProps = {
   data: CompanyVoucherData;
@@ -46,17 +47,50 @@ type ContentProps = {
 };
 
 function DetailRow({ label, value }: { label: string; value: string }) {
-  if (!value.trim()) return null;
+  const clean = stripVoucherEmojis(value);
+  if (!clean.trim()) return null;
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
+      <Text style={styles.detailValue}>{clean}</Text>
     </View>
   );
 }
 
 function SectionHeader({ title }: { title: string }) {
-  return <Text style={styles.sectionHeader}>{title}</Text>;
+  return <Text style={styles.sectionHeader}>{stripVoucherEmojis(title)}</Text>;
+}
+
+type VoucherMode = 'company' | 'tourist';
+
+function VoucherModeTabs({
+  mode,
+  onChange,
+}: {
+  mode: VoucherMode;
+  onChange: (mode: VoucherMode) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.modeTabs}>
+      <Pressable
+        onPress={() => onChange('company')}
+        style={[styles.modeTab, mode === 'company' && styles.modeTabActive]}
+      >
+        <Text style={[styles.modeTabText, mode === 'company' && styles.modeTabTextActive]}>
+          {t('companyVoucher.tabCompany')}
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={() => onChange('tourist')}
+        style={[styles.modeTab, mode === 'tourist' && styles.modeTabActive]}
+      >
+        <Text style={[styles.modeTabText, mode === 'tourist' && styles.modeTabTextActive]}>
+          {t('companyVoucher.tabTourist')}
+        </Text>
+      </Pressable>
+    </View>
+  );
 }
 
 export function CompanyBookingVoucherContent({ data, onClose, showClose = true }: ContentProps) {
@@ -65,6 +99,20 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
   const insets = useSafeAreaInsets();
   const [sharing, setSharing] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [voucherMode, setVoucherMode] = useState<VoucherMode>('company');
+
+  const modeTabs = <VoucherModeTabs mode={voucherMode} onChange={setVoucherMode} />;
+
+  if (voucherMode === 'tourist') {
+    return (
+      <TouristBookingVoucherContent
+        data={data}
+        onClose={onClose}
+        showClose={showClose}
+        topSlot={modeTabs}
+      />
+    );
+  }
 
   const { booking, driver, vehicle, host } = data;
   const offeredGel = bookingOfferedPriceGel(booking);
@@ -123,6 +171,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
         ) : null}
         <Text style={styles.brandLogo}>KEKE MANAGER</Text>
         <Text style={styles.brandSub}>{t('companyVoucher.brandSubtitle')}</Text>
+        {modeTabs}
       </View>
 
       <ScrollView
@@ -135,13 +184,13 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
       >
         <View style={[styles.voucherBox, SHADOWS.gold]}>
           <Text style={styles.bookingNumberLine}>
-            📋 {t('companyVoucher.bookingNumber')} {bookingNumber}
+            {stripVoucherEmojis(`${t('companyVoucher.bookingNumber')} ${bookingNumber}`)}
           </Text>
           <Text style={styles.priceOfferLine}>
-            🏷️ {t('companyVoucher.clientPrice')}: {formatVoucherPriceGel(offeredGel)}
+            {stripVoucherEmojis(`${t('companyVoucher.clientPrice')}: ${formatVoucherPriceGel(offeredGel)}`)}
           </Text>
           <Text style={styles.priceOfferLine}>
-            💰 {t('companyVoucher.driverPrice')}: {formatVoucherPriceGel(offeredGel)}
+            {stripVoucherEmojis(`${t('companyVoucher.driverPrice')}: ${formatVoucherPriceGel(offeredGel)}`)}
           </Text>
 
           <View style={styles.voucherTopRow}>
@@ -151,7 +200,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
             {booking.driver_update_pending ? (
               <View style={styles.updatedPill}>
                 <Text style={styles.updatedPillText}>
-                  📝 {t('companyVoucher.updated')}{' '}
+                  {t('companyVoucher.updated')}{' '}
                   {formatStoredDateForDisplay(
                     booking.updated_at?.slice(0, 10) ?? booking.created_at.slice(0, 10),
                   )}
@@ -161,7 +210,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
           </View>
 
           <Text style={styles.voucherCode}>{voucherCode}</Text>
-          <Text style={styles.statusLine}>{bookingStatusLabel(booking.status)}</Text>
+          <Text style={styles.statusLine}>{stripVoucherEmojis(bookingStatusLabel(booking.status))}</Text>
           {booking.status === 'completed' ? (
             <View style={styles.paymentBadgeWrap}>
               <BookingPaymentBadge
@@ -171,26 +220,26 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
             </View>
           ) : null}
 
-          <SectionHeader title={`📋 ${t('companyVoucher.sectionBooking')}`} />
+          <SectionHeader title={t('companyVoucher.sectionBooking')} />
           <DetailRow label={t('companyVoucher.type')} value={bookingKindLabel(booking.kind, booking.flight_direction)} />
           <DetailRow label={t('companyVoucher.date')} value={formatBookingDate(booking)} />
           {booking.from_location ? (
             <DetailRow
               label={t('companyVoucher.from')}
-              value={formatLocationDisplay(booking.from_location, booking.from_location_type)}
+              value={formatLocationDisplay(booking.from_location, booking.from_location_type, VOUCHER_LOCATION)}
             />
           ) : null}
           {booking.to_location ? (
             <DetailRow
               label={t('companyVoucher.to')}
-              value={formatLocationDisplay(booking.to_location, booking.to_location_type)}
+              value={formatLocationDisplay(booking.to_location, booking.to_location_type, VOUCHER_LOCATION)}
             />
           ) : null}
           <DetailRow label={t('companyVoucher.passengers')} value={String(booking.passengers ?? 1)} />
           {booking.flight_number?.trim() ? (
             <DetailRow
               label={t('companyVoucher.flightNumber')}
-              value={`✈️ ${booking.flight_number.trim()}`}
+              value={booking.flight_number.trim()}
             />
           ) : null}
           <DetailRow
@@ -230,6 +279,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                 booking.transfer_in.airport_type,
                 booking.transfer_in.hotel,
                 booking.transfer_in.hotel_type,
+                VOUCHER_LOCATION,
               )}
             />
           ) : null}
@@ -241,6 +291,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                 booking.transfer_out.hotel_type,
                 booking.transfer_out.airport,
                 booking.transfer_out.airport_type,
+                VOUCHER_LOCATION,
               )}
             />
           ) : null}
@@ -300,7 +351,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
 
         {driver ? (
           <View style={[styles.card, SHADOWS.card]}>
-            <SectionHeader title={`👤 ${t('companyVoucher.sectionDriver')}`} />
+            <SectionHeader title={t('companyVoucher.sectionDriver')} />
             <View style={styles.driverRow}>
               <UserAvatar name={driver.fullName} uri={driver.avatarUrl} size={56} />
               <View style={styles.driverMeta}>
@@ -309,12 +360,11 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                     name={driver.fullName ?? t('common.driver')}
                     verified={driver.isVerified}
                     isGuide={driver.isGuideDriver}
+                    plainGuideBadge
                     textStyle={styles.driverName}
                   />
                 </View>
-                {driver.isGuideDriver ? <GuideDriverBadge /> : null}
                 <Text style={styles.ratingLine}>
-                  ⭐{' '}
                   {driver.ratingCount > 0
                     ? t('company.ratingFormat', {
                         avg: driver.ratingAverage.toFixed(1),
@@ -334,7 +384,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                 ) : null}
                 {driver.phone ? (
                   <Pressable onPress={() => callPhone(driver.phone!)}>
-                    <Text style={styles.phoneLink}>📞 {driver.phone}</Text>
+                    <Text style={styles.phoneLink}>{driver.phone}</Text>
                   </Pressable>
                 ) : (
                   <Text style={styles.metaLine}>{t('companyVoucher.phoneMissing')}</Text>
@@ -342,7 +392,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
                 {booking.status === 'completed' ? (
                   driver.bankAccount ? (
                     <Text style={styles.ibanLine}>
-                      🏦 {t('bookingPayment.ibanLabel')}: {formatBankAccountForDisplay(driver.bankAccount)}
+                      {t('bookingPayment.ibanLabel')}: {formatBankAccountForDisplay(driver.bankAccount)}
                     </Text>
                   ) : (
                     <Text style={styles.metaLine}>{t('bookingPayment.ibanMissing')}</Text>
@@ -375,7 +425,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
 
         {vehicle ? (
           <View style={[styles.card, SHADOWS.card]}>
-            <SectionHeader title={`🚗 ${t('companyVoucher.sectionVehicle')}`} />
+            <SectionHeader title={t('companyVoucher.sectionVehicle')} />
             {vehicle.mainPhotoUrl ? (
               <Image source={{ uri: vehicle.mainPhotoUrl }} style={styles.vehicleHero} resizeMode="cover" />
             ) : null}
@@ -399,7 +449,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
 
         {host ? (
           <View style={[styles.card, SHADOWS.card]}>
-            <SectionHeader title={`🤝 ${t('companyVoucher.sectionHost')}`} />
+            <SectionHeader title={t('companyVoucher.sectionHost')} />
             <DetailRow label={t('companyVoucher.hostName')} value={host.fullName ?? '—'} />
             {host.phone ? (
               <Pressable onPress={() => callPhone(host.phone!)}>
@@ -550,6 +600,26 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   brandSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  modeTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+  },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.35)',
+    alignItems: 'center',
+  },
+  modeTabActive: {
+    backgroundColor: COLORS.gold,
+    borderColor: COLORS.gold,
+  },
+  modeTabText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
+  modeTabTextActive: { color: COLORS.black },
   closeTop: { position: 'absolute', right: SPACING.md, top: SPACING.md, zIndex: 2 },
   scroll: { flex: 1 },
   scrollContent: { padding: SPACING.md, gap: SPACING.md },

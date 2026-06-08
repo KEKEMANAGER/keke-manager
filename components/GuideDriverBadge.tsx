@@ -4,13 +4,15 @@ import { COLORS, RADIUS, SPACING } from '../constants/theme';
 
 type Props = {
   compact?: boolean;
+  /** Voucher / print layouts — text only, no emoji prefix. */
+  hideEmoji?: boolean;
 };
 
-export function GuideDriverBadge({ compact }: Props) {
+export function GuideDriverBadge({ compact, hideEmoji }: Props) {
   const { t } = useTranslation();
   return (
     <Text style={[styles.badge, compact && styles.badgeCompact]} accessibilityRole="text">
-      🎓 {t('driver.guideBadge')}
+      {hideEmoji ? t('driver.guideBadge') : `🎓 ${t('driver.guideBadge')}`}
     </Text>
   );
 }

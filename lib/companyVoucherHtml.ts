@@ -1,6 +1,6 @@
 import { formatLocationDisplay } from './bookingLocations';
 import { bookingOfferedPriceGel } from './bookingPrice';
-import { formatBookingDisplayNumber, formatVoucherPriceGel } from './bookingVoucherDisplay';
+import { formatBookingDisplayNumber, formatVoucherPriceGel, stripVoucherEmojis } from './bookingVoucherDisplay';
 import type { CompanyVoucherData } from './companyVoucherData';
 import { vehicleMakeModelYearLine } from './companyVoucherData';
 import { bookingKindLabel } from './bookingLabels';
@@ -17,12 +17,13 @@ function escapeHtml(s: string): string {
 }
 
 function row(label: string, value: string): string {
-  if (!value.trim()) return '';
-  return `<div class="row"><span class="label">${escapeHtml(label)}</span><span class="value">${escapeHtml(value)}</span></div>`;
+  const clean = stripVoucherEmojis(value);
+  if (!clean.trim()) return '';
+  return `<div class="row"><span class="label">${escapeHtml(label)}</span><span class="value">${escapeHtml(clean)}</span></div>`;
 }
 
 function sectionTitle(title: string): string {
-  return `<div class="section-title">${escapeHtml(title)}</div>`;
+  return `<div class="section-title">${escapeHtml(stripVoucherEmojis(title))}</div>`;
 }
 
 const VOUCHER_STYLES = `
@@ -66,7 +67,7 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
 
   const updatedBadge =
     booking.driver_update_pending && booking.updated_at
-      ? `<span class="updated-badge">📝 განახლდა ${escapeHtml(formatStoredDateForDisplay(booking.updated_at.slice(0, 10)))}</span>`
+      ? `<span class="updated-badge">განახლდა ${escapeHtml(formatStoredDateForDisplay(booking.updated_at.slice(0, 10)))}</span>`
       : '';
 
   const bookingNumber = formatBookingDisplayNumber(booking.id);
@@ -77,14 +78,14 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     row('ტიპი', bookingKindLabel(booking.kind, booking.flight_direction)),
     row('თარიღი', formatStoredDateForDisplay(booking.date_display)),
     booking.from_location
-      ? row('საიდან', formatLocationDisplay(booking.from_location, booking.from_location_type))
+      ? row('საიდან', formatLocationDisplay(booking.from_location, booking.from_location_type, { withIcon: false }))
       : '',
     booking.to_location
-      ? row('სად', formatLocationDisplay(booking.to_location, booking.to_location_type))
+      ? row('სად', formatLocationDisplay(booking.to_location, booking.to_location_type, { withIcon: false }))
       : '',
     row('მგზავრები', String(booking.passengers ?? 1)),
     booking.flight_number?.trim()
-      ? row('ფრენის ნომერი', `✈️ ${booking.flight_number.trim()}`)
+      ? row('ფრენის ნომერი', booking.flight_number.trim())
       : '',
     booking.sign_text?.trim() ? row('დასახვედრი სახელი', booking.sign_text.trim()) : '',
     pickupSignVoucherHtmlSection(booking),
@@ -104,24 +105,24 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ? `<img class="avatar" src="${escapeHtml(driver.avatarUrl)}" alt="" />`
       : `<div class="avatar-ph">${escapeHtml(initials)}</div>`;
     const badges = [
-      driver.isGuideDriver ? '<span class="badge">🎓 გიდ-მძღოლი</span>' : '',
-      driver.isVerified ? '<span class="badge">✅ Verified</span>' : '',
+      driver.isGuideDriver ? '<span class="badge">გიდ-მძღოლი</span>' : '',
+      driver.isVerified ? '<span class="badge">Verified</span>' : '',
     ]
       .filter(Boolean)
       .join(' ');
     const ratingLine =
       driver.ratingCount > 0
-        ? `⭐ ${driver.ratingAverage.toFixed(1)} (${driver.ratingCount} შეფასება)`
-        : '⭐ —';
+        ? `${driver.ratingAverage.toFixed(1)} (${driver.ratingCount} შეფასება)`
+        : '—';
     driverSection = `
-      ${sectionTitle('👤 მძღოლი')}
+      ${sectionTitle('მძღოლი')}
       <div class="driver-card">
         ${avatarHtml}
         <div class="driver-meta">
           <div class="driver-name">${escapeHtml(driver.fullName ?? '—')}</div>
           <div>${badges}</div>
           <div style="font-size:12px;margin-top:4px">${escapeHtml(ratingLine)}</div>
-          ${driver.phone ? `<div style="font-size:12px;margin-top:4px"><a href="tel:${escapeHtml(driver.phone.replace(/\s/g, ''))}">📞 ${escapeHtml(driver.phone)}</a></div>` : '<div style="font-size:12px;margin-top:4px;color:#888">ტელეფონი არ არის მითითებული</div>'}
+          ${driver.phone ? `<div style="font-size:12px;margin-top:4px"><a href="tel:${escapeHtml(driver.phone.replace(/\s/g, ''))}">${escapeHtml(driver.phone)}</a></div>` : '<div style="font-size:12px;margin-top:4px;color:#888">ტელეფონი არ არის მითითებული</div>'}
           ${driver.languagesLabel ? row('ენები', driver.languagesLabel) : ''}
           ${driver.city ? row('ქალაქი', driver.city) : ''}
         </div>
@@ -135,7 +136,7 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ? `<img class="vehicle-img" src="${escapeHtml(vehicle.mainPhotoUrl)}" alt="vehicle" />`
       : '';
     vehicleSection = `
-      ${sectionTitle('🚗 მანქანა')}
+      ${sectionTitle('მანქანა')}
       ${img}
       ${row('მარკა / მოდელი / წელი', mmY)}
       ${vehicle.plate ? row('ნომერი', vehicle.plate) : ''}
@@ -147,7 +148,7 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
   let hostSection = '';
   if (host) {
     hostSection = `
-      ${sectionTitle('🤝 ჰოსტი')}
+      ${sectionTitle('ჰოსტი')}
       ${row('სახელი', host.fullName ?? '—')}
       ${host.phone ? row('ტელეფონი', host.phone) : ''}`;
   }
@@ -165,12 +166,12 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
   </${tag}>
   <${tag} class="voucher-box">
     <span class="status">ვაუჩერი</span>${updatedBadge}
-    <${tag} class="booking-number">📋 ჯავშანი ${escapeHtml(bookingNumber)}</${tag}>
-    <${tag} class="price-offer">🏷️ კლიენტის ფასი: ${escapeHtml(priceLine)}</${tag}>
-    <${tag} class="price-offer">💰 მძღოლი: ${escapeHtml(priceLine)}</${tag}>
+    <${tag} class="booking-number">${escapeHtml(stripVoucherEmojis(`ჯავშანი ${bookingNumber}`))}</${tag}>
+    <${tag} class="price-offer">${escapeHtml(stripVoucherEmojis(`კლიენტის ფასი: ${priceLine}`))}</${tag}>
+    <${tag} class="price-offer">${escapeHtml(stripVoucherEmojis(`მძღოლი: ${priceLine}`))}</${tag}>
     <${tag} class="voucher-id">${escapeHtml(voucherCode)}</${tag}>
     <${tag} class="divider"></${tag}>
-    ${sectionTitle('📋 ჯავშანი')}
+    ${sectionTitle('ჯავშანი')}
     ${bookingSection}
     ${driverSection ? `<${tag} class="divider"></${tag}>${driverSection}` : ''}
     ${vehicleSection ? `<${tag} class="divider"></${tag}>${vehicleSection}` : ''}

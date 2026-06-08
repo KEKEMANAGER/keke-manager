@@ -6,6 +6,8 @@ type Props = {
   name: string;
   verified?: boolean | null;
   isGuide?: boolean | null;
+  /** Voucher layout — guide label without emoji prefix. */
+  plainGuideBadge?: boolean;
   textStyle?: StyleProp<TextStyle>;
   style?: StyleProp<ViewStyle>;
   numberOfLines?: number;
@@ -15,6 +17,7 @@ export function NameWithVerifiedBadge({
   name,
   verified,
   isGuide,
+  plainGuideBadge,
   textStyle,
   style,
   numberOfLines,
@@ -25,7 +28,7 @@ export function NameWithVerifiedBadge({
         {name}
       </Text>
       <View style={styles.badges}>
-        {isGuide ? <GuideDriverBadge compact /> : null}
+        {isGuide ? <GuideDriverBadge compact hideEmoji={plainGuideBadge} /> : null}
         <VerifiedBadge verified={verified} />
       </View>
     </View>
