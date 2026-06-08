@@ -282,8 +282,10 @@
     "noVehicle": "ავტომობილი ჯერ არ არის მითითებული",
     "vehicleSeats": "{{count}} კაციანი",
     "filterMinSeats": "მინიმუმ {{count}} ადგილი",
-    "flightNumber": "ფრენის ნომერი (აეროპორტი)",
+    "flightNumber": "ფრენის ნომერი",
     "flightNumberPlaceholder": "მაგ: PS601, TK301",
+    "trainNumberRoute": "მატარებლის ნომერი/მარშრუტი",
+    "trainNumberRoutePlaceholder": "მაგ: თბილისი-ბათუმი, თბილისი-ქუთაისი",
     "payment": {
       "now": "ახლა",
       "later": "შემდეგ",

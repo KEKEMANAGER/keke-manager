@@ -285,8 +285,10 @@
     "noVehicle": "Vehicle not specified yet",
     "vehicleSeats": "{{count}} seats",
     "filterMinSeats": "At least {{count}} seats",
-    "flightNumber": "Flight number (airport)",
+    "flightNumber": "Flight number",
     "flightNumberPlaceholder": "e.g. PS601, TK301",
+    "trainNumberRoute": "Train number / route",
+    "trainNumberRoutePlaceholder": "e.g. Tbilisi-Batumi, Tbilisi-Kutaisi",
     "payment": {
       "now": "Now",
       "later": "Later",

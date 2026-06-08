@@ -79,6 +79,18 @@ export function locationUsesPresetDropdown(type: LocationType | null): boolean {
   return type === 'airport' || type === 'train_station';
 }
 
+export type TransportReferenceKind = 'flight' | 'train';
+
+/** Flight/train reference field: shown when pickup or dropoff is airport or train station. */
+export function transportReferenceKindForLocations(
+  pickup: LocationValue,
+  dropoff: LocationValue,
+): TransportReferenceKind | null {
+  if (pickup.type === 'airport' || dropoff.type === 'airport') return 'flight';
+  if (pickup.type === 'train_station' || dropoff.type === 'train_station') return 'train';
+  return null;
+}
+
 /** Persist to DB: name always in `*_location`; type only when set. */
 export function persistLocationFields(value: LocationValue): {
   name: string | null;

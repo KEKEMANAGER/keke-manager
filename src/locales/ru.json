@@ -281,8 +281,10 @@
     "noVehicle": "Автомобиль ещё не указан",
     "vehicleSeats": "{{count}} мест",
     "filterMinSeats": "Минимум {{count}} мест",
-    "flightNumber": "Номер рейса (аэропорт)",
+    "flightNumber": "Номер рейса",
     "flightNumberPlaceholder": "напр. PS601, TK301",
+    "trainNumberRoute": "Номер поезда / маршрут",
+    "trainNumberRoutePlaceholder": "напр. Тбилиси-Батуми, Тбилиси-Кутаиси",
     "payment": {
       "now": "Сейчас",
       "later": "Позже",

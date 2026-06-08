@@ -44,7 +44,9 @@ import {
   formatLocationRoute,
   locationValueIsComplete,
   persistLocationFields,
+  transportReferenceKindForLocations,
   type LocationValue,
+  type TransportReferenceKind,
 } from '../../lib/bookingLocations';
 import { isPickupSignLogoPdf } from '../../lib/pickupSignLogo';
 import {
@@ -392,6 +394,39 @@ function matchingDriverVehicleLine(
     return head ? `${head}, ${vehicle.color.trim()}` : vehicle.color.trim();
   }
   return head;
+}
+
+function transportReferenceLabelKey(kind: TransportReferenceKind): string {
+  return kind === 'flight' ? 'newBooking.flightNumber' : 'newBooking.trainNumberRoute';
+}
+
+function TransportReferenceField({
+  pickup,
+  dropoff,
+  value,
+  onChangeText,
+}: {
+  pickup: LocationValue;
+  dropoff: LocationValue;
+  value: string;
+  onChangeText: (text: string) => void;
+}) {
+  const { t } = useTranslation();
+  const kind = transportReferenceKindForLocations(pickup, dropoff);
+  if (!kind) return null;
+  return (
+    <AuthInput
+      label={t(transportReferenceLabelKey(kind))}
+      value={value}
+      onChangeText={onChangeText}
+      autoCapitalize="characters"
+      placeholder={
+        kind === 'flight'
+          ? t('newBooking.flightNumberPlaceholder')
+          : t('newBooking.trainNumberRoutePlaceholder')
+      }
+    />
+  );
 }
 
 function MatchingDriversSection({
@@ -876,6 +911,39 @@ export default function NewBookingScreen() {
   const [transferOutHotelLoc, setTransferOutHotelLoc] = useState<LocationValue>(() => emptyLocationValue());
   const [tourTransferInFlightNo, setTourTransferInFlightNo] = useState('');
   const [tourTransferOutFlightNo, setTourTransferOutFlightNo] = useState('');
+
+  const arrivalTransportRef = useMemo(
+    () => transportReferenceKindForLocations(arrivalFrom, arrivalTo),
+    [arrivalFrom, arrivalTo],
+  );
+  const departureTransportRef = useMemo(
+    () => transportReferenceKindForLocations(departureFrom, departureTo),
+    [departureFrom, departureTo],
+  );
+  const tourTransferInTransportRef = useMemo(
+    () => transportReferenceKindForLocations(transferInAirportLoc, transferInHotelLoc),
+    [transferInAirportLoc, transferInHotelLoc],
+  );
+  const tourTransferOutTransportRef = useMemo(
+    () => transportReferenceKindForLocations(transferOutHotelLoc, transferOutAirportLoc),
+    [transferOutHotelLoc, transferOutAirportLoc],
+  );
+
+  useEffect(() => {
+    if (!arrivalTransportRef) setArrivalFlightNo('');
+  }, [arrivalTransportRef]);
+
+  useEffect(() => {
+    if (!departureTransportRef) setDepartureFlightNo('');
+  }, [departureTransportRef]);
+
+  useEffect(() => {
+    if (!tourTransferInTransportRef) setTourTransferInFlightNo('');
+  }, [tourTransferInTransportRef]);
+
+  useEffect(() => {
+    if (!tourTransferOutTransportRef) setTourTransferOutFlightNo('');
+  }, [tourTransferOutTransportRef]);
 
   const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('now');
   const [operators, setOperators] = useState<CompanyMember[]>([]);
@@ -1375,13 +1443,6 @@ export default function NewBookingScreen() {
                     value={arrivalFrom}
                     onChange={setArrivalFrom}
                   />
-                  <AuthInput
-                    label={t('newBooking.flightNumber')}
-                    value={arrivalFlightNo}
-                    onChangeText={setArrivalFlightNo}
-                    autoCapitalize="characters"
-                    placeholder={t('newBooking.flightNumberPlaceholder')}
-                  />
                   <DateTimeField
                     label={t('newBooking.form.dateTime')}
                     value={arrivalDateTime}
@@ -1393,6 +1454,12 @@ export default function NewBookingScreen() {
                     label={t('newBooking.form.dropoffLocation')}
                     value={arrivalTo}
                     onChange={setArrivalTo}
+                  />
+                  <TransportReferenceField
+                    pickup={arrivalFrom}
+                    dropoff={arrivalTo}
+                    value={arrivalFlightNo}
+                    onChangeText={setArrivalFlightNo}
                   />
                 </>
               ) : (
@@ -1414,12 +1481,11 @@ export default function NewBookingScreen() {
                     value={departureTo}
                     onChange={setDepartureTo}
                   />
-                  <AuthInput
-                    label={t('newBooking.flightNumber')}
+                  <TransportReferenceField
+                    pickup={departureFrom}
+                    dropoff={departureTo}
                     value={departureFlightNo}
                     onChangeText={setDepartureFlightNo}
-                    autoCapitalize="characters"
-                    placeholder={t('newBooking.flightNumberPlaceholder')}
                   />
                 </>
               )}
@@ -1648,17 +1714,16 @@ export default function NewBookingScreen() {
                   value={transferInAirportLoc}
                   onChange={setTransferInAirportLoc}
                 />
-                <AuthInput
-                  label={t('newBooking.flightNumber')}
-                  value={tourTransferInFlightNo}
-                  onChangeText={setTourTransferInFlightNo}
-                  autoCapitalize="characters"
-                  placeholder={t('newBooking.flightNumberPlaceholder')}
-                />
                 <LocationPicker
                   label={t('newBooking.form.transferInTo')}
                   value={transferInHotelLoc}
                   onChange={setTransferInHotelLoc}
+                />
+                <TransportReferenceField
+                  pickup={transferInAirportLoc}
+                  dropoff={transferInHotelLoc}
+                  value={tourTransferInFlightNo}
+                  onChangeText={setTourTransferInFlightNo}
                 />
               </>
             ) : null}
@@ -1688,12 +1753,11 @@ export default function NewBookingScreen() {
                   value={transferOutAirportLoc}
                   onChange={setTransferOutAirportLoc}
                 />
-                <AuthInput
-                  label={t('newBooking.flightNumber')}
+                <TransportReferenceField
+                  pickup={transferOutHotelLoc}
+                  dropoff={transferOutAirportLoc}
                   value={tourTransferOutFlightNo}
                   onChangeText={setTourTransferOutFlightNo}
-                  autoCapitalize="characters"
-                  placeholder={t('newBooking.flightNumberPlaceholder')}
                 />
               </>
             ) : null}
@@ -1889,10 +1953,17 @@ export default function NewBookingScreen() {
                   {transferTab === 'departure' && departureDateTime ? (
                     <Text style={styles.vLine}>{formatDisplayDateTime(departureDateTime)}</Text>
                   ) : null}
-                  {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() ? (
+                  {(transferTab === 'arrival' ? arrivalTransportRef : departureTransportRef) &&
+                  (transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() ? (
                     <Text style={styles.vLineMuted}>
-                      {t('companyVoucher.flightNumber')}:{' '}
-                      {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim()}
+                      {t(
+                        transportReferenceLabelKey(
+                          (transferTab === 'arrival'
+                            ? arrivalTransportRef
+                            : departureTransportRef) as TransportReferenceKind,
+                        ),
+                      )}
+                      : {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim()}
                     </Text>
                   ) : null}
                   {passengerName.trim() ? (
