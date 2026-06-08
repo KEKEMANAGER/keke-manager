@@ -437,7 +437,7 @@
   },
   "locationPicker": {
     "selectTypeHint": "Выберите тип локации",
-    "presetPlaceholder": "Выберите из списка",
+    "presetPlaceholder": "Выберите место...",
     "otherAirport": "Другой аэропорт",
     "otherTrainStation": "Другой вокзал",
     "customAirportPlaceholder": "Введите название аэропорта",

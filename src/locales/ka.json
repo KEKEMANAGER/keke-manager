@@ -437,7 +437,7 @@
   },
   "locationPicker": {
     "selectTypeHint": "აირჩიეთ ლოკაციის ტიპი",
-    "presetPlaceholder": "აირჩიეთ სიიდან",
+    "presetPlaceholder": "ადგილის არჩევა...",
     "otherAirport": "სხვა აეროპორტი",
     "otherTrainStation": "სხვა სადგური",
     "customAirportPlaceholder": "შეიყვანეთ აეროპორტის სახელი",

@@ -440,7 +440,7 @@
   },
   "locationPicker": {
     "selectTypeHint": "Select a location type",
-    "presetPlaceholder": "Choose from list",
+    "presetPlaceholder": "Select location...",
     "otherAirport": "Other airport",
     "otherTrainStation": "Other station",
     "customAirportPlaceholder": "Enter airport name",
