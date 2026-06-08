@@ -29,8 +29,8 @@ DROP POLICY IF EXISTS "bookings_select_participants" ON public.bookings;
 CREATE POLICY "bookings_select_participants" ON public.bookings
   FOR SELECT TO authenticated
   USING (
-    company_id = (auth.uid())::text
-    OR driver_id = (auth.uid())::text
+    company_id::text = auth.uid()::text
+    OR driver_id::text = auth.uid()::text
     OR host_driver_id = auth.uid()
     OR (
       EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'driver')
@@ -43,26 +43,26 @@ CREATE POLICY "bookings_select_participants" ON public.bookings
     OR (
       EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'driver')
       AND status = 'pending'
-      AND driver_id = (auth.uid())::text
+      AND driver_id::text = auth.uid()::text
     )
   );
 
 DROP POLICY IF EXISTS "bookings_insert_company" ON public.bookings;
 CREATE POLICY "bookings_insert_company" ON public.bookings
   FOR INSERT TO authenticated
-  WITH CHECK (company_id = (auth.uid())::text);
+  WITH CHECK (company_id::text = auth.uid()::text);
 
 DROP POLICY IF EXISTS "bookings_update_company" ON public.bookings;
 CREATE POLICY "bookings_update_company" ON public.bookings
   FOR UPDATE TO authenticated
-  USING (company_id = (auth.uid())::text)
-  WITH CHECK (company_id = (auth.uid())::text);
+  USING (company_id::text = auth.uid()::text)
+  WITH CHECK (company_id::text = auth.uid()::text);
 
 DROP POLICY IF EXISTS "bookings_update_assigned_driver" ON public.bookings;
 CREATE POLICY "bookings_update_assigned_driver" ON public.bookings
   FOR UPDATE TO authenticated
-  USING (driver_id = (auth.uid())::text)
-  WITH CHECK (driver_id = (auth.uid())::text);
+  USING (driver_id::text = auth.uid()::text)
+  WITH CHECK (driver_id::text = auth.uid()::text);
 
 DROP POLICY IF EXISTS "bookings_update_driver_accept" ON public.bookings;
 CREATE POLICY "bookings_update_driver_accept" ON public.bookings
@@ -73,11 +73,11 @@ CREATE POLICY "bookings_update_driver_accept" ON public.bookings
     AND (
       driver_id IS NULL
       OR trim(COALESCE(driver_id::text, '')) = ''
-      OR driver_id = (auth.uid())::text
+      OR driver_id::text = auth.uid()::text
     )
   )
   WITH CHECK (
-    driver_id = (auth.uid())::text
+    driver_id::text = auth.uid()::text
     AND status IN ('accepted', 'confirmed')
   );
 
@@ -90,7 +90,7 @@ CREATE POLICY "bookings_update_driver_reject_open" ON public.bookings
     AND (
       driver_id IS NULL
       OR trim(COALESCE(driver_id::text, '')) = ''
-      OR driver_id = (auth.uid())::text
+      OR driver_id::text = auth.uid()::text
     )
   )
   WITH CHECK (
