@@ -9,7 +9,18 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const publicDir = path.join(root, 'public');
-const logoSrc = path.join(root, 'assets', 'images', 'logo.png');
+const logoCandidates = [
+  path.join(root, 'assets', 'images', 'logo.png'),
+  path.join(root, 'assets', 'images', 'logo.webp'),
+  path.join(root, 'assets', 'logo.png'),
+];
+
+function pickLogoSrc() {
+  for (const p of logoCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
 
 async function main() {
   let sharp;
@@ -22,7 +33,8 @@ async function main() {
 
   if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
 
-  if (fs.existsSync(logoSrc)) {
+  const logoSrc = pickLogoSrc();
+  if (logoSrc) {
     const logoOut = path.join(publicDir, 'logo.png');
     await sharp(logoSrc)
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
@@ -35,36 +47,68 @@ async function main() {
   const width = 1200;
   const height = 630;
   const gold = '#EF9F27';
-  const dark = '#0a0a0a';
+  const darkTop = '#0a0a0a';
+  const darkBottom = '#141008';
 
-  const svg = `
+  const bgSvg = `
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0a0a0a"/>
-      <stop offset="100%" style="stop-color:#1a1208"/>
+      <stop offset="0%" style="stop-color:${darkTop}"/>
+      <stop offset="100%" style="stop-color:${darkBottom}"/>
     </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" style="stop-color:${gold};stop-opacity:0.12"/>
+      <stop offset="100%" style="stop-color:${gold};stop-opacity:0"/>
+    </radialGradient>
   </defs>
   <rect width="100%" height="100%" fill="url(#bg)"/>
-  <rect x="0" y="0" width="100%" height="6" fill="${gold}"/>
-  <text x="600" y="260" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="900" fill="${gold}" letter-spacing="8">KEKE MANAGER</text>
-  <text x="600" y="340" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="600" fill="#f5f5f5">B2B Tourist Transport Ecosystem</text>
-  <text x="600" y="400" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="#aaaaaa">Georgia · Bookings · GPS · Vouchers · 33 Languages</text>
-  <rect x="200" y="480" width="800" height="2" fill="${gold}" opacity="0.5"/>
-  <text x="600" y="530" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" fill="#888888">kekemanager.com</text>
+  <rect width="100%" height="100%" fill="url(#glow)"/>
+  <rect x="0" y="0" width="100%" height="5" fill="${gold}"/>
 </svg>`;
 
+  const textSvg = `
+<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  <text x="600" y="400" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" fill="${gold}">B2B Tourism Transport Platform</text>
+  <text x="600" y="455" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="500" fill="#f5f5f5">Georgia&apos;s first B2B platform connecting tour operators and drivers</text>
+  <text x="600" y="495" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="500" fill="#c8c8c8">GPS tracking · Bookings · Digital vouchers</text>
+  <rect x="320" y="530" width="560" height="2" fill="${gold}" opacity="0.45"/>
+  <text x="600" y="575" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="600" fill="#888888" letter-spacing="2">kekemanager.com</text>
+</svg>`;
+
+  const composites = [
+    { input: Buffer.from(bgSvg), top: 0, left: 0 },
+  ];
+
+  if (logoSrc) {
+    const logoBuf = await sharp(logoSrc)
+      .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+    const { width: lw, height: lh } = await sharp(logoBuf).metadata();
+    composites.push({
+      input: logoBuf,
+      top: Math.round(72 - lh / 2 + 90),
+      left: Math.round((width - lw) / 2),
+    });
+  }
+
+  composites.push({ input: Buffer.from(textSvg), top: 0, left: 0 });
+
   const ogOut = path.join(publicDir, 'og-image.jpg');
-  await sharp(Buffer.from(svg))
-    .jpeg({ quality: 82, mozjpeg: true })
-    .resize(width, height)
+  await sharp({
+    create: { width, height, channels: 3, background: darkTop },
+  })
+    .composite(composites)
+    .jpeg({ quality: 85, mozjpeg: true })
     .toFile(ogOut);
 
-  const ogSize = fs.statSync(ogOut).size;
+  let ogSize = fs.statSync(ogOut).size;
   console.log(`og-image.jpg: ${(ogSize / 1024).toFixed(0)} KB (${width}x${height})`);
   if (ogSize > 300 * 1024) {
-    await sharp(ogOut).jpeg({ quality: 70, mozjpeg: true }).toFile(ogOut);
-    console.log(`og-image.jpg recompressed: ${(fs.statSync(ogOut).size / 1024).toFixed(0)} KB`);
+    await sharp(ogOut).jpeg({ quality: 72, mozjpeg: true }).toFile(ogOut);
+    ogSize = fs.statSync(ogOut).size;
+    console.log(`og-image.jpg recompressed: ${(ogSize / 1024).toFixed(0)} KB`);
   }
 }
 

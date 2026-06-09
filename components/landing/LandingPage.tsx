@@ -13,7 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLandingCopy } from '../../lib/landingCopy';
 import {
   isSeoLang,
+  OG_DESCRIPTION,
   OG_IMAGE_URL,
+  OG_TITLE,
   resolveSeoLang,
   SITE_URL,
 } from '../../lib/seoMeta';
@@ -90,10 +92,13 @@ function useLandingMeta(copy: ReturnType<typeof getLandingCopy>) {
         el.setAttribute('content', content);
       };
       setMeta('description', copy.metaDescription);
-      setMeta('og:title', copy.metaTitle, true);
-      setMeta('og:description', copy.metaDescription, true);
-      setMeta('og:image', 'https://kekemanager.com/logo.webp', true);
-      setMeta('og:url', 'https://kekemanager.com/', true);
+      setMeta('og:title', OG_TITLE, true);
+      setMeta('og:description', OG_DESCRIPTION, true);
+      setMeta('og:image', OG_IMAGE_URL, true);
+      setMeta('og:url', SITE_URL, true);
+      setMeta('twitter:title', OG_TITLE);
+      setMeta('twitter:description', OG_DESCRIPTION);
+      setMeta('twitter:image', OG_IMAGE_URL);
       const link = document.querySelector('link[rel="canonical"]') ?? document.createElement('link');
       link.setAttribute('rel', 'canonical');
       link.setAttribute('href', 'https://kekemanager.com/');

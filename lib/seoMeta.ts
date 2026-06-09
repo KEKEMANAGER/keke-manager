@@ -3,6 +3,11 @@
 export const SITE_URL = 'https://kekemanager.com';
 export const OG_IMAGE_URL = `${SITE_URL}/og-image.jpg`;
 
+/** Social share preview (LinkedIn, WhatsApp, Telegram, Facebook). */
+export const OG_TITLE = 'KEKE Manager — B2B Tourism Transport Platform';
+export const OG_DESCRIPTION =
+  "Georgia's first B2B platform connecting tour operators and drivers. GPS tracking, bookings, digital vouchers.";
+
 export type SeoLang = 'ka' | 'en' | 'ru';
 
 export type SeoMetaEntry = {

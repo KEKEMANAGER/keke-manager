@@ -3,7 +3,9 @@ import Constants from 'expo-constants';
 import type { PropsWithChildren } from 'react';
 import {
   DEFAULT_SEO_LANG,
+  OG_DESCRIPTION,
   OG_IMAGE_URL,
+  OG_TITLE,
   SCHEMA_ORGANIZATION,
   SCHEMA_SOFTWARE_APPLICATION,
   SEO_META,
@@ -50,14 +52,12 @@ export default function Root({ children }: PropsWithChildren) {
 
         <meta property="og:type" content="website" />
         <meta property="og:url" content={SITE_URL} />
-        <meta property="og:title" content={en.title} />
-        <meta
-          property="og:description"
-          content="Connecting tour companies, guide-drivers, fleet owners, and hired drivers in Georgia. Free for companies."
-        />
+        <meta property="og:title" content={OG_TITLE} />
+        <meta property="og:description" content={OG_DESCRIPTION} />
         <meta property="og:image" content={OG_IMAGE_URL} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={OG_TITLE} />
         <meta property="og:locale" content={meta.ogLocale} />
         <meta property="og:locale:alternate" content="en_US" />
         <meta property="og:locale:alternate" content="ru_RU" />
@@ -65,11 +65,8 @@ export default function Root({ children }: PropsWithChildren) {
 
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:url" content={SITE_URL} />
-        <meta name="twitter:title" content={en.title} />
-        <meta
-          name="twitter:description"
-          content="Connecting tour companies, guide-drivers, fleet owners in Georgia. Free for companies."
-        />
+        <meta name="twitter:title" content={OG_TITLE} />
+        <meta name="twitter:description" content={OG_DESCRIPTION} />
         <meta name="twitter:image" content={OG_IMAGE_URL} />
 
         <link rel="icon" type="image/png" href="/favicon.ico" />
