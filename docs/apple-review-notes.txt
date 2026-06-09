@@ -1,0 +1,25 @@
+KEKE Manager is a B2B platform for tour companies and professional drivers in Georgia.
+
+Demo accounts:
+- Company: apple.review.company@kekemanager.app / KekeAppleReview2026!
+- Driver: apple.review.driver@kekemanager.app / KekeAppleReview2026!
+
+Setup (once, before review): run `npm run review:apple` with SUPABASE_SERVICE_ROLE_KEY to create verified demo users and a sample accepted day tour.
+
+Driver tour test flow:
+1. Sign in as driver → Bookings → Active tab → accepted day tour
+2. Tap Start tour → camera opens for odometer photo → allow camera
+3. Allow location → GPS tracking screen opens (background location only during active trip)
+4. Tap Complete → second odometer photo
+
+Company test flow:
+1. Sign in as company → Dashboard → see booking with odometer photos after driver uploads
+
+Transfers do NOT require odometer photos.
+
+Background location is used ONLY while a trip is in_progress after the driver taps Start.
+Location stops when the trip is completed.
+
+Account deletion: Settings → Delete account (type confirmation word shown in app).
+
+Support: akachibaia1410@gmail.com

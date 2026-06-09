@@ -12,6 +12,7 @@ Use this checklist before `eas submit` to App Store Connect.
 - [x] In-app legal bundles synced (`npm run legal:sync`)
 - [x] Account deletion in-app (Settings → Delete account)
 - [x] Blocked accounts cannot sign in (`is_blocked`)
+- [x] Run demo setup: `npm run review:apple` (needs `SUPABASE_SERVICE_ROLE_KEY`)
 - [ ] Deploy web so `https://kekemanager.com/legal/privacy-policy` shows updated text
 
 **Privacy Policy URL (App Store Connect):**  
@@ -46,10 +47,17 @@ Declare data **linked to the user**, purpose **App Functionality**, **not used f
 
 ## 3. iOS build
 
+**Step-by-step (Georgian/English):** `docs/ios-build-steps.md`
+
+**First build must be interactive** (Apple credentials not yet on EAS):
+
 ```bash
-eas build --platform ios --profile production
-eas submit --platform ios --profile production
+npx eas-cli credentials:configure-build --platform ios --profile production
+npm run build:ios
+npm run submit:ios
 ```
+
+Follow prompts to sign in with Apple Developer and let EAS create Distribution Certificate + Provisioning Profile. After that, CI/non-interactive builds work.
 
 - [ ] Apple Developer account + App Store Connect app record
 - [ ] Push Notifications capability (Expo/EAS credentials)
@@ -77,9 +85,11 @@ eas submit --platform ios --profile production
 ```
 KEKE Manager is a B2B platform for tour companies and professional drivers in Georgia.
 
-Demo accounts:
-- Company: [EMAIL] / [PASSWORD]
-- Driver: [EMAIL] / [PASSWORD]
+Demo accounts (after `npm run review:apple`):
+- Company: apple.review.company@kekemanager.app / KekeAppleReview2026!
+- Driver: apple.review.driver@kekemanager.app / KekeAppleReview2026!
+
+Full text: copy from `docs/apple-review-notes.txt`
 
 Driver tour test flow:
 1. Sign in as driver → accept a tour booking
@@ -97,7 +107,7 @@ Account deletion: Settings → Delete account (type confirmation word).
 Support: akachibaia1410@gmail.com
 ```
 
-Replace `[EMAIL]` / `[PASSWORD]` with real demo accounts before submit.
+Replace `[EMAIL]` / `[PASSWORD]` with real demo accounts before submit. (Already configured — see credentials above.)
 
 ---
 

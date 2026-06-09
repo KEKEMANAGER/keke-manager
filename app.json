@@ -24,6 +24,7 @@
       "bundleIdentifier": "com.akuna.kekemanager",
       "buildNumber": "1",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "location"
         ],
