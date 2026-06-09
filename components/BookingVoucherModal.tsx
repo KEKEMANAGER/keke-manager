@@ -77,7 +77,12 @@ export function BookingVoucherModal({ booking, visible, onClose }: Props) {
               <Text style={styles.loadingText}>{t('common.loading')}</Text>
             </View>
           ) : data ? (
-            <CompanyBookingVoucherContent data={data} onClose={onClose} showClose />
+            <CompanyBookingVoucherContent
+              data={data}
+              onClose={onClose}
+              showClose
+              allowTouristTab={false}
+            />
           ) : (
             <View style={styles.loadingBox}>
               <Text style={styles.loadingText}>{t('system.errorTitle')}</Text>

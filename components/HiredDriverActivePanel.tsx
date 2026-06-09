@@ -19,9 +19,11 @@ import {
   startTourTripWithOdometer,
 } from '../lib/tourTripLifecycle';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import { navigateToTripGps } from '../lib/tripGpsNavigation';
 import { shareVoucherPDF } from '../lib/voucher';
 import { mapSupabaseError, showErrorAlert } from '../lib/validation';
 import { BookingPaymentConfirm } from './BookingPaymentConfirm';
+import { BookingPriceDisplay } from './BookingPriceDisplay';
 import { BookingChatThreads } from './BookingChatThreads';
 
 type Props = {
@@ -29,10 +31,6 @@ type Props = {
   driverUserId: string;
   onTripUpdated?: () => void;
 };
-
-function formatGel(n: number) {
-  return `${n.toLocaleString('ka-GE')} ₾`;
-}
 
 export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }: Props) {
   const { t } = useTranslation();
@@ -69,11 +67,8 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
         return;
       }
       onTripUpdated?.();
-      if (action === 'start' && Platform.OS !== 'web') {
-        router.push({
-          pathname: '/(driver)/gps',
-          params: { autoStart: '1', bookingId: booking.id },
-        });
+      if (action === 'start') {
+        navigateToTripGps(router, booking.id);
       }
     },
     [booking, driverUserId, onTripUpdated, router],
@@ -113,7 +108,9 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
       <Text style={styles.route}>{routeSummary(booking)}</Text>
       <Text style={styles.meta}>{formatBookingDate(booking)}</Text>
       {tourDetail ? <Text style={styles.tourDetail}>{tourDetail}</Text> : null}
-      <Text style={styles.price}>{formatGel(Number(booking.price_gel))}</Text>
+      <View style={styles.priceWrap}>
+        <BookingPriceDisplay booking={booking} viewerUserId={driverUserId} size="lg" />
+      </View>
 
       <View style={styles.actions}>
         {canStart ? (
@@ -238,12 +235,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: SPACING.sm,
   },
-  price: {
-    color: COLORS.gold,
-    fontSize: 20,
-    fontWeight: '800',
+  priceWrap: {
     marginTop: SPACING.md,
-    textAlign: 'right',
+    alignItems: 'flex-end',
   },
   actions: {
     gap: SPACING.sm,

@@ -25,7 +25,7 @@ export function PushNotificationRegistration() {
   useEffect(() => {
     if (loading || !user?.id) return;
     if (role !== 'driver') return;
-    void registerForPushNotificationsAsync(user.id);
+    void registerForPushNotificationsAsync(user.id, { requestPermission: true });
   }, [loading, user?.id, role, sessionFingerprint]);
 
   return null;

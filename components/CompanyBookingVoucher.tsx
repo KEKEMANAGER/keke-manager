@@ -46,6 +46,8 @@ type ContentProps = {
   data: CompanyVoucherData;
   onClose?: () => void;
   showClose?: boolean;
+  /** False for drivers — operational voucher only; companies keep tourist tab. */
+  allowTouristTab?: boolean;
 };
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -63,7 +65,12 @@ function SectionHeader({ title }: { title: string }) {
   return <Text style={styles.sectionHeader}>{stripVoucherEmojis(title)}</Text>;
 }
 
-export function CompanyBookingVoucherContent({ data, onClose, showClose = true }: ContentProps) {
+export function CompanyBookingVoucherContent({
+  data,
+  onClose,
+  showClose = true,
+  allowTouristTab = true,
+}: ContentProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -71,7 +78,7 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
   const [printing, setPrinting] = useState(false);
   const [voucherMode, setVoucherMode] = useState<VoucherMode>('company');
 
-  if (voucherMode === 'tourist') {
+  if (allowTouristTab && voucherMode === 'tourist') {
     return (
       <TouristBookingVoucherContent
         data={data}
@@ -140,7 +147,9 @@ export function CompanyBookingVoucherContent({ data, onClose, showClose = true }
         ) : null}
         <Text style={styles.brandLogo}>KEKE MANAGER</Text>
         <Text style={styles.brandSub}>{t('companyVoucher.brandSubtitle')}</Text>
-        <VoucherModeTabs mode={voucherMode} onChange={setVoucherMode} />
+        {allowTouristTab ? (
+          <VoucherModeTabs mode={voucherMode} onChange={setVoucherMode} />
+        ) : null}
       </View>
 
       <ScrollView

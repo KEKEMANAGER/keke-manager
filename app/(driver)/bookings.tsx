@@ -15,6 +15,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookingChangedBadge } from '../../components/BookingChangedBadge';
+import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
+import { FleetDriverPayoutModal } from '../../components/FleetDriverPayoutModal';
 import { BookingPaymentConfirm } from '../../components/BookingPaymentConfirm';
 import { BookingVoucherModal } from '../../components/BookingVoucherModal';
 import { EmptyState } from '../../components/EmptyState';
@@ -47,13 +49,19 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
-import { fetchAcceptedFleetMembersForHost, fetchFleetContext } from '../../lib/fleet';
+import {
+  fetchAcceptedFleetMembersForHost,
+  fetchFleetContext,
+  pickLiveFleetMember,
+  type FleetMemberView,
+} from '../../lib/fleet';
+import { parseDriverPayoutInput } from '../../lib/bookingPayout';
+import { navigateToTripGps } from '../../lib/tripGpsNavigation';
 import {
   completeTourTripWithOdometer,
   odometerErrorMessageKey,
   startTourTripWithOdometer,
 } from '../../lib/tourTripLifecycle';
-import type { FleetMemberView } from '../../lib/fleet';
 import { stopBackgroundLocation } from '../../lib/backgroundLocation';
 import { clearDriverLocation } from '../../lib/locations';
 import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
@@ -175,6 +183,10 @@ export default function DriverBookingsScreen() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [openListHint, setOpenListHint] = useState<'profile_vehicle_required' | null>(null);
   const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
+  const [payoutPending, setPayoutPending] = useState<{
+    item: BookingRow;
+    member: FleetMemberView;
+  } | null>(null);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -282,7 +294,11 @@ export default function DriverBookingsScreen() {
     return () => cancelAnimationFrame(frame);
   }, [highlightBookingId, loading, data, tab]);
 
-  async function acceptAsSub(item: BookingRow, member: FleetMemberView) {
+  async function acceptAsSub(
+    item: BookingRow,
+    member: FleetMemberView,
+    driverPayoutGel: number,
+  ) {
     if (!user) return;
     setActingId(item.id);
     const subName =
@@ -292,6 +308,7 @@ export default function DriverBookingsScreen() {
       displayName: subName,
       phone: '',
       plate,
+      driverPayoutGel,
     });
     setActingId(null);
     if (!res.ok) {
@@ -303,37 +320,58 @@ export default function DriverBookingsScreen() {
     setTab('active');
   }
 
-  async function onAccept(item: BookingRow) {
-    if (!user) return;
+  function beginAssignToSub(item: BookingRow, member: FleetMemberView) {
+    const total = Number(item.price_gel || 0);
+    const subName =
+      member.sub_full_name?.trim() || member.sub_email?.trim() || t('common.driver');
 
-    const { data: fleetMembers } = await fetchAcceptedFleetMembersForHost(user.id);
-    if (fleetMembers.length > 0) {
-      const pickSub = (member: FleetMemberView) => void acceptAsSub(item, member);
-      if (Platform.OS === 'web') {
-        const label = fleetMembers.map(
-          (m) => m.sub_full_name?.trim() || m.sub_email || m.sub_driver_id.slice(0, 8),
-        );
-        const idx = window.prompt(
-          `${t('fleet.pickSubForBooking')}\n${label.map((l, i) => `${i + 1}. ${l}`).join('\n')}`,
-        );
-        const n = Number(idx);
-        if (n >= 1 && n <= fleetMembers.length) pickSub(fleetMembers[n - 1]!);
+    if (Platform.OS === 'web') {
+      const raw =
+        typeof window !== 'undefined'
+          ? window.prompt(
+              `${t('fleet.payoutModalSub', { name: subName, total: total.toLocaleString('ka-GE') })}\n${t('fleet.payoutPlaceholder')}`,
+            )
+          : null;
+      if (raw == null) return;
+      const parsed = parseDriverPayoutInput(raw, total);
+      if (!parsed.ok) {
+        crossInfoAlert(t('common.error'), t('fleet.payoutInvalid'));
         return;
       }
-      Alert.alert(
-        t('fleet.pickSubForBooking'),
-        t('fleet.pickSubForBookingSub'),
+      void acceptAsSub(item, member, parsed.value);
+      return;
+    }
+
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        t('fleet.payoutModalTitle'),
+        t('fleet.payoutModalSub', { name: subName, total: total.toLocaleString('ka-GE') }),
         [
-          ...fleetMembers.map((m) => ({
-            text: m.sub_full_name?.trim() || m.sub_email || t('common.driver'),
-            onPress: () => pickSub(m),
-          })),
-          { text: t('common.cancel'), style: 'cancel' as const },
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.confirm'),
+            onPress: (text?: string) => {
+              const parsed = parseDriverPayoutInput(text ?? '', total);
+              if (!parsed.ok) {
+                crossInfoAlert(t('common.error'), t('fleet.payoutInvalid'));
+                return;
+              }
+              void acceptAsSub(item, member, parsed.value);
+            },
+          },
         ],
+        'plain-text',
+        '',
+        'decimal-pad',
       );
       return;
     }
 
+    setPayoutPending({ item, member });
+  }
+
+  async function acceptAsSelf(item: BookingRow) {
+    if (!user) return;
     setActingId(item.id);
     const res = await acceptBooking(item.id, {
       driverId: user.id,
@@ -349,6 +387,88 @@ export default function DriverBookingsScreen() {
     }
     void load('silent');
     setTab('active');
+  }
+
+  function showFleetAssignPicker(item: BookingRow, fleetMembers: FleetMemberView[]) {
+    const pickSub = (member: FleetMemberView) => beginAssignToSub(item, member);
+    const liveMember = pickLiveFleetMember(fleetMembers);
+
+    if (Platform.OS === 'web') {
+      const lines = [
+        `0. ${t('fleet.acceptAsSelf')}`,
+        ...(liveMember
+          ? [
+              `1. ${t('fleet.acceptActiveDriver', {
+                name:
+                  liveMember.sub_full_name?.trim() ||
+                  liveMember.sub_email ||
+                  t('common.driver'),
+              })}`,
+            ]
+          : []),
+        ...fleetMembers.map(
+          (m, i) =>
+            `${i + (liveMember ? 2 : 1)}. ${m.sub_full_name?.trim() || m.sub_email || m.sub_driver_id.slice(0, 8)}`,
+        ),
+      ];
+      const idx = window.prompt(`${t('fleet.pickSubForBooking')}\n${lines.join('\n')}`);
+      const n = Number(idx);
+      if (n === 0) {
+        void acceptAsSelf(item);
+        return;
+      }
+      if (liveMember && n === 1) {
+        pickSub(liveMember);
+        return;
+      }
+      const offset = liveMember ? 2 : 1;
+      const memberIndex = n - offset;
+      if (memberIndex >= 0 && memberIndex < fleetMembers.length) {
+        pickSub(fleetMembers[memberIndex]!);
+      }
+      return;
+    }
+
+    const buttons: {
+      text: string;
+      onPress?: () => void;
+      style?: 'cancel' | 'default' | 'destructive';
+    }[] = [
+      { text: t('fleet.acceptAsSelf'), onPress: () => void acceptAsSelf(item) },
+    ];
+
+    if (liveMember) {
+      const liveName =
+        liveMember.sub_full_name?.trim() || liveMember.sub_email || t('common.driver');
+      buttons.push({
+        text: t('fleet.acceptActiveDriver', { name: liveName }),
+        onPress: () => pickSub(liveMember),
+      });
+    }
+
+    for (const m of fleetMembers) {
+      if (liveMember && m.sub_driver_id === liveMember.sub_driver_id) continue;
+      buttons.push({
+        text: m.sub_full_name?.trim() || m.sub_email || t('common.driver'),
+        onPress: () => pickSub(m),
+      });
+    }
+
+    buttons.push({ text: t('common.cancel'), style: 'cancel' });
+
+    Alert.alert(t('fleet.pickSubForBooking'), t('fleet.pickSubForBookingSub'), buttons);
+  }
+
+  async function onAccept(item: BookingRow) {
+    if (!user) return;
+
+    const { data: fleetMembers } = await fetchAcceptedFleetMembersForHost(user.id);
+    if (fleetMembers.length > 0) {
+      showFleetAssignPicker(item, fleetMembers);
+      return;
+    }
+
+    await acceptAsSelf(item);
   }
 
   async function handleReject(item: BookingRow) {
@@ -458,12 +578,7 @@ export default function DriverBookingsScreen() {
       return;
     }
     void load('silent');
-    if (Platform.OS !== 'web') {
-      router.push({
-        pathname: '/(driver)/gps',
-        params: { autoStart: '1', bookingId: item.id },
-      });
-    }
+    navigateToTripGps(router, item.id);
   }
 
   const emptyForTab = useMemo(() => {
@@ -649,7 +764,13 @@ export default function DriverBookingsScreen() {
               </Pressable>
 
               <View style={styles.footer}>
-                <Text style={styles.price}>{Number(item.price_gel).toLocaleString('ka-GE')} ₾</Text>
+                {userId ? (
+                  <BookingPriceDisplay booking={item} viewerUserId={userId} />
+                ) : (
+                  <Text style={styles.price}>
+                    {Number(item.price_gel).toLocaleString('ka-GE')} ₾
+                  </Text>
+                )}
                 {item.status === 'pending' ? (
                   <View style={styles.actions}>
                     <Pressable
@@ -753,6 +874,23 @@ export default function DriverBookingsScreen() {
         visible={!!voucherBooking}
         onClose={() => setVoucherBooking(null)}
       />
+      {payoutPending ? (
+        <FleetDriverPayoutModal
+          visible
+          driverName={
+            payoutPending.member.sub_full_name?.trim() ||
+            payoutPending.member.sub_email?.trim() ||
+            t('common.driver')
+          }
+          tripTotalGel={Number(payoutPending.item.price_gel || 0)}
+          onCancel={() => setPayoutPending(null)}
+          onConfirm={(payoutGel) => {
+            const pending = payoutPending;
+            setPayoutPending(null);
+            void acceptAsSub(pending.item, pending.member, payoutGel);
+          }}
+        />
+      ) : null}
     </View>
   );
 }

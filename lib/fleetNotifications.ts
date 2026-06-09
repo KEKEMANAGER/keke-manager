@@ -75,20 +75,55 @@ export async function notifyBookingAssignedByHost(params: {
   bookingId: string;
   routeSummary: string;
   voucherCode?: string;
+  driverPayoutGel?: number;
 }): Promise<void> {
   const subId = params.subDriverId.trim();
   if (!subId) return;
 
   const route = params.routeSummary.trim();
   const voucher = params.voucherCode?.trim();
+  const payout = params.driverPayoutGel;
+  const payoutLine =
+    payout != null && Number.isFinite(payout) && payout > 0
+      ? i18n.t('fleet.bookingAssignedPayout', {
+          amount: payout.toLocaleString('ka-GE'),
+        })
+      : '';
   const title = i18n.t('fleet.bookingAssignedTitle');
   const body = voucher
-    ? i18n.t('fleet.bookingAssignedBodyVoucher', { code: voucher, route })
-    : i18n.t('fleet.bookingAssignedBody', { route: route || '—' });
+    ? [i18n.t('fleet.bookingAssignedBodyVoucher', { code: voucher, route }), payoutLine]
+        .filter(Boolean)
+        .join('\n')
+    : [i18n.t('fleet.bookingAssignedBody', { route: route || '—' }), payoutLine]
+        .filter(Boolean)
+        .join('\n');
 
   await pushToUser(subId, title, body, {
     type: 'booking_assigned',
     booking_id: params.bookingId.trim(),
     host_driver_id: params.hostDriverId.trim(),
+  });
+}
+
+/** Push + in-app: fleet sub completed a trip — notify host. */
+export async function notifyHostTourCompleted(params: {
+  hostDriverId: string;
+  bookingId: string;
+  driverName?: string;
+  routeSummary?: string;
+}): Promise<void> {
+  const hostId = params.hostDriverId.trim();
+  const bookingId = params.bookingId.trim();
+  if (!hostId || !bookingId) return;
+
+  const title = i18n.t('fleet.tourCompletedHostTitle');
+  const driverLine = params.driverName?.trim()
+    ? i18n.t('fleet.tourCompletedHostBy', { name: params.driverName.trim() })
+    : i18n.t('fleet.tourCompletedHostBody');
+  const body = [driverLine, params.routeSummary?.trim()].filter(Boolean).join('\n');
+
+  await pushToUser(hostId, title, body, {
+    type: 'booking_completed_host',
+    booking_id: bookingId,
   });
 }

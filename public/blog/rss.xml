@@ -5,8 +5,15 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Sat, 06 Jun 2026 19:46:16 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 09 Jun 2026 16:46:58 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[რამდენად მნიშვნელოვანია მძღოლი ტურის ან ტრანსფერის დროს?]]></title>
+      <link>https://kekemanager.com/blog/how-important-is-the-driver-during-tour-transfer</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/how-important-is-the-driver-during-tour-transfer</guid>
+      <pubDate>Tue, 09 Jun 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[მძღოლი არ არის მხოლოდ მძღოლი — ის შენი კომპანიის სახეა. გაიგე, რატომ განსაზღვრავს სწორი მძღოლი ტურის ხარისხს, რეიტინგს და განმეორებით ჯავშნებს.]]></description>
+    </item>
     <item>
       <title><![CDATA[როგორ მართო ტურ-კომპანიის მძღოლები საქართველოში — სრული გზამკვლევი]]></title>
       <link>https://kekemanager.com/blog/manage-tour-company-drivers-georgia</link>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/booking-management-software-tour-companies</guid>
       <pubDate>Tue, 05 May 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[რატომ სჭირდება ტურ ოფისს ცენტრალიზებული B2B ჯავშანი და ვაუჩერი.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[ტურისტული მძღოლების ფლოტის მართვა]]></title>
-      <link>https://kekemanager.com/blog/managing-tourist-driver-fleet</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/managing-tourist-driver-fleet</guid>
-      <pubDate>Sun, 03 May 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[ფლოტის დაგეგმვა, რეზერვი, მოვლა და ტუროპერატორთან კოორდინაცია.]]></description>
     </item>
   </channel>
 </rss>

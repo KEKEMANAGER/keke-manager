@@ -18,6 +18,7 @@ import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
 import { useTranslation } from 'react-i18next';
 import { AppLogo } from '../../components/AppLogo';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
+import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
 import { ListEmptyState } from '../../components/ListEmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
@@ -27,6 +28,7 @@ import { isBookingPaymentPaid } from '../../lib/bookingPayments';
 import {
   aggregateDriverStats,
   bookingStatusLabel,
+  aggregateHostFleetStats,
   fetchBookingsForDriver,
   fetchOpenPendingBookingsForDriver,
   formatBookingDate,
@@ -158,6 +160,13 @@ export default function DriverDashboardScreen() {
     const open = results[1]!;
     const stats = results[2]!;
     const ratingRes = results[3]!;
+    let driverEarnings = stats.earnings;
+    if (!stats.error && fleetCtx.kind === 'host') {
+      const hostFleet = await aggregateHostFleetStats(userId);
+      if (!hostFleet.error) {
+        driverEarnings += hostFleet.earnings;
+      }
+    }
     setAds(results[4]!);
     const invitesRes = results[5]!;
     if (invitesRes.error) {
@@ -190,7 +199,7 @@ export default function DriverDashboardScreen() {
       setEarnings(0);
     } else {
       setCompletedTrips(stats.completed);
-      setEarnings(stats.earnings);
+      setEarnings(driverEarnings);
     }
     if (ratingRes.error) {
       setRatingAvg(0);
@@ -251,7 +260,7 @@ export default function DriverDashboardScreen() {
 
   useEffect(() => {
     if (Platform.OS === 'web' || !userId) return;
-    void registerForPushNotificationsAsync(userId).then(setPushToken);
+    void registerForPushNotificationsAsync(userId, { requestPermission: true }).then(setPushToken);
   }, [userId]);
 
   const handleSendTestPush = useCallback(async () => {
@@ -556,7 +565,11 @@ export default function DriverDashboardScreen() {
           <Text style={styles.route}>{routeSummary(activeBooking)}</Text>
           <View style={styles.activeMeta}>
             <Text style={styles.meta}>{formatBookingDate(activeBooking)}</Text>
-            <Text style={styles.price}>{formatGel(Number(activeBooking.price_gel))}</Text>
+            {userId ? (
+              <BookingPriceDisplay booking={activeBooking} viewerUserId={userId} />
+            ) : (
+              <Text style={styles.price}>{formatGel(Number(activeBooking.price_gel))}</Text>
+            )}
           </View>
         </View>
       ) : (

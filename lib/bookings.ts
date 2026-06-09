@@ -11,7 +11,8 @@ import {
   createScheduleForAcceptedBooking,
   releaseDriverScheduleForBooking,
 } from './driverSchedules';
-import { notifyBookingAssignedByHost } from './fleetNotifications';
+import { notifyBookingAssignedByHost, notifyHostTourCompleted } from './fleetNotifications';
+import { completedDriverEarningsGel, hostNetGel } from './bookingPayout';
 import { isHiredOrFleetSubDriver } from './hiredDriver';
 import {
   notifyBookingVoucherCreated,
@@ -376,6 +377,8 @@ export type BookingRow = {
   payment_confirmed_at?: string | null;
   payment_confirmed_by?: string | null;
   price_gel: number;
+  /** Host-set pay for fleet sub-driver (snapshot at assignment). */
+  driver_payout_gel?: number | null;
   /** Populated when listing bookings for companies (driver bank account). */
   driver_bank_account?: string | null;
   company_name: string | null;
@@ -1079,6 +1082,7 @@ export async function hostAcceptBookingForSub(
     displayName: string;
     phone: string;
     plate: string;
+    driverPayoutGel: number;
   },
 ) {
   const rowId = String(bookingRowId).trim();
@@ -1104,6 +1108,24 @@ export async function hostAcceptBookingForSub(
     return { ok: false as const, error: new Error('მძღოლი არ არის თქვენს ფლოტში') };
   }
 
+  const payout = Number(subDriver.driverPayoutGel);
+  if (!Number.isFinite(payout) || payout <= 0) {
+    return { ok: false as const, error: new Error('მძღოლის ხელფასი არასწორია') };
+  }
+
+  const { data: priceRow } = await supabase
+    .from('bookings')
+    .select('price_gel')
+    .eq('id', rowId)
+    .maybeSingle();
+  const tripTotal = Number((priceRow as { price_gel?: number } | null)?.price_gel ?? 0);
+  if (Number.isFinite(tripTotal) && tripTotal > 0 && payout > tripTotal) {
+    return {
+      ok: false as const,
+      error: new Error('მძღოლის ხელფასი ვერ აღემატება ჯავშნის ფასს'),
+    };
+  }
+
   const runAccept = (assignStatus: 'accepted' | 'confirmed') =>
     supabase
       .from('bookings')
@@ -1114,6 +1136,7 @@ export async function hostAcceptBookingForSub(
         driver_display_name: subDriver.displayName,
         driver_phone: subDriver.phone || null,
         driver_plate: subDriver.plate || null,
+        driver_payout_gel: payout,
       })
       .eq('id', rowId)
       .eq('status', 'pending')
@@ -1151,6 +1174,7 @@ export async function hostAcceptBookingForSub(
     bookingId: rowId,
     routeSummary: routeLine,
     voucherCode: row.voucher_code?.trim(),
+    driverPayoutGel: payout,
   });
 
   const { data: companyRow } = await supabase
@@ -1183,6 +1207,36 @@ export async function rejectBooking(
       error: new Error('booking id უნდა იყოს ჯავშნის uuid'),
     };
   }
+
+  const { data: rpcOk, error: rpcError } = await supabase.rpc(
+    'reject_pending_booking_as_driver',
+    { p_booking_id: rowId },
+  );
+
+  if (!rpcError && rpcOk === true) {
+    return { ok: true as const, error: null };
+  }
+
+  if (rpcError) {
+    const missingRpc =
+      rpcError.message.includes('reject_pending_booking_as_driver') ||
+      rpcError.code === 'PGRST202';
+    if (!missingRpc) {
+      if (__DEV__) {
+        console.warn('[rejectBooking] rpc:', rpcError.message, { rowId });
+      }
+      return { ok: false as const, error: rpcError };
+    }
+    if (__DEV__) {
+      console.warn('[rejectBooking] rpc missing, falling back to direct update');
+    }
+  } else if (rpcOk === false) {
+    return {
+      ok: false as const,
+      error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია'),
+    };
+  }
+
   const { data, error } = await supabase
     .from('bookings')
     .update({
@@ -1193,6 +1247,7 @@ export async function rejectBooking(
       driver_plate: null,
     })
     .eq('id', rowId)
+    .eq('status', 'pending')
     .select('id')
     .maybeSingle();
 
@@ -1217,6 +1272,13 @@ export async function completeBooking(bookingRowId: string, driverUserId: string
   if (!drv) {
     return { ok: false as const, error: new Error('მძღოლის id არ არის') };
   }
+
+  const { data: beforeRow } = await supabase
+    .from('bookings')
+    .select('host_driver_id, driver_display_name, route, from_location, to_location')
+    .eq('id', rowId)
+    .maybeSingle();
+
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'completed' })
@@ -1228,6 +1290,26 @@ export async function completeBooking(bookingRowId: string, driverUserId: string
   if (error) return { ok: false as const, error };
   if (data) {
     void releaseDriverScheduleForBooking(rowId);
+    const row = beforeRow as {
+      host_driver_id?: string | null;
+      driver_display_name?: string | null;
+      route?: string | null;
+      from_location?: string | null;
+      to_location?: string | null;
+    } | null;
+    const hostId = trimUserId(row?.host_driver_id ?? '');
+    if (hostId) {
+      const routeLine =
+        row?.route?.trim() ||
+        [row?.from_location, row?.to_location].filter((x) => x?.trim()).join(' → ') ||
+        '';
+      void notifyHostTourCompleted({
+        hostDriverId: hostId,
+        bookingId: rowId,
+        driverName: row?.driver_display_name?.trim() || undefined,
+        routeSummary: routeLine || undefined,
+      });
+    }
   }
   if (!data) {
     return { ok: false as const, error: new Error('ჯავშანის დასრულება ხელმისაწვდომია მხოლოდ „გზაში“ სტატუსში') };
@@ -1401,15 +1483,42 @@ export async function aggregateDriverStats(driverUserId: string) {
   }
   const { data, error } = await supabase
     .from('bookings')
-    .select('price_gel, status')
+    .select('price_gel, driver_payout_gel, host_driver_id, driver_id, status')
     .eq('driver_id', id);
   if (error || !data) return { completed: 0, earnings: 0, error };
-  const rows = data as { price_gel: number; status: BookingStatus }[];
+  const rows = data as {
+    price_gel: number;
+    driver_payout_gel?: number | null;
+    host_driver_id?: string | null;
+    driver_id?: string | null;
+    status: BookingStatus;
+  }[];
   const completed = rows.filter((r) => r.status === 'completed').length;
   const earnings = rows
     .filter((r) => r.status === 'completed')
-    .reduce((s, r) => s + Number(r.price_gel || 0), 0);
+    .reduce((s, r) => s + completedDriverEarningsGel(r, id), 0);
   return { completed, earnings, error: null };
+}
+
+/** Host net from fleet-delegated completed trips. */
+export async function aggregateHostFleetStats(hostDriverId: string) {
+  const id = trimUserId(hostDriverId);
+  if (!id) {
+    return { completed: 0, earnings: 0, error: null };
+  }
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('price_gel, driver_payout_gel, status')
+    .eq('host_driver_id', id);
+  if (error || !data) return { completed: 0, earnings: 0, error };
+  const rows = data as {
+    price_gel: number;
+    driver_payout_gel?: number | null;
+    status: BookingStatus;
+  }[];
+  const completedRows = rows.filter((r) => r.status === 'completed');
+  const earnings = completedRows.reduce((s, r) => s + hostNetGel(r), 0);
+  return { completed: completedRows.length, earnings, error: null };
 }
 
 export function subscribeBookingsChanges(

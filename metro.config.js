@@ -1,46 +1,32 @@
-const fs = require('fs');
 const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 const upstreamResolveRequest = config.resolver.resolveRequest;
 
-const ICON_FONTS_DIR = path.join(
-  __dirname,
-  'node_modules',
-  '@expo',
-  'vector-icons',
-  'build',
-  'vendor',
-  'react-native-vector-icons',
-  'Fonts',
-);
-
-const ALLOWED_ICON_FONTS = new Set(['Ionicons.ttf']);
-
-if (fs.existsSync(ICON_FONTS_DIR)) {
-  const blockedFonts = fs
-    .readdirSync(ICON_FONTS_DIR)
-    .filter((file) => file.endsWith('.ttf') && !ALLOWED_ICON_FONTS.has(file))
-    .map(
-      (file) =>
-        new RegExp(
-          `${ICON_FONTS_DIR.replace(/[/\\]/g, '[\\\\/]')}[\\\\/]${file.replace(/\./g, '\\.')}$`,
-        ),
-    );
-
-  config.resolver.blockList = [...(config.resolver.blockList ?? []), ...blockedFonts];
-}
+const VECTOR_ICONS_SHIM = path.resolve(__dirname, 'metro-shims/expo-vector-icons.js');
 
 config.resolver.resolveRequest = (context, moduleName, platform, ...rest) => {
-  if (platform === 'web' && moduleName === '@expo/vector-icons') {
-    return {
-      type: 'sourceFile',
-      filePath: path.resolve(__dirname, 'metro-shims/expo-vector-icons.js'),
-    };
+  // App only uses Ionicons — IconsLazy pulls every font (AntDesign, Fontisto, …).
+  if (
+    moduleName === '@expo/vector-icons' ||
+    moduleName === '@expo/vector-icons/build/IconsLazy.js' ||
+    moduleName === '@expo/vector-icons/build/IconsLazy' ||
+    moduleName === '@expo/vector-icons/build/Icons.js' ||
+    moduleName === '@expo/vector-icons/build/Icons'
+  ) {
+    return { type: 'sourceFile', filePath: VECTOR_ICONS_SHIM };
   }
   if (
-    platform === 'web' &&
+    moduleName.startsWith('@expo/vector-icons/build/') &&
+    !moduleName.includes('Ionicons') &&
+    !moduleName.includes('createIconSet') &&
+    !moduleName.includes('/vendor/') &&
+    !moduleName.includes('/glyphmaps/')
+  ) {
+    return { type: 'empty' };
+  }
+  if (
     moduleName.includes('react-native-vector-icons/Fonts/') &&
     moduleName.endsWith('.ttf') &&
     !moduleName.endsWith('Ionicons.ttf')

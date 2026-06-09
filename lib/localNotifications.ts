@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { fleetAssignedVehicleMatchesBooking } from './fleet';
 import { driverProfileMatchesBooking } from './profiles';
 import {
   BOOKINGS_CHANNEL_ID,
@@ -68,12 +69,11 @@ export async function notifyNewOpenBookingIfMatchesDriver(
     return;
   }
 
-  const matches = await driverProfileMatchesBooking(
-    driverUserId,
-    bookingVehicleType,
-    bookingVehicleClass,
-  );
-  if (!matches) {
+  const [ownVehicle, fleetVehicle] = await Promise.all([
+    driverProfileMatchesBooking(driverUserId, bookingVehicleType, bookingVehicleClass),
+    fleetAssignedVehicleMatchesBooking(driverUserId, bookingVehicleType, bookingVehicleClass),
+  ]);
+  if (!ownVehicle && !fleetVehicle) {
     return;
   }
 

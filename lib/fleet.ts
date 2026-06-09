@@ -2,7 +2,10 @@ import type { DriverLocationRow } from './locations';
 import { notifyFleetInviteToSub } from './fleetNotifications';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
+import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 import type { VehicleRow } from './vehicles';
+
+const FLEET_GPS_LIVE_MS = 90_000;
 
 export type FleetInviteStatus = 'pending' | 'accepted' | 'rejected';
 
@@ -65,6 +68,35 @@ function isMissingFleetStatusColumn(message: string): boolean {
       m.includes('column') ||
       m.includes('does not exist'))
   );
+}
+
+/** Fleet sub: host-assigned vehicle matches booking type/class. */
+export async function fleetAssignedVehicleMatchesBooking(
+  subDriverId: string,
+  bookingVehicleType: string,
+  bookingVehicleClass: string | null | undefined,
+): Promise<boolean> {
+  const bookingType = normalizeVehicleType(bookingVehicleType);
+  const bookingClass = normalizeVehicleClass(bookingVehicleClass ?? '');
+  if (!bookingType || !bookingClass) return false;
+
+  const ctx = await fetchFleetContext(subDriverId.trim());
+  if (ctx.kind !== 'sub' || !ctx.vehicle) return false;
+
+  const vType = normalizeVehicleType(ctx.vehicle.type ?? '');
+  const vClass = normalizeVehicleClass(ctx.vehicle.class ?? '');
+  return vType === bookingType && (!vClass || !bookingClass || vClass === bookingClass);
+}
+
+/** Sub with live GPS on host fleet (for quick booking assignment). */
+export function pickLiveFleetMember(members: FleetMemberView[]): FleetMemberView | null {
+  const now = Date.now();
+  const live = members.filter((m) => {
+    if (!m.location) return false;
+    return now - new Date(m.location.updated_at).getTime() <= FLEET_GPS_LIVE_MS;
+  });
+  if (live.length !== 1) return null;
+  return live[0] ?? null;
 }
 
 /** Resolve driver user id from email or uuid string. */

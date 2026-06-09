@@ -234,7 +234,7 @@ export async function fetchMatchingDriverPushRecipients(
 
   const { data: vehicleRows, error: vehiclesError } = await supabase
     .from('vehicles')
-    .select('driver_id')
+    .select('id, driver_id')
     .eq('is_active', true)
     .eq('type', vehicleType)
     .eq('class', vehicleClass);
@@ -244,7 +244,7 @@ export async function fetchMatchingDriverPushRecipients(
     return { recipients: [], error: new Error(vehiclesError.message), vehicleType, vehicleClass };
   }
 
-  let driverIds = [
+  const hostDriverIds = [
     ...new Set(
       (vehicleRows ?? [])
         .map((row) => String((row as { driver_id?: string }).driver_id ?? '').trim())
@@ -252,9 +252,37 @@ export async function fetchMatchingDriverPushRecipients(
     ),
   ];
 
+  const vehicleIds = (vehicleRows ?? [])
+    .map((row) => String((row as { id?: string }).id ?? '').trim())
+    .filter((id) => id.length > 0);
+
+  let fleetSubIds: string[] = [];
+  if (vehicleIds.length > 0) {
+    const { data: fleetRows, error: fleetErr } = await supabase
+      .from('driver_fleet')
+      .select('sub_driver_id')
+      .in('vehicle_id', vehicleIds)
+      .eq('status', 'accepted');
+    if (fleetErr && __DEV__) {
+      console.warn('[notify] driver_fleet lookup failed:', fleetErr.message);
+    } else {
+      fleetSubIds = [
+        ...new Set(
+          (fleetRows ?? [])
+            .map((row) => String((row as { sub_driver_id?: string }).sub_driver_id ?? '').trim())
+            .filter((id) => id.length > 0),
+        ),
+      ];
+    }
+  }
+
+  const driverIds = [...new Set([...hostDriverIds, ...fleetSubIds])];
+
   if (driverIds.length === 0) {
     return { recipients: [], error: null, vehicleType, vehicleClass };
   }
+
+  const fleetSubIdSet = new Set(fleetSubIds);
 
   const [profilesRes, usersRes] = await Promise.all([
     supabase
@@ -304,10 +332,14 @@ export async function fetchMatchingDriverPushRecipients(
     .filter((row) => {
       const verified = row.is_verified === true || usersVerified.get(row.id) === true;
       if (!verified) return false;
+      const isFleetSub = fleetSubIdSet.has(row.id);
       const userRow = userById.get(row.id) ?? {};
-      if (!driverEligibleForOpenJobBroadcast(userRow)) return false;
-      if (!driverMatchesRequestedCategory(userRow, category)) return false;
-      return driverMatchesRequiredLanguages(userLanguages.get(row.id), requiredLanguages);
+      if (!isFleetSub && !driverEligibleForOpenJobBroadcast(userRow)) return false;
+      if (!isFleetSub && !driverMatchesRequestedCategory(userRow, category)) return false;
+      if (!driverMatchesRequiredLanguages(userLanguages.get(row.id), requiredLanguages)) {
+        return false;
+      }
+      return true;
     });
 
   const busyWindow = availability ? estimateBookingBusyWindow(availability) : null;

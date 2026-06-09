@@ -160,6 +160,22 @@ export default function DriverVerificationScreen() {
         setSubmitError(error.message);
         return;
       }
+      const cleanUrl = storagePublicUrlBase(publicUrl);
+      const bustedUrl = bustUri(cleanUrl) ?? cleanUrl;
+      setPhotos((prev) => {
+        const next = { ...prev };
+        if (doc === 'id') {
+          next.id_front = bustedUrl;
+          next.id_back = cleanUrl;
+        } else if (doc === 'license') {
+          next.license_front = bustedUrl;
+          next.license_back = cleanUrl;
+        } else {
+          next.tech_passport_front = bustedUrl;
+          next.tech_passport_back = cleanUrl;
+        }
+        return next;
+      });
       setDocsDirty(true);
       await load();
     } catch (e: unknown) {

@@ -62,6 +62,24 @@ export function verificationStepsForHired(isHired: boolean): VerificationDocSlot
   ];
 }
 
+const SIMPLE_DOC_MIRROR_PAIRS: [VerificationDocSlot, VerificationDocSlot][] = [
+  ['license_front', 'license_back'],
+  ['id_front', 'id_back'],
+  ['tech_passport_front', 'tech_passport_back'],
+];
+
+/** Copy front URL to back when only one side was persisted (legacy / partial saves). */
+export function normalizeVerificationPhotos(photos: VerificationPhotos): VerificationPhotos {
+  const p = { ...photos };
+  for (const [front, back] of SIMPLE_DOC_MIRROR_PAIRS) {
+    const frontUrl = p[front]?.trim();
+    if (frontUrl && !p[back]?.trim()) {
+      p[back] = frontUrl;
+    }
+  }
+  return p;
+}
+
 export function photosFromUserRow(row: Record<string, unknown> | null): VerificationPhotos {
   const p = emptyVerificationPhotos();
   if (!row) return p;
@@ -69,13 +87,13 @@ export function photosFromUserRow(row: Record<string, unknown> | null): Verifica
     const v = row[key];
     p[key] = typeof v === 'string' && v.trim() ? v.trim() : null;
   }
-  return p;
+  return normalizeVerificationPhotos(p);
 }
 
+/** True when every required simple doc (2 hired / 3 freelance) has a primary photo. */
 export function allVerificationPhotosPresent(
   photos: VerificationPhotos,
   isHired: boolean,
 ): boolean {
-  const steps = verificationStepsForHired(isHired);
-  return steps.every((slot) => !!photos[slot]?.trim());
+  return verificationSimpleDocsForHired(isHired).every((doc) => isSimpleDocUploaded(photos, doc));
 }

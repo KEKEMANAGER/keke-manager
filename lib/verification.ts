@@ -52,8 +52,19 @@ export async function submitVerification(userId: string, photos: SubmitVerificat
   payload.id_photo = payload.id_front;
   payload.vehicle_registration_photo = payload.tech_passport_front;
 
-  const { error } = await supabase.from('users').update(payload).eq('id', userId);
-  return { error };
+  const { data, error } = await supabase.from('users').update(payload).eq('id', userId).select('id');
+  if (error) return { error };
+  if (!data?.length) {
+    return {
+      error: {
+        message: 'პროფილის განახლება ვერ მოხერხდა — გამოდით და ხელახლა შედით ანგარიშში',
+        details: '',
+        hint: '',
+        code: 'PGRST116',
+      },
+    };
+  }
+  return { error: null };
 }
 
 /** Upload one document group and mirror URL to front/back + legacy columns. */
@@ -89,6 +100,17 @@ export async function saveSingleVerificationDocument(
     payload.rejection_reason = null;
   }
 
-  const { error } = await supabase.from('users').update(payload).eq('id', userId);
-  return { error };
+  const { data, error } = await supabase.from('users').update(payload).eq('id', userId).select('id');
+  if (error) return { error };
+  if (!data?.length) {
+    return {
+      error: {
+        message: 'პროფილის განახლება ვერ მოხერხდა — გამოდით და ხელახლა შედით ანგარიშში',
+        details: '',
+        hint: '',
+        code: 'PGRST116',
+      },
+    };
+  }
+  return { error: null };
 }
