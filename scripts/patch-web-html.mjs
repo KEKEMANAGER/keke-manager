@@ -7,7 +7,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { normalizeSupabaseBuildEnv, runtimeEnvScriptContent } from './supabaseEnvBuild.mjs';
 import {
+  HOME_FAQ,
   HOME_SEO,
+  SCHEMA_WEBSITE,
+  buildFaqSchema,
   buildHeadMeta,
   buildHomeNoscript,
   escapeHtml,
@@ -52,6 +55,8 @@ const SEO_HEAD = buildHeadMeta({
   keywords: HOME_SEO.keywords,
   canonical: 'https://kekemanager.com/',
   lang: HOME_SEO.lang,
+  includeHomeHreflang: true,
+  extraJsonLd: [SCHEMA_WEBSITE, buildFaqSchema(HOME_FAQ)],
 });
 
 const CRITICAL_LANDING_CSS = `
@@ -104,25 +109,46 @@ const HEAD_INJECT = [
   .filter(Boolean)
   .join('\n    ');
 
-function applySeoToHtml(html) {
-  html = html.replace(/<title>[^<]*<\/title>/i, `<title>${escapeHtml(HOME_SEO.title)}</title>`);
-  html = html.replace(/<html([^>]*)>/i, `<html lang="${HOME_SEO.lang}"$1>`);
-  html = html.replace(/<html lang="[^"]*"/i, `<html lang="${HOME_SEO.lang}"`);
+const STATIC_HOME_DISMISS_SCRIPT = `<script id="keke-static-home-dismiss">(function(){var path=location.pathname||'/';if(path!=='/'&&path!=='/index.html')return;var root=document.getElementById('root');if(!root)return;var obs=new MutationObserver(function(){if(root.childNodes.length>0){var ns=document.querySelector('noscript');if(ns)ns.remove();obs.disconnect();}});obs.observe(root,{childList:true});})();</script>`;
 
+function stripHeadInjections(html) {
   html = html.replace(/<meta name="description"[^>]*>\s*/gi, '');
   html = html.replace(/<meta name="keywords"[^>]*>\s*/gi, '');
+  html = html.replace(/<meta name="author"[^>]*>\s*/gi, '');
+  html = html.replace(/<meta name="robots"[^>]*>\s*/gi, '');
   html = html.replace(/<meta property="og:[^"]+"[^>]*>\s*/gi, '');
   html = html.replace(/<meta name="twitter:[^"]+"[^>]*>\s*/gi, '');
   html = html.replace(/<link rel="canonical"[^>]*>\s*/gi, '');
   html = html.replace(/<link rel="alternate" hreflang="[^"]+"[^>]*>\s*/gi, '');
   html = html.replace(/<script type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>\s*/gi, '');
-
   html = html.replace(/<link rel="preload" href="\/logo\.webp"[^>]*>\s*/g, '');
   html = html.replace(/<style id="keke-critical-css">[\s\S]*?<\/style>\s*/g, '');
-  html = html.replace(/<div id="keke-lcp-shell">[\s\S]*?<\/div>\s*/g, '');
-  html = html.replace(/<script id="keke-lcp-route-dismiss">[\s\S]*?<\/script>\s*/g, '');
   html = html.replace(/<script id="keke-runtime-env">[\s\S]*?<\/script>\s*/g, '');
+  return html;
+}
+
+function stripBodyInjections(html) {
+  html = html.replace(
+    /<div id="keke-lcp-shell">[\s\S]*?<script id="keke-lcp-route-dismiss">[\s\S]*?<\/script>\s*/g,
+    '',
+  );
+  html = html.replace(/<script id="keke-lcp-route-dismiss">[\s\S]*?<\/script>\s*/g, '');
+  html = html.replace(/<img[^>]*alt="KEKE Manager"[^>]*fetchpriority="high"[^>]*\/?>\s*/gi, '');
+  html = html.replace(/<p class="hero[^"]*">[^<]*<\/p>\s*/g, '');
+  html = html.replace(/<p class="hero-accent[^"]*">[^<]*<\/p>\s*/g, '');
   html = html.replace(/<noscript>[\s\S]*?<\/noscript>\s*/gi, '');
+  html = html.replace(/<script id="keke-static-home-dismiss">[\s\S]*?<\/script>\s*/g, '');
+  html = html.replace(/(<body>[\s\S]*?)<div id="root"><\/div>\s*/i, '$1');
+  html = html.replace(/^\s*<\/div>\s*$/gm, '');
+  return html;
+}
+
+function applySeoToHtml(html) {
+  html = html.replace(/<title>[^<]*<\/title>/i, `<title>${escapeHtml(HOME_SEO.title)}</title>`);
+  html = html.replace(/<html[^>]*>/i, `<html lang="${HOME_SEO.lang}">`);
+
+  html = stripHeadInjections(html);
+  html = stripBodyInjections(html);
 
   if (!html.includes('</head>')) {
     console.error('patch-web-html: invalid dist/index.html');
@@ -130,10 +156,20 @@ function applySeoToHtml(html) {
   }
 
   html = html.replace('</head>', `    ${HEAD_INJECT}\n  </head>`);
-  html = html.replace(
-    '<div id="root"></div>',
-    `${CRITICAL_LANDING_SHELL}\n    <div id="root"></div>\n    ${buildHomeNoscript()}`,
+
+  const bodyInject = `${CRITICAL_LANDING_SHELL}\n    <div id="root"></div>\n    ${buildHomeNoscript()}\n    ${STATIC_HOME_DISMISS_SCRIPT}\n    `;
+  const bodyRebuilt = html.replace(
+    /(<body>\s*(?:<!--[\s\S]*?-->\s*)*)([\s\S]*?)(<script src="\/_expo\/static)/i,
+    `$1${bodyInject}$3`,
   );
+  if (bodyRebuilt !== html) {
+    html = bodyRebuilt;
+  } else {
+    html = html.replace(
+      /<body>/i,
+      `<body>\n    ${bodyInject}`,
+    );
+  }
 
   html = html.replace(/body\s*\{\s*overflow:\s*hidden;\s*\}/, 'body { overflow: auto; }');
 

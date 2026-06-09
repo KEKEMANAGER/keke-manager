@@ -11,6 +11,8 @@
 /blog/*           /blog/:splat      200
 /services/*       /services/:splat  200
 /locations/*      /locations/:splat 200
+/sign-up/*        /sign-up/:splat   200
+/sign-in/*        /sign-in/:splat   200
 
 # Expo Router SPA
 /*                /index.html       200
