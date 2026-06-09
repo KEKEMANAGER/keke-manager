@@ -9,6 +9,8 @@
 /favicon.ico      /favicon.ico      200
 /blog/rss.xml     /blog/rss.xml     200
 /blog/*           /blog/:splat      200
+/services/*       /services/:splat  200
+/locations/*      /locations/:splat 200
 
 # Expo Router SPA
 /*                /index.html       200
