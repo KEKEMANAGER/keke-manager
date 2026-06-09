@@ -58,24 +58,23 @@ const CRITICAL_LANDING_CSS = `
 html,body{margin:0;background:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 #keke-lcp-shell{position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:88px 24px 32px;box-sizing:border-box;background:#fff;transition:opacity .2s ease}
 #keke-lcp-shell.keke-lcp-done{opacity:0;pointer-events:none;visibility:hidden}
-#keke-lcp-shell img{width:112px;height:112px;margin-bottom:8px;object-fit:contain}
-#keke-lcp-shell .keke{font-size:42px;font-weight:900;color:#0a0a0a;letter-spacing:2px;margin:0}
-#keke-lcp-shell .manager{font-size:28px;font-weight:700;color:#0a0a0a;letter-spacing:4px;margin:0 0 16px}
-#keke-lcp-shell .hero{font-size:28px;font-weight:900;color:#0a0a0a;text-align:center;line-height:1.2;margin:0;max-width:24ch}
-#keke-lcp-shell .hero-accent{font-size:22px;font-weight:700;color:#EF9F27;text-align:center;line-height:1.3;margin:8px 0 0;max-width:32ch}
-#keke-lcp-shell .hero-sub{font-size:15px;font-weight:500;color:#555;text-align:center;line-height:1.4;margin:12px 0 0;max-width:36ch}
+#keke-lcp-shell .keke-logo-wrap{position:relative;width:174px;height:157px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+#keke-lcp-shell .keke-logo-glow{position:absolute;inset:0;border-radius:9999px;background:#FAEEDA;opacity:.95}
+#keke-lcp-shell .keke-logo-wrap img{position:relative;width:112px;height:112px;object-fit:contain}
+#keke-lcp-shell .hero{font-size:28px;font-weight:900;color:#0a0a0a;text-align:center;line-height:1.2;margin:0;max-width:20ch}
+#keke-lcp-shell .hero-accent{font-size:28px;font-weight:900;color:#EF9F27;text-align:center;line-height:1.2;margin:4px 0 0;max-width:22ch}
 #root{position:relative;z-index:1;display:flex;flex:1;min-height:100vh}
 body{overflow:auto}
 `.trim();
 
 const CRITICAL_LANDING_SHELL = `
 <div id="keke-lcp-shell">
-  <img src="${LOGO_DATA_URI}" width="112" height="112" alt="KEKE Manager — ტურ ოპერატორებისა და მძღოლების მართვის პლათფორმა" fetchpriority="high" loading="eager" decoding="sync" />
-  <p class="keke">KEKE</p>
-  <p class="manager">MANAGER</p>
+  <div class="keke-logo-wrap">
+    <div class="keke-logo-glow" aria-hidden="true"></div>
+    <img src="${LOGO_DATA_URI}" width="112" height="112" alt="KEKE Manager" fetchpriority="high" loading="eager" decoding="sync" />
+  </div>
   <p class="hero">ერთი პლატფორმა,</p>
   <p class="hero-accent">უსაზღვრო შესაძებლობები</p>
-  <p class="hero-sub">B2B პლატფორმა ტურ ოპერატორებისა და მძღოლებისთვის · ჯავშნები · GPS · ვაუჩერი</p>
 </div>
 <script id="keke-lcp-route-dismiss">
 (function () {
