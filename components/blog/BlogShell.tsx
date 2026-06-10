@@ -1,49 +1,129 @@
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Image, Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LANDING, landingFont, sx } from '../landing/landingTheme';
-
-import { BRAND_LOGO } from '../../lib/brandLogo';
+import { blogLangToLandingLang, landingLangToBlogLang } from '../../lib/blogLandingLang';
+import { getLandingCopy } from '../../lib/landingCopy';
+import {
+  APP_SYNCED_LANDING_LANGS,
+  LANDING_LANGUAGES,
+  type LandingLangCode,
+} from '../../lib/landingLanguages';
+import { useBlogLang } from '../../lib/useBlogLang';
+import { persistLanguage, type AppLanguage } from '../../src/lib/i18n';
+import { LandingFooter } from '../landing/LandingFooter';
+import { LandingHeader } from '../landing/LandingHeader';
+import { LANDING_BP, useLandingBreakpoint } from '../landing/useLandingBreakpoint';
+import { LANDING } from '../landing/landingTheme';
 
 type Props = {
   children: ReactNode;
 };
 
+function homeHashUrl(sectionId: string, lang: LandingLangCode): string {
+  if (sectionId === 'hero') return lang === 'ka' ? '/' : `/?lang=${lang}`;
+  return lang === 'ka' ? `/#${sectionId}` : `/?lang=${lang}#${sectionId}`;
+}
+
 export function BlogShell({ children }: Props) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const blogLang = useBlogLang();
+  const { width, isMobile, isTablet, isDesktop, containerPadding } = useLandingBreakpoint();
+
+  const [landingLang, setLandingLang] = useState<LandingLangCode>(() => blogLangToLandingLang(blogLang));
+  const [langOpen, setLangOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+
+  useEffect(() => {
+    setLandingLang(blogLangToLandingLang(blogLang));
+  }, [blogLang]);
+
+  const copy = useMemo(() => getLandingCopy(landingLang), [landingLang]);
+  const currentLangLabel = LANDING_LANGUAGES.find((l) => l.code === landingLang)?.label ?? 'KA';
+  const footerYear = new Date().getFullYear();
+  const navBarHeight = isMobile ? 56 : 64;
+
+  const containerStyle = useMemo(
+    () => ({
+      width: '100%' as const,
+      maxWidth: LANDING_BP.containerMax,
+      alignSelf: 'center' as const,
+      paddingHorizontal: containerPadding,
+    }),
+    [containerPadding],
+  );
+
+  const onLangPick = useCallback(
+    async (code: LandingLangCode) => {
+      setLandingLang(code);
+      setLangOpen(false);
+      const nextBlogLang = landingLangToBlogLang(code);
+      router.setParams({ lang: nextBlogLang });
+      if (APP_SYNCED_LANDING_LANGS.has(code)) {
+        await persistLanguage(code as AppLanguage);
+      }
+    },
+    [router],
+  );
+
+  const onNavLink = useCallback(
+    (id: string) => {
+      setNavOpen(false);
+      const href = homeHashUrl(id, landingLang);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.assign(href);
+        return;
+      }
+      router.push(href as never);
+    },
+    [landingLang, router],
+  );
 
   return (
     <View style={styles.screen}>
-      <View style={sx(styles.header, { paddingTop: insets.top + 12 })}>
-        <Link href="/" style={sx(styles.logoLink)}>
-          <Image source={BRAND_LOGO} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.logoText}>KEKE Manager</Text>
-        </Link>
-        <View style={styles.nav}>
-          <Link href="/blog" style={sx(styles.navLink)}>
-            <Text style={styles.navText}>Blog</Text>
-          </Link>
-          <Link href="/sign-up" style={sx(styles.navCta)}>
-            <Text style={styles.navCtaText}>Sign up</Text>
-          </Link>
-        </View>
-      </View>
-      <View style={styles.content}>{children}</View>
-      <View style={sx(styles.footer, { paddingBottom: insets.bottom + 16 })}>
-        <Text style={styles.footerText}>© {new Date().getFullYear()} KEKE Manager · Georgia</Text>
-        <View style={styles.footerLinks}>
-          <Link href="/" style={sx(styles.footerLink)}>
-            <Text style={styles.footerLinkText}>Home</Text>
-          </Link>
-          <Link href="/blog" style={sx(styles.footerLink)}>
-            <Text style={styles.footerLinkText}>Blog</Text>
-          </Link>
-          <Link href="/sign-in" style={sx(styles.footerLink)}>
-            <Text style={styles.footerLinkText}>Sign in</Text>
-          </Link>
-        </View>
-      </View>
+      <LandingHeader
+        copy={copy}
+        width={width}
+        isMobile={isMobile}
+        isTablet={isTablet}
+        containerStyle={containerStyle}
+        paddingTop={insets.top + 8}
+        lang={landingLang}
+        langOpen={langOpen}
+        navOpen={navOpen}
+        currentLangLabel={currentLangLabel}
+        onLangPick={onLangPick}
+        onNavLink={onNavLink}
+        onToggleLang={() => {
+          setLangOpen((o) => !o);
+          if (!langOpen) setNavOpen(false);
+        }}
+        onToggleNav={() => {
+          setNavOpen((o) => !o);
+          if (!navOpen) setLangOpen(false);
+        }}
+        onCloseMenus={() => setNavOpen(false)}
+      />
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{
+          paddingTop: insets.top + navBarHeight + (isMobile && navOpen ? 200 : 12),
+          flexGrow: 1,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>{children}</View>
+        <LandingFooter
+          copy={copy}
+          containerStyle={containerStyle}
+          isMobile={isMobile}
+          isDesktop={isDesktop}
+          footerYear={footerYear}
+        />
+      </ScrollView>
     </View>
   );
 }
@@ -57,62 +137,11 @@ const styles = StyleSheet.create({
       default: {},
     }),
   } as ViewStyle,
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: LANDING.border,
-    backgroundColor: LANDING.white,
-  },
-  logoLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    textDecorationLine: 'none',
-  },
-  logo: { width: 36, height: 36 },
-  logoText: {
-    ...landingFont({ fontSize: 18, fontWeight: '800', color: LANDING.text }),
-  },
-  nav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  navLink: { textDecorationLine: 'none', padding: 8 },
-  navText: {
-    ...landingFont({ fontSize: 14, fontWeight: '600', color: LANDING.text }),
-  },
-  navCta: {
-    backgroundColor: LANDING.accent,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    textDecorationLine: 'none',
-  },
-  navCtaText: {
-    ...landingFont({ fontSize: 14, fontWeight: '800', color: LANDING.text }),
-  },
+  scroll: { flex: 1, width: '100%' },
   content: {
-    flex: 1,
     width: '100%',
     maxWidth: 1200,
     alignSelf: 'center',
     paddingHorizontal: 20,
-  },
-  footer: {
-    borderTopWidth: 1,
-    borderTopColor: LANDING.border,
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  footerText: {
-    ...landingFont({ fontSize: 13, color: LANDING.muted }),
-  },
-  footerLinks: { flexDirection: 'row', gap: 16 },
-  footerLink: { textDecorationLine: 'none', padding: 8 },
-  footerLinkText: {
-    ...landingFont({ fontSize: 13, fontWeight: '600', color: LANDING.accent }),
   },
 });

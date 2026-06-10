@@ -4,7 +4,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { escapeHtml, OG_IMAGE_URL, SITE_URL } from './seoBuildMeta.mjs';
+import { buildMarketingHeaderHtml, escapeHtml, OG_IMAGE_URL, SITE_URL } from './seoBuildMeta.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -15,9 +15,13 @@ const COVER = `${SITE_URL}/blog/${SLUG}-cover.svg`;
 const PRERENDER_CSS = `
 body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#fff;color:#111;line-height:1.65}
 a{color:#EF9F27}
-.keke-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid #eee;max-width:960px;margin:0 auto}
-.keke-logo{font-weight:900;font-size:18px;color:#111;text-decoration:none}
-.keke-nav a{margin-left:16px;color:#444;text-decoration:none;font-weight:600}
+.keke-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid #eee;max-width:1200px;margin:0 auto;flex-wrap:wrap;gap:12px}
+.keke-logo{font-weight:900;font-size:15px;color:#111;text-decoration:none;letter-spacing:.04em}
+.keke-nav{display:flex;align-items:center;flex-wrap:wrap;gap:4px 16px}
+.keke-nav a{color:#111;text-decoration:none;font-weight:500;font-size:15px}
+.keke-lang{font-size:14px;color:#444;font-weight:600}
+.keke-lang a{color:#444}
+.keke-signup{background:#111;color:#fff!important;padding:8px 14px;border-radius:10px;font-weight:700}
 .keke-main{max-width:720px;margin:0 auto;padding:32px 24px 48px}
 .keke-main h1{font-size:1.75rem;line-height:1.25;margin:0 0 16px}
 .keke-main h2{font-size:1.25rem;margin:32px 0 12px}
@@ -247,14 +251,10 @@ function buildPage(cfg) {
   <style>${PRERENDER_CSS}</style>
 </head>
 <body>
-  <header class="keke-header">
-    <a class="keke-logo" href="/">KEKE Manager</a>
-    <nav class="keke-nav" aria-label="Main">
-      <a href="/blog">${escapeHtml(cfg.nav.blog)}</a>
-      <a href="/sign-in">${escapeHtml(cfg.nav.signIn)}</a>
-      <a href="/sign-up">${escapeHtml(cfg.nav.signUp)}</a>
-    </nav>
-  </header>
+  ${buildMarketingHeaderHtml(cfg.lang, {
+    langKaHref: cfg.hrefKa,
+    langEnHref: cfg.hrefEn,
+  })}
   <main class="keke-main">
     <h1>${escapeHtml(cfg.h1)}</h1>
     ${cfg.body}

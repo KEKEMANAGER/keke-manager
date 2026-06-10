@@ -202,12 +202,58 @@ export function buildHeadMeta({
     ${jsonLd}`.trim();
 }
 
+const MARKETING_NAV = {
+  ka: {
+    home: 'მთავარი',
+    features: 'ფუნქციები',
+    roles: 'როლები',
+    contact: 'კონტაქტი',
+    blog: 'ბლოგი',
+    signIn: 'შესვლა',
+    signUp: 'დარეგისტრირდი',
+  },
+  en: {
+    home: 'Home',
+    features: 'Features',
+    roles: 'Roles',
+    contact: 'Contact',
+    blog: 'Blog',
+    signIn: 'Sign in',
+    signUp: 'Sign up',
+  },
+};
+
+/** Shared marketing site header (landing + blog static pages). */
+export function buildMarketingHeaderHtml(lang = 'ka', options = {}) {
+  const n = MARKETING_NAV[lang] ?? MARKETING_NAV.ka;
+  const blogHref = lang === 'ka' ? '/blog' : `/blog?lang=${lang}`;
+  const langKaHref = options.langKaHref ?? '/blog';
+  const langEnHref = options.langEnHref ?? '/blog?lang=en';
+  return `<header class="keke-header">
+    <a class="keke-logo" href="/">KEKE MANAGER</a>
+    <nav class="keke-nav" aria-label="Main">
+      <a href="/">${n.home}</a>
+      <a href="/#features">${n.features}</a>
+      <a href="/#roles">${n.roles}</a>
+      <a href="/#contact">${n.contact}</a>
+      <a href="${blogHref}">${n.blog}</a>
+      <span class="keke-lang">🌐 <a href="${langKaHref}">KA</a> · <a href="${langEnHref}">EN</a></span>
+      <a href="/sign-in">${n.signIn}</a>
+      <a class="keke-signup" href="/sign-up">${n.signUp}</a>
+    </nav>
+  </header>`;
+}
+
 const PRERENDER_CSS = `
 body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#fff;color:#111;line-height:1.6}
 a{color:#EF9F27}
-.keke-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid #eee;max-width:960px;margin:0 auto}
-.keke-logo{font-weight:900;font-size:18px;color:#111;text-decoration:none}
-.keke-nav a{margin-left:16px;color:#444;text-decoration:none;font-weight:600}
+.keke-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid #eee;max-width:1200px;margin:0 auto;flex-wrap:wrap;gap:12px}
+.keke-logo{font-weight:900;font-size:15px;color:#111;text-decoration:none;letter-spacing:.04em}
+.keke-nav{display:flex;align-items:center;flex-wrap:wrap;gap:4px 16px}
+.keke-nav a{color:#111;text-decoration:none;font-weight:500;font-size:15px}
+.keke-lang{font-size:14px;color:#444;font-weight:600}
+.keke-lang a{color:#444}
+.keke-signup{background:#111;color:#fff!important;padding:8px 14px;border-radius:10px;font-weight:700}
 .keke-main{max-width:720px;margin:0 auto;padding:32px 24px 48px}
 .keke-main h1{font-size:1.75rem;line-height:1.25;margin:0 0 16px}
 .keke-main h2{font-size:1.25rem;margin:28px 0 12px}
@@ -264,14 +310,7 @@ export function buildStaticHtmlPage({
   <style>${PRERENDER_CSS}</style>
 </head>
 <body>
-  <header class="keke-header">
-    <a class="keke-logo" href="/">KEKE Manager</a>
-    <nav class="keke-nav" aria-label="Main">
-      <a href="/blog">ბლოგი</a>
-      <a href="/sign-in">შესვლა</a>
-      <a href="/sign-up">რეგისტრაცია</a>
-    </nav>
-  </header>
+  ${buildMarketingHeaderHtml(lang)}
   <main class="keke-main">
     ${bodyHtml}
     <div class="keke-cta">

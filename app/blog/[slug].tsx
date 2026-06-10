@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { ArticleHero } from '../../components/blog/ArticleHero';
 import { AuthorBio } from '../../components/blog/AuthorBio';
 import { BlogMarkdownBody } from '../../components/blog/BlogMarkdownBody';
@@ -83,7 +83,7 @@ export default function BlogArticleScreen() {
   const { slug: rawSlug } = useLocalSearchParams<{ slug?: string }>();
   const slug = Array.isArray(rawSlug) ? rawSlug[0] : rawSlug;
   const lang = useBlogLang();
-  const copy = COPY[lang === 'en' ? 'en' : 'ka'];
+  const copy = lang === 'en' ? COPY.en : COPY.ka;
   const { isDesktop } = useLandingBreakpoint();
   const { version: manifestVersion } = useBlogManifestReady();
 
@@ -117,7 +117,7 @@ export default function BlogArticleScreen() {
     <BlogShell>
       {seo ? <BlogSeoHead meta={seo} schemas={schemas} /> : null}
       <ReadingProgressBar />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <View style={styles.scroll}>
         <View style={styles.breadcrumbs}>
           <Link href="/" style={sx(styles.crumb)}>
             <Text style={styles.crumbText}>{copy.home}</Text>
@@ -151,7 +151,7 @@ export default function BlogArticleScreen() {
             </View>
           ) : null}
         </View>
-      </ScrollView>
+      </View>
     </BlogShell>
   );
 }

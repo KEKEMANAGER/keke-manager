@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ArticleCard } from '../../components/blog/ArticleCard';
 import { BlogSeoHead } from '../../components/blog/BlogSeoHead';
 import { BlogShell } from '../../components/blog/BlogShell';
@@ -48,7 +48,7 @@ const COPY = {
 export default function BlogIndexScreen() {
   const params = useLocalSearchParams<{ category?: string; page?: string }>();
   const lang = useBlogLang();
-  const copy = COPY[lang === 'en' ? 'en' : 'ka'];
+  const copy = lang === 'en' ? COPY.en : COPY.ka;
   const { version: manifestVersion } = useBlogManifestReady();
 
   const [query, setQuery] = useState('');
@@ -70,7 +70,7 @@ export default function BlogIndexScreen() {
   return (
     <BlogShell>
       <BlogSeoHead meta={seo} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <View style={styles.scroll}>
         <View style={styles.hero}>
           <Text style={styles.heroTitle}>{copy.hero}</Text>
           <Text style={styles.heroSub}>{copy.sub}</Text>
@@ -118,7 +118,7 @@ export default function BlogIndexScreen() {
 
         <TryKekeCta title={copy.ctaTitle} subtitle={copy.ctaSub} button={copy.ctaBtn} />
         <NewsletterSignup title={copy.newsletterTitle} subtitle={copy.newsletterSub} lang={lang} />
-      </ScrollView>
+      </View>
     </BlogShell>
   );
 }

@@ -66,6 +66,8 @@ export function LandingHeader({
   onCloseMenus,
 }: Props) {
   const isWide = width >= LANDING_BP.mobileMax;
+  const blogHref =
+    lang === 'ka' ? '/blog' : APP_SYNCED_LANDING_LANGS.has(lang) ? `/blog?lang=${lang}` : '/blog?lang=en';
 
   const handleLangPick = useCallback(
     async (code: LandingLangCode) => {
@@ -110,7 +112,7 @@ export function LandingHeader({
                 </Pressable>
               ))}
               {Platform.OS === 'web' ? (
-                <Link href="/blog" style={sx(styles.navLinkItem, { textDecorationLine: 'none' })}>
+                <Link href={blogHref} style={sx(styles.navLinkItem, { textDecorationLine: 'none' })}>
                   <Text style={sx(isTablet ? styles.navLinkTablet : styles.navLink, landingFont({ fontWeight: '500' }))}>
                     Blog
                   </Text>
@@ -185,7 +187,7 @@ export function LandingHeader({
               </Pressable>
             ))}
             {Platform.OS === 'web' ? (
-              <Link href="/blog" asChild>
+              <Link href={blogHref} asChild>
                 <Pressable style={styles.mobileNavItem} onPress={onCloseMenus}>
                   <Text style={sx(styles.mobileNavItemText, landingFont({ fontWeight: '500' }))}>
                     Blog
