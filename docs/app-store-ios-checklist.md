@@ -125,9 +125,13 @@ Replace `[EMAIL]` / `[PASSWORD]` with real demo accounts before submit. (Already
 # Sync legal docs into app bundle
 npm run legal:sync
 
-# Production web deploy (Netlify auto on push to master)
+# Production web (Cloudflare Pages — auto build on push to master)
 git push origin master
+# Or manual: npx wrangler pages deploy dist --project-name=kekemanager
 
 # iOS production build
-eas build --platform ios --profile production
+npm run build:ios
+npm run submit:ios
 ```
+
+See also: `docs/google-play-checklist.md` for Android / Play Console.

@@ -88,6 +88,25 @@ Optional `eas.json` (fill after creating the app in ASC):
 }
 ```
 
+## 7. Web deploy (Cloudflare Pages)
+
+Privacy Policy URL must be live before App Store submit.
+
+```powershell
+git push origin master
+```
+
+Cloudflare builds `npm run build` and publishes `dist/`. Or manual:
+
+```powershell
+npm run build
+npx wrangler pages deploy dist --project-name=kekemanager
+```
+
+Verify: `https://kekemanager.com/legal/privacy-policy`
+
+Android / Play Console: see `docs/google-play-checklist.md`.
+
 ## Troubleshooting
 
 | Error | Fix |
@@ -95,3 +114,4 @@ Optional `eas.json` (fill after creating the app in ASC):
 | Credentials not set up | Run step 2 interactively |
 | Bundle ID not registered | Create app in App Store Connect with `com.akuna.kekemanager` |
 | Push capability | EAS enables during credential setup; ensure notifications plugin in `app.json` |
+| Privacy URL 404 | Wait for Cloudflare deploy Success after `git push` |

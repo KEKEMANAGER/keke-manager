@@ -51,7 +51,18 @@ yarn-error.*
 
 # Local build artifacts
 build-*.log
+full-build.log
 verbose-build.log
+build-blog-out.txt
+build-log*.txt
+bundle-debug-err.txt
 dist-test/
+dist-test*/
+lighthouse-mobile*.json
+prod-index.html
+expo-connect-qr.png
+git-*-out.txt
+sb-err.txt
+sb-out.txt
 stdout
 supabase/.temp/
