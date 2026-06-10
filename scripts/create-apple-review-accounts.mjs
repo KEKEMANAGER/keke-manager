@@ -136,6 +136,10 @@ async function ensureDriverVehicle(driverId) {
   if (error) {
     throw new Error(`vehicle insert: ${error.message} (${error.code}) ${error.details ?? ''}`);
   }
+  return data.id;
+}
+
+async function ensureSampleTourBooking(companyId, driverId, vehicleId) {
   const tag = 'APPLE-REVIEW-TOUR';
   const { data: existing } = await admin
     .from('bookings')
