@@ -134,7 +134,7 @@
   "profilePage": {
     "title": "Профиль",
     "personalInfo": "Личная информация",
-    "fullName": "ФИО",
+    "fullName": "Полное имя и фамилия",
     "phone": "Телефон",
     "bio": "О себе",
     "languages": "Языки",
@@ -672,7 +672,7 @@
     "passengerCapacityInvalid": "Только цифры",
     "passengerCapacityRange": "Количество мест: от 1 до 100",
     "roleRequired": "Выберите роль",
-    "nameRequired": "Введите имя",
+    "nameRequired": "Введите полное имя и фамилию",
     "emailAlreadyRegistered": "Этот email уже зарегистрирован — перейдите ко входу.",
     "genericInvalid": "Неверные данные или запрос не выполнен.",
     "alertTitle": "Форма не заполнена",
@@ -681,7 +681,7 @@
     "passwordMismatch": "Пароли не совпадают.",
     "fields": {
       "companyName": "название компании",
-      "name": "имя"
+      "name": "полное имя и фамилия"
     },
     "passwordConfirmRequired": "Повторите пароль",
     "cityRequired": "Выберите город"
@@ -722,7 +722,7 @@
     "roleCompany": "Компания",
     "roleCompanyHint": "Туристическая компания",
     "selectRole": "Выберите тип аккаунта",
-    "fullName": "Полное имя",
+    "fullName": "Полное имя и фамилия",
     "companyName": "Название компании",
     "companyEmail": "Email компании",
     "companyPhone": "Телефон компании",

@@ -134,7 +134,7 @@
   "profilePage": {
     "title": "პროფილი",
     "personalInfo": "პირადი ინფორმაცია",
-    "fullName": "სახელი გვარი",
+    "fullName": "სრული სახელი და გვარი",
     "phone": "ტელეფონი",
     "city": "ქალაქი",
     "bio": "ბიო",
@@ -722,7 +722,7 @@
     "passengerCapacityInvalid": "მხოლოდ რიცხვი",
     "passengerCapacityRange": "სავარძლების რაოდენობა 1–100 უნდა იყოს",
     "roleRequired": "აირჩიეთ როლი",
-    "nameRequired": "შეიყვანეთ სახელი",
+    "nameRequired": "შეიყვანეთ სრული სახელი და გვარი",
     "emailAlreadyRegistered": "ეს ელფოსტა უკვე რეგისტრირებულია — გადადით „შესვლაზე“.",
     "genericInvalid": "მონაცემები არასწორია ან მოთხოვნა ვერ შესრულდა.",
     "alertTitle": "შევსება არ არის სრული",
@@ -731,7 +731,7 @@
     "passwordMismatch": "პაროლები არ ემთხვევა.",
     "fields": {
       "companyName": "კომპანიის სახელი",
-      "name": "სახელი"
+      "name": "სრული სახელი და გვარი"
     }
   },
   "authPending": {
@@ -770,7 +770,7 @@
     "roleCompany": "კომპანია",
     "roleCompanyHint": "ტურისტული კომპანია",
     "selectRole": "აირჩიეთ ანგარიშის ტიპი",
-    "fullName": "სრული სახელი",
+    "fullName": "სრული სახელი და გვარი",
     "companyName": "კომპანიის სახელი",
     "companyEmail": "კომპანიის მეილი",
     "companyPhone": "კომპანიის ტელეფონი",

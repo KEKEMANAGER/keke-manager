@@ -136,7 +136,7 @@
   "profilePage": {
     "title": "Profile",
     "personalInfo": "Personal information",
-    "fullName": "Full name",
+    "fullName": "Full name and surname",
     "phone": "Phone",
     "city": "City",
     "bio": "Bio",
@@ -725,7 +725,7 @@
     "passengerCapacityInvalid": "Numbers only",
     "passengerCapacityRange": "Seat capacity must be 1–100",
     "roleRequired": "Select a role",
-    "nameRequired": "Enter name",
+    "nameRequired": "Enter full name and surname",
     "emailAlreadyRegistered": "This email is already registered — go to Sign in.",
     "genericInvalid": "Invalid data or request could not be completed.",
     "alertTitle": "Incomplete form",
@@ -734,7 +734,7 @@
     "passwordMismatch": "Passwords do not match.",
     "fields": {
       "companyName": "company name",
-      "name": "name"
+      "name": "full name and surname"
     }
   },
   "authPending": {
@@ -773,7 +773,7 @@
     "roleCompany": "Company",
     "roleCompanyHint": "Tourism Company",
     "selectRole": "Choose account type",
-    "fullName": "Full name",
+    "fullName": "Full name and surname",
     "companyName": "Company name",
     "companyEmail": "Company email",
     "companyPhone": "Company phone",
