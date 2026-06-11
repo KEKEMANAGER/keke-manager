@@ -74,6 +74,7 @@ export function CompanyBookingVoucherContent({
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [sharing, setSharing] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [voucherMode, setVoucherMode] = useState<VoucherMode>('company');
@@ -90,7 +91,11 @@ export function CompanyBookingVoucherContent({
     );
   }
 
-  const { booking, driver, vehicle, host } = data;
+  const { booking, driver, vehicle, host, company } = data;
+  const viewerId = String(user?.id ?? '').trim();
+  // Driver/host viewer sees the company card instead of their own driver card.
+  const isCompanyViewer = !viewerId || viewerId === String(booking.company_id ?? '').trim();
+  const isHostViewer = !!viewerId && viewerId === String(booking.host_driver_id ?? '').trim();
   const offeredGel = bookingOfferedPriceGel(booking);
   const bookingNumber = formatBookingDisplayNumber(booking.id);
   const voucherCode =
@@ -135,6 +140,22 @@ export function CompanyBookingVoucherContent({
 
   function callPhone(phone: string) {
     void Linking.openURL(`tel:${phone.replace(/\s/g, '')}`);
+  }
+
+  function openCompanyChat() {
+    if (!company) return;
+    router.push({
+      pathname: '/(driver)/chat',
+      params: {
+        uid: company.userId,
+        name: company.name ?? t('companyVoucher.sectionCompany'),
+        bookingId: booking.id,
+        threadType: isHostViewer ? 'company_host' : 'company_driver',
+        senderRole: isHostViewer ? 'host' : 'driver',
+        receiverRole: 'company',
+      },
+    });
+    onClose?.();
   }
 
   return (
@@ -327,7 +348,50 @@ export function CompanyBookingVoucherContent({
           ) : null}
         </View>
 
-        {driver ? (
+        {!isCompanyViewer && company ? (
+          <View style={[styles.card, SHADOWS.card]}>
+            <SectionHeader title={t('companyVoucher.sectionCompany')} />
+            <View style={styles.driverRow}>
+              <UserAvatar name={company.name} uri={company.avatarUrl} size={56} />
+              <View style={styles.driverMeta}>
+                <View style={styles.nameRow}>
+                  <NameWithVerifiedBadge
+                    name={company.name ?? t('companyVoucher.sectionCompany')}
+                    verified={company.isVerified}
+                    textStyle={styles.driverName}
+                  />
+                </View>
+                {company.phone ? (
+                  <Pressable onPress={() => callPhone(company.phone!)}>
+                    <Text style={styles.phoneLink}>{company.phone}</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.metaLine}>{t('companyVoucher.phoneMissing')}</Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.actionRow}>
+              <Pressable
+                onPress={openCompanyChat}
+                style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+              >
+                <Ionicons name="chatbubble-outline" size={16} color={COLORS.black} />
+                <Text style={styles.actionBtnText}>{t('companyVoucher.chatCompany')}</Text>
+              </Pressable>
+              {company.phone ? (
+                <Pressable
+                  onPress={() => callPhone(company.phone!)}
+                  style={({ pressed }) => [styles.actionBtnOutline, pressed && styles.pressed]}
+                >
+                  <Ionicons name="call-outline" size={16} color={COLORS.goldDark} />
+                  <Text style={styles.actionBtnOutlineText}>{t('companyVoucher.callCompany')}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {isCompanyViewer && driver ? (
           <View style={[styles.card, SHADOWS.card]}>
             <SectionHeader title={t('companyVoucher.sectionDriver')} />
             <View style={styles.driverRow}>
@@ -431,7 +495,7 @@ export function CompanyBookingVoucherContent({
           </View>
         ) : null}
 
-        {host ? (
+        {isCompanyViewer && host ? (
           <View style={[styles.card, SHADOWS.card]}>
             <SectionHeader title={t('companyVoucher.sectionHost')} />
             <DetailRow label={t('companyVoucher.hostName')} value={host.fullName ?? '—'} />

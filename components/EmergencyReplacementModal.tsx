@@ -86,7 +86,12 @@ export function EmergencyReplacementModal({
     setLoading(true);
     setError(null);
     setSearched(true);
-    const res = await findAvailableDriversInCity(trimmed, sharedVehicleFilter ?? undefined);
+    // Emergency: search by city (and vehicle type only). Class is validated on assign.
+    const searchFilter =
+      sharedVehicleFilter?.vehicleType != null
+        ? { vehicleType: sharedVehicleFilter.vehicleType }
+        : undefined;
+    const res = await findAvailableDriversInCity(trimmed, searchFilter);
     setLoading(false);
     if (res.error) {
       setDrivers([]);

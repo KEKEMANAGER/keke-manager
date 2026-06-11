@@ -51,11 +51,20 @@ export type CompanyVoucherHost = {
   phone: string | null;
 };
 
+export type CompanyVoucherCompany = {
+  userId: string;
+  name: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+  isVerified: boolean;
+};
+
 export type CompanyVoucherData = {
   booking: BookingRow;
   driver: CompanyVoucherDriver | null;
   vehicle: CompanyVoucherVehicle | null;
   host: CompanyVoucherHost | null;
+  company: CompanyVoucherCompany | null;
 };
 
 type VehicleJoinRow = VehicleRow & {
@@ -286,6 +295,32 @@ async function fetchDriverBlock(
   return { driver, vehicle };
 }
 
+async function fetchCompanyBlock(
+  companyId: string,
+  booking: BookingRow,
+): Promise<CompanyVoucherCompany> {
+  const { data } = await supabase
+    .from('users')
+    .select('full_name, phone, avatar_url, is_verified')
+    .eq('id', companyId)
+    .maybeSingle();
+
+  const u = data as {
+    full_name?: string | null;
+    phone?: string | null;
+    avatar_url?: string | null;
+    is_verified?: boolean | null;
+  } | null;
+
+  return {
+    userId: companyId,
+    name: u?.full_name?.trim() || booking.company_name?.trim() || null,
+    phone: u?.phone?.trim() || null,
+    avatarUrl: u?.avatar_url?.trim() || booking.company_avatar_url?.trim() || null,
+    isVerified: !!u?.is_verified || !!booking.company_is_verified,
+  };
+}
+
 async function fetchHostBlock(hostId: string, booking: BookingRow): Promise<CompanyVoucherHost> {
   const { data } = await supabase
     .from('users')
@@ -312,11 +347,13 @@ export async function fetchCompanyVoucherData(
 
   const [booking] = await enrichBookingsForList([raw]);
   const driverId = trimUserId(booking.driver_id);
+  const companyId = trimUserId(booking.company_id);
   let hostId = trimUserId(booking.host_driver_id);
 
   let driver: CompanyVoucherDriver | null = null;
   let vehicle: CompanyVoucherVehicle | null = null;
   let host: CompanyVoucherHost | null = null;
+  let company: CompanyVoucherCompany | null = null;
 
   if (driverId) {
     const block = await fetchDriverBlock(driverId, booking);
@@ -338,8 +375,12 @@ export async function fetchCompanyVoucherData(
     host = await fetchHostBlock(hostId, booking);
   }
 
+  if (companyId) {
+    company = await fetchCompanyBlock(companyId, booking);
+  }
+
   return {
-    data: { booking, driver, vehicle, host },
+    data: { booking, driver, vehicle, host, company },
     error: null,
   };
 }
@@ -351,7 +392,7 @@ export async function enrichCompanyVoucherFromBooking(
   const res = await fetchCompanyVoucherData(booking.id);
   if (res.data) return { data: res.data, error: null };
   return {
-    data: { booking, driver: null, vehicle: null, host: null },
+    data: { booking, driver: null, vehicle: null, host: null, company: null },
     error: res.error,
   };
 }
