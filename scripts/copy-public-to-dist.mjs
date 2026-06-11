@@ -11,7 +11,7 @@ const publicDir = path.join(root, 'public');
 const distDir = path.join(root, 'dist');
 
 /** Always copied explicitly (fail build if missing). */
-const REQUIRED_FILES = ['logo.webp', 'og-image.jpg', 'llms.txt', 'llms-full.txt', '_redirects', '_headers', '_routes.json'];
+const REQUIRED_FILES = ['logo.webp', 'og-image.jpg', 'llms.txt', 'llms-full.txt', '_redirects', '_headers', '_routes.json', '404.html'];
 
 if (!fs.existsSync(distDir)) {
   console.log('copy-public: dist/ missing, skipping');
