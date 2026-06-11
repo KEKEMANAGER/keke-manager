@@ -33,7 +33,12 @@
         "NSLocationAlwaysUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
         "NSCameraUsageDescription": "KEKE Manager uses the camera for odometer photos at tour start and end, plus profile and vehicle photos.",
         "NSPhotoLibraryUsageDescription": "KEKE needs access to your photo library to upload profile photos, vehicle photos, and verification documents.",
-        "NSUserNotificationsUsageDescription": "KEKE Manager sends booking and driver notifications"
+        "NSUserNotificationsUsageDescription": "KEKE Manager sends booking and driver notifications",
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps",
+          "googlemaps",
+          "waze"
+        ]
       }
     },
     "android": {

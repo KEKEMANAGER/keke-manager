@@ -658,6 +658,7 @@
     "startTour": "Start trip",
     "endTour": "End trip",
     "enableGps": "Enable GPS tracking",
+    "openGpsTracking": "GPS tracking + map",
     "bookingsGateHint": "Hired drivers manage trips from the dashboard only.",
     "goDashboard": "Open dashboard"
   },
@@ -940,7 +941,10 @@
     "bgServiceTitle": "KEKE · GPS active",
     "bgServiceBody": "Sharing your location with the company while the trip is active.",
     "bgPermissionDeniedTitle": "Background location needed",
-    "bgPermissionDeniedBody": "To keep tracking the trip when the app is closed, allow location access \"Always\" in system settings."
+    "bgPermissionDeniedBody": "To keep tracking the trip when the app is closed, allow location access \"Always\" in system settings.",
+    "navigatePickup": "Navigate to pickup",
+    "navigateDestination": "Navigate to destination",
+    "externalNavHint": "The company tracks you on KEKE. Use Google/Apple Maps for directions."
   },
   "tracking": {
     "title": "Driver Tracking",

@@ -19,6 +19,7 @@ import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
 import { FleetDriverPayoutModal } from '../../components/FleetDriverPayoutModal';
 import { BookingPaymentConfirm } from '../../components/BookingPaymentConfirm';
 import { BookingVoucherModal } from '../../components/BookingVoucherModal';
+import { DriverTripNavigationButtons } from '../../components/DriverTripNavigationButtons';
 import { EmptyState } from '../../components/EmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -56,6 +57,7 @@ import {
   type FleetMemberView,
 } from '../../lib/fleet';
 import { parseDriverPayoutInput } from '../../lib/bookingPayout';
+import { hasTripNavigationTargets } from '../../lib/openExternalNavigation';
 import { navigateToTripGps } from '../../lib/tripGpsNavigation';
 import {
   completeTourTripWithOdometer,
@@ -840,6 +842,9 @@ export default function DriverBookingsScreen() {
                   </View>
                 ) : item.status === 'in_progress' ? (
                   <View style={styles.actions}>
+                    {Platform.OS !== 'web' && hasTripNavigationTargets(item) ? (
+                      <DriverTripNavigationButtons booking={item} variant="compact" />
+                    ) : null}
                     <Pressable
                       onPress={() =>
                         isTourBookingKind(item.kind)

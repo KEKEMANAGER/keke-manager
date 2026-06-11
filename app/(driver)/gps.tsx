@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -5,7 +6,8 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { COLORS, SPACING } from '../../constants/theme';
+import { DriverTripNavigationButtons } from '../../components/DriverTripNavigationButtons';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   isBackgroundLocationRunning,
@@ -13,12 +15,34 @@ import {
   stopBackgroundLocation,
 } from '../../lib/backgroundLocation';
 import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
+import { hasTripNavigationTargets, openExternalNavigation, tripNavigationTargets } from '../../lib/openExternalNavigation';
+import { supabase } from '../../lib/supabase';
 
 const TBILISI: Region = {
   latitude: 41.6938,
   longitude: 44.8015,
   latitudeDelta: 0.08,
   longitudeDelta: 0.08,
+};
+
+type TripNavBooking = {
+  from_location: string | null;
+  from_location_type: string | null;
+  to_location: string | null;
+  to_location_type: string | null;
+  transfer_in: {
+    airport?: string;
+    airport_type?: string | null;
+    hotel?: string;
+    hotel_type?: string | null;
+  } | null;
+  transfer_out: {
+    airport?: string;
+    airport_type?: string | null;
+    hotel?: string;
+    hotel_type?: string | null;
+  } | null;
+  tour_days: Array<{ from?: string; to?: string }> | null;
 };
 
 export default function DriverGpsScreen() {
@@ -29,11 +53,36 @@ export default function DriverGpsScreen() {
   const mapRef = useRef<MapView | null>(null);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const autoStartHandledRef = useRef(false);
+  const pickupNavOpenedRef = useRef(false);
 
   const [isTracking, setIsTracking] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
+  const [tripBooking, setTripBooking] = useState<TripNavBooking | null>(null);
+
+  const bookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
+
+  useEffect(() => {
+    if (!bookingId) {
+      setTripBooking(null);
+      return;
+    }
+    let cancelled = false;
+    void supabase
+      .from('bookings')
+      .select(
+        'from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days',
+      )
+      .eq('id', bookingId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setTripBooking(data as TripNavBooking);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId]);
 
   const stopWatch = useCallback(() => {
     if (watchRef.current) {
@@ -66,12 +115,12 @@ export default function DriverGpsScreen() {
   }, [user?.id]);
 
   const startTracking = useCallback(async () => {
-    if (Platform.OS === 'web') return;
-    if (!user?.id) return;
+    if (Platform.OS === 'web') return false;
+    if (!user?.id) return false;
 
     const result = await startBackgroundLocation({
       driverId: user.id,
-      bookingId: params.bookingId ?? null,
+      bookingId: bookingId || null,
       notificationTitle: t('gpsScreen.bgServiceTitle'),
       notificationBody: t('gpsScreen.bgServiceBody'),
     });
@@ -80,7 +129,7 @@ export default function DriverGpsScreen() {
       if (result.reason === 'foreground_denied') {
         Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
       }
-      return;
+      return false;
     }
 
     if (!result.backgroundGranted) {
@@ -89,7 +138,8 @@ export default function DriverGpsScreen() {
 
     setIsTracking(true);
     await attachForegroundWatch();
-  }, [user?.id, params.bookingId, t, attachForegroundWatch]);
+    return true;
+  }, [user?.id, bookingId, t, attachForegroundWatch]);
 
   /** Restore tracking state if background task is already running (e.g. screen re-mounted mid-trip). */
   useEffect(() => {
@@ -117,6 +167,17 @@ export default function DriverGpsScreen() {
     void startTracking();
   }, [params.autoStart, isTracking, startTracking]);
 
+  /** After trip auto-start: open external navigation to pickup (tracking stays in KEKE). */
+  useEffect(() => {
+    if (params.autoStart !== '1') return;
+    if (!isTracking || !tripBooking) return;
+    if (pickupNavOpenedRef.current) return;
+    const { pickup } = tripNavigationTargets(tripBooking);
+    if (!pickup) return;
+    pickupNavOpenedRef.current = true;
+    void openExternalNavigation(pickup);
+  }, [params.autoStart, isTracking, tripBooking]);
+
   useEffect(() => {
     if (!isTracking || !currentLocation || Platform.OS === 'web') return;
     mapRef.current?.animateToRegion({
@@ -143,6 +204,8 @@ export default function DriverGpsScreen() {
       if (error && __DEV__) console.warn('[gps] clearDriverLocation:', error.message);
     }
   }
+
+  const showTripNav = Boolean(tripBooking && hasTripNavigationTargets(tripBooking));
 
   if (Platform.OS === 'web') {
     return (
@@ -176,6 +239,15 @@ export default function DriverGpsScreen() {
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.md }]}>
+        {showTripNav && tripBooking ? (
+          <View style={styles.navCard}>
+            <View style={styles.navHeader}>
+              <Ionicons name="map-outline" size={18} color={COLORS.goldDark} />
+              <Text style={styles.navHeaderText}>{t('gpsScreen.externalNavHint')}</Text>
+            </View>
+            <DriverTripNavigationButtons booking={tripBooking} variant="panel" />
+          </View>
+        ) : null}
         <Pressable
           onPress={() => {
             if (isTracking) {
@@ -257,6 +329,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.sm,
     zIndex: 2,
+  },
+  navCard: {
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  navHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: SPACING.sm,
+  },
+  navHeaderText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.grayLight,
+    lineHeight: 18,
   },
   toggle: {
     borderRadius: 16,

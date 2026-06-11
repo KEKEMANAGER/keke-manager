@@ -889,7 +889,10 @@
     "bgServiceTitle": "KEKE · GPS активен",
     "bgServiceBody": "Во время поездки ваша геолокация передаётся компании.",
     "bgPermissionDeniedTitle": "Нужен доступ к геолокации в фоне",
-    "bgPermissionDeniedBody": "Чтобы отслеживание работало при закрытом приложении, разрешите доступ к геолокации «Всегда» в настройках."
+    "bgPermissionDeniedBody": "Чтобы отслеживание работало при закрытом приложении, разрешите доступ к геолокации «Всегда» в настройках.",
+    "navigatePickup": "Навигация до pickup",
+    "navigateDestination": "Навигация до пункта назначения",
+    "externalNavHint": "Компания видит вас на карте KEKE. Для маршрута используйте Google/Apple Maps."
   },
   "tracking": {
     "title": "Отслеживание водителя",
@@ -1353,6 +1356,7 @@
     "startTour": "Начать тур",
     "endTour": "Завершить тур",
     "enableGps": "Включить GPS",
+    "openGpsTracking": "GPS-трекинг + карта",
     "bookingsGateHint": "Наёмный водитель управляет туром только с панели.",
     "goDashboard": "На панель"
   },

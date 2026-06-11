@@ -655,6 +655,7 @@
     "startTour": "ტურის დაწყება",
     "endTour": "ტურის დასრულება",
     "enableGps": "GPS ჩართვა",
+    "openGpsTracking": "GPS ტრეკინგი + რუკა",
     "bookingsGateHint": "დაქირავებული მძღოლი ტურს მართავს მხოლოდ დეშბორდიდან.",
     "goDashboard": "დეშბორდზე გადასვლა"
   },
@@ -937,7 +938,10 @@
     "bgServiceTitle": "KEKE · GPS აქტიურია",
     "bgServiceBody": "ტურის მიმდინარეობისას შენი პოზიცია გადაეცემა კომპანიას.",
     "bgPermissionDeniedTitle": "საჭიროა ფონური ლოკაცია",
-    "bgPermissionDeniedBody": "რომ აპის დახურვის შემდეგაც გაგრძელდეს ტრეკინგი, პარამეტრებში დართე ლოკაცია „ყოველთვის“."
+    "bgPermissionDeniedBody": "რომ აპის დახურვის შემდეგაც გაგრძელდეს ტრეკინგი, პარამეტრებში დართე ლოკაცია „ყოველთვის“.",
+    "navigatePickup": "ნავიგაცია pickup-მდე",
+    "navigateDestination": "ნავიგაცია დანიშნულებამდე",
+    "externalNavHint": "კომპანია KEKE რუკაზე გიყურებს. მისამართამდე Google/Apple Maps გამოიყენე."
   },
   "tracking": {
     "title": "მძღოლის თვალყურება",

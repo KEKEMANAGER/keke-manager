@@ -19,12 +19,14 @@ import {
   startTourTripWithOdometer,
 } from '../lib/tourTripLifecycle';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import { hasTripNavigationTargets } from '../lib/openExternalNavigation';
 import { navigateToTripGps } from '../lib/tripGpsNavigation';
 import { shareVoucherPDF } from '../lib/voucher';
 import { mapSupabaseError, showErrorAlert } from '../lib/validation';
 import { BookingPaymentConfirm } from './BookingPaymentConfirm';
 import { BookingPriceDisplay } from './BookingPriceDisplay';
 import { BookingChatThreads } from './BookingChatThreads';
+import { DriverTripNavigationButtons } from './DriverTripNavigationButtons';
 
 type Props = {
   booking: BookingRow | null;
@@ -96,6 +98,19 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
   const canStart = booking.status === 'accepted';
   const canComplete = booking.status === 'in_progress';
   const isCompleted = booking.status === 'completed';
+  const showTripNav =
+    Platform.OS !== 'web' && (canStart || canComplete) && hasTripNavigationTargets(booking);
+
+  function openGpsForBooking() {
+    if (canComplete) {
+      navigateToTripGps(router, booking.id);
+      return;
+    }
+    router.push({
+      pathname: '/(driver)/gps',
+      params: { bookingId: booking.id },
+    });
+  }
 
   return (
     <View style={[styles.card, SHADOWS.card]}>
@@ -135,6 +150,14 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
             <Text style={styles.secondaryBtnText}>{t('hiredDriver.endTour')}</Text>
           </Pressable>
         ) : null}
+        {showTripNav ? (
+          <>
+            {canComplete ? (
+              <Text style={styles.navHint}>{t('gpsScreen.externalNavHint')}</Text>
+            ) : null}
+            <DriverTripNavigationButtons booking={booking} variant="compact" />
+          </>
+        ) : null}
         {isCompleted ? (
           <BookingPaymentConfirm
             booking={booking}
@@ -150,11 +173,13 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
         </Pressable>
         {Platform.OS !== 'web' ? (
           <Pressable
-            onPress={() => router.push('/(driver)/gps')}
+            onPress={openGpsForBooking}
             style={({ pressed }) => [styles.gpsBtn, pressed && styles.pressed]}
           >
             <Ionicons name="navigate" size={18} color={COLORS.gold} />
-            <Text style={styles.gpsBtnText}>{t('hiredDriver.enableGps')}</Text>
+            <Text style={styles.gpsBtnText}>
+              {canComplete ? t('hiredDriver.openGpsTracking') : t('hiredDriver.enableGps')}
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -242,6 +267,12 @@ const styles = StyleSheet.create({
   actions: {
     gap: SPACING.sm,
     marginTop: SPACING.lg,
+  },
+  navHint: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 2,
   },
   primaryBtn: {
     backgroundColor: COLORS.gold,
