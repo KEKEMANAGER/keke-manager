@@ -462,6 +462,13 @@ export default function DriverBookingsScreen() {
   async function onAccept(item: BookingRow) {
     if (!user) return;
 
+    // Targeted booking (company picked this driver): personal, can't go to a sub.
+    const targetedDriverId = String(item.driver_id ?? '').trim();
+    if (targetedDriverId && targetedDriverId === user.id) {
+      await acceptAsSelf(item);
+      return;
+    }
+
     const { data: fleetMembers } = await fetchAcceptedFleetMembersForHost(user.id);
     if (fleetMembers.length > 0) {
       showFleetAssignPicker(item, fleetMembers);
