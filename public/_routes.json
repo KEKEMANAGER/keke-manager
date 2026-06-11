@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/_expo/*",
+    "/assets/*",
+    "/favicon.ico",
+    "/logo.webp",
+    "/logo.png",
+    "/og-image.jpg",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/llms.txt",
+    "/llms-full.txt",
+    "/blog/rss.xml"
+  ]
+}

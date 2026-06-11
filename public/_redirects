@@ -14,5 +14,9 @@
 /sign-up/*        /sign-up/:splat   200
 /sign-in/*        /sign-in/:splat   200
 
-# Expo Router SPA
+# Missing build assets must 404 — never serve index.html as JavaScript (MIME error)
+/_expo/*          /                 404
+/assets/*         /                 404
+
+# Expo Router SPA (HTML routes only; static files above take precedence when present)
 /*                /index.html       200
