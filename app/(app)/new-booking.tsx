@@ -41,8 +41,11 @@ import { TransportPlanSection } from '../../components/TransportPlanSection';
 import { createGroupConvoy, type GroupConvoyLegPlan } from '../../lib/groupBooking';
 import {
   legPassengers,
+  legPricesValid,
   newTransportLeg,
+  parseLegPrice,
   sumLegPassengers,
+  sumLegPrices,
   type TransportLegDraft,
 } from '../../lib/transportPlan';
 import { LocationPicker } from '../../components/LocationPicker';
@@ -1040,6 +1043,8 @@ export default function NewBookingScreen() {
         vehicle_type: selectedVehicleType,
         vehicle_class: vehicleClass,
         passengers,
+        price_str: clientPriceStr,
+        commission_str: commissionStr,
         driver_id: driverTargetMode === 'specific' ? selectedDriverId : null,
         driver_name: picked?.full_name ?? null,
       }),
@@ -1052,8 +1057,22 @@ export default function NewBookingScreen() {
     selectedVehicleType,
     vehicleClass,
     passengers,
+    clientPriceStr,
+    commissionStr,
     driverTargetMode,
   ]);
+
+  const setLargeGroupMode = useCallback(
+    (enabled: boolean) => {
+      if (enabled) {
+        enableMultiVehicle();
+      } else {
+        setMultiVehicle(false);
+        setTransportLegs([]);
+      }
+    },
+    [enableMultiVehicle],
+  );
 
   const pax = multiVehicle
     ? Math.max(1, sumLegPassengers(transportLegs))
@@ -1067,7 +1086,15 @@ export default function NewBookingScreen() {
     () => parseAmountGeorgian(clientPriceStr),
     [clientPriceStr],
   );
-  const driverOfferGel = offeredGelParsed > 0 ? offeredGelParsed : estimateGel;
+  const multiTotalPriceGel = useMemo(
+    () => (multiVehicle ? sumLegPrices(transportLegs) : 0),
+    [multiVehicle, transportLegs],
+  );
+  const driverOfferGel = multiVehicle
+    ? multiTotalPriceGel
+    : offeredGelParsed > 0
+      ? offeredGelParsed
+      : estimateGel;
   const commissionGelPreview = useMemo(
     () =>
       booking_kind === 'transfer' && offeredGelParsed > 0
@@ -1223,8 +1250,11 @@ export default function NewBookingScreen() {
         if (legPassengers(leg) < 1) {
           return t('newBooking.validation.passengers');
         }
+        if (parseLegPrice(leg.price_str) <= 0) {
+          return t('transportPlan.legPriceRequired');
+        }
       }
-      if (offeredGelParsed <= 0) {
+      if (!legPricesValid(transportLegs)) {
         return t('newBooking.validation.offeredPrice');
       }
       return validateStep2();
@@ -1440,18 +1470,39 @@ export default function NewBookingScreen() {
     let error: Error | null = null;
 
     if (multiVehicle && transportLegs.length >= 2) {
-      const legs: GroupConvoyLegPlan[] = transportLegs.map((row, i) => ({
-        legIndex: i + 1,
-        passengers: legPassengers(row),
-        vehicle_type: row.vehicle_type,
-        vehicle_class: row.vehicle_class,
-        driver_id: row.driver_id,
-      }));
+      const legs: GroupConvoyLegPlan[] = transportLegs.map((row, i) => {
+        const legPrice = parseLegPrice(row.price_str);
+        const legCommission =
+          booking_kind === 'transfer' && row.commission_str.trim()
+            ? commissionGelAmount(legPrice, row.commission_str, commissionMode)
+            : null;
+        return {
+          legIndex: i + 1,
+          passengers: legPassengers(row),
+          vehicle_type: row.vehicle_type,
+          vehicle_class: row.vehicle_class,
+          driver_id: row.driver_id,
+          price_gel: legPrice,
+          client_price: legPrice,
+          commission: legCommission,
+        };
+      });
       const totalPax = sumLegPassengers(transportLegs);
+      const convoyTotalPrice = legs.reduce((sum, leg) => sum + (leg.price_gel ?? 0), 0);
+      const convoyTotalCommission =
+        booking_kind === 'transfer'
+          ? legs.reduce((sum, leg) => sum + (leg.commission ?? 0), 0)
+          : null;
       const convoy = await createGroupConvoy(
         {
           ...insertPayload,
           passengers: totalPax,
+          client_price: convoyTotalPrice,
+          price_gel: convoyTotalPrice,
+          commission:
+            convoyTotalCommission != null && convoyTotalCommission > 0
+              ? convoyTotalCommission
+              : null,
           driver_id: null,
           vehicle_id: null,
         },
@@ -1502,7 +1553,10 @@ export default function NewBookingScreen() {
       multiVehicle={multiVehicle}
       legs={transportLegs}
       onLegsChange={setTransportLegs}
-      onEnableMulti={enableMultiVehicle}
+      onMultiVehicleChange={setLargeGroupMode}
+      showLegCommission={booking_kind === 'transfer'}
+      commissionMode={commissionMode}
+      onCommissionModeChange={setCommissionMode}
       passengers={passengers}
       onPassengersChange={setPassengers}
       selectedVehicleType={selectedVehicleType}
@@ -1671,53 +1725,62 @@ export default function NewBookingScreen() {
               disabled={submitting}
             />
 
-            <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
-            <AuthInput
-              label={t('newBooking.form.clientPrice')}
-              value={clientPriceStr}
-              onChangeText={setClientPriceStr}
-              keyboardType="decimal-pad"
-              placeholder={t('newBooking.form.placeholders.zero')}
-            />
-            <Text style={styles.fieldLabel}>{t('newBooking.form.commission')}</Text>
-            <View style={styles.chips}>
-              <Pressable
-                onPress={() => setCommissionMode('gel')}
-                style={[styles.chip, commissionMode === 'gel' && styles.chipActive]}
-              >
-                <Text style={[styles.chipText, commissionMode === 'gel' && styles.chipTextActive]}>
-                  ₾
+            {!multiVehicle ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+                <AuthInput
+                  label={t('newBooking.form.clientPrice')}
+                  value={clientPriceStr}
+                  onChangeText={setClientPriceStr}
+                  keyboardType="decimal-pad"
+                  placeholder={t('newBooking.form.placeholders.zero')}
+                />
+                <Text style={styles.fieldLabel}>{t('newBooking.form.commission')}</Text>
+                <View style={styles.chips}>
+                  <Pressable
+                    onPress={() => setCommissionMode('gel')}
+                    style={[styles.chip, commissionMode === 'gel' && styles.chipActive]}
+                  >
+                    <Text
+                      style={[styles.chipText, commissionMode === 'gel' && styles.chipTextActive]}
+                    >
+                      ₾
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setCommissionMode('percent')}
+                    style={[styles.chip, commissionMode === 'percent' && styles.chipActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        commissionMode === 'percent' && styles.chipTextActive,
+                      ]}
+                    >
+                      %
+                    </Text>
+                  </Pressable>
+                </View>
+                <AuthInput
+                  label={
+                    commissionMode === 'gel'
+                      ? t('newBooking.form.commissionGel')
+                      : t('newBooking.form.commissionPct')
+                  }
+                  value={commissionStr}
+                  onChangeText={setCommissionStr}
+                  keyboardType="decimal-pad"
+                  placeholder={
+                    commissionMode === 'gel'
+                      ? t('newBooking.form.placeholders.zero')
+                      : t('newBooking.form.placeholders.commissionPctExample')
+                  }
+                />
+                <Text style={styles.driverPayNote}>
+                  {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
                 </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setCommissionMode('percent')}
-                style={[styles.chip, commissionMode === 'percent' && styles.chipActive]}
-              >
-                <Text
-                  style={[styles.chipText, commissionMode === 'percent' && styles.chipTextActive]}
-                >
-                  %
-                </Text>
-              </Pressable>
-            </View>
-            <AuthInput
-              label={
-                commissionMode === 'gel'
-                  ? t('newBooking.form.commissionGel')
-                  : t('newBooking.form.commissionPct')
-              }
-              value={commissionStr}
-              onChangeText={setCommissionStr}
-              keyboardType="decimal-pad"
-              placeholder={
-                commissionMode === 'gel'
-                  ? t('newBooking.form.placeholders.zero')
-                  : t('newBooking.form.placeholders.commissionPctExample')
-              }
-            />
-            <Text style={styles.driverPayNote}>
-              {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
-            </Text>
+              </>
+            ) : null}
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
@@ -1785,17 +1848,21 @@ export default function NewBookingScreen() {
               disabled={submitting}
             />
 
-            <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
-            <AuthInput
-              label={t('newBooking.form.clientPrice')}
-              value={clientPriceStr}
-              onChangeText={setClientPriceStr}
-              keyboardType="decimal-pad"
-              placeholder={t('newBooking.form.placeholders.zero')}
-            />
-            <Text style={styles.driverPayNote}>
-              {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
-            </Text>
+            {!multiVehicle ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+                <AuthInput
+                  label={t('newBooking.form.clientPrice')}
+                  value={clientPriceStr}
+                  onChangeText={setClientPriceStr}
+                  keyboardType="decimal-pad"
+                  placeholder={t('newBooking.form.placeholders.zero')}
+                />
+                <Text style={styles.driverPayNote}>
+                  {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
+                </Text>
+              </>
+            ) : null}
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
@@ -1959,17 +2026,21 @@ export default function NewBookingScreen() {
               disabled={submitting}
             />
 
-            <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
-            <AuthInput
-              label={t('newBooking.form.clientPrice')}
-              value={clientPriceStr}
-              onChangeText={setClientPriceStr}
-              keyboardType="decimal-pad"
-              placeholder={t('newBooking.form.placeholders.zero')}
-            />
-            <Text style={styles.driverPayNote}>
-              {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
-            </Text>
+            {!multiVehicle ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+                <AuthInput
+                  label={t('newBooking.form.clientPrice')}
+                  value={clientPriceStr}
+                  onChangeText={setClientPriceStr}
+                  keyboardType="decimal-pad"
+                  placeholder={t('newBooking.form.placeholders.zero')}
+                />
+                <Text style={styles.driverPayNote}>
+                  {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
+                </Text>
+              </>
+            ) : null}
 
             <Text style={styles.sectionHeader}>{t('newBooking.form.note')}</Text>
             <AuthInput
@@ -1984,9 +2055,15 @@ export default function NewBookingScreen() {
         {step === 3 && (
           <View style={styles.block}>
             <View style={styles.priceBox}>
-              <Text style={styles.priceLabel}>{t('newBooking.form.offeredPriceDriver')}</Text>
+              <Text style={styles.priceLabel}>
+                {multiVehicle
+                  ? t('transportPlan.totalPriceLabel')
+                  : t('newBooking.form.offeredPriceDriver')}
+              </Text>
               <Text style={styles.priceBig}>{formatGel(driverOfferGel)}</Text>
-              {offeredGelParsed <= 0 ? (
+              {multiVehicle ? (
+                <Text style={styles.priceNote}>{t('transportPlan.step3MultiPriceHint')}</Text>
+              ) : offeredGelParsed <= 0 ? (
                 <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceRequiredHint')}</Text>
               ) : (
                 <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceSameNote')}</Text>
@@ -2020,12 +2097,26 @@ export default function NewBookingScreen() {
                 {t('newBooking.form.voucherType')}: {bookingKindUiLabel(booking_kind, transferTab)}
               </Text>
               {multiVehicle && transportLegs.length >= 2 ? (
-                <Text style={styles.vLine}>
-                  {t('transportPlan.voucherMulti', {
-                    count: transportLegs.length,
-                    total: sumLegPassengers(transportLegs),
-                  })}
-                </Text>
+                <>
+                  <Text style={styles.vLine}>
+                    {t('transportPlan.voucherMulti', {
+                      count: transportLegs.length,
+                      total: sumLegPassengers(transportLegs),
+                    })}
+                  </Text>
+                  {transportLegs.map((leg, index) => (
+                    <Text key={leg.id} style={styles.vLineMuted}>
+                      {t('transportPlan.voucherLegLine', {
+                        n: index + 1,
+                        type: vehicleTypeLabel(leg.vehicle_type),
+                        vehicleClass: vehicleClassLabel(leg.vehicle_class),
+                        pax: legPassengers(leg),
+                        price: formatGel(parseLegPrice(leg.price_str)),
+                        driver: leg.driver_name ?? t('transportPlan.driverBroadcast'),
+                      })}
+                    </Text>
+                  ))}
+                </>
               ) : (
                 <>
                   <Text style={styles.vLine}>

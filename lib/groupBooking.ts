@@ -24,6 +24,8 @@ export type GroupConvoyLegPlan = {
   vehicle_class: VehicleClassCode;
   driver_id?: string | null;
   price_gel?: number;
+  client_price?: number;
+  commission?: number | null;
 };
 
 export type GroupConvoyLegSummary = {
@@ -155,7 +157,7 @@ function masterToLegInsert(
   const totalPax = master.passengers;
   const price =
     leg.price_gel ??
-    proportionalPrice(master.price_gel, leg.passengers, totalPax);
+    proportionalPrice(master.price_gel ?? 0, leg.passengers, totalPax);
   return {
     ...master,
     passengers: leg.passengers,
@@ -163,6 +165,8 @@ function masterToLegInsert(
     vehicle_class: leg.vehicle_class,
     driver_id: leg.driver_id ?? null,
     price_gel: price,
+    client_price: leg.client_price ?? price,
+    commission: leg.commission ?? null,
     parent_booking_id: masterRow.id,
     leg_index: leg.legIndex,
     group_code: groupCode,

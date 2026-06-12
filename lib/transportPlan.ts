@@ -5,9 +5,20 @@ export type TransportLegDraft = {
   vehicle_type: VehicleTypeCode;
   vehicle_class: VehicleClassCode;
   passengers: string;
+  /** Driver / client offer for this vehicle (GEL). */
+  price_str: string;
+  /** Transfer commission for this vehicle (GEL or % — see wizard commission mode). */
+  commission_str: string;
   driver_id: string | null;
   driver_name: string | null;
 };
+
+export function parseLegPrice(raw: string): number {
+  const t = String(raw).trim().replace(/\s/g, '').replace(',', '.');
+  if (!t) return 0;
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function newTransportLegId(): string {
   return `leg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -19,10 +30,20 @@ export function newTransportLeg(overrides?: Partial<TransportLegDraft>): Transpo
     vehicle_type: 'bus',
     vehicle_class: 'comfort',
     passengers: '1',
+    price_str: '',
+    commission_str: '',
     driver_id: null,
     driver_name: null,
     ...overrides,
   };
+}
+
+export function sumLegPrices(legs: TransportLegDraft[]): number {
+  return legs.reduce((sum, leg) => sum + parseLegPrice(leg.price_str), 0);
+}
+
+export function legPricesValid(legs: TransportLegDraft[]): boolean {
+  return legs.length >= 2 && legs.every((leg) => parseLegPrice(leg.price_str) > 0);
 }
 
 export function sumLegPassengers(legs: TransportLegDraft[]): number {
