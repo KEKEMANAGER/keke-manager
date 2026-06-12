@@ -590,8 +590,8 @@ export default function CompanyDashboardScreen() {
                   }
                   style={styles.convoyDispatchBtn}
                 >
-                  <Ionicons name="git-network-outline" size={16} color={COLORS.white} />
-                  <Text style={styles.convoyDispatchText}>{t('groupConvoy.openDispatch')}</Text>
+                  <Ionicons name="people-outline" size={16} color={COLORS.white} />
+                  <Text style={styles.convoyDispatchText}>{t('groupConvoy.manageDrivers')}</Text>
                 </Pressable>
               </View>
             ) : (

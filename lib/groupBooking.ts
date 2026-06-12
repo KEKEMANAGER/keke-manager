@@ -34,8 +34,36 @@ export type GroupConvoyLegSummary = {
   completedLegs: number;
 };
 
+export const DEFAULT_BUS_SEATS = 49;
+
 export function generateGroupCode(): string {
   return `GRP-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+}
+
+/** How many buses needed for total passengers (49 seats each by default). */
+export function suggestVehicleCount(
+  totalPassengers: number,
+  seatsPerVehicle = DEFAULT_BUS_SEATS,
+): number {
+  const pax = Math.max(1, Math.floor(totalPassengers));
+  const seats = Math.max(1, Math.floor(seatsPerVehicle));
+  return Math.max(1, Math.ceil(pax / seats));
+}
+
+/** One-click convoy legs: bus + comfort, even passenger split. */
+export function buildSimpleConvoyLegs(
+  totalPassengers: number,
+  vehicleCount: number,
+  vehicleType: VehicleTypeCode = 'bus',
+  vehicleClass: VehicleClassCode = 'comfort',
+): GroupConvoyLegPlan[] {
+  const counts = splitPassengersEvenly(totalPassengers, vehicleCount);
+  return counts.map((pax, i) => ({
+    legIndex: i + 1,
+    passengers: pax,
+    vehicle_type: vehicleType,
+    vehicle_class: vehicleClass,
+  }));
 }
 
 /** Split total passengers across N legs as evenly as possible. */
@@ -148,7 +176,13 @@ function masterToLegInsert(
 export async function createGroupConvoy(
   master: InsertBookingInput,
   legs: GroupConvoyLegPlan[],
-): Promise<{ masterId?: string; legIds: string[]; error: Error | null }> {
+  opts?: { autoBroadcast?: boolean },
+): Promise<{
+  masterId?: string;
+  legIds: string[];
+  broadcastCount?: number;
+  error: Error | null;
+}> {
   if (legs.length === 0) {
     return { legIds: [], error: new Error('At least one leg is required') };
   }
@@ -187,7 +221,13 @@ export async function createGroupConvoy(
     legIds.push(legId);
   }
 
-  return { masterId, legIds, error: null };
+  let broadcastCount = 0;
+  if (opts?.autoBroadcast !== false && masterId) {
+    const { count } = await broadcastOpenLegs(masterId, master.company_id);
+    broadcastCount = count;
+  }
+
+  return { masterId, legIds, broadcastCount, error: null };
 }
 
 export async function assignDriverToLeg(
