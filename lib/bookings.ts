@@ -1268,52 +1268,110 @@ export async function completeBooking(bookingRowId: string, driverUserId: string
   if (!isBookingRowUuid(rowId)) {
     return { ok: false as const, error: new Error('invalid booking id') };
   }
-  const drv = trimUserId(driverUserId);
-  if (!drv) {
+  const uid = trimUserId(driverUserId);
+  if (!uid) {
     return { ok: false as const, error: new Error('მძღოლის id არ არის') };
   }
 
-  const { data: beforeRow } = await supabase
+  const { data: beforeRow, error: fetchErr } = await supabase
     .from('bookings')
-    .select('host_driver_id, driver_display_name, route, from_location, to_location')
+    .select(
+      'status, driver_id, host_driver_id, driver_display_name, route, from_location, to_location',
+    )
     .eq('id', rowId)
     .maybeSingle();
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({ status: 'completed' })
-    .eq('id', rowId)
-    .eq('status', 'in_progress')
-    .eq('driver_id', drv)
-    .select('id')
-    .maybeSingle();
-  if (error) return { ok: false as const, error };
-  if (data) {
-    void releaseDriverScheduleForBooking(rowId);
-    const row = beforeRow as {
-      host_driver_id?: string | null;
-      driver_display_name?: string | null;
-      route?: string | null;
-      from_location?: string | null;
-      to_location?: string | null;
-    } | null;
-    const hostId = trimUserId(row?.host_driver_id ?? '');
-    if (hostId) {
-      const routeLine =
-        row?.route?.trim() ||
-        [row?.from_location, row?.to_location].filter((x) => x?.trim()).join(' → ') ||
-        '';
-      void notifyHostTourCompleted({
-        hostDriverId: hostId,
-        bookingId: rowId,
-        driverName: row?.driver_display_name?.trim() || undefined,
-        routeSummary: routeLine || undefined,
-      });
+  if (fetchErr) return { ok: false as const, error: fetchErr };
+  if (!beforeRow) {
+    return { ok: false as const, error: new Error('ჯავშანი ვერ მოიძებნა') };
+  }
+
+  const row = beforeRow as {
+    status?: string;
+    driver_id?: string | null;
+    host_driver_id?: string | null;
+    driver_display_name?: string | null;
+    route?: string | null;
+    from_location?: string | null;
+    to_location?: string | null;
+  };
+
+  const status = String(row.status ?? '').toLowerCase();
+  if (status === 'accepted' || status === 'confirmed') {
+    return { ok: false as const, error: new Error('ჯერ დაიწყეთ რეისი — შემდეგ დაასრულეთ') };
+  }
+  if (status !== 'in_progress') {
+    return {
+      ok: false as const,
+      error: new Error('ჯავშანის დასრულება ხელმისაწვდომია მხოლოდ „გზაში“ სტატუსში'),
+    };
+  }
+
+  const driverId = trimUserId(row.driver_id ?? '');
+  const hostId = trimUserId(row.host_driver_id ?? '');
+  if (driverId !== uid && hostId !== uid) {
+    return { ok: false as const, error: new Error('ეს ჯავშანი თქვენზე არ არის მინიჭებული') };
+  }
+
+  const { data: rpcOk, error: rpcError } = await supabase.rpc(
+    'complete_in_progress_booking_as_driver',
+    { p_booking_id: rowId },
+  );
+
+  let completedId: string | null = null;
+
+  if (!rpcError && rpcOk === true) {
+    completedId = rowId;
+  } else {
+    if (rpcError) {
+      const missingRpc =
+        rpcError.message.includes('complete_in_progress_booking_as_driver') ||
+        rpcError.code === 'PGRST202';
+      if (!missingRpc) {
+        if (__DEV__) {
+          console.warn('[completeBooking] rpc:', rpcError.message, { rowId });
+        }
+        return { ok: false as const, error: rpcError };
+      }
+      if (__DEV__) {
+        console.warn('[completeBooking] rpc missing, falling back to direct update');
+      }
     }
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ status: 'completed' })
+      .eq('id', rowId)
+      .eq('status', 'in_progress')
+      .select('id')
+      .maybeSingle();
+    if (error) return { ok: false as const, error };
+    completedId = data?.id ?? null;
   }
-  if (!data) {
-    return { ok: false as const, error: new Error('ჯავშანის დასრულება ხელმისაწვდომია მხოლოდ „გზაში“ სტატუსში') };
+
+  if (!completedId) {
+    return {
+      ok: false as const,
+      error: new Error(
+        'დასრულება ვერ მოხერხდა — Supabase SQL Editor-ში გაუშვით migration complete_in_progress_booking_as_driver',
+      ),
+    };
   }
+
+  void releaseDriverScheduleForBooking(rowId);
+  if (hostId) {
+    const routeLine =
+      row.route?.trim() ||
+      [row.from_location, row.to_location].filter((x) => x?.trim()).join(' → ') ||
+      '';
+    void notifyHostTourCompleted({
+      hostDriverId: hostId,
+      bookingId: rowId,
+      driverName: row.driver_display_name?.trim() || undefined,
+      routeSummary: routeLine || undefined,
+    });
+  }
+
   return { ok: true as const, error: null };
 }
 

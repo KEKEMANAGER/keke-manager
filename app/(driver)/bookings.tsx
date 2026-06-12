@@ -19,7 +19,6 @@ import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
 import { FleetDriverPayoutModal } from '../../components/FleetDriverPayoutModal';
 import { BookingPaymentConfirm } from '../../components/BookingPaymentConfirm';
 import { BookingVoucherModal } from '../../components/BookingVoucherModal';
-import { DriverTripNavigationButtons } from '../../components/DriverTripNavigationButtons';
 import { EmptyState } from '../../components/EmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -57,7 +56,6 @@ import {
   type FleetMemberView,
 } from '../../lib/fleet';
 import { parseDriverPayoutInput } from '../../lib/bookingPayout';
-import { hasTripNavigationTargets } from '../../lib/openExternalNavigation';
 import { navigateToTripGps } from '../../lib/tripGpsNavigation';
 import {
   completeTourTripWithOdometer,
@@ -703,7 +701,7 @@ export default function DriverBookingsScreen() {
           contentContainerStyle={[
             styles.list,
             data.length === 0 && styles.listEmpty,
-            { paddingBottom: insets.bottom + SPACING.xl + 72 },
+            { paddingBottom: insets.bottom + SPACING.xl + 96 },
           ]}
           refreshControl={
             <RefreshControl
@@ -745,6 +743,21 @@ export default function DriverBookingsScreen() {
               <Text style={styles.date}>{formatBookingDate(item)}</Text>
               <Text style={styles.route}>{routeSummary(item)}</Text>
               <BookingChangedBadge booking={item} onAcknowledged={() => void load('silent')} />
+
+              {item.status === 'in_progress' ? (
+                <Pressable
+                  onPress={() => void onComplete(item)}
+                  disabled={actingId === item.id}
+                  style={({ pressed }) => [styles.completeBtnFull, pressed && styles.pressed]}
+                >
+                  {actingId === item.id ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
+                  )}
+                </Pressable>
+              ) : null}
+
               {item.status === 'accepted' &&
               (isDriverOneHourConfirmed(item) || canDriverConfirmUpcomingBooking(item)) ? (
                 <View style={styles.confirmRow}>
@@ -772,13 +785,7 @@ export default function DriverBookingsScreen() {
                 <Text style={styles.voucherBtnText}>📄 {t('common.voucher')}</Text>
               </Pressable>
 
-              {item.status === 'in_progress' &&
-              Platform.OS !== 'web' &&
-              hasTripNavigationTargets(item) ? (
-                <DriverTripNavigationButtons booking={item} variant="compact" />
-              ) : null}
-
-              <View style={styles.footer}>
+              <View style={[styles.footer, item.status === 'in_progress' && styles.footerInProgress]}>
                 {userId ? (
                   <BookingPriceDisplay booking={item} viewerUserId={userId} />
                 ) : (
@@ -856,29 +863,6 @@ export default function DriverBookingsScreen() {
                   />
                 ) : null}
               </View>
-
-              {item.status === 'in_progress' ? (
-                <Pressable
-                  onPress={() =>
-                    isTourBookingKind(item.kind)
-                      ? void onComplete(item)
-                      : crossAlert(
-                          t('bookings.completeTitle'),
-                          t('bookings.completeMessage'),
-                          () => void onComplete(item),
-                          t('bookings.complete'),
-                        )
-                  }
-                  disabled={actingId === item.id}
-                  style={({ pressed }) => [styles.completeBtnFull, pressed && styles.pressed]}
-                >
-                  {actingId === item.id ? (
-                    <ActivityIndicator color={COLORS.white} size="small" />
-                  ) : (
-                    <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
-                  )}
-                </Pressable>
-              ) : null}
             </View>
           )}
         />
@@ -1121,6 +1105,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  footerInProgress: {
+    marginTop: SPACING.sm,
+  },
   price: {
     color: COLORS.goldLight,
     fontSize: 20,
@@ -1132,13 +1119,16 @@ const styles = StyleSheet.create({
   },
   completeBtnFull: {
     marginTop: SPACING.sm,
-    paddingVertical: 12,
+    marginBottom: SPACING.sm,
+    paddingVertical: 16,
     paddingHorizontal: SPACING.md,
     borderRadius: 12,
     backgroundColor: COLORS.gold,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'stretch',
     width: '100%',
+    minHeight: 48,
   },
   btnGhost: {
     paddingVertical: 10,
