@@ -85,6 +85,17 @@ export async function fetchAdminVerificationQueue(): Promise<{
   return { data: withVehicle, error: null };
 }
 
+/** Pending KYC count for admin verify badge. */
+export async function fetchAdminVerificationQueueCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('users')
+    .select('*', { count: 'exact', head: true })
+    .in('verification_status', ['pending', 'submitted']);
+
+  if (error) return 0;
+  return count ?? 0;
+}
+
 function bustUrl(url: string | null | undefined): string | null {
   if (!url?.trim()) return null;
   return withCacheBust(url.trim()) ?? url.trim();

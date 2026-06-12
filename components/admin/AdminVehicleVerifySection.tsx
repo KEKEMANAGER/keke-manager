@@ -22,7 +22,13 @@ import {
 } from '../../lib/vehicleVerification';
 import { adminStyles } from './adminStyles';
 
-export function AdminVehicleVerifySection({ searchQuery = '' }: { searchQuery?: string }) {
+export function AdminVehicleVerifySection({
+  searchQuery = '',
+  onQueueCountChange,
+}: {
+  searchQuery?: string;
+  onQueueCountChange?: (count: number) => void;
+}) {
   const { t } = useTranslation();
   const [rows, setRows] = useState<AdminVehicleVerificationRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,10 +48,12 @@ export function AdminVehicleVerifySection({ searchQuery = '' }: { searchQuery?: 
     if (err) {
       setError(err.message);
       setRows([]);
+      onQueueCountChange?.(0);
       return;
     }
     setRows(data);
-  }, []);
+    onQueueCountChange?.(data.length);
+  }, [onQueueCountChange]);
 
   useFocusEffect(
     useCallback(() => {
@@ -152,7 +160,6 @@ export function AdminVehicleVerifySection({ searchQuery = '' }: { searchQuery?: 
 
   return (
     <>
-      <Text style={styles.sectionHeading}>{t('adminVehicleVerify.sectionTitle')}</Text>
       {error ? (
         <View style={adminStyles.errBox}>
           <Text style={adminStyles.errText}>{error}</Text>
@@ -248,13 +255,6 @@ export function AdminVehicleVerifySection({ searchQuery = '' }: { searchQuery?: 
 }
 
 const styles = StyleSheet.create({
-  sectionHeading: {
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: '800',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.md,
-  },
   docGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

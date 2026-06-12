@@ -1107,6 +1107,8 @@
     "panelEntry": "Admin panel",
     "tabUsers": "Users",
     "tabVerify": "Verification",
+    "verifySubTabDrivers": "Drivers",
+    "verifySubTabVehicles": "Vehicles",
     "tabChats": "Chats",
     "tabBookings": "Bookings",
     "tabGps": "GPS map",

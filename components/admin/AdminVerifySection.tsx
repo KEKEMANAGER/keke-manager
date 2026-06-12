@@ -34,15 +34,13 @@ function idDocSlotsForUser(u: AdminVerificationUser): DocSlot[] {
   }));
 }
 
-const VEHICLE_PHOTO_SLOTS: DocSlot[] = [
-  { key: 'vehicle_front', labelKey: 'vehicleScreen.photoFront' },
-  { key: 'vehicle_left', labelKey: 'vehicleScreen.photoLeft' },
-  { key: 'vehicle_right', labelKey: 'vehicleScreen.photoRight' },
-  { key: 'vehicle_interior', labelKey: 'vehicleScreen.photoInterior' },
-  { key: 'vehicle_rear', labelKey: 'vehicleScreen.photoRear' },
-];
-
-export function AdminVerifySection({ searchQuery = '' }: { searchQuery?: string }) {
+export function AdminVerifySection({
+  searchQuery = '',
+  onQueueCountChange,
+}: {
+  searchQuery?: string;
+  onQueueCountChange?: (count: number) => void;
+}) {
   const { t } = useTranslation();
   const [rows, setRows] = useState<AdminVerificationUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,10 +59,12 @@ export function AdminVerifySection({ searchQuery = '' }: { searchQuery?: string 
     if (err) {
       setError(err.message);
       setRows([]);
+      onQueueCountChange?.(0);
       return;
     }
     setRows(data);
-  }, []);
+    onQueueCountChange?.(data.length);
+  }, [onQueueCountChange]);
 
   useFocusEffect(
     useCallback(() => {
@@ -258,33 +258,6 @@ export function AdminVerifySection({ searchQuery = '' }: { searchQuery?: string 
                   <View style={styles.docGrid}>
                     {idDocSlotsForUser(u).map((slot) => renderDocButton(u, slot))}
                   </View>
-                  {!u.is_hired_driver ? (
-                    <>
-                      <Text style={styles.sectionLabel}>{t('adminVerify.vehiclePhotos')}</Text>
-                      <View style={styles.docGrid}>
-                        {VEHICLE_PHOTO_SLOTS.map((slot) => renderDocButton(u, slot))}
-                      </View>
-                      <View style={styles.thumbRow}>
-                        {VEHICLE_PHOTO_SLOTS.map((slot) => {
-                          const url = documentUrlFor(u, slot.key);
-                          return url ? (
-                            <Pressable
-                              key={slot.key}
-                              onPress={() => setPreview({ url, title: t(slot.labelKey) })}
-                            >
-                              <Image
-                                source={{ uri: url }}
-                                style={styles.thumb}
-                                resizeMode="cover"
-                              />
-                            </Pressable>
-                          ) : (
-                            <View key={slot.key} style={[styles.thumb, styles.thumbPh]} />
-                          );
-                        })}
-                      </View>
-                    </>
-                  ) : null}
                 </>
               ) : null}
               <View style={adminStyles.btnRow}>
@@ -416,19 +389,6 @@ const styles = StyleSheet.create({
   },
   docBtnHint: { color: COLORS.gold, fontSize: 11, fontWeight: '600' },
   docBtnTextDisabled: { color: COLORS.textMuted },
-  thumbRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: SPACING.md,
-  },
-  thumb: {
-    width: 56,
-    height: 42,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceAlt,
-  },
-  thumbPh: { borderWidth: 1, borderColor: COLORS.border },
   approve: {
     flex: 1,
     minWidth: 140,

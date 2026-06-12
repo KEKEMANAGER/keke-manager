@@ -1055,6 +1055,8 @@
     "panelEntry": "Админ-панель",
     "tabUsers": "Пользователи",
     "tabVerify": "Верификация",
+    "verifySubTabDrivers": "Водители",
+    "verifySubTabVehicles": "Автомобили",
     "tabChats": "Чаты",
     "tabBookings": "Бронирования",
     "tabGps": "GPS карта",

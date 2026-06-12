@@ -142,14 +142,43 @@ function bustUrl(url: string | null | undefined): string | null {
   return withCacheBust(url.trim()) ?? url.trim();
 }
 
+async function approvedOwnerIdsForVehicleQueue(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id')
+    .eq('verification_status', 'approved')
+    .eq('is_verified', true);
+
+  if (error) return [];
+  return (data ?? []).map((row) => String((row as { id: string }).id));
+}
+
+export async function fetchAdminVehicleVerificationQueueCount(): Promise<number> {
+  const ownerIds = await approvedOwnerIdsForVehicleQueue();
+  if (ownerIds.length === 0) return 0;
+
+  const { count, error } = await supabase
+    .from('vehicles')
+    .select('*', { count: 'exact', head: true })
+    .eq('verification_status', 'submitted')
+    .in('driver_id', ownerIds);
+
+  if (error) return 0;
+  return count ?? 0;
+}
+
 export async function fetchAdminVehicleVerificationQueue(): Promise<{
   data: AdminVehicleVerificationRow[];
   error: Error | null;
 }> {
+  const ownerIds = await approvedOwnerIdsForVehicleQueue();
+  if (ownerIds.length === 0) return { data: [], error: null };
+
   const { data, error } = await supabase
     .from('vehicles')
     .select(ADMIN_VEHICLE_SELECT)
     .eq('verification_status', 'submitted')
+    .in('driver_id', ownerIds)
     .order('updated_at', { ascending: false });
 
   if (error) return { data: [], error: new Error(error.message) };

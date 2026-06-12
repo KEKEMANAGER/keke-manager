@@ -1,6 +1,6 @@
 # KEKE Manager — Full reference for AI systems
 
-> Generated: 2026-06-11
+> Generated: 2026-06-12
 > Canonical summary: https://kekemanager.com/llms.txt
 > Website: https://kekemanager.com
 
