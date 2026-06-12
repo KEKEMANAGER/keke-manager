@@ -21,7 +21,7 @@ BEGIN
   WHERE b.id = p_booking_id
     AND b.status = 'in_progress'
     AND (
-      b.driver_id::text = uid::text
+      lower(trim(b.driver_id::text)) = lower(uid::text)
       OR b.host_driver_id = uid
     )
   RETURNING b.id INTO updated_id;

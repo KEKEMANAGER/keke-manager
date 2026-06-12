@@ -26,7 +26,7 @@ import { formatTourBookingNotificationBody } from './tourDays';
 import { sanitizeLanguageCodes } from './spokenLanguages';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
-import { trimUserId } from './userId';
+import { trimUserId, userIdsMatch } from './userId';
 import {
   normalizeVehicleClass,
   normalizeVehicleType,
@@ -1309,7 +1309,7 @@ export async function completeBooking(bookingRowId: string, driverUserId: string
 
   const driverId = trimUserId(row.driver_id ?? '');
   const hostId = trimUserId(row.host_driver_id ?? '');
-  if (driverId !== uid && hostId !== uid) {
+  if (!userIdsMatch(driverId, uid) && !userIdsMatch(hostId, uid)) {
     return { ok: false as const, error: new Error('ეს ჯავშანი თქვენზე არ არის მინიჭებული') };
   }
 

@@ -22,6 +22,7 @@ import { BookingVoucherModal } from '../../components/BookingVoucherModal';
 import { EmptyState } from '../../components/EmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { tabBarMinHeight, Z_INDEX } from '../../constants/layout';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { BookingRealtimeRecord, BookingRow, BookingStatus } from '../../lib/bookings';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
@@ -267,6 +268,13 @@ export default function DriverBookingsScreen() {
     return assigned.filter((b) => b.status === 'completed');
   }, [tab, openJobs, assigned]);
 
+  const activeInProgressTrip = useMemo(
+    () => (tab === 'active' ? data.find((b) => b.status === 'in_progress') ?? null : null),
+    [tab, data],
+  );
+
+  const tabBarHeight = tabBarMinHeight(insets.bottom);
+
   useEffect(() => {
     if (!highlightBookingId || loading) return;
     if (openJobs.some((b) => b.id === highlightBookingId)) {
@@ -503,10 +511,13 @@ export default function DriverBookingsScreen() {
     setActingId(null);
     if (!res.ok) {
       if ('cancelled' in res && res.cancelled) return;
+      const err = 'error' in res ? res.error : null;
+      const errMessage = err instanceof Error ? err.message : null;
       crossInfoAlert(
         t('common.error'),
-        getSupabaseErrorMessage('error' in res ? res.error : null) ||
-          t(odometerErrorMessageKey('error' in res ? res.error : null)) ||
+        getSupabaseErrorMessage(err) ||
+          errMessage ||
+          t(odometerErrorMessageKey(err)) ||
           t('bookings.completeFailed'),
       );
       void load('silent');
@@ -701,7 +712,7 @@ export default function DriverBookingsScreen() {
           contentContainerStyle={[
             styles.list,
             data.length === 0 && styles.listEmpty,
-            { paddingBottom: insets.bottom + SPACING.xl + 96 },
+            { paddingBottom: insets.bottom + SPACING.xl + (activeInProgressTrip ? tabBarHeight + 72 : 96) },
           ]}
           refreshControl={
             <RefreshControl
@@ -889,6 +900,25 @@ export default function DriverBookingsScreen() {
             void acceptAsSub(pending.item, pending.member, payoutGel);
           }}
         />
+      ) : null}
+
+      {activeInProgressTrip ? (
+        <View style={[styles.stickyCompleteWrap, { bottom: tabBarHeight }]}>
+          <Pressable
+            onPress={() => void onComplete(activeInProgressTrip)}
+            disabled={actingId === activeInProgressTrip.id}
+            style={({ pressed }) => [
+              styles.stickyCompleteBtn,
+              (pressed || actingId === activeInProgressTrip.id) && styles.pressed,
+            ]}
+          >
+            {actingId === activeInProgressTrip.id ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.stickyCompleteText}>{t('bookings.complete')}</Text>
+            )}
+          </Pressable>
+        </View>
       ) : null}
     </View>
   );
@@ -1129,6 +1159,29 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     width: '100%',
     minHeight: 48,
+  },
+  stickyCompleteWrap: {
+    position: 'absolute',
+    left: SPACING.lg,
+    right: SPACING.lg,
+    zIndex: Z_INDEX.floating,
+    ...SHADOWS.card,
+  },
+  stickyCompleteBtn: {
+    backgroundColor: COLORS.gold,
+    paddingVertical: 16,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: COLORS.goldDark,
+  },
+  stickyCompleteText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 16,
   },
   btnGhost: {
     paddingVertical: 10,
