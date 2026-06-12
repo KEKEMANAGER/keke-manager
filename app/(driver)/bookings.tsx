@@ -772,6 +772,12 @@ export default function DriverBookingsScreen() {
                 <Text style={styles.voucherBtnText}>📄 {t('common.voucher')}</Text>
               </Pressable>
 
+              {item.status === 'in_progress' &&
+              Platform.OS !== 'web' &&
+              hasTripNavigationTargets(item) ? (
+                <DriverTripNavigationButtons booking={item} variant="compact" />
+              ) : null}
+
               <View style={styles.footer}>
                 {userId ? (
                   <BookingPriceDisplay booking={item} viewerUserId={userId} />
@@ -840,32 +846,6 @@ export default function DriverBookingsScreen() {
                       )}
                     </Pressable>
                   </View>
-                ) : item.status === 'in_progress' ? (
-                  <View style={styles.actions}>
-                    {Platform.OS !== 'web' && hasTripNavigationTargets(item) ? (
-                      <DriverTripNavigationButtons booking={item} variant="compact" />
-                    ) : null}
-                    <Pressable
-                      onPress={() =>
-                        isTourBookingKind(item.kind)
-                          ? void onComplete(item)
-                          : crossAlert(
-                              t('bookings.completeTitle'),
-                              t('bookings.completeMessage'),
-                              () => void onComplete(item),
-                              t('bookings.complete'),
-                            )
-                      }
-                      disabled={actingId === item.id}
-                      style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
-                    >
-                      {actingId === item.id ? (
-                        <ActivityIndicator color={COLORS.white} size="small" />
-                      ) : (
-                        <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
-                      )}
-                    </Pressable>
-                  </View>
                 ) : item.status === 'completed' && user?.id ? (
                   <BookingPaymentConfirm
                     booking={item}
@@ -876,6 +856,29 @@ export default function DriverBookingsScreen() {
                   />
                 ) : null}
               </View>
+
+              {item.status === 'in_progress' ? (
+                <Pressable
+                  onPress={() =>
+                    isTourBookingKind(item.kind)
+                      ? void onComplete(item)
+                      : crossAlert(
+                          t('bookings.completeTitle'),
+                          t('bookings.completeMessage'),
+                          () => void onComplete(item),
+                          t('bookings.complete'),
+                        )
+                  }
+                  disabled={actingId === item.id}
+                  style={({ pressed }) => [styles.completeBtnFull, pressed && styles.pressed]}
+                >
+                  {actingId === item.id ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
+                  )}
+                </Pressable>
+              ) : null}
             </View>
           )}
         />
@@ -1126,6 +1129,16 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: SPACING.sm,
+  },
+  completeBtnFull: {
+    marginTop: SPACING.sm,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 12,
+    backgroundColor: COLORS.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
   },
   btnGhost: {
     paddingVertical: 10,

@@ -954,6 +954,8 @@
     "active": "GPS აქტიურია 🟢",
     "inactive": "GPS გამორთულია",
     "endTour": "ტური დასრულება",
+    "endTrip": "ჯავშნის დასრულება",
+    "stopTracking": "GPS გამორთვა",
     "startTour": "ტური დაწყება",
     "bgServiceTitle": "KEKE · GPS აქტიურია",
     "bgServiceBody": "ტურის მიმდინარეობისას შენი პოზიცია გადაეცემა კომპანიას.",

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -14,9 +14,16 @@ import {
   startBackgroundLocation,
   stopBackgroundLocation,
 } from '../../lib/backgroundLocation';
+import {
+  completeBooking,
+  isTourBookingKind,
+  type BookingRow,
+} from '../../lib/bookings';
+import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
 import { hasTripNavigationTargets, openExternalNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
+import { completeTourTripWithOdometer, odometerErrorMessageKey } from '../../lib/tourTripLifecycle';
 
 const TBILISI: Region = {
   latitude: 41.6938,
@@ -36,10 +43,11 @@ export default function DriverGpsScreen() {
   const pickupNavOpenedRef = useRef(false);
 
   const [isTracking, setIsTracking] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
-  const [tripBooking, setTripBooking] = useState<TripNavBooking | null>(null);
+  const [tripBooking, setTripBooking] = useState<(TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status'>) | null>(null);
 
   const bookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
 
@@ -52,12 +60,14 @@ export default function DriverGpsScreen() {
     void supabase
       .from('bookings')
       .select(
-        'from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days',
+        'id, kind, status, from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days',
       )
       .eq('id', bookingId)
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled && data) setTripBooking(data as TripNavBooking);
+        if (!cancelled && data) {
+          setTripBooking(data as TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status'>);
+        }
       });
     return () => {
       cancelled = true;
@@ -175,7 +185,7 @@ export default function DriverGpsScreen() {
     };
   }, [stopWatch]);
 
-  async function endTour() {
+  async function stopTracking() {
     stopWatch();
     await stopBackgroundLocation();
     setIsTracking(false);
@@ -184,6 +194,71 @@ export default function DriverGpsScreen() {
       if (error && __DEV__) console.warn('[gps] clearDriverLocation:', error.message);
     }
   }
+
+  async function completeActiveBooking(): Promise<boolean> {
+    if (!user?.id || !tripBooking?.id || tripBooking.status !== 'in_progress') {
+      return false;
+    }
+
+    const res = isTourBookingKind(tripBooking.kind)
+      ? await completeTourTripWithOdometer(tripBooking as BookingRow, user.id)
+      : await completeBooking(tripBooking.id, user.id).then((r) =>
+          r.ok ? { ok: true as const } : { ok: false as const, error: r.error ?? new Error('complete_failed') },
+        );
+
+    if (!res.ok) {
+      if ('cancelled' in res && res.cancelled) return false;
+      Alert.alert(
+        t('common.error'),
+        getSupabaseErrorMessage('error' in res ? res.error : null) ||
+          t(odometerErrorMessageKey('error' in res ? res.error : null)) ||
+          t('bookings.completeFailed'),
+      );
+      return false;
+    }
+
+    Alert.alert(t('common.success'), t('bookings.completeSuccess'));
+    return true;
+  }
+
+  async function finishTripAndStopTracking() {
+    setCompleting(true);
+    const ok = await completeActiveBooking();
+    setCompleting(false);
+    if (ok) {
+      await stopTracking();
+    }
+  }
+
+  function handleTrackingToggle() {
+    if (!isTracking) {
+      void startTracking();
+      return;
+    }
+
+    const linkedInProgress = Boolean(bookingId && tripBooking?.status === 'in_progress');
+    if (!linkedInProgress) {
+      void stopTracking();
+      return;
+    }
+
+    if (isTourBookingKind(tripBooking!.kind)) {
+      void finishTripAndStopTracking();
+      return;
+    }
+
+    Alert.alert(t('bookings.completeTitle'), t('bookings.completeMessage'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('bookings.complete'), onPress: () => void finishTripAndStopTracking() },
+    ]);
+  }
+
+  const linkedInProgress = Boolean(bookingId && tripBooking?.status === 'in_progress');
+  const endButtonLabel = isTracking
+    ? linkedInProgress
+      ? t('gpsScreen.endTrip')
+      : t('gpsScreen.stopTracking')
+    : t('gpsScreen.startTour');
 
   const showTripNav = Boolean(tripBooking && hasTripNavigationTargets(tripBooking));
 
@@ -229,22 +304,21 @@ export default function DriverGpsScreen() {
           </View>
         ) : null}
         <Pressable
-          onPress={() => {
-            if (isTracking) {
-              void endTour();
-            } else {
-              void startTracking();
-            }
-          }}
+          onPress={handleTrackingToggle}
+          disabled={completing}
           style={({ pressed }) => [
             styles.toggle,
             isTracking ? styles.toggleEnd : styles.toggleStart,
-            pressed && styles.togglePressed,
+            (pressed || completing) && styles.togglePressed,
           ]}
         >
-          <Text style={[styles.toggleText, isTracking && styles.toggleTextOnRed]}>
-            {isTracking ? t('gpsScreen.endTour') : t('gpsScreen.startTour')}
-          </Text>
+          {completing ? (
+            <ActivityIndicator color={COLORS.text} />
+          ) : (
+            <Text style={[styles.toggleText, isTracking && styles.toggleTextOnRed]}>
+              {endButtonLabel}
+            </Text>
+          )}
         </Pressable>
       </View>
     </View>

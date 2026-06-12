@@ -905,6 +905,8 @@
     "active": "GPS активен 🟢",
     "inactive": "GPS выключен",
     "endTour": "Завершить тур",
+    "endTrip": "Завершить бронирование",
+    "stopTracking": "Выключить GPS",
     "startTour": "Начать тур",
     "bgServiceTitle": "KEKE · GPS активен",
     "bgServiceBody": "Во время поездки ваша геолокация передаётся компании.",

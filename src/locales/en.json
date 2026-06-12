@@ -957,6 +957,8 @@
     "active": "GPS active 🟢",
     "inactive": "GPS off",
     "endTour": "End tour",
+    "endTrip": "Finish booking",
+    "stopTracking": "Stop GPS",
     "startTour": "Start tour",
     "bgServiceTitle": "KEKE · GPS active",
     "bgServiceBody": "Sharing your location with the company while the trip is active.",
