@@ -193,10 +193,12 @@ export async function fetchMatchingDrivers(
   const vehiclesRes = await supabase
     .from('vehicles')
     .select(
-      'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active',
+      'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active, is_verified, verification_status',
     )
     .in('type', typeVariants)
     .in('class', classVariants)
+    .eq('is_verified', true)
+    .eq('verification_status', 'approved')
     .order('is_active', { ascending: false });
 
   if (vehiclesRes.error) {

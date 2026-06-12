@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { EditModeButtons } from '../../components/EditModeButtons';
+import { VehicleTechPassportSection } from '../../components/driver/VehicleTechPassportSection';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { uploadMediaObject, vehiclePhotoObjectPath, withCacheBust } from '../../lib/mediaUpload';
 import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
@@ -70,6 +70,7 @@ import {
   validateVehicleSave,
 } from '../../lib/validation';
 import { useAuth } from '../../contexts/AuthContext';
+import { vehicleIsApproved } from '../../lib/vehicleVerification';
 
 const SLOTS: {
   angle: 'front' | 'left' | 'right' | 'interior' | 'rear';
@@ -310,6 +311,14 @@ function VehicleListCard({
               <View style={styles.activePill}>
                 <Ionicons name="checkmark-circle" size={12} color={COLORS.success} />
                 <Text style={styles.activePillText}>{t('vehicleScreen.activeBadge')}</Text>
+              </View>
+            ) : vehicleIsApproved(vehicle) ? (
+              <View style={[styles.activePill, styles.verifiedPill]}>
+                <Text style={styles.verifiedPillText}>{t('vehicleScreen.verifiedBadge')}</Text>
+              </View>
+            ) : vehicle.verification_status === 'submitted' ? (
+              <View style={[styles.activePill, styles.pendingPill]}>
+                <Text style={styles.pendingPillText}>{t('vehicleScreen.verificationStatus_submitted')}</Text>
               </View>
             ) : null}
           </View>
@@ -630,6 +639,10 @@ export default function DriverVehiclePhotosScreen() {
     setSaveBusy(true);
     const { is_active, error } = await toggleVehicleActive(userId, vehicleId);
     setSaveBusy(false);
+    if (error) {
+      Alert.alert(t('system.errorTitle'), error.message);
+      return;
+    }
     if (!error) {
       setVehicles((prev) =>
         prev.map((v) => (v.id === vehicleId ? { ...v, is_active } : v)),
@@ -951,6 +964,13 @@ export default function DriverVehiclePhotosScreen() {
               <VehicleField label={t('vehicleScreen.color')} value={editColor} onChangeText={setEditColor} />
               <VehicleField label={t('vehicleScreen.plateLabel')} value={editPlate} onChangeText={setEditPlate} />
 
+              <VehicleTechPassportSection
+                vehicle={selectedVehicle}
+                driverId={userId ?? undefined}
+                disabled={saveBusy}
+                onUpdated={() => void loadVehicles()}
+              />
+
               {formMode === 'add' ? (
                 <VehicleField
                   label={t('fleet.assignSubDriver')}
@@ -987,6 +1007,17 @@ export default function DriverVehiclePhotosScreen() {
               ) : null}
 
               {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
+            </View>
+          ) : null}
+
+          {formMode === 'view' && selectedVehicle ? (
+            <View style={styles.formCard}>
+              <VehicleTechPassportSection
+                vehicle={selectedVehicle}
+                driverId={userId ?? undefined}
+                disabled={saveBusy}
+                onUpdated={() => void loadVehicles()}
+              />
             </View>
           ) : null}
         </>
@@ -1091,6 +1122,16 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)',
   },
   activePillText: { color: COLORS.success, fontSize: 11, fontWeight: '700' },
+  verifiedPill: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: 'rgba(76, 175, 80, 0.35)',
+  },
+  verifiedPillText: { color: COLORS.success, fontSize: 11, fontWeight: '700' },
+  pendingPill: {
+    backgroundColor: COLORS.goldTint,
+    borderColor: COLORS.gold,
+  },
+  pendingPillText: { color: COLORS.goldDark, fontSize: 11, fontWeight: '700' },
 
   cardBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

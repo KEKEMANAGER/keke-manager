@@ -310,9 +310,7 @@ export default function DriverVerificationScreen() {
         </View>
       ) : (
         <Text style={styles.screenSub}>
-          {isHiredDriverUser
-            ? t('verificationScreen.screenSubHired')
-            : t('verificationScreen.screenSubFreelance')}
+          {t('verificationScreen.screenSubHired')}
         </Text>
       )}
 

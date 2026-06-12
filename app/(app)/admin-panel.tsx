@@ -23,6 +23,7 @@ import { AdminAdsSection } from '../../components/admin/AdminAdsSection';
 import { AdminTabBar, type AdminTabId } from '../../components/admin/AdminTabBar';
 import { AdminUsersSection } from '../../components/admin/AdminUsersSection';
 import { AdminVerifySection } from '../../components/admin/AdminVerifySection';
+import { AdminVehicleVerifySection } from '../../components/admin/AdminVehicleVerifySection';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -148,6 +149,7 @@ export default function AdminPanelScreen() {
         <>
           <AdminSearchInput value={searchQuery} onChangeText={setSearchQuery} />
           <AdminVerifySection searchQuery={searchQuery} />
+          <AdminVehicleVerifySection searchQuery={searchQuery} />
         </>
       ) : null}
       {tab === 'chats' ? <AdminChatsSection /> : null}

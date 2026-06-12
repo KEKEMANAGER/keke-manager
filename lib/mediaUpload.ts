@@ -93,7 +93,15 @@ export function avatarObjectPath(userId: string): string {
   return `avatars/${userId}.jpg`;
 }
 
-/** `vehicles/[user_id]/[angle].jpg` — angle: front | left | right | interior | rear */
-export function vehiclePhotoObjectPath(userId: string, angle: string): string {
-  return `vehicles/${userId}/${angle}.jpg`;
+/** `vehicles/[vehicle_id]/[angle].jpg` — angle: front | left | right | interior | rear */
+export function vehiclePhotoObjectPath(vehicleId: string, angle: string): string {
+  return `vehicles/${vehicleId}/${angle}.jpg`;
+}
+
+/** `vehicles/[vehicle_id]/tech_passport_front.jpg` etc. */
+export function vehicleTechPassportObjectPath(
+  vehicleId: string,
+  slot: 'tech_passport_front' | 'tech_passport_back',
+): string {
+  return `vehicles/${vehicleId}/${slot}.jpg`;
 }

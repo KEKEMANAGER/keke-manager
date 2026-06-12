@@ -250,7 +250,27 @@
     "pickMake": "Выберите марку",
     "pickModel": "Выберите модель",
     "pickYear": "Выберите год",
-    "catalogSection": "Марка / модель / год"
+    "catalogSection": "Марка / модель / год",
+    "techPassportSection": "Техпаспорт",
+    "techPassportHint": "Загрузите лицевую и оборотную сторону техпаспорта этого авто. Активация возможна после одобрения админом.",
+    "techPassportUploaded": "Загружено",
+    "techPassportMissing": "Не полностью",
+    "submitForReview": "Отправить на проверку",
+    "techPassportSubmitted": "Авто отправлено админу на проверку.",
+    "techPassportSubmitIncomplete": "Заполните тип, класс, номер, места и оба фото техпаспорта.",
+    "verifiedBadge": "Подтверждено ✓",
+    "verificationStatus_pending": "Ожидание",
+    "verificationStatus_submitted": "На проверке",
+    "verificationStatus_approved": "Подтверждено",
+    "verificationStatus_rejected": "Отклонено"
+  },
+  "adminVehicleVerify": {
+    "sectionTitle": "Регистрация авто",
+    "emptyPending": "Нет авто на проверке",
+    "driver": "Водитель",
+    "plate": "Номер",
+    "approveSuccess": "Авто подтверждено",
+    "rejectSuccess": "Регистрация авто отклонена"
   },
   "newBooking": {
     "title": "Новый заказ",

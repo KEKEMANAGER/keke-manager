@@ -8,7 +8,7 @@ import { supabase } from './supabase';
 import { VERIFICATION_DOC_COLUMNS } from './verificationDocs';
 import { fetchVehiclesByDriver, type VehicleRow } from './vehicles';
 import { sanitizeLanguageCodes } from './spokenLanguages';
-import { verificationStepsForHired } from './verificationDocs';
+import { DRIVER_KYC_DOC_SLOTS } from './verificationDocs';
 
 export type AdminUserKind =
   | 'company'
@@ -191,7 +191,7 @@ export function formatAdminUserLanguages(languages: unknown | null): string {
 }
 
 export function adminUserDocUrls(user: AdminUserDetailUser): { key: string; url: string }[] {
-  const slots = verificationStepsForHired(!!user.is_hired_driver);
+  const slots = DRIVER_KYC_DOC_SLOTS;
 
   const legacy: Record<string, string | null> = {
     license_photo: user.license_photo,

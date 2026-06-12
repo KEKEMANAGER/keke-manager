@@ -2,8 +2,8 @@ import type { KekeRole } from '../contexts/AuthContext';
 import { withCacheBust } from './mediaUpload';
 import { supabase } from './supabase';
 import {
+  DRIVER_KYC_DOC_SLOTS,
   VERIFICATION_DOC_COLUMNS,
-  verificationStepsForHired,
   type VerificationDocSlot,
 } from './verificationDocs';
 import { fetchVehicleByDriver, type VehicleRow } from './vehicles';
@@ -137,8 +137,8 @@ export type AdminDocumentKey =
   | 'vehicle_interior'
   | 'vehicle_rear';
 
-export function verificationDocSlotsForAdmin(user: AdminVerificationUser): VerificationDocSlot[] {
-  return verificationStepsForHired(!!user.is_hired_driver);
+export function verificationDocSlotsForAdmin(_user: AdminVerificationUser): VerificationDocSlot[] {
+  return DRIVER_KYC_DOC_SLOTS;
 }
 
 export function documentUrlFor(

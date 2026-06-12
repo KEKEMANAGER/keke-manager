@@ -236,6 +236,8 @@ export async function fetchMatchingDriverPushRecipients(
     .from('vehicles')
     .select('id, driver_id')
     .eq('is_active', true)
+    .eq('is_verified', true)
+    .eq('verification_status', 'approved')
     .eq('type', vehicleType)
     .eq('class', vehicleClass);
 

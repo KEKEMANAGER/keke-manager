@@ -1,6 +1,7 @@
 import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
 import {
+  DRIVER_KYC_DOC_SLOTS,
   type VerificationDocSlot,
   VERIFICATION_DOC_COLUMNS,
 } from './verificationDocs';
@@ -26,14 +27,7 @@ export async function submitVerification(userId: string, photos: SubmitVerificat
     rejection_reason: null,
   };
 
-  const slots: VerificationDocSlot[] = [
-    'license_front',
-    'license_back',
-    'tech_passport_front',
-    'tech_passport_back',
-    'id_front',
-    'id_back',
-  ];
+  const slots: VerificationDocSlot[] = [...DRIVER_KYC_DOC_SLOTS];
 
   for (const slot of slots) {
     const raw = photos[slot];
@@ -43,7 +37,7 @@ export async function submitVerification(userId: string, photos: SubmitVerificat
   // Legacy single-photo columns (admin fallback)
   payload.license_photo = payload.license_front;
   payload.id_photo = payload.id_front;
-  payload.vehicle_registration_photo = payload.tech_passport_front;
+  // Do not overwrite vehicle_registration_photo from KYC submit
 
   const { data, error } = await supabase.from('users').update(payload).eq('id', userId).select('id');
   if (error) return { error };
@@ -72,7 +66,6 @@ export async function saveSingleVerificationDocument(
   };
   if (slot === 'id_front') payload.id_photo = url;
   if (slot === 'license_front') payload.license_photo = url;
-  if (slot === 'tech_passport_front') payload.vehicle_registration_photo = url;
 
   const { data: current, error: readErr } = await supabase
     .from('users')

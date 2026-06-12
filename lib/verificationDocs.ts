@@ -1,4 +1,4 @@
-export type VerificationDocGroupKey = 'id' | 'license' | 'tech_passport';
+export type VerificationDocGroupKey = 'id' | 'license';
 
 export type VerificationDocGroup = {
   key: VerificationDocGroupKey;
@@ -6,20 +6,12 @@ export type VerificationDocGroup = {
   back: VerificationDocSlot;
 };
 
-/** Driver-facing document groups (front + back per type). */
-export function verificationDocGroupsForHired(isHired: boolean): VerificationDocGroup[] {
-  const groups: VerificationDocGroup[] = [
+/** Driver KYC groups — person documents only (tech passport lives on vehicles). */
+export function verificationDocGroupsForHired(_isHired: boolean): VerificationDocGroup[] {
+  return [
     { key: 'id', front: 'id_front', back: 'id_back' },
     { key: 'license', front: 'license_front', back: 'license_back' },
   ];
-  if (!isHired) {
-    groups.push({
-      key: 'tech_passport',
-      front: 'tech_passport_front',
-      back: 'tech_passport_back',
-    });
-  }
-  return groups;
 }
 
 export function isVerificationSlotUploaded(
@@ -39,7 +31,7 @@ export function isVerificationDocGroupComplete(
   );
 }
 
-/** Storage object name under `verification/[user_id]/`. */
+/** KYC document slots on users (legacy tech_passport_* columns kept for migration reads). */
 export type VerificationDocSlot =
   | 'license_front'
   | 'license_back'
@@ -53,6 +45,14 @@ export type VerificationPhotos = Record<VerificationDocSlot, string | null>;
 export const VERIFICATION_DOC_COLUMNS =
   'license_front, license_back, tech_passport_front, tech_passport_back, id_front, id_back';
 
+/** Slots required for driver KYC submit (4 photos — same for hired and freelance). */
+export const DRIVER_KYC_DOC_SLOTS: VerificationDocSlot[] = [
+  'license_front',
+  'license_back',
+  'id_front',
+  'id_back',
+];
+
 export function emptyVerificationPhotos(): VerificationPhotos {
   return {
     license_front: null,
@@ -64,30 +64,20 @@ export function emptyVerificationPhotos(): VerificationPhotos {
   };
 }
 
-export function verificationStepsForHired(isHired: boolean): VerificationDocSlot[] {
-  if (isHired) {
-    return ['license_front', 'license_back', 'id_front', 'id_back'];
-  }
-  return [
-    'license_front',
-    'license_back',
-    'tech_passport_front',
-    'tech_passport_back',
-    'id_front',
-    'id_back',
-  ];
+/** @deprecated Use DRIVER_KYC_DOC_SLOTS — KYC no longer includes tech passport. */
+export function verificationStepsForHired(_isHired: boolean): VerificationDocSlot[] {
+  return DRIVER_KYC_DOC_SLOTS;
 }
 
-const SIMPLE_DOC_MIRROR_PAIRS: [VerificationDocSlot, VerificationDocSlot][] = [
+const KYC_MIRROR_PAIRS: [VerificationDocSlot, VerificationDocSlot][] = [
   ['license_front', 'license_back'],
   ['id_front', 'id_back'],
-  ['tech_passport_front', 'tech_passport_back'],
 ];
 
 /** Copy front URL to back when only one side was persisted (legacy / partial saves). */
 export function normalizeVerificationPhotos(photos: VerificationPhotos): VerificationPhotos {
   const p = { ...photos };
-  for (const [front, back] of SIMPLE_DOC_MIRROR_PAIRS) {
+  for (const [front, back] of KYC_MIRROR_PAIRS) {
     const frontUrl = p[front]?.trim();
     if (frontUrl && !p[back]?.trim()) {
       p[back] = frontUrl;
@@ -106,10 +96,10 @@ export function photosFromUserRow(row: Record<string, unknown> | null): Verifica
   return normalizeVerificationPhotos(p);
 }
 
-/** True when every required front/back slot is filled (4 hired / 6 freelance). */
+/** True when all four KYC front/back slots are filled. */
 export function allVerificationPhotosPresent(
   photos: VerificationPhotos,
-  isHired: boolean,
+  _isHired?: boolean,
 ): boolean {
-  return verificationStepsForHired(isHired).every((slot) => isVerificationSlotUploaded(photos, slot));
+  return DRIVER_KYC_DOC_SLOTS.every((slot) => isVerificationSlotUploaded(photos, slot));
 }

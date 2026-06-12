@@ -250,7 +250,27 @@
     "deleteVehicle": "მანქანის წაშლა",
     "deleteConfirmMsg": "წავშალოთ ეს მანქანა? ეს შეუქცევადია.",
     "cannotDeleteActive": "აქტიური მანქანის წაშლა შეუძლებელია. ჯერ გამორთეთ (გამორთე).",
-    "vehicleN": "მანქანა {{n}}"
+    "vehicleN": "მანქანა {{n}}",
+    "techPassportSection": "ტექ პასპორტი",
+    "techPassportHint": "ატვირთეთ ამ მანქანის ტექ პასპორტის წინა და უკანა მხარე. ადმინის დადასტურების შემდეგ შეგიძლიათ გააქტიუროთ.",
+    "techPassportUploaded": "ატვირთულია",
+    "techPassportMissing": "არ არის სრული",
+    "submitForReview": "გაგზავნა შემოწმებაზე",
+    "techPassportSubmitted": "მანქანა გაგზავნილია ადმინზე შესამოწმებლად.",
+    "techPassportSubmitIncomplete": "შეავსეთ ტიპი, კლასი, ნომერი, სავარძლები და ტექ პასპორტის ორივე ფოტო.",
+    "verifiedBadge": "დადასტურებული ✓",
+    "verificationStatus_pending": "მოლოდინში",
+    "verificationStatus_submitted": "შემოწმებაში",
+    "verificationStatus_approved": "დადასტურებული",
+    "verificationStatus_rejected": "უარყოფილი"
+  },
+  "adminVehicleVerify": {
+    "sectionTitle": "მანქანების რეგისტრაცია",
+    "emptyPending": "შემოწმებაში მანქანები არ არის",
+    "driver": "მძღოლი",
+    "plate": "ნომერი",
+    "approveSuccess": "მანქანა დადასტურდა",
+    "rejectSuccess": "მანქანის რეგისტრაცია უარყოფილია"
   },
   "newBooking": {
     "title": "ახალი ჯავშანი",

@@ -252,7 +252,27 @@
     "deleteVehicle": "Delete vehicle",
     "deleteConfirmMsg": "Delete this vehicle? This cannot be undone.",
     "cannotDeleteActive": "Cannot delete an active vehicle. Deactivate it first.",
-    "vehicleN": "Vehicle {{n}}"
+    "vehicleN": "Vehicle {{n}}",
+    "techPassportSection": "Technical passport",
+    "techPassportHint": "Upload front and back of this vehicle's tech passport. You can activate it after admin approval.",
+    "techPassportUploaded": "Uploaded",
+    "techPassportMissing": "Incomplete",
+    "submitForReview": "Submit for review",
+    "techPassportSubmitted": "Vehicle sent to admin for review.",
+    "techPassportSubmitIncomplete": "Fill in type, class, plate, seats, and both tech passport photos.",
+    "verifiedBadge": "Verified ✓",
+    "verificationStatus_pending": "Pending",
+    "verificationStatus_submitted": "Under review",
+    "verificationStatus_approved": "Approved",
+    "verificationStatus_rejected": "Rejected"
+  },
+  "adminVehicleVerify": {
+    "sectionTitle": "Vehicle registration",
+    "emptyPending": "No vehicles awaiting review",
+    "driver": "Driver",
+    "plate": "Plate",
+    "approveSuccess": "Vehicle approved",
+    "rejectSuccess": "Vehicle registration rejected"
   },
   "newBooking": {
     "title": "New booking",

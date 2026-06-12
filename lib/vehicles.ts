@@ -1,6 +1,11 @@
 import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
 import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
+import {
+  vehicleCanActivate,
+  vehicleIsApproved,
+  type VehicleVerificationStatus,
+} from './vehicleVerification';
 
 export type VehiclePhotoKey =
   | 'photo_front'
@@ -8,6 +13,8 @@ export type VehiclePhotoKey =
   | 'photo_right'
   | 'photo_interior'
   | 'photo_rear';
+
+export type VehicleTechPassportKey = 'tech_passport_front' | 'tech_passport_back';
 
 export type VehicleRow = {
   id: string;
@@ -18,6 +25,10 @@ export type VehicleRow = {
   photo_right: string | null;
   photo_interior: string | null;
   photo_rear: string | null;
+  tech_passport_front: string | null;
+  tech_passport_back: string | null;
+  verification_status: VehicleVerificationStatus;
+  rejection_reason: string | null;
   type: string | null;
   class: string | null;
   model: string | null;
@@ -32,7 +43,33 @@ export type VehicleRow = {
 };
 
 const VEHICLE_SELECT =
-  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,type,class,model,color,year,plate,make_id,model_id,passenger_capacity,is_verified,updated_at';
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,tech_passport_front,tech_passport_back,verification_status,rejection_reason,type,class,model,color,year,plate,make_id,model_id,passenger_capacity,is_verified,updated_at';
+
+function normalizeVehicleRow(raw: Record<string, unknown>): VehicleRow {
+  const isVerified = raw.is_verified === true;
+  const statusRaw = raw.verification_status;
+  const verification_status =
+    statusRaw === 'pending' ||
+    statusRaw === 'submitted' ||
+    statusRaw === 'approved' ||
+    statusRaw === 'rejected'
+      ? statusRaw
+      : isVerified
+        ? 'approved'
+        : 'pending';
+
+  return {
+    ...(raw as VehicleRow),
+    tech_passport_front: (raw.tech_passport_front as string | null) ?? null,
+    tech_passport_back: (raw.tech_passport_back as string | null) ?? null,
+    rejection_reason: (raw.rejection_reason as string | null) ?? null,
+    verification_status,
+  };
+}
+
+function mapVehicleRows(data: unknown[]): VehicleRow[] {
+  return data.map((row) => normalizeVehicleRow(row as Record<string, unknown>));
+}
 
 /** All vehicles for this driver, active first. */
 export async function fetchVehiclesByDriver(driverId: string): Promise<{
@@ -46,7 +83,7 @@ export async function fetchVehiclesByDriver(driverId: string): Promise<{
     .order('is_active', { ascending: false })
     .order('updated_at', { ascending: false });
   return {
-    data: (data ?? []) as VehicleRow[],
+    data: mapVehicleRows(data ?? []),
     error: error ? new Error(error.message) : null,
   };
 }
@@ -63,7 +100,7 @@ export async function fetchActiveVehiclesByDriver(driverId: string): Promise<{
     .eq('is_active', true)
     .order('updated_at', { ascending: false });
   return {
-    data: (data ?? []) as VehicleRow[],
+    data: mapVehicleRows(data ?? []),
     error: error ? new Error(error.message) : null,
   };
 }
@@ -163,6 +200,10 @@ export async function insertVehicle(
       photo_interior: null,
       photo_rear: null,
       is_verified: false,
+      verification_status: 'pending',
+      rejection_reason: null,
+      tech_passport_front: null,
+      tech_passport_back: null,
       updated_at: now,
       ...normalizedFields,
       plate,
@@ -181,7 +222,7 @@ export async function insertVehicle(
     }
     return { data: null, error: new Error(error.message) };
   }
-  return { data: data as VehicleRow | null, error: null };
+  return { data: data ? normalizeVehicleRow(data as Record<string, unknown>) : null, error: null };
 }
 
 async function syncProfileVehicleFromActives(driverId: string): Promise<void> {
@@ -214,7 +255,7 @@ export async function toggleVehicleActive(
 ): Promise<{ is_active: boolean; error: Error | null }> {
   const { data: current, error: fetchErr } = await supabase
     .from('vehicles')
-    .select('is_active, type, class')
+    .select('is_active, type, class, is_verified, verification_status')
     .eq('id', vehicleId)
     .eq('driver_id', driverId)
     .maybeSingle();
@@ -227,6 +268,17 @@ export async function toggleVehicleActive(
   }
 
   const nextActive = !current.is_active;
+
+  if (nextActive && !vehicleCanActivate(current as Parameters<typeof vehicleCanActivate>[0])) {
+    return {
+      is_active: false,
+      error: new Error(
+        vehicleIsApproved(current as Parameters<typeof vehicleIsApproved>[0])
+          ? 'მანქანის გააქტიურება ვერ მოხერხდა'
+          : 'მანქანა ჯერ ადმინმა უნდა დაადასტუროს (ტექპასპორტი)',
+      ),
+    };
+  }
 
   const { error } = await supabase
     .from('vehicles')
