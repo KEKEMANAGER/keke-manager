@@ -1379,6 +1379,25 @@
     "cityRequired": "Выберите город",
     "activeInCity": "Доступен: {{city}}"
   },
+  "transportPlan": {
+    "sectionTitle": "Транспорт",
+    "addVehicle": "+ Добавить ещё одно ТС",
+    "multiTitle": "План транспорта",
+    "multiHint": "Добавьте столько машин, сколько нужно — тип, класс и пассажиры в каждой строке.",
+    "totalSeats": "Всего мест в плане: {{total}}",
+    "legN": "ТС {{n}}",
+    "legPassengers": "Пассажиры в этой машине",
+    "driverOptional": "Водитель (необязательно)",
+    "addAnother": "+ Ещё транспорт",
+    "pickDriver": "Выберите водителя",
+    "noDrivers": "Подходящие водители не найдены",
+    "needTwoVehicles": "Добавьте минимум 2 машины",
+    "step3MultiHint": "Водители назначаются на каждую машину выше; открытые рейсы рассылаются автоматически.",
+    "voucherMulti": "{{count}} машин · всего {{total}} пасс.",
+    "multiBadge": "несколько ТС",
+    "cardMeta": "{{pax}} пасс. · управление машинами",
+    "manageVehicles": "Машины"
+  },
   "groupConvoy": {
     "shortTitle": "Группа",
     "title": "Групповой тур",

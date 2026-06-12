@@ -32,10 +32,19 @@ import {
   insertBooking,
   setBookingPickupSignLogoUrl,
   uploadPickupSignLogo,
+  type InsertBookingInput,
   type ItineraryDay,
   type PickupSignLogoFile,
   type TourTransferLeg,
 } from '../../lib/bookings';
+import { TransportPlanSection } from '../../components/TransportPlanSection';
+import { createGroupConvoy, type GroupConvoyLegPlan } from '../../lib/groupBooking';
+import {
+  legPassengers,
+  newTransportLeg,
+  sumLegPassengers,
+  type TransportLegDraft,
+} from '../../lib/transportPlan';
 import { LocationPicker } from '../../components/LocationPicker';
 import { PickupSignLogoField } from '../../components/PickupSignLogoField';
 import {
@@ -283,11 +292,9 @@ function TransferSegmented({
 function ServiceKindSelector({
   value,
   onChange,
-  onGroupPress,
 }: {
   value: BookingKindUi;
   onChange: (k: BookingKindUi) => void;
-  onGroupPress: () => void;
 }) {
   const { t } = useTranslation();
   const items: { id: BookingKindUi; label: string }[] = [
@@ -323,14 +330,6 @@ function ServiceKindSelector({
             </Pressable>
           );
         })}
-        <Pressable
-          onPress={onGroupPress}
-          style={({ pressed }) => [styles.serviceKindBtn, styles.serviceKindBtnGroup, pressed && styles.pressed]}
-        >
-          <Text style={[styles.serviceKindBtnText, styles.serviceKindBtnTextGroup]} numberOfLines={2}>
-            {t('groupConvoy.shortTitle')}
-          </Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -868,6 +867,8 @@ export default function NewBookingScreen() {
 
   const [bookingDateTime, setBookingDateTime] = useState<Date | null>(null);
   const [passengers, setPassengers] = useState('2');
+  const [multiVehicle, setMultiVehicle] = useState(false);
+  const [transportLegs, setTransportLegs] = useState<TransportLegDraft[]>([]);
   const [vehicleClass, setVehicleClass] = useState<VehicleClassCode>('comfort');
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
   const [driverTargetMode, setDriverTargetMode] = useState<DriverTargetMode>('all');
@@ -1017,7 +1018,46 @@ export default function NewBookingScreen() {
     [tourDays.length],
   );
 
-  const pax = Math.max(1, parseInt(passengers, 10) || 1);
+  const bookingCityHint = useMemo(() => {
+    if (booking_kind === 'transfer') {
+      return transferTab === 'arrival'
+        ? arrivalTo.name?.trim() || arrivalFrom.name?.trim() || null
+        : departureFrom.name?.trim() || departureTo.name?.trim() || null;
+    }
+    if (booking_kind === 'dayTour') {
+      return days[0]?.from?.trim() || null;
+    }
+    if (booking_kind === 'tour' && tourDays.length > 0) {
+      return tourDays[0]?.fromPlace?.trim() || null;
+    }
+    return null;
+  }, [booking_kind, transferTab, arrivalFrom.name, arrivalTo.name, departureFrom.name, departureTo.name, days, tourDays]);
+
+  const enableMultiVehicle = useCallback(() => {
+    const picked = matchingDrivers.find((d) => d.id === selectedDriverId);
+    setTransportLegs([
+      newTransportLeg({
+        vehicle_type: selectedVehicleType,
+        vehicle_class: vehicleClass,
+        passengers,
+        driver_id: driverTargetMode === 'specific' ? selectedDriverId : null,
+        driver_name: picked?.full_name ?? null,
+      }),
+      newTransportLeg({ passengers: '1' }),
+    ]);
+    setMultiVehicle(true);
+  }, [
+    matchingDrivers,
+    selectedDriverId,
+    selectedVehicleType,
+    vehicleClass,
+    passengers,
+    driverTargetMode,
+  ]);
+
+  const pax = multiVehicle
+    ? Math.max(1, sumLegPassengers(transportLegs))
+    : Math.max(1, parseInt(passengers, 10) || 1);
   const estimateGel = useMemo(
     () => calcMockPrice({ type: booking_kind, passengers: pax, vehicleClass }),
     [booking_kind, pax, vehicleClass],
@@ -1164,9 +1204,32 @@ export default function NewBookingScreen() {
     setPaymentWhen('now');
     setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
+    setMultiVehicle(false);
+    setTransportLegs([]);
   }
 
   function validateBeforeSave(): string | null {
+    if (multiVehicle) {
+      if (transportLegs.length < 2) {
+        return t('transportPlan.needTwoVehicles');
+      }
+      for (const leg of transportLegs) {
+        if (!normalizeVehicleType(leg.vehicle_type)) {
+          return t('newBooking.validation.vehicleType');
+        }
+        if (!normalizeVehicleClass(leg.vehicle_class)) {
+          return t('newBooking.validation.vehicleClass');
+        }
+        if (legPassengers(leg) < 1) {
+          return t('newBooking.validation.passengers');
+        }
+      }
+      if (offeredGelParsed <= 0) {
+        return t('newBooking.validation.offeredPrice');
+      }
+      return validateStep2();
+    }
+
     if (!normalizeVehicleType(selectedVehicleType)) {
       return t('newBooking.validation.vehicleType');
     }
@@ -1283,7 +1346,8 @@ export default function NewBookingScreen() {
     const routeForDb =
       isTour ? [descPart, structuredRoute].filter(Boolean).join('\n\n') || null : null;
 
-    const { id: bookingId, error } = await insertBooking({
+    const singlePax = Math.max(1, parseInt(passengers, 10) || 1);
+    const insertPayload: InsertBookingInput = {
       company_id: user.id,
       company_name: companyDisplayName(profile, user) ?? t('common.companyDefault'),
       kind: dbKind,
@@ -1333,7 +1397,7 @@ export default function NewBookingScreen() {
             : bookingDateTime
               ? toIsoString(bookingDateTime)
               : null,
-      passengers: pax,
+      passengers: singlePax,
       vehicle_type: selectedVehicleType,
       vehicle_class: vehicleClass,
       flight_number:
@@ -1361,12 +1425,46 @@ export default function NewBookingScreen() {
       price_gel: offeredGel,
       created_by_name: operatorName,
       driver_id:
-        driverTargetMode === 'specific' && selectedDriverId ? selectedDriverId : null,
+        !multiVehicle && driverTargetMode === 'specific' && selectedDriverId
+          ? selectedDriverId
+          : null,
       vehicle_id:
-        driverTargetMode === 'specific' && selectedDriverId ? selectedDriverVehicleId : null,
+        !multiVehicle && driverTargetMode === 'specific' && selectedDriverId
+          ? selectedDriverVehicleId
+          : null,
       required_languages: requiredLanguages.length > 0 ? requiredLanguages : null,
       requested_driver_category: driverCategory,
-    });
+    };
+
+    let bookingId: string | undefined;
+    let error: Error | null = null;
+
+    if (multiVehicle && transportLegs.length >= 2) {
+      const legs: GroupConvoyLegPlan[] = transportLegs.map((row, i) => ({
+        legIndex: i + 1,
+        passengers: legPassengers(row),
+        vehicle_type: row.vehicle_type,
+        vehicle_class: row.vehicle_class,
+        driver_id: row.driver_id,
+      }));
+      const totalPax = sumLegPassengers(transportLegs);
+      const convoy = await createGroupConvoy(
+        {
+          ...insertPayload,
+          passengers: totalPax,
+          driver_id: null,
+          vehicle_id: null,
+        },
+        legs,
+        { autoBroadcast: true },
+      );
+      bookingId = convoy.masterId;
+      error = convoy.error;
+    } else {
+      const single = await insertBooking(insertPayload);
+      bookingId = single.id;
+      error = single.error;
+    }
     if (error) {
       setSubmitting(false);
       const message = mapSupabaseError(error);
@@ -1398,6 +1496,22 @@ export default function NewBookingScreen() {
   }
 
   const bottomPad = insets.bottom + SPACING.xl + 8;
+
+  const transportPlanBlock = (
+    <TransportPlanSection
+      multiVehicle={multiVehicle}
+      legs={transportLegs}
+      onLegsChange={setTransportLegs}
+      onEnableMulti={enableMultiVehicle}
+      passengers={passengers}
+      onPassengersChange={setPassengers}
+      selectedVehicleType={selectedVehicleType}
+      onVehicleTypeChange={setSelectedVehicleType}
+      vehicleClass={vehicleClass}
+      onVehicleClassChange={setVehicleClass}
+      cityHint={bookingCityHint}
+    />
+  );
 
   return (
     <KeyboardAvoidingView
@@ -1432,11 +1546,7 @@ export default function NewBookingScreen() {
           })}
         </Text>
 
-        <ServiceKindSelector
-          value={booking_kind}
-          onChange={set_booking_kind}
-          onGroupPress={() => router.push('/(app)/group-booking')}
-        />
+        <ServiceKindSelector value={booking_kind} onChange={set_booking_kind} />
 
         {step === 1 ? <Text style={styles.hint}>{t('newBooking.pickService')}</Text> : null}
 
@@ -1511,13 +1621,7 @@ export default function NewBookingScreen() {
 
             <View style={styles.compactDivider} />
 
-            <PassengerStepper value={passengers} onChange={setPassengers} />
-            <VehiclePicker
-              selectedVehicleType={selectedVehicleType}
-              onVehicleTypeChange={setSelectedVehicleType}
-              vehicleClass={vehicleClass}
-              onVehicleClassChange={setVehicleClass}
-            />
+            {transportPlanBlock}
             <LanguageMultiSelect
               label={t('newBooking.form.requiredLanguages')}
               hint={t('newBooking.form.requiredLanguagesHint')}
@@ -1646,7 +1750,7 @@ export default function NewBookingScreen() {
               placeholder={t('newBooking.form.placeholders.dateTime')}
               minimumDate={new Date()}
             />
-            <PassengerStepper value={passengers} onChange={setPassengers} />
+            {transportPlanBlock}
             <View style={styles.dayTourCard}>
               <AuthInput
                 label={t('newBooking.form.from')}
@@ -1668,12 +1772,6 @@ export default function NewBookingScreen() {
               />
             </View>
 
-            <VehiclePicker
-              selectedVehicleType={selectedVehicleType}
-              onVehicleTypeChange={setSelectedVehicleType}
-              vehicleClass={vehicleClass}
-              onVehicleClassChange={setVehicleClass}
-            />
             <LanguageMultiSelect
               label={t('newBooking.form.requiredLanguages')}
               hint={t('newBooking.form.requiredLanguagesHint')}
@@ -1847,18 +1945,7 @@ export default function NewBookingScreen() {
               );
             })}
 
-            <AuthInput
-              label={t('newBooking.form.passengers')}
-              value={passengers}
-              onChangeText={setPassengers}
-              keyboardType="number-pad"
-            />
-            <VehiclePicker
-              selectedVehicleType={selectedVehicleType}
-              onVehicleTypeChange={setSelectedVehicleType}
-              vehicleClass={vehicleClass}
-              onVehicleClassChange={setVehicleClass}
-            />
+            {transportPlanBlock}
             <LanguageMultiSelect
               label={t('newBooking.form.requiredLanguages')}
               hint={t('newBooking.form.requiredLanguagesHint')}
@@ -1932,12 +2019,23 @@ export default function NewBookingScreen() {
               <Text style={styles.vLine}>
                 {t('newBooking.form.voucherType')}: {bookingKindUiLabel(booking_kind, transferTab)}
               </Text>
-              <Text style={styles.vLine}>
-                {t('newBooking.form.voucherVehicle')}: {vehicleTypeLabel(selectedVehicleType)}
-              </Text>
-              <Text style={styles.vLine}>
-                {t('newBooking.form.voucherClass')}: {vehicleClassLabel(vehicleClass)}
-              </Text>
+              {multiVehicle && transportLegs.length >= 2 ? (
+                <Text style={styles.vLine}>
+                  {t('transportPlan.voucherMulti', {
+                    count: transportLegs.length,
+                    total: sumLegPassengers(transportLegs),
+                  })}
+                </Text>
+              ) : (
+                <>
+                  <Text style={styles.vLine}>
+                    {t('newBooking.form.voucherVehicle')}: {vehicleTypeLabel(selectedVehicleType)}
+                  </Text>
+                  <Text style={styles.vLine}>
+                    {t('newBooking.form.voucherClass')}: {vehicleClassLabel(vehicleClass)}
+                  </Text>
+                </>
+              )}
               {booking_kind === 'dayTour' && tourRouteDescription.trim() ? (
                 <Text style={styles.vLineMuted}>
                   {t('newBooking.form.voucherTourDesc')}: {tourRouteDescription.trim()}
@@ -2123,24 +2221,29 @@ export default function NewBookingScreen() {
               </Text>
             </View>
 
-            <DriverCategorySelect value={driverCategory} onChange={setDriverCategory} />
-
-            <MatchingDriversSection
-              active
-              vehicleType={selectedVehicleType}
-              vehicleClass={vehicleClass}
-              requiredLanguages={requiredLanguages}
-              driverCategory={driverCategory}
-              driverTargetMode={driverTargetMode}
-              onDriverTargetModeChange={setDriverTargetMode}
-              selectedDriverId={selectedDriverId}
-              selectedDriverVehicleId={selectedDriverVehicleId}
-              onSelectDriver={selectDriver}
-              onDriversLoaded={setMatchingDrivers}
-              minPassengerCapacity={pax}
-              filterByMinSeats={filterByMinSeats}
-              onFilterByMinSeatsChange={setFilterByMinSeats}
-            />
+            {!multiVehicle ? (
+              <>
+                <DriverCategorySelect value={driverCategory} onChange={setDriverCategory} />
+                <MatchingDriversSection
+                  active
+                  vehicleType={selectedVehicleType}
+                  vehicleClass={vehicleClass}
+                  requiredLanguages={requiredLanguages}
+                  driverCategory={driverCategory}
+                  driverTargetMode={driverTargetMode}
+                  onDriverTargetModeChange={setDriverTargetMode}
+                  selectedDriverId={selectedDriverId}
+                  selectedDriverVehicleId={selectedDriverVehicleId}
+                  onSelectDriver={selectDriver}
+                  onDriversLoaded={setMatchingDrivers}
+                  minPassengerCapacity={pax}
+                  filterByMinSeats={filterByMinSeats}
+                  onFilterByMinSeatsChange={setFilterByMinSeats}
+                />
+              </>
+            ) : (
+              <Text style={styles.multiDriverHint}>{t('transportPlan.step3MultiHint')}</Text>
+            )}
 
             {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
 
@@ -2954,14 +3057,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.goldTint,
     ...SHADOWS.gold,
   },
-  serviceKindBtnGroup: {
-    borderColor: '#C7D2FE',
-    backgroundColor: '#EEF2FF',
-    minWidth: '22%',
-    flexGrow: 1,
-  },
-  serviceKindBtnTextGroup: {
-    color: '#4338CA',
+  multiDriverHint: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.md,
+    lineHeight: 18,
   },
   serviceKindBtnText: {
     fontSize: 12,

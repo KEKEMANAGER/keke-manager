@@ -543,6 +543,25 @@
     "cityRequired": "Select a city",
     "activeInCity": "Available in: {{city}}"
   },
+  "transportPlan": {
+    "sectionTitle": "Vehicle",
+    "addVehicle": "+ Add another vehicle",
+    "multiTitle": "Transport plan",
+    "multiHint": "Add as many vehicles as you need — type, class, and passengers per row.",
+    "totalSeats": "Total seats in plan: {{total}}",
+    "legN": "Vehicle {{n}}",
+    "legPassengers": "Passengers on this vehicle",
+    "driverOptional": "Driver (optional)",
+    "addAnother": "+ Add transport",
+    "pickDriver": "Pick driver",
+    "noDrivers": "No matching drivers found",
+    "needTwoVehicles": "Add at least 2 vehicles",
+    "step3MultiHint": "Assign drivers per vehicle above; open legs are broadcast automatically.",
+    "voucherMulti": "{{count}} vehicles · {{total}} passengers total",
+    "multiBadge": "multi-vehicle",
+    "cardMeta": "{{pax}} passengers · manage vehicles",
+    "manageVehicles": "Vehicles"
+  },
   "groupConvoy": {
     "shortTitle": "Group",
     "title": "Group tour",

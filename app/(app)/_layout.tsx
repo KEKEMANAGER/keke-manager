@@ -96,7 +96,6 @@ function CompanyTabsInner() {
           <Tabs.Screen name="profile" options={{ href: null }} />
           <Tabs.Screen name="tracking" options={{ href: null }} />
           <Tabs.Screen name="admin-tracking" options={{ href: null }} />
-          <Tabs.Screen name="group-booking" options={{ href: null }} />
           <Tabs.Screen name="group-dispatch/[id]" options={{ href: null }} />
 
           <Tabs.Screen

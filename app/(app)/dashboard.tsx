@@ -500,15 +500,6 @@ export default function CompanyDashboardScreen() {
           </View>
           <Text style={styles.quickTitle}>{t('common.dayTour')}</Text>
         </Pressable>
-        <Pressable
-          onPress={() => router.push('/(app)/group-booking')}
-          style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
-        >
-          <View style={[styles.quickIconCircle, { backgroundColor: '#E0E7FF' }]}>
-            <Ionicons name="people-outline" size={22} color="#4338CA" />
-          </View>
-          <Text style={styles.quickTitle}>{t('groupConvoy.shortTitle')}</Text>
-        </Pressable>
       </View>
 
       <View ref={emergencyBtnRef} collapsable={false}>
@@ -562,7 +553,7 @@ export default function CompanyDashboardScreen() {
             <View style={styles.bookingTop}>
               <Text style={styles.bookingType}>
                 {b.is_group_master
-                  ? t('groupConvoy.shortTitle')
+                  ? `${bookingTypeLabel(b.kind, b.flight_direction)} · ${t('transportPlan.multiBadge')}`
                   : bookingTypeLabel(b.kind, b.flight_direction)}
               </Text>
               <View style={[styles.statusPill, statusStyle(b.status)]}>
@@ -579,7 +570,7 @@ export default function CompanyDashboardScreen() {
                   <Text style={styles.convoyCode}>{b.group_code}</Text>
                 ) : null}
                 <Text style={styles.convoyMeta}>
-                  {t('groupConvoy.cardMeta', { pax: b.passengers })}
+                  {t('transportPlan.cardMeta', { pax: b.passengers })}
                 </Text>
                 <Pressable
                   onPress={() =>
@@ -591,7 +582,7 @@ export default function CompanyDashboardScreen() {
                   style={styles.convoyDispatchBtn}
                 >
                   <Ionicons name="people-outline" size={16} color={COLORS.white} />
-                  <Text style={styles.convoyDispatchText}>{t('groupConvoy.manageDrivers')}</Text>
+                  <Text style={styles.convoyDispatchText}>{t('transportPlan.manageVehicles')}</Text>
                 </Pressable>
               </View>
             ) : (
@@ -1077,7 +1068,6 @@ const styles = StyleSheet.create({
   },
   quickRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
@@ -1097,9 +1087,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   quickCard: {
-    flexGrow: 1,
-    flexBasis: '22%',
-    minWidth: 72,
+    flex: 1,
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.card,
     borderWidth: 1,

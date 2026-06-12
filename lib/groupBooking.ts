@@ -197,8 +197,8 @@ export async function createGroupConvoy(
     vehicle_type: firstLeg.vehicle_type,
     vehicle_class: firstLeg.vehicle_class,
     comment: master.comment?.trim()
-      ? `[Convoy ${groupCode}] ${master.comment.trim()}`
-      : `[Convoy ${groupCode}] Group tour · ${legs.length} vehicles`,
+      ? `[${groupCode}] ${master.comment.trim()}`
+      : `[${groupCode}] ${legs.length} vehicles`,
   };
 
   const { id: masterId, error: masterErr } = await insertBooking(masterInput);

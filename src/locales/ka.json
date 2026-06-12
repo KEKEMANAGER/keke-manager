@@ -540,6 +540,25 @@
     "cityRequired": "აირჩიეთ ქალაქი",
     "activeInCity": "ხელმისაწვდომი: {{city}}"
   },
+  "transportPlan": {
+    "sectionTitle": "ტრანსპორტი",
+    "addVehicle": "+ დაამატე კიდევ ერთი მანქანა",
+    "multiTitle": "ტრანსპორტის გეგმა",
+    "multiHint": "დაამატეთ რამდენიც გჭირდებათ — ტიპი, კლასი და მგზავრები თითო მანქანაზე.",
+    "totalSeats": "სულ ადგილი leg-ებში: {{total}}",
+    "legN": "მანქანა {{n}}",
+    "legPassengers": "მგზავრები ამ მანქანაზე",
+    "driverOptional": "მძღოლი (არასავალდებულო)",
+    "addAnother": "+ კიდევ ტრანსპორტი",
+    "pickDriver": "აირჩიეთ მძღოლი",
+    "noDrivers": "შესაბამისი მძღოლი ვერ მოიძებნა",
+    "needTwoVehicles": "მინიმუმ 2 მანქანა დაამატეთ",
+    "step3MultiHint": "მძღოლები აირჩევა თითო მანქანაზე ზემოთ; ღია leg-ებზე შეტყობინება ავტომატურად გავა.",
+    "voucherMulti": "{{count}} მანქანა · სულ {{total}} მგზავრი",
+    "multiBadge": "რამდენიმე მანქანა",
+    "cardMeta": "{{pax}} მგზავრი · მანქანების მართვა",
+    "manageVehicles": "მანქანები"
+  },
   "groupConvoy": {
     "shortTitle": "ჯგუფი",
     "title": "ჯგუფური ტური",
