@@ -500,6 +500,15 @@ export default function CompanyDashboardScreen() {
           </View>
           <Text style={styles.quickTitle}>{t('common.dayTour')}</Text>
         </Pressable>
+        <Pressable
+          onPress={() => router.push('/(app)/group-booking')}
+          style={({ pressed }) => [styles.quickCard, SHADOWS.card, pressed && styles.pressed]}
+        >
+          <View style={[styles.quickIconCircle, { backgroundColor: '#E0E7FF' }]}>
+            <Ionicons name="people-outline" size={22} color="#4338CA" />
+          </View>
+          <Text style={styles.quickTitle}>{t('groupConvoy.shortTitle')}</Text>
+        </Pressable>
       </View>
 
       <View ref={emergencyBtnRef} collapsable={false}>
@@ -552,7 +561,9 @@ export default function CompanyDashboardScreen() {
           <View key={b.id} style={[styles.bookingCard, bookingCardStatusBorder(b.status)]}>
             <View style={styles.bookingTop}>
               <Text style={styles.bookingType}>
-                {bookingTypeLabel(b.kind, b.flight_direction)}
+                {b.is_group_master
+                  ? t('groupConvoy.shortTitle')
+                  : bookingTypeLabel(b.kind, b.flight_direction)}
               </Text>
               <View style={[styles.statusPill, statusStyle(b.status)]}>
                 <Text style={[styles.statusText, statusLabelColor(b.status)]}>
@@ -562,6 +573,28 @@ export default function CompanyDashboardScreen() {
             </View>
             <Text style={styles.route}>{routeSummary(b)}</Text>
             <Text style={styles.date}>{formatBookingDate(b)}</Text>
+            {b.is_group_master ? (
+              <View style={styles.convoyBlock}>
+                {b.group_code ? (
+                  <Text style={styles.convoyCode}>{b.group_code}</Text>
+                ) : null}
+                <Text style={styles.convoyMeta}>
+                  {t('groupConvoy.cardMeta', { pax: b.passengers })}
+                </Text>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/group-dispatch/[id]',
+                      params: { id: b.id },
+                    })
+                  }
+                  style={styles.convoyDispatchBtn}
+                >
+                  <Ionicons name="git-network-outline" size={16} color={COLORS.white} />
+                  <Text style={styles.convoyDispatchText}>{t('groupConvoy.openDispatch')}</Text>
+                </Pressable>
+              </View>
+            ) : (
             <View style={styles.driverBlock}>
               <Text style={styles.driverLabel}>{t('company.operatorsOnTrip')}</Text>
               {b.host_display_name ? (
@@ -623,6 +656,7 @@ export default function CompanyDashboardScreen() {
                 </View>
               ) : null}
             </View>
+            )}
             <Text style={styles.price}>{formatGel(Number(b.price_gel))}</Text>
             {b.status === 'pending' ? (
               <Pressable
@@ -1043,6 +1077,7 @@ const styles = StyleSheet.create({
   },
   quickRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
@@ -1062,7 +1097,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   quickCard: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '22%',
+    minWidth: 72,
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.card,
     borderWidth: 1,
@@ -1163,6 +1200,38 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.border,
     paddingTop: SPACING.md,
     marginBottom: SPACING.sm,
+  },
+  convoyBlock: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  convoyCode: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.goldDark,
+    marginBottom: 4,
+  },
+  convoyMeta: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+  },
+  convoyDispatchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#4338CA',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.md,
+  },
+  convoyDispatchText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 14,
   },
   driverLabel: {
     color: COLORS.gray,

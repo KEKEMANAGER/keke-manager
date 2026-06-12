@@ -50,6 +50,8 @@ export function isNewOpenPendingBookingInsert(
   if (payload.eventType !== 'INSERT') return false;
   const row = payload.new;
   if (!row) return false;
+  const rec = row as BookingRealtimeRecord & { is_group_master?: boolean | null };
+  if (rec.is_group_master === true) return false;
   return row.status === 'pending';
 }
 
@@ -393,6 +395,11 @@ export type BookingRow = {
   requested_driver_category?: RequestedDriverCategory | string | null;
   /** Tour operator / staff name who created the booking. */
   created_by_name?: string | null;
+  /** Group convoy master row (no driver; legs are child bookings). */
+  is_group_master?: boolean | null;
+  parent_booking_id?: string | null;
+  leg_index?: number | null;
+  group_code?: string | null;
   /** Populated by `enrichBookingsWithUserVerification` when listing bookings. */
   driver_is_verified?: boolean | null;
   driver_is_guide_driver?: boolean | null;
@@ -455,6 +462,14 @@ export type InsertBookingInput = {
   required_languages?: string[] | null;
   /** Open-job driver category filter (`all` | `guide` | `own_vehicle`). */
   requested_driver_category?: RequestedDriverCategory | null;
+  is_group_master?: boolean;
+  parent_booking_id?: string | null;
+  leg_index?: number | null;
+  group_code?: string | null;
+  /** Override auto-generated voucher code (legs in a convoy). */
+  voucher_code?: string | null;
+  /** Skip driver push when inserting coordinator / internal rows. */
+  skip_driver_notifications?: boolean;
 };
 
 /** Localized booking status label */
@@ -546,6 +561,7 @@ export async function fetchBookingsByCompanyId(companyUserId: string) {
     .from('bookings')
     .select('*')
     .eq('company_id', id)
+    .is('parent_booking_id', null)
     .order('created_at', { ascending: false });
   return {
     data: await enrichBookingsForList(hydrateBookingRows(data ?? [])),
@@ -593,6 +609,7 @@ export async function fetchOpenPendingBookings() {
     .from('bookings')
     .select('*')
     .eq('status', 'pending')
+    .eq('is_group_master', false)
     .is('driver_id', null)
     .order('created_at', { ascending: false });
   return { data: hydrateBookingRows(data ?? []), error };
@@ -685,6 +702,7 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     .from('bookings')
     .select('*')
     .eq('status', 'pending')
+    .eq('is_group_master', false)
     .or(`driver_id.is.null,driver_id.eq.${id}`)
     .order('created_at', { ascending: false });
 
@@ -737,7 +755,9 @@ export async function insertBooking(row: InsertBookingInput) {
     return { id: undefined, error: new Error('vehicle_type სავალდებულოა') };
   }
 
-  const voucherCode = `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  const voucherCode =
+    row.voucher_code?.trim() ||
+    `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`;
   const assignedDriverId = trimUserId(row.driver_id);
   let assignedVehicleId: string | null = row.vehicle_id?.trim() || null;
   if (assignedDriverId && !assignedVehicleId) {
@@ -791,6 +811,19 @@ export async function insertBooking(row: InsertBookingInput) {
         row.requested_driver_category ?? 'all',
       ),
     };
+
+    if (row.is_group_master === true) {
+      body.is_group_master = true;
+    }
+    if (row.parent_booking_id) {
+      body.parent_booking_id = row.parent_booking_id;
+    }
+    if (row.leg_index != null) {
+      body.leg_index = row.leg_index;
+    }
+    if (row.group_code?.trim()) {
+      body.group_code = row.group_code.trim();
+    }
 
     if (opts.includeKindColumn) {
       body.kind = canonicalKind;
@@ -885,7 +918,7 @@ export async function insertBooking(row: InsertBookingInput) {
   if (bookingId && assignedDriverId) {
     void maybeAutoAcceptHiredAssignedBooking(bookingId, assignedDriverId);
   }
-  if (bookingId) {
+  if (bookingId && !row.skip_driver_notifications) {
     void notifyMatchingDriversOfNewBooking({
       kind,
       vehicleType,
