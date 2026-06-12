@@ -15,8 +15,8 @@
 /sign-in/*        /sign-in/:splat   200
 
 # Missing build assets must 404 — never serve index.html as JavaScript (MIME error)
-/_expo/*          /404.html         404
-/assets/*         /404.html         404
+/_expo/*          /asset-not-found.html         404
+/assets/*         /asset-not-found.html         404
 
-# Expo Router SPA (HTML routes only; static files above take precedence when present)
+# Expo Router SPA (HTML routes; Cloudflare also uses functions/_middleware.js)
 /*                /index.html       200
