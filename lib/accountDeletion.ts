@@ -1,5 +1,6 @@
 import {
   avatarObjectPath,
+  legacyVerificationPhotoObjectPaths,
   vehiclePhotoObjectPath,
   verificationPhotoObjectPath,
 } from './mediaUpload';
@@ -78,6 +79,9 @@ async function deleteUserStorageFiles(userId: string): Promise<void> {
   paths.add(avatarObjectPath(userId));
   for (const slot of VERIFICATION_SLOTS) {
     paths.add(verificationPhotoObjectPath(userId, slot));
+  }
+  for (const legacyPath of legacyVerificationPhotoObjectPaths(userId)) {
+    paths.add(legacyPath);
   }
   for (const angle of VEHICLE_ANGLES) {
     paths.add(vehiclePhotoObjectPath(userId, angle));

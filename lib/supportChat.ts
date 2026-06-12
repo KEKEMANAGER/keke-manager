@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import type { ChatThreadType } from './bookingChat';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
@@ -39,22 +40,21 @@ export async function resolveSupportAdminUserId(): Promise<string | null> {
 
   if (cachedSupportAdminId !== undefined) return cachedSupportAdminId;
 
-  const { data, error } = await supabase
-    .from('users')
-    .select('id')
-    .eq('role', 'admin')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('get_support_admin_user_id');
 
   if (error) {
-    if (__DEV__) console.warn('[supportChat] admin lookup failed:', error.message);
-    cachedSupportAdminId = null;
+    if (__DEV__) console.warn('[supportChat] admin RPC failed:', error.message);
+    // Do not cache failures — RLS/migration may be fixed on retry.
     return null;
   }
 
-  cachedSupportAdminId = trimUserId((data as { id?: string } | null)?.id ?? '') || null;
-  return cachedSupportAdminId;
+  const id = trimUserId(String(data ?? '')) || null;
+  cachedSupportAdminId = id;
+  return id;
+}
+
+export function resetSupportAdminCache(): void {
+  cachedSupportAdminId = undefined;
 }
 
 export function isSupportThreadType(value: string | null | undefined): value is typeof SUPPORT_THREAD_TYPE {
@@ -172,31 +172,39 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
 export function useSupportChatListEntry(userId: string | undefined, isAdmin: boolean) {
   const [adminId, setAdminId] = useState<string | null>(null);
   const [summary, setSummary] = useState<SupportConversationSummary | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     if (!userId || isAdmin) {
       setAdminId(null);
       setSummary(null);
+      setLoading(false);
       return;
     }
+    setLoading(true);
     const aid = await resolveSupportAdminUserId();
     setAdminId(aid);
     if (!aid) {
       setSummary(null);
+      setLoading(false);
       return;
     }
     const { data } = await fetchSupportConversationSummary(userId, aid);
     setSummary(data);
+    setLoading(false);
   }, [userId, isAdmin]);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
 
   return {
     adminId,
     summary,
     reload,
+    loading,
     visible: !isAdmin && !!adminId,
   };
 }

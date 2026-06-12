@@ -1,26 +1,42 @@
-/** Simplified verification groups (storage: verification/{user_id}/id|license|registration.jpg). */
-export type VerificationSimpleDoc = 'id' | 'license' | 'registration';
+export type VerificationDocGroupKey = 'id' | 'license' | 'tech_passport';
 
-export function verificationSimpleDocsForHired(isHired: boolean): VerificationSimpleDoc[] {
-  if (isHired) return ['id', 'license'];
-  return ['id', 'license', 'registration'];
+export type VerificationDocGroup = {
+  key: VerificationDocGroupKey;
+  front: VerificationDocSlot;
+  back: VerificationDocSlot;
+};
+
+/** Driver-facing document groups (front + back per type). */
+export function verificationDocGroupsForHired(isHired: boolean): VerificationDocGroup[] {
+  const groups: VerificationDocGroup[] = [
+    { key: 'id', front: 'id_front', back: 'id_back' },
+    { key: 'license', front: 'license_front', back: 'license_back' },
+  ];
+  if (!isHired) {
+    groups.push({
+      key: 'tech_passport',
+      front: 'tech_passport_front',
+      back: 'tech_passport_back',
+    });
+  }
+  return groups;
 }
 
-export function simpleDocPrimarySlot(doc: VerificationSimpleDoc): VerificationDocSlot {
-  if (doc === 'id') return 'id_front';
-  if (doc === 'license') return 'license_front';
-  return 'tech_passport_front';
-}
-
-export function isSimpleDocUploaded(photos: VerificationPhotos, doc: VerificationSimpleDoc): boolean {
-  return !!photos[simpleDocPrimarySlot(doc)]?.trim();
-}
-
-export function photoUrlForSimpleDoc(
+export function isVerificationSlotUploaded(
   photos: VerificationPhotos,
-  doc: VerificationSimpleDoc,
-): string | null {
-  return photos[simpleDocPrimarySlot(doc)];
+  slot: VerificationDocSlot,
+): boolean {
+  return !!photos[slot]?.trim();
+}
+
+export function isVerificationDocGroupComplete(
+  photos: VerificationPhotos,
+  group: VerificationDocGroup,
+): boolean {
+  return (
+    isVerificationSlotUploaded(photos, group.front) &&
+    isVerificationSlotUploaded(photos, group.back)
+  );
 }
 
 /** Storage object name under `verification/[user_id]/`. */
@@ -90,10 +106,10 @@ export function photosFromUserRow(row: Record<string, unknown> | null): Verifica
   return normalizeVerificationPhotos(p);
 }
 
-/** True when every required simple doc (2 hired / 3 freelance) has a primary photo. */
+/** True when every required front/back slot is filled (4 hired / 6 freelance). */
 export function allVerificationPhotosPresent(
   photos: VerificationPhotos,
   isHired: boolean,
 ): boolean {
-  return verificationSimpleDocsForHired(isHired).every((doc) => isSimpleDocUploaded(photos, doc));
+  return verificationStepsForHired(isHired).every((slot) => isVerificationSlotUploaded(photos, slot));
 }

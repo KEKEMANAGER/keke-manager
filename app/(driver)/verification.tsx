@@ -17,20 +17,21 @@ import { isHiredDriver } from '../../lib/role';
 import {
   storagePublicUrlBase,
   uploadMediaObject,
-  verificationPhotoObjectPathLegacy,
+  verificationPhotoObjectPath,
   withCacheBust,
 } from '../../lib/mediaUpload';
 import { supabase } from '../../lib/supabase';
 import {
   allVerificationPhotosPresent,
   emptyVerificationPhotos,
-  isSimpleDocUploaded,
-  photoUrlForSimpleDoc,
+  isVerificationDocGroupComplete,
+  isVerificationSlotUploaded,
   photosFromUserRow,
-  simpleDocPrimarySlot,
-  verificationSimpleDocsForHired,
+  verificationDocGroupsForHired,
+  verificationStepsForHired,
+  type VerificationDocGroup,
+  type VerificationDocSlot,
   type VerificationPhotos,
-  type VerificationSimpleDoc,
 } from '../../lib/verificationDocs';
 import {
   fetchVerificationStatus,
@@ -48,6 +49,12 @@ function bustUri(u: string | null | undefined): string | null {
   return trimmed && isRemoteUrl(trimmed) ? withCacheBust(trimmed) ?? trimmed : trimmed;
 }
 
+function groupTitleKey(group: VerificationDocGroup): string {
+  if (group.key === 'id') return 'verificationScreen.idGroup';
+  if (group.key === 'license') return 'verificationScreen.licenseGroup';
+  return 'verificationScreen.techPassportGroup';
+}
+
 export default function DriverVerificationScreen() {
   const { t } = useTranslation();
   const { user, profile, loading: authLoading } = useAuth();
@@ -62,12 +69,12 @@ export default function DriverVerificationScreen() {
   const [photos, setPhotos] = useState<VerificationPhotos>(emptyVerificationPhotos);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [uploadingDoc, setUploadingDoc] = useState<VerificationSimpleDoc | null>(null);
+  const [uploadingSlot, setUploadingSlot] = useState<VerificationDocSlot | null>(null);
   const [docsDirty, setDocsDirty] = useState(false);
   const [isHiredDriverUser, setIsHiredDriverUser] = useState(() => isHiredDriver(profile));
 
-  const simpleDocs = useMemo(
-    () => verificationSimpleDocsForHired(isHiredDriverUser),
+  const docGroups = useMemo(
+    () => verificationDocGroupsForHired(isHiredDriverUser),
     [isHiredDriverUser],
   );
 
@@ -107,8 +114,7 @@ export default function DriverVerificationScreen() {
     const hired = !!row?.is_hired_driver || isHiredDriver(profile);
     const loaded = photosFromUserRow(row);
     const busted = { ...loaded };
-    for (const doc of verificationSimpleDocsForHired(hired)) {
-      const slot = simpleDocPrimarySlot(doc);
+    for (const slot of verificationStepsForHired(hired)) {
       busted[slot] = bustUri(busted[slot]);
     }
     setPhotos(busted);
@@ -135,10 +141,10 @@ export default function DriverVerificationScreen() {
     };
   }, [userId, load]);
 
-  async function uploadDoc(doc: VerificationSimpleDoc) {
-    if (!userId || uploadingDoc) return;
+  async function uploadSlot(slot: VerificationDocSlot) {
+    if (!userId || uploadingSlot) return;
     setSubmitError(null);
-    setUploadingDoc(doc);
+    setUploadingSlot(slot);
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
@@ -153,35 +159,22 @@ export default function DriverVerificationScreen() {
       if (res.canceled || !res.assets[0]) return;
 
       const localUri = res.assets[0]!.uri;
-      const path = verificationPhotoObjectPathLegacy(userId, doc);
+      const path = verificationPhotoObjectPath(userId, slot);
       const publicUrl = await uploadMediaObject(path, localUri, { contentType: 'image/jpeg' });
-      const { error } = await saveSingleVerificationDocument(userId, doc, publicUrl);
+      const { error } = await saveSingleVerificationDocument(userId, slot, publicUrl);
       if (error) {
         setSubmitError(error.message);
         return;
       }
       const cleanUrl = storagePublicUrlBase(publicUrl);
       const bustedUrl = bustUri(cleanUrl) ?? cleanUrl;
-      setPhotos((prev) => {
-        const next = { ...prev };
-        if (doc === 'id') {
-          next.id_front = bustedUrl;
-          next.id_back = cleanUrl;
-        } else if (doc === 'license') {
-          next.license_front = bustedUrl;
-          next.license_back = cleanUrl;
-        } else {
-          next.tech_passport_front = bustedUrl;
-          next.tech_passport_back = cleanUrl;
-        }
-        return next;
-      });
+      setPhotos((prev) => ({ ...prev, [slot]: bustedUrl }));
       setDocsDirty(true);
       await load();
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : t('vehicleScreen.uploadFailed'));
     } finally {
-      setUploadingDoc(null);
+      setUploadingSlot(null);
     }
   }
 
@@ -194,26 +187,11 @@ export default function DriverVerificationScreen() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const uploaded: Partial<Record<string, string>> = {};
-      for (const doc of simpleDocs) {
-        const uri = photoUrlForSimpleDoc(photos, doc);
-        if (!uri) throw new Error(t('verificationScreen.photoMissing'));
-        uploaded[doc] = isRemoteUrl(uri) ? storagePublicUrlBase(uri.trim()) : uri;
-      }
-
       const payload: Parameters<typeof submitVerification>[1] = {};
-      for (const doc of simpleDocs) {
-        const url = uploaded[doc]!;
-        if (doc === 'id') {
-          payload.id_front = url;
-          payload.id_back = url;
-        } else if (doc === 'license') {
-          payload.license_front = url;
-          payload.license_back = url;
-        } else {
-          payload.tech_passport_front = url;
-          payload.tech_passport_back = url;
-        }
+      for (const slot of verificationStepsForHired(isHiredDriverUser)) {
+        const uri = photos[slot];
+        if (!uri?.trim()) throw new Error(t('verificationScreen.photoMissing'));
+        payload[slot] = isRemoteUrl(uri) ? storagePublicUrlBase(uri.trim()) : uri;
       }
 
       const { error } = await submitVerification(userId, payload);
@@ -228,6 +206,42 @@ export default function DriverVerificationScreen() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function renderSlot(slot: VerificationDocSlot) {
+    const uploaded = isVerificationSlotUploaded(photos, slot);
+    const uri = photos[slot];
+    const busy = uploadingSlot === slot;
+    return (
+      <View key={slot} style={styles.slotBlock}>
+        <Text style={styles.slotLabel}>{t(`verificationScreen.${slot}`)}</Text>
+        <Text style={styles.slotHint}>{t(`verificationScreen.${slot}Hint`)}</Text>
+        {uri ? (
+          <Image source={{ uri }} style={styles.docPreview} resizeMode="cover" />
+        ) : (
+          <View style={styles.docPreviewPlaceholder}>
+            <Text style={styles.docPreviewPh}>{t('verificationScreen.noPhoto')}</Text>
+          </View>
+        )}
+        <Pressable
+          onPress={() => void uploadSlot(slot)}
+          disabled={busy || submitting}
+          style={({ pressed }) => [
+            styles.uploadBtn,
+            SHADOWS.button,
+            (pressed || busy) && styles.uploadBtnPressed,
+          ]}
+        >
+          {busy ? (
+            <ActivityIndicator color={COLORS.black} />
+          ) : (
+            <Text style={styles.uploadBtnText}>
+              {uploaded ? t('verificationScreen.replace') : t('verificationScreen.uploadBtn')}
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    );
   }
 
   if (authLoading || loading) {
@@ -297,8 +311,8 @@ export default function DriverVerificationScreen() {
       ) : (
         <Text style={styles.screenSub}>
           {isHiredDriverUser
-            ? t('verificationScreen.screenSubHiredSimple')
-            : t('verificationScreen.screenSubFreelanceSimple')}
+            ? t('verificationScreen.screenSubHired')
+            : t('verificationScreen.screenSubFreelance')}
         </Text>
       )}
 
@@ -307,44 +321,22 @@ export default function DriverVerificationScreen() {
       ) : null}
 
       <View style={styles.docList}>
-        {simpleDocs.map((doc) => {
-          const uploaded = isSimpleDocUploaded(photos, doc);
-          const uri = photoUrlForSimpleDoc(photos, doc);
-          const busy = uploadingDoc === doc;
+        {docGroups.map((group) => {
+          const complete = isVerificationDocGroupComplete(photos, group);
           return (
-            <View key={doc} style={styles.docCard}>
+            <View key={group.key} style={styles.docCard}>
               <View style={styles.docCardHead}>
-                <Text style={styles.docCardTitle}>{t(`verificationScreen.doc_${doc}`)}</Text>
-                <View style={[styles.docStatus, uploaded ? styles.docStatusOk : styles.docStatusMissing]}>
-                  <Text style={uploaded ? styles.docStatusTextOk : styles.docStatusTextMissing}>
-                    {uploaded ? t('verificationScreen.docUploaded') : t('verificationScreen.docMissing')}
+                <Text style={styles.docCardTitle}>{t(groupTitleKey(group))}</Text>
+                <View
+                  style={[styles.docStatus, complete ? styles.docStatusOk : styles.docStatusMissing]}
+                >
+                  <Text style={complete ? styles.docStatusTextOk : styles.docStatusTextMissing}>
+                    {complete ? t('verificationScreen.docUploaded') : t('verificationScreen.docMissing')}
                   </Text>
                 </View>
               </View>
-              {uri ? (
-                <Image source={{ uri }} style={styles.docPreview} resizeMode="cover" />
-              ) : (
-                <View style={styles.docPreviewPlaceholder}>
-                  <Text style={styles.docPreviewPh}>{t('verificationScreen.noPhoto')}</Text>
-                </View>
-              )}
-              <Pressable
-                onPress={() => void uploadDoc(doc)}
-                disabled={busy || submitting}
-                style={({ pressed }) => [
-                  styles.uploadBtn,
-                  SHADOWS.button,
-                  (pressed || busy) && styles.uploadBtnPressed,
-                ]}
-              >
-                {busy ? (
-                  <ActivityIndicator color={COLORS.black} />
-                ) : (
-                  <Text style={styles.uploadBtnText}>
-                    {uploaded ? t('verificationScreen.replace') : t('verificationScreen.uploadBtn')}
-                  </Text>
-                )}
-              </Pressable>
+              {renderSlot(group.front)}
+              {renderSlot(group.back)}
             </View>
           );
         })}
@@ -492,6 +484,14 @@ const styles = StyleSheet.create({
   },
   docStatusTextOk: { color: COLORS.success, fontSize: 11, fontWeight: '800' },
   docStatusTextMissing: { color: COLORS.goldDark, fontSize: 11, fontWeight: '800' },
+  slotBlock: {
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+  },
+  slotLabel: { color: COLORS.text, fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  slotHint: { color: COLORS.textMuted, fontSize: 12, lineHeight: 17, marginBottom: SPACING.sm },
   docPreview: {
     width: '100%',
     height: 140,

@@ -5,6 +5,7 @@ import { UserAvatar } from './UserAvatar';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
 
 type Props = {
+  variant?: 'support' | 'adminInbox';
   lastText?: string | null;
   lastAt?: string | null;
   unreadCount?: number;
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function SupportChatListRow({
+  variant = 'support',
   lastText,
   lastAt,
   unreadCount = 0,
@@ -20,8 +22,12 @@ export function SupportChatListRow({
   formatTime,
 }: Props) {
   const { t } = useTranslation();
-  const title = t('supportChat.title');
-  const preview = lastText?.trim() || t('supportChat.listHint');
+  const isAdminInbox = variant === 'adminInbox';
+  const title = isAdminInbox ? t('supportChat.adminInboxTitle') : t('supportChat.title');
+  const preview = isAdminInbox
+    ? t('supportChat.adminInboxOpen')
+    : lastText?.trim() || t('supportChat.listHint');
+  const iconName = isAdminInbox ? 'mail-open-outline' : 'headset-outline';
 
   return (
     <Pressable
@@ -29,14 +35,14 @@ export function SupportChatListRow({
       style={({ pressed }) => [styles.row, styles.rowHighlight, pressed && styles.rowPressed]}
     >
       <View style={styles.iconWrap}>
-        <Ionicons name="headset-outline" size={22} color="#0f0f0f" />
+        <Ionicons name={iconName} size={22} color="#0f0f0f" />
       </View>
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
           <Text style={styles.rowName} numberOfLines={1}>
             {title}
           </Text>
-          {lastAt ? (
+          {lastAt && !isAdminInbox ? (
             <Text style={styles.rowTime}>{formatTime(lastAt)}</Text>
           ) : null}
         </View>

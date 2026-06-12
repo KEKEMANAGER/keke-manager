@@ -44,7 +44,7 @@ export default function DriverChatListScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
-  const { adminId, summary: supportSummary, reload: reloadSupport, visible: showSupport } =
+  const { adminId, summary: supportSummary, reload: reloadSupport, loading: supportLoading, visible: showSupport } =
     useSupportChatListEntry(user?.id, isAdmin);
 
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
@@ -154,15 +154,20 @@ export default function DriverChatListScreen() {
             />
           }
           ListHeaderComponent={
-            showSupport ? (
-              <SupportChatListRow
-                lastText={supportSummary?.last_text}
-                lastAt={supportSummary?.last_at}
-                unreadCount={supportSummary?.unread_count ?? 0}
-                onPress={openSupportChat}
-                formatTime={(iso) => formatListTime(iso, t('chat.yesterday'))}
-              />
-            ) : null
+            <>
+              {showSupport ? (
+                <SupportChatListRow
+                  lastText={supportSummary?.last_text}
+                  lastAt={supportSummary?.last_at}
+                  unreadCount={supportSummary?.unread_count ?? 0}
+                  onPress={openSupportChat}
+                  formatTime={(iso) => formatListTime(iso, t('chat.yesterday'))}
+                />
+              ) : null}
+              {!isAdmin && !supportLoading && !adminId ? (
+                <Text style={styles.supportWarn}>{t('supportChat.unavailable')}</Text>
+              ) : null}
+            </>
           }
           ListEmptyComponent={
             !showSupport ? (
@@ -341,5 +346,12 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: SPACING.xs,
+  },
+  supportWarn: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.sm,
   },
 });

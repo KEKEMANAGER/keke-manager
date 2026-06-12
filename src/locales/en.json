@@ -1230,6 +1230,8 @@
     "adminInboxTitle": "Support inbox",
     "adminInboxHint": "Users messaging KEKE Support appear here. Tap a thread to reply.",
     "adminInboxEmpty": "No support messages yet",
+    "adminInboxOpen": "Open inbox and reply to users",
+    "unavailable": "Support chat is temporarily unavailable. Try again later or email info@kekemanager.com",
     "userFallback": "User"
   },
   "jobBoard": {

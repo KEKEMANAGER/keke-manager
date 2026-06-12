@@ -76,24 +76,15 @@ export function withCacheBust(url: string | null | undefined): string | null {
   return `${storagePublicUrlBase(url)}?t=${Date.now()}`;
 }
 
-function verificationSlotToFile(slot: VerificationDocSlot): 'license' | 'id' | 'registration' {
-  if (slot.startsWith('license')) return 'license';
-  if (slot.startsWith('id')) return 'id';
-  return 'registration';
-}
-
-/** `verification/[user_id]/id.jpg` | `license.jpg` | `registration.jpg` (bucket `media`) */
+/** `verification/[user_id]/id_front.jpg` etc. (bucket `media`) */
 export function verificationPhotoObjectPath(userId: string, slot: VerificationDocSlot): string {
-  return `verification/${userId}/${verificationSlotToFile(slot)}.jpg`;
+  return `verification/${userId}/${slot}.jpg`;
 }
 
-export function verificationPhotoObjectPathLegacy(
-  userId: string,
-  slot: 'license' | 'id' | 'registration',
-): string {
-  return verificationPhotoObjectPath(
-    userId,
-    slot === 'license' ? 'license_front' : slot === 'id' ? 'id_front' : 'tech_passport_front',
+/** Pre–front/back split filenames (`id.jpg`, `license.jpg`, `registration.jpg`). */
+export function legacyVerificationPhotoObjectPaths(userId: string): string[] {
+  return ['id.jpg', 'license.jpg', 'registration.jpg'].map(
+    (name) => `verification/${userId}/${name}`,
   );
 }
 
