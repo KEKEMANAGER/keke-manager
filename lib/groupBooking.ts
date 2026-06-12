@@ -135,11 +135,20 @@ export async function fetchLegsForMaster(
   return { data: await enrichBookingsForList(rows), error: null };
 }
 
-function legComment(master: BookingRow, legIndex: number, totalLegs: number): string {
-  const code = master.group_code?.trim() || 'GRP';
-  const base = master.comment?.trim() || '';
+export function buildLegComment(
+  groupCode: string | null | undefined,
+  legIndex: number,
+  totalLegs: number,
+  baseComment: string | null | undefined,
+): string {
+  const code = groupCode?.trim() || 'GRP';
+  const base = baseComment?.trim() || '';
   const tag = `[Convoy ${code} · leg ${legIndex}/${totalLegs}]`;
   return base ? `${tag} ${base}` : tag;
+}
+
+function legComment(master: BookingRow, legIndex: number, totalLegs: number): string {
+  return buildLegComment(master.group_code, legIndex, totalLegs, master.comment);
 }
 
 function proportionalPrice(total: number, legPax: number, totalPax: number): number {

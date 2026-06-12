@@ -1545,7 +1545,13 @@
     "notFound": "Booking not found",
     "notAllowed": "Cannot edit in this status",
     "warnTitle": "Trip in progress",
-    "warnInProgress": "The trip has already started. Save anyway?"
+    "warnInProgress": "The trip has already started. Save anyway?",
+    "masterBannerTitle": "Large group — master booking",
+    "masterBannerBody": "Route, date, and other shared fields sync to every vehicle automatically. Assigned drivers are notified.",
+    "masterPassengers": "Total passengers",
+    "masterPassengersHint": "Change per-vehicle passenger split on the Vehicles screen.",
+    "masterPrice": "Total price (₾)",
+    "masterPriceHint": "Change per-vehicle price on the Vehicles screen."
   },
   "tabs": {
     "dashboard": "Dashboard",

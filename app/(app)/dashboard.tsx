@@ -42,6 +42,7 @@ import { UserAvatar } from '../../components/UserAvatar';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { BookingOdometerSection } from '../../components/BookingOdometerSection';
 import { EmptyState } from '../../components/EmptyState';
+import { canCompanyEditBooking } from '../../lib/bookingUpdate';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { supabase } from '../../lib/supabase';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -572,18 +573,34 @@ export default function CompanyDashboardScreen() {
                 <Text style={styles.convoyMeta}>
                   {t('transportPlan.cardMeta', { pax: b.passengers })}
                 </Text>
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/group-dispatch/[id]',
-                      params: { id: b.id },
-                    })
-                  }
-                  style={styles.convoyDispatchBtn}
-                >
-                  <Ionicons name="people-outline" size={16} color={COLORS.white} />
-                  <Text style={styles.convoyDispatchText}>{t('transportPlan.manageVehicles')}</Text>
-                </Pressable>
+                <View style={styles.convoyBtnRow}>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/group-dispatch/[id]',
+                        params: { id: b.id },
+                      })
+                    }
+                    style={[styles.convoyDispatchBtn, styles.convoyDispatchBtnFlex]}
+                  >
+                    <Ionicons name="people-outline" size={16} color={COLORS.white} />
+                    <Text style={styles.convoyDispatchText}>{t('transportPlan.manageVehicles')}</Text>
+                  </Pressable>
+                  {canCompanyEditBooking(b.status).allowed ? (
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: '/(app)/edit-booking/[id]',
+                          params: { id: b.id },
+                        })
+                      }
+                      style={styles.convoyEditBtn}
+                    >
+                      <Ionicons name="create-outline" size={16} color={COLORS.goldDark} />
+                      <Text style={styles.convoyEditText}>{t('editBooking.edit')}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             ) : (
             <View style={styles.driverBlock}>
@@ -1206,6 +1223,11 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
   },
+  convoyBtnRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
   convoyDispatchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1216,8 +1238,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: RADIUS.md,
   },
+  convoyDispatchBtnFlex: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   convoyDispatchText: {
     color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  convoyEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  convoyEditText: {
+    color: COLORS.goldDark,
     fontWeight: '700',
     fontSize: 14,
   },

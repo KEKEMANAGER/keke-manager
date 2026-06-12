@@ -112,6 +112,7 @@ export default function EditBookingScreen() {
     setSaving(true);
     const pax = parseInt(passengers, 10);
     const price = parseFloat(priceGel.replace(',', '.'));
+    const isGroupMaster = booking.is_group_master === true;
     const { error } = await updateBookingByCompany(
       booking.id,
       user.id,
@@ -121,8 +122,12 @@ export default function EditBookingScreen() {
         to_location: toP.name,
         to_location_type: toP.type,
         date_display: dateDisplay.trim() || null,
-        passengers: Number.isFinite(pax) && pax > 0 ? pax : booking.passengers,
-        price_gel: Number.isFinite(price) ? price : booking.price_gel,
+        ...(isGroupMaster
+          ? {}
+          : {
+              passengers: Number.isFinite(pax) && pax > 0 ? pax : booking.passengers,
+              price_gel: Number.isFinite(price) ? price : booking.price_gel,
+            }),
         sign_text: signText.trim() || null,
         flight_number:
           booking.kind === 'transfer' ? flightNumber.trim() || null : booking.flight_number,
@@ -158,6 +163,13 @@ export default function EditBookingScreen() {
       <Text style={styles.title}>{t('editBooking.title')}</Text>
       <Text style={styles.sub}>{t('editBooking.subtitle')}</Text>
 
+      {booking.is_group_master ? (
+        <View style={styles.masterBanner}>
+          <Text style={styles.masterBannerTitle}>{t('editBooking.masterBannerTitle')}</Text>
+          <Text style={styles.masterBannerText}>{t('editBooking.masterBannerBody')}</Text>
+        </View>
+      ) : null}
+
       {showLocationPickers ? (
         <>
           <LocationPicker
@@ -187,17 +199,27 @@ export default function EditBookingScreen() {
       )}
       <AuthInput label={t('editBooking.date')} value={dateDisplay} onChangeText={setDateDisplay} />
       <AuthInput
-        label={t('editBooking.passengers')}
+        label={
+          booking.is_group_master ? t('editBooking.masterPassengers') : t('editBooking.passengers')
+        }
         value={passengers}
         onChangeText={setPassengers}
         keyboardType="number-pad"
+        editable={!booking.is_group_master}
       />
+      {booking.is_group_master ? (
+        <Text style={styles.fieldHint}>{t('editBooking.masterPassengersHint')}</Text>
+      ) : null}
       <AuthInput
-        label={t('editBooking.price')}
+        label={booking.is_group_master ? t('editBooking.masterPrice') : t('editBooking.price')}
         value={priceGel}
         onChangeText={setPriceGel}
         keyboardType="decimal-pad"
+        editable={!booking.is_group_master}
       />
+      {booking.is_group_master ? (
+        <Text style={styles.fieldHint}>{t('editBooking.masterPriceHint')}</Text>
+      ) : null}
       <AuthInput label={t('editBooking.signText')} value={signText} onChangeText={setSignText} />
       {booking && isTransferKind(booking.kind) ? (
         <AuthInput
@@ -242,6 +264,17 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: '800', color: COLORS.text },
   sub: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.lg },
+  masterBanner: {
+    backgroundColor: COLORS.goldTint,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+  },
+  masterBannerTitle: { fontSize: 14, fontWeight: '800', color: COLORS.goldDark, marginBottom: 4 },
+  masterBannerText: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
+  fieldHint: { fontSize: 12, color: COLORS.textSecondary, marginTop: -8, marginBottom: SPACING.md },
   saveBtn: {
     marginTop: SPACING.lg,
     backgroundColor: COLORS.gold,

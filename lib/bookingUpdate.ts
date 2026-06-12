@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { BookingRow } from './bookings';
+import { buildLegComment, fetchLegsForMaster } from './groupBooking';
 import {
   notifyDriverBookingUpdated,
   notifyHostBookingUpdated,
@@ -32,7 +33,28 @@ const BOOKING_UPDATE_FIELDS = [
   'transfer_out',
 ] as const;
 
+/** Shared trip fields copied from group master to every leg on edit. */
+const MASTER_TO_LEG_SYNC_FIELDS = [
+  'from_location',
+  'from_location_type',
+  'to_location',
+  'to_location_type',
+  'route',
+  'date_display',
+  'flight_number',
+  'meet_greet',
+  'sign_text',
+  'pickup_sign_logo_url',
+  'passenger_name',
+  'passenger_phone',
+  'tour_days',
+  'itinerary',
+  'transfer_in',
+  'transfer_out',
+] as const;
+
 type UpdateField = (typeof BOOKING_UPDATE_FIELDS)[number];
+type LegSyncField = (typeof MASTER_TO_LEG_SYNC_FIELDS)[number];
 
 function labelForField(key: string): string {
   const labels: Record<string, string> = {
@@ -114,6 +136,87 @@ export async function fetchBookingForCompanyEdit(bookingId: string, companyUserI
   return { data: data as BookingRow, error: null };
 }
 
+function hasLegSyncChanges(changes: Partial<Record<UpdateField, unknown>>): boolean {
+  if ('comment' in changes) return true;
+  return MASTER_TO_LEG_SYNC_FIELDS.some((key) => key in changes);
+}
+
+function pickLegSyncPayload(
+  changes: Partial<Record<UpdateField, unknown>>,
+): Partial<Record<LegSyncField, unknown>> {
+  const payload: Partial<Record<LegSyncField, unknown>> = {};
+  for (const key of MASTER_TO_LEG_SYNC_FIELDS) {
+    if (key in changes) {
+      payload[key] = changes[key];
+    }
+  }
+  return payload;
+}
+
+async function syncGroupMasterToLegs(
+  master: BookingRow,
+  changes: Partial<Record<UpdateField, unknown>>,
+  companyId: string,
+): Promise<void> {
+  if (!master.is_group_master || !hasLegSyncChanges(changes)) return;
+
+  const { data: legs, error } = await fetchLegsForMaster(master.id, companyId);
+  if (error || legs.length === 0) return;
+
+  const syncPayload = pickLegSyncPayload(changes);
+  const commentChanged = 'comment' in changes;
+  const totalLegs = legs.length;
+
+  for (const leg of legs) {
+    const legIndex = leg.leg_index ?? 1;
+    const legPayload: Record<string, unknown> = { ...syncPayload };
+    if (commentChanged) {
+      legPayload.comment = buildLegComment(master.group_code, legIndex, totalLegs, master.comment);
+    }
+    legPayload.driver_update_pending = true;
+    legPayload.updated_at = new Date().toISOString();
+
+    const { data: updatedLeg, error: legErr } = await supabase
+      .from('bookings')
+      .update(legPayload)
+      .eq('id', leg.id)
+      .eq('company_id', companyId)
+      .select('*')
+      .maybeSingle();
+
+    if (legErr || !updatedLeg) continue;
+
+    const legDiff = computeBookingDiff(
+      leg as unknown as Record<string, unknown>,
+      updatedLeg as unknown as Record<string, unknown>,
+    );
+
+    if (Object.keys(legDiff).length === 0) {
+      await supabase.from('bookings').update({ driver_update_pending: false }).eq('id', leg.id);
+      continue;
+    }
+
+    await supabase.from('booking_history').insert({
+      booking_id: leg.id,
+      changed_by: companyId,
+      changes: legDiff,
+      reason: 'convoy_master_sync',
+    });
+    await supabase
+      .from('bookings')
+      .update({ update_change_summary: legDiff })
+      .eq('id', leg.id);
+
+    const row = updatedLeg as BookingRow;
+    if (row.driver_id) {
+      void notifyDriverBookingUpdated(row.driver_id, leg.id, legDiff);
+    }
+    if (row.host_driver_id) {
+      void notifyHostBookingUpdated(row.host_driver_id, leg.id, legDiff);
+    }
+  }
+}
+
 export async function acknowledgeBookingUpdate(
   bookingId: string,
   driverUserId: string,
@@ -193,6 +296,10 @@ export async function updateBookingByCompany(
     }
     if (row.host_driver_id) {
       void notifyHostBookingUpdated(row.host_driver_id, id, diff);
+    }
+
+    if (row.is_group_master && hasLegSyncChanges(changes)) {
+      await syncGroupMasterToLegs(row, changes, companyId);
     }
   } else {
     await supabase.from('bookings').update({ driver_update_pending: false }).eq('id', id);
