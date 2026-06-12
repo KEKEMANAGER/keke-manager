@@ -25,6 +25,7 @@ import { AdminUsersSection } from '../../components/admin/AdminUsersSection';
 import { AdminVerifyPanel } from '../../components/admin/AdminVerifyPanel';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { useChatUnreadCount } from '../../lib/useChatUnreadCount';
 
 function AdminSearchInput({
   value,
@@ -61,7 +62,8 @@ function parseTab(raw: string | string[] | undefined): AdminTabId {
 
 export default function AdminPanelScreen() {
   const { t } = useTranslation();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading, user } = useAuth();
+  const { tabBadge: chatTabBadge } = useChatUnreadCount(user?.id);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -87,13 +89,13 @@ export default function AdminPanelScreen() {
     () => [
       { id: 'users' as const, label: t('adminPanel.tabUsers') },
       { id: 'verify' as const, label: t('adminPanel.tabVerify') },
-      { id: 'chats' as const, label: t('adminPanel.tabChats') },
+      { id: 'chats' as const, label: t('adminPanel.tabChats'), badge: chatTabBadge },
       { id: 'bookings' as const, label: t('adminPanel.tabBookings') },
       { id: 'gps' as const, label: t('adminPanel.tabGps') },
       { id: 'stats' as const, label: t('adminPanel.tabStats') },
       { id: 'ads' as const, label: '📢 რეკლამა' },
     ],
-    [t],
+    [t, chatTabBadge],
   );
 
   if (authLoading) {

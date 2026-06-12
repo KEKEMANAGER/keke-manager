@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { fetchUnreadMessageCount, subscribeToUnreadCount } from './messages';
+import { syncAppIconBadgeCount } from './appIconBadge';
 import { supabase } from './supabase';
 import { setWebDocumentBaseTitle, updateWebDocumentTitle } from './webChatAlerts';
 
@@ -18,11 +19,13 @@ export function useChatUnreadCount(userId: string | undefined) {
   const refresh = useCallback(async () => {
     if (!userId) {
       setUnread(0);
+      void syncAppIconBadgeCount(0);
       if (Platform.OS === 'web') updateWebDocumentTitle(0);
       return;
     }
     const count = await fetchUnreadMessageCount(userId);
     setUnread(count);
+    void syncAppIconBadgeCount(count);
     if (Platform.OS === 'web') {
       setWebDocumentBaseTitle(t('menu.appTitle'));
       updateWebDocumentTitle(count);

@@ -17,6 +17,10 @@ import { getUserRole } from '../lib/role';
 configureNotificationHandler();
 void ensureAndroidNotificationChannel();
 
+function shouldRegisterPush(role: ReturnType<typeof getUserRole>): boolean {
+  return role === 'driver' || role === 'company' || role === 'admin';
+}
+
 export function PushNotificationRegistration() {
   const { user, profile, loading, session } = useAuth();
   const role = getUserRole(profile);
@@ -24,7 +28,7 @@ export function PushNotificationRegistration() {
 
   useEffect(() => {
     if (loading || !user?.id) return;
-    if (role !== 'driver') return;
+    if (!shouldRegisterPush(role)) return;
     void registerForPushNotificationsAsync(user.id, { requestPermission: true });
   }, [loading, user?.id, role, sessionFingerprint]);
 
@@ -51,6 +55,10 @@ function isChatTapPayload(data: BookingPushTapPayload | undefined): boolean {
   return data?.type === 'chat_message' && !!data?.sender_id;
 }
 
+function chatPathForRole(role: ReturnType<typeof getUserRole>): '/(driver)/chat' | '/(app)/chat' {
+  return role === 'driver' ? '/(driver)/chat' : '/(app)/chat';
+}
+
 export function PushNotificationListeners() {
   const { t } = useTranslation();
   const { user, profile } = useAuth();
@@ -68,10 +76,9 @@ export function PushNotificationListeners() {
       handledOpenRef.current = id;
       const senderId = String(data?.sender_id ?? '').trim();
       if (!senderId) return;
-      const pathname = role === 'driver' ? '/(driver)/chat' : '/(app)/chat';
       const threadType = typeof data?.thread_type === 'string' ? data.thread_type.trim() : '';
       router.push({
-        pathname,
+        pathname: chatPathForRole(role),
         params: {
           uid: senderId,
           name: '',
@@ -118,20 +125,36 @@ export function PushNotificationListeners() {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
       void (async () => {
         const { title, body } = notificationContentFromRequest(notification);
-        const data = notification.request.content.data as
-          | {
-              type?: string;
-              vehicle_type?: string;
-              vehicle_class?: string;
-              booking_id?: string;
-            }
-          | undefined;
+        const data = notification.request.content.data as BookingPushTapPayload | undefined;
+
+        if (isChatTapPayload(data)) {
+          const senderId = String(data.sender_id ?? '').trim();
+          const threadType = typeof data.thread_type === 'string' ? data.thread_type.trim() : '';
+          Alert.alert(title, body, [
+            { text: t('common.close'), style: 'cancel' },
+            {
+              text: t('notifications.openChat'),
+              onPress: () => {
+                if (!role || !senderId) return;
+                router.push({
+                  pathname: chatPathForRole(role),
+                  params: {
+                    uid: senderId,
+                    name: '',
+                    ...(threadType ? { threadType } : {}),
+                  },
+                });
+              },
+            },
+          ]);
+          return;
+        }
 
         if (data?.type === 'new_booking' && role === 'driver' && user?.id) {
           const matches = await driverProfileMatchesBooking(
             user.id,
-            data.vehicle_type ?? '',
-            data.vehicle_class ?? '',
+            (data as { vehicle_type?: string }).vehicle_type ?? '',
+            (data as { vehicle_class?: string }).vehicle_class ?? '',
           );
           if (!matches) return;
         }

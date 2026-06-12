@@ -659,6 +659,7 @@
     "testTitle": "KEKE ტესტი",
     "testBody": "Push შეტყობინებები მუშაობს!",
     "viewBookings": "შეკვეთები",
+    "openChat": "ჩათი",
     "sendTest": "ტესტ შეტყობინება",
     "testSent": "ტესტ push გაიგზავნა",
     "testFailed": "ტესტ push ვერ გაიგზავნა",

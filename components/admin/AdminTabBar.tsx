@@ -1,9 +1,9 @@
-import { ScrollView, Pressable, StyleSheet, Text } from 'react-native';
+import { ScrollView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
 export type AdminTabId = 'users' | 'verify' | 'chats' | 'bookings' | 'gps' | 'stats' | 'ads';
 
-type TabDef = { id: AdminTabId; label: string };
+type TabDef = { id: AdminTabId; label: string; badge?: string | number };
 
 type Props = {
   tabs: TabDef[];
@@ -21,6 +21,7 @@ export function AdminTabBar({ tabs, active, onChange }: Props) {
     >
       {tabs.map((tab) => {
         const on = tab.id === active;
+        const showBadge = tab.badge !== undefined && tab.badge !== null && tab.badge !== '';
         return (
           <Pressable
             key={tab.id}
@@ -32,6 +33,11 @@ export function AdminTabBar({ tabs, active, onChange }: Props) {
             ]}
           >
             <Text style={[styles.chipText, on && styles.chipTextActive]}>{tab.label}</Text>
+            {showBadge ? (
+              <View style={[styles.badge, on && styles.badgeOnActive]}>
+                <Text style={[styles.badgeText, on && styles.badgeTextOnActive]}>{tab.badge}</Text>
+              </View>
+            ) : null}
           </Pressable>
         );
       })}
@@ -50,6 +56,9 @@ const styles = StyleSheet.create({
     paddingRight: SPACING.lg,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: RADIUS.button,
@@ -69,5 +78,25 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: '#0f0f0f',
+  },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeOnActive: {
+    backgroundColor: '#0f0f0f',
+  },
+  badgeText: {
+    color: COLORS.text,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  badgeTextOnActive: {
+    color: COLORS.gold,
   },
 });

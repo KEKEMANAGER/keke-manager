@@ -624,6 +624,7 @@
     "testTitle": "KEKE тест",
     "testBody": "Push-уведомления работают!",
     "viewBookings": "Заказы",
+    "openChat": "Открыть чат",
     "sendTest": "Тестовое уведомление",
     "testSent": "Тестовый push отправлен",
     "testFailed": "Не удалось отправить тест",

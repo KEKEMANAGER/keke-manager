@@ -662,6 +662,7 @@
     "testTitle": "KEKE Test",
     "testBody": "Push notifications are working!",
     "viewBookings": "View orders",
+    "openChat": "Open chat",
     "sendTest": "Send Test Notification",
     "testSent": "Test push sent",
     "testFailed": "Could not send test push",
