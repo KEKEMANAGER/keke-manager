@@ -253,6 +253,8 @@
     "deleteConfirmMsg": "Delete this vehicle? This cannot be undone.",
     "cannotDeleteActive": "Cannot delete an active vehicle. Deactivate it first.",
     "vehicleN": "Vehicle {{n}}",
+    "registrationMedia": "This vehicle's photos & documents",
+    "registrationMediaHint": "All photos and the tech passport belong to this specific vehicle — upload separately for each car.",
     "techPassportSection": "Technical passport",
     "techPassportHint": "Upload front and back of this vehicle's tech passport. You can activate it after admin approval.",
     "techPassportUploaded": "Uploaded",

@@ -33,6 +33,7 @@ type Props = {
   vehicle: VehicleRow | null;
   driverId: string | undefined;
   disabled?: boolean;
+  embedded?: boolean;
   onUpdated: () => void;
 };
 
@@ -40,7 +41,13 @@ function statusLabelKey(status: VehicleVerificationStatus): string {
   return `vehicleScreen.verificationStatus_${status}`;
 }
 
-export function VehicleTechPassportSection({ vehicle, driverId, disabled, onUpdated }: Props) {
+export function VehicleTechPassportSection({
+  vehicle,
+  driverId,
+  disabled,
+  embedded = false,
+  onUpdated,
+}: Props) {
   const { t } = useTranslation();
   const [uploadingSlot, setUploadingSlot] = useState<VehicleTechPassportKey | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -111,9 +118,11 @@ export function VehicleTechPassportSection({ vehicle, driverId, disabled, onUpda
     status !== 'approved';
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, embedded && styles.wrapEmbedded]}>
       <View style={styles.head}>
-        <Text style={styles.title}>{t('vehicleScreen.techPassportSection')}</Text>
+        <Text style={[styles.title, embedded && styles.titleEmbedded]}>
+          {t('vehicleScreen.techPassportSection')}
+        </Text>
         <View style={[styles.badge, complete ? styles.badgeOk : styles.badgePending]}>
           <Text style={complete ? styles.badgeTextOk : styles.badgeTextPending}>
             {complete ? t('vehicleScreen.techPassportUploaded') : t('vehicleScreen.techPassportMissing')}
@@ -194,6 +203,13 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
   },
+  wrapEmbedded: {
+    marginTop: 0,
+    marginBottom: 0,
+    paddingTop: SPACING.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+  },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,6 +218,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   title: { color: COLORS.text, fontSize: 15, fontWeight: '800', flex: 1 },
+  titleEmbedded: { fontSize: 14 },
   hint: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, marginBottom: SPACING.sm },
   statusLine: { color: COLORS.goldDark, fontSize: 13, fontWeight: '700', marginBottom: SPACING.xs },
   rejectReason: { color: COLORS.error, fontSize: 13, lineHeight: 18, marginBottom: SPACING.sm },

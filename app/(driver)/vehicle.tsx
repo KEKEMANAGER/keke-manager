@@ -126,7 +126,7 @@ function VehiclePhotosAccordion({
   return (
     <View style={styles.photosAccordion}>
       <Text style={styles.photosAccordionTitle}>{t('vehicleScreen.photos')}</Text>
-      {SLOTS.map((slot, index) => {
+      {SLOTS.map((slot) => {
         const uri = localUrls[slot.column];
         const hasPhoto = hasPhotoUrl(uri);
         const expanded = !!expandedSlots[slot.column];
@@ -136,7 +136,7 @@ function VehiclePhotosAccordion({
         return (
           <View
             key={slot.column}
-            style={[styles.accordionItem, index === SLOTS.length - 1 && styles.accordionItemLast]}
+            style={styles.accordionItem}
           >
             <Pressable
               onPress={() => onToggleSlot(slot.column)}
@@ -253,6 +253,75 @@ function VehiclePhotosAccordion({
           </View>
         );
       })}
+    </View>
+  );
+}
+
+function vehicleRegistrationLabel(vehicle: VehicleRow, fallback: string): string {
+  const parts = [vehicle.model?.trim(), vehicle.plate?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : fallback;
+}
+
+function VehicleRegistrationMediaBlock({
+  vehicle,
+  vehicleId,
+  localUrls,
+  uploadingKey,
+  expandedSlots,
+  onToggleSlot,
+  onDeletePhoto,
+  onPickNative,
+  webFileInputRefs,
+  onWebFileChange,
+  driverId,
+  disabled,
+  onUpdated,
+}: {
+  vehicle: VehicleRow | null;
+  vehicleId: string | null;
+  localUrls: Record<VehiclePhotoKey, string | null>;
+  uploadingKey: VehiclePhotoKey | null;
+  expandedSlots: Partial<Record<VehiclePhotoKey, boolean>>;
+  onToggleSlot: (column: VehiclePhotoKey) => void;
+  onDeletePhoto: (column: VehiclePhotoKey) => void;
+  onPickNative: (slot: PhotoSlotDef) => void;
+  webFileInputRefs: MutableRefObject<Record<VehiclePhotoKey, HTMLInputElement | null>>;
+  onWebFileChange: (slot: PhotoSlotDef) => (event: ChangeEvent<HTMLInputElement>) => void;
+  driverId: string | undefined;
+  disabled?: boolean;
+  onUpdated: () => void;
+}) {
+  const { t } = useTranslation();
+  if (!vehicle || !vehicleId) return null;
+
+  return (
+    <View style={styles.registrationMediaCard}>
+      <Text style={styles.registrationMediaTitle}>{t('vehicleScreen.registrationMedia')}</Text>
+      <Text style={styles.registrationMediaSubtitle}>
+        {vehicleRegistrationLabel(vehicle, t('vehicleScreen.vehicleN', { n: 1 }))}
+      </Text>
+      <Text style={styles.registrationMediaHint}>{t('vehicleScreen.registrationMediaHint')}</Text>
+
+      <VehiclePhotosAccordion
+        vehicleId={vehicleId}
+        localUrls={localUrls}
+        uploadingKey={uploadingKey}
+        expandedSlots={expandedSlots}
+        onToggleSlot={onToggleSlot}
+        onDeletePhoto={onDeletePhoto}
+        onPickNative={onPickNative}
+        webFileInputRefs={webFileInputRefs}
+        onWebFileChange={onWebFileChange}
+        disabled={disabled}
+      />
+
+      <VehicleTechPassportSection
+        vehicle={vehicle}
+        driverId={driverId}
+        disabled={disabled}
+        embedded
+        onUpdated={onUpdated}
+      />
     </View>
   );
 }
@@ -866,6 +935,31 @@ export default function DriverVehiclePhotosScreen() {
             </Text>
           </Pressable>
 
+          {/* ── Per-vehicle photos + tech passport (view) ─────────────────── */}
+          {selectedVehicle && formMode === 'view' ? (
+            <VehicleRegistrationMediaBlock
+              vehicle={selectedVehicle}
+              vehicleId={selectedId}
+              localUrls={localUrls}
+              uploadingKey={uploadingKey}
+              expandedSlots={expandedPhotoSlots}
+              onToggleSlot={togglePhotoSlot}
+              onDeletePhoto={confirmDeletePhoto}
+              onPickNative={pickNativeAndUpload}
+              webFileInputRefs={webFileInputRefs}
+              onWebFileChange={(slot) =>
+                handleWebFileInputChange(
+                  slot.column,
+                  slot.angle,
+                  t(`vehicleScreen.${slot.labelKey}`),
+                )
+              }
+              driverId={userId ?? undefined}
+              disabled={saveBusy}
+              onUpdated={() => void loadVehicles()}
+            />
+          ) : null}
+
           {/* ── Edit / Add form ───────────────────────────────────────────── */}
           {isFormOpen ? (
             <View style={styles.formCard}>
@@ -881,7 +975,8 @@ export default function DriverVehiclePhotosScreen() {
                 saveBusy={saveBusy}
               />
 
-              <VehiclePhotosAccordion
+              <VehicleRegistrationMediaBlock
+                vehicle={selectedVehicle}
                 vehicleId={selectedId}
                 localUrls={localUrls}
                 uploadingKey={uploadingKey}
@@ -897,7 +992,9 @@ export default function DriverVehiclePhotosScreen() {
                     t(`vehicleScreen.${slot.labelKey}`),
                   )
                 }
+                driverId={userId ?? undefined}
                 disabled={saveBusy}
+                onUpdated={() => void loadVehicles()}
               />
 
               <Text style={styles.sectionLabel}>{t('vehicleScreen.type')}</Text>
@@ -964,13 +1061,6 @@ export default function DriverVehiclePhotosScreen() {
               <VehicleField label={t('vehicleScreen.color')} value={editColor} onChangeText={setEditColor} />
               <VehicleField label={t('vehicleScreen.plateLabel')} value={editPlate} onChangeText={setEditPlate} />
 
-              <VehicleTechPassportSection
-                vehicle={selectedVehicle}
-                driverId={userId ?? undefined}
-                disabled={saveBusy}
-                onUpdated={() => void loadVehicles()}
-              />
-
               {formMode === 'add' ? (
                 <VehicleField
                   label={t('fleet.assignSubDriver')}
@@ -1007,17 +1097,6 @@ export default function DriverVehiclePhotosScreen() {
               ) : null}
 
               {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
-            </View>
-          ) : null}
-
-          {formMode === 'view' && selectedVehicle ? (
-            <View style={styles.formCard}>
-              <VehicleTechPassportSection
-                vehicle={selectedVehicle}
-                driverId={userId ?? undefined}
-                disabled={saveBusy}
-                onUpdated={() => void loadVehicles()}
-              />
             </View>
           ) : null}
         </>
@@ -1211,6 +1290,35 @@ const styles = StyleSheet.create({
     paddingVertical: 12, color: COLORS.text, fontSize: 15,
   },
   saveError: { color: COLORS.error, fontSize: 13, marginTop: SPACING.sm },
+
+  registrationMediaCard: {
+    marginTop: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.card,
+    padding: SPACING.md,
+    ...SHADOWS.card,
+  },
+  registrationMediaTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: SPACING.xs,
+  },
+  registrationMediaSubtitle: {
+    color: COLORS.goldDark,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+  },
+  registrationMediaHint: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: SPACING.sm,
+  },
 
   // ── Photos accordion ──────────────────────────────────────────────────────
   photosAccordion: {
