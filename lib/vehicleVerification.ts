@@ -221,7 +221,27 @@ export async function fetchAdminVehicleVerificationQueue(): Promise<{
 export async function approveVehicleVerification(
   vehicleId: string,
 ): Promise<{ error: Error | null }> {
-  const { error } = await supabase
+  const id = vehicleId.trim();
+  if (!id) return { error: new Error('vehicle id missing') };
+
+  const { data: rpcOk, error: rpcErr } = await supabase.rpc('admin_approve_vehicle_verification', {
+    p_vehicle_id: id,
+  });
+
+  if (!rpcErr) {
+    if (rpcOk === true) return { error: null };
+    return { error: new Error('Vehicle not found or not awaiting review') };
+  }
+
+  const rpcMissing =
+    rpcErr.code === 'PGRST202' ||
+    /could not find the function/i.test(rpcErr.message ?? '');
+
+  if (!rpcMissing) {
+    return { error: new Error(rpcErr.message) };
+  }
+
+  const { data, error } = await supabase
     .from('vehicles')
     .update({
       is_verified: true,
@@ -229,25 +249,60 @@ export async function approveVehicleVerification(
       rejection_reason: null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', vehicleId);
+    .eq('id', id)
+    .eq('verification_status', 'submitted')
+    .select('id');
 
-  return { error: error ? new Error(error.message) : null };
+  if (error) return { error: new Error(error.message) };
+  if (!data?.length) {
+    return { error: new Error('Vehicle not found or permission denied') };
+  }
+  return { error: null };
 }
 
 export async function rejectVehicleVerification(
   vehicleId: string,
   reason: string,
 ): Promise<{ error: Error | null }> {
-  const { error } = await supabase
+  const id = vehicleId.trim();
+  const trimmedReason = reason.trim();
+  if (!id) return { error: new Error('vehicle id missing') };
+  if (!trimmedReason) return { error: new Error('rejection reason required') };
+
+  const { data: rpcOk, error: rpcErr } = await supabase.rpc('admin_reject_vehicle_verification', {
+    p_vehicle_id: id,
+    p_reason: trimmedReason,
+  });
+
+  if (!rpcErr) {
+    if (rpcOk === true) return { error: null };
+    return { error: new Error('Vehicle not found or not awaiting review') };
+  }
+
+  const rpcMissing =
+    rpcErr.code === 'PGRST202' ||
+    /could not find the function/i.test(rpcErr.message ?? '');
+
+  if (!rpcMissing) {
+    return { error: new Error(rpcErr.message) };
+  }
+
+  const { data, error } = await supabase
     .from('vehicles')
     .update({
       is_verified: false,
       verification_status: 'rejected',
-      rejection_reason: reason.trim(),
+      rejection_reason: trimmedReason,
       is_active: false,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', vehicleId);
+    .eq('id', id)
+    .eq('verification_status', 'submitted')
+    .select('id');
 
-  return { error: error ? new Error(error.message) : null };
+  if (error) return { error: new Error(error.message) };
+  if (!data?.length) {
+    return { error: new Error('Vehicle not found or permission denied') };
+  }
+  return { error: null };
 }
