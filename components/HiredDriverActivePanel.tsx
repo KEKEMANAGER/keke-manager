@@ -85,30 +85,34 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
     );
   }
 
-  const voucherCode = booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
+  const activeBooking = booking;
+  const voucherCode =
+    activeBooking.voucher_code?.trim() || `KEKE-${activeBooking.id.slice(0, 6).toUpperCase()}`;
   const tourDetail =
-    booking.kind === 'tour'
+    activeBooking.kind === 'tour'
       ? formatTourBookingNotificationBody({
-          tour_days: booking.tour_days,
-          transfer_in: booking.transfer_in,
-          transfer_out: booking.transfer_out,
+          tour_days: activeBooking.tour_days,
+          transfer_in: activeBooking.transfer_in,
+          transfer_out: activeBooking.transfer_out,
         })
       : null;
 
-  const canStart = booking.status === 'accepted';
-  const canComplete = booking.status === 'in_progress';
-  const isCompleted = booking.status === 'completed';
+  const canStart = activeBooking.status === 'accepted';
+  const canComplete = activeBooking.status === 'in_progress';
+  const isCompleted = activeBooking.status === 'completed';
   const showTripNav =
-    Platform.OS !== 'web' && (canStart || canComplete) && hasTripNavigationTargets(booking);
+    Platform.OS !== 'web' &&
+    (canStart || canComplete) &&
+    hasTripNavigationTargets(activeBooking);
 
   function openGpsForBooking() {
     if (canComplete) {
-      navigateToTripGps(router, booking.id);
+      navigateToTripGps(router, activeBooking.id);
       return;
     }
     router.push({
       pathname: '/(driver)/gps',
-      params: { bookingId: booking.id },
+      params: { bookingId: activeBooking.id },
     });
   }
 

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { deleteAdminMessage, fetchAdminMessages, type AdminMessageView } from '../../lib/adminPanel';
+import { AdminSupportInbox } from './AdminSupportInbox';
 import { COLORS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 
@@ -63,6 +64,10 @@ export function AdminChatsSection() {
 
   return (
     <View>
+      <AdminSupportInbox />
+      <Text style={[adminStyles.cardTitle, { marginBottom: SPACING.sm }]}>
+        {t('adminPanel.allMessagesTitle')}
+      </Text>
       {error ? (
         <View style={adminStyles.errBox}>
           <Text style={adminStyles.errText}>{error}</Text>

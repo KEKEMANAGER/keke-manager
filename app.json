@@ -37,6 +37,7 @@
         "LSApplicationQueriesSchemes": [
           "comgooglemaps",
           "googlemaps",
+          "maps",
           "waze"
         ]
       }

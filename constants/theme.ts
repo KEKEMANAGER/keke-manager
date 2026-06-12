@@ -68,6 +68,7 @@ export const RADIUS = {
   input: 8,
   button: 10,
   card: 12,
+  lg: 14,
 };
 
 export const SHADOWS = {

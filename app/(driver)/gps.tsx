@@ -15,7 +15,7 @@ import {
   stopBackgroundLocation,
 } from '../../lib/backgroundLocation';
 import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
-import { hasTripNavigationTargets, openExternalNavigation, tripNavigationTargets } from '../../lib/openExternalNavigation';
+import { hasTripNavigationTargets, openExternalNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
 
 const TBILISI: Region = {
@@ -23,26 +23,6 @@ const TBILISI: Region = {
   longitude: 44.8015,
   latitudeDelta: 0.08,
   longitudeDelta: 0.08,
-};
-
-type TripNavBooking = {
-  from_location: string | null;
-  from_location_type: string | null;
-  to_location: string | null;
-  to_location_type: string | null;
-  transfer_in: {
-    airport?: string;
-    airport_type?: string | null;
-    hotel?: string;
-    hotel_type?: string | null;
-  } | null;
-  transfer_out: {
-    airport?: string;
-    airport_type?: string | null;
-    hotel?: string;
-    hotel_type?: string | null;
-  } | null;
-  tour_days: Array<{ from?: string; to?: string }> | null;
 };
 
 export default function DriverGpsScreen() {

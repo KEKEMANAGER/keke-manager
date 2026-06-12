@@ -1104,6 +1104,7 @@
     "deleteMessage": "This removes the profile from the database. This cannot be undone.",
     "deleteConfirm": "Delete",
     "chatsEmpty": "No messages",
+    "allMessagesTitle": "All messages (audit)",
     "deleteMessageTitle": "Delete message?",
     "deleteMessageBody": "Remove this message permanently?",
     "deleteMessage": "Delete message",
@@ -1221,6 +1222,16 @@
     "loadError": "Failed to load messages",
     "sendError": "Failed to send message"
   },
+  "supportChat": {
+    "title": "KEKE Support",
+    "listHint": "Questions about bookings, verification, or the app",
+    "emptyMessages": "Describe your issue — our team will reply here.",
+    "settingsHint": "Message the KEKE team directly in the app.",
+    "adminInboxTitle": "Support inbox",
+    "adminInboxHint": "Users messaging KEKE Support appear here. Tap a thread to reply.",
+    "adminInboxEmpty": "No support messages yet",
+    "userFallback": "User"
+  },
   "jobBoard": {
     "title": "Find drivers",
     "subtitle": "Hired drivers looking for work",
@@ -1276,6 +1287,7 @@
     "driversEmptyHint": "Pull to refresh or create a booking sent to all drivers",
     "bookings": "Bookings",
     "chats": "Chats",
+    "support": "Support",
     "companyProfile": "Company profile",
     "myVehicle": "My vehicle",
     "myFleet": "My fleet",

@@ -17,7 +17,8 @@ export function SettingsScreen({ profileRoute }: Props) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { menuRole } = useAuth();
+  const { menuRole, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   return (
@@ -29,6 +30,16 @@ export function SettingsScreen({ profileRoute }: Props) {
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>{t('menu.settings')}</Text>
+
+      {!isAdmin ? (
+        <Pressable
+          onPress={() => router.push('/support' as never)}
+          style={({ pressed }) => [styles.linkRow, styles.supportRow, pressed && styles.linkRowPressed]}
+        >
+          <Text style={styles.supportLabel}>{t('menu.support')}</Text>
+          <Text style={styles.supportHint}>{t('supportChat.settingsHint')}</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{t('common.language')}</Text>
@@ -144,6 +155,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.goldDark,
+  },
+  supportRow: {
+    gap: 4,
+  },
+  supportLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  supportHint: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
   deleteBtn: {
     marginTop: SPACING.lg,

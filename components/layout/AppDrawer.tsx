@@ -80,6 +80,9 @@ export function AppDrawer() {
           ? [{ icon: 'shield-checkmark-outline' as DrawerIcon, label: t('adminPanel.drawerLabel'), route: '/(app)/admin-panel' }]
           : []),
         { divider: true },
+        ...(!isAdmin
+          ? [{ icon: 'headset-outline' as DrawerIcon, label: t('menu.support'), route: '/support' }]
+          : []),
         { icon: 'settings-outline', label: t('menu.settings'), route: '/(app)/settings' },
         logoutItem,
       ];
@@ -109,6 +112,9 @@ export function AppDrawer() {
         },
         { icon: 'star-outline', label: t('menu.ratings'), route: '/(driver)/ratings' },
         { divider: true },
+        ...(!isAdmin
+          ? [{ icon: 'headset-outline' as DrawerIcon, label: t('menu.support'), route: '/support' }]
+          : []),
         { icon: 'settings-outline', label: t('menu.settings'), route: '/(driver)/settings' },
         logoutItem,
       ];
@@ -129,6 +135,9 @@ export function AppDrawer() {
         },
         { icon: 'star-outline', label: t('menu.ratings'), route: '/(driver)/ratings' },
         { divider: true },
+        ...(!isAdmin
+          ? [{ icon: 'headset-outline' as DrawerIcon, label: t('menu.support'), route: '/support' }]
+          : []),
         { icon: 'settings-outline', label: t('menu.settings'), route: '/(driver)/settings' },
         logoutItem,
       ];

@@ -4,7 +4,7 @@ import { trimUserId } from './userId';
 
 export type ParticipantRole = 'company' | 'host' | 'driver';
 
-export type ChatThreadType = 'company_host' | 'company_driver' | 'host_driver';
+export type ChatThreadType = 'company_host' | 'company_driver' | 'host_driver' | 'support';
 
 export type BookingChatParties = {
   bookingId: string;

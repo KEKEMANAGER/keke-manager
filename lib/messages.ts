@@ -1,4 +1,5 @@
 import type { ChatThreadType, ParticipantRole } from './bookingChat';
+import { isSupportThreadType, SUPPORT_THREAD_TYPE } from './supportChat';
 import { notifyChatMessageRecipient } from './notifications';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
@@ -29,10 +30,31 @@ export type ConversationRow = {
   unread_count: number;
 };
 
+export type MessageThreadOptions =
+  | { bookingId: string; threadType: ChatThreadType }
+  | { threadType: typeof SUPPORT_THREAD_TYPE };
+
+function applyThreadFilter<T extends { eq: (col: string, val: string) => T; is: (col: string, val: null) => T }>(
+  query: T,
+  options?: MessageThreadOptions,
+): T {
+  if (!options) return query;
+  if (isSupportThreadType(options.threadType)) {
+    return query.eq('thread_type', SUPPORT_THREAD_TYPE).is('booking_id', null);
+  }
+  if ('bookingId' in options) {
+    const bookingId = options.bookingId?.trim();
+    if (bookingId && options.threadType) {
+      return query.eq('booking_id', bookingId).eq('thread_type', options.threadType);
+    }
+  }
+  return query;
+}
+
 export async function fetchMessages(
   userId: string,
   otherUserId: string,
-  options?: { bookingId?: string; threadType?: ChatThreadType },
+  options?: MessageThreadOptions,
 ): Promise<{ data: MessageRow[]; error: Error | null }> {
   let query = supabase
     .from('messages')
@@ -41,11 +63,7 @@ export async function fetchMessages(
       `and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`,
     );
 
-  const bookingId = options?.bookingId?.trim();
-  const threadType = options?.threadType;
-  if (bookingId && threadType) {
-    query = query.eq('booking_id', bookingId).eq('thread_type', threadType);
-  }
+  query = applyThreadFilter(query, options);
 
   const { data, error } = await query.order('created_at', { ascending: true });
   if (error) return { data: [], error: new Error(error.message) };
@@ -116,7 +134,7 @@ export async function sendMessage(params: {
 export async function markMessagesRead(
   userId: string,
   otherUserId: string,
-  options?: { bookingId?: string; threadType?: ChatThreadType },
+  options?: MessageThreadOptions,
 ): Promise<void> {
   let query = supabase
     .from('messages')
@@ -125,10 +143,7 @@ export async function markMessagesRead(
     .eq('sender_id', otherUserId)
     .eq('is_read', false);
 
-  const bookingId = options?.bookingId?.trim();
-  if (bookingId && options?.threadType) {
-    query = query.eq('booking_id', bookingId).eq('thread_type', options.threadType);
-  }
+  query = applyThreadFilter(query, options);
 
   await query;
 }
@@ -182,8 +197,11 @@ export async function fetchConversations(userId: string): Promise<{
 
   if (error) return { data: [], error: new Error(error.message) };
 
-  type MsgLite = Pick<MessageRow, 'sender_id' | 'receiver_id' | 'text' | 'is_read' | 'created_at'>;
-  const rows = (data ?? []) as MsgLite[];
+  type MsgLite = Pick<
+    MessageRow,
+    'sender_id' | 'receiver_id' | 'text' | 'is_read' | 'created_at' | 'thread_type'
+  >;
+  const rows = ((data ?? []) as MsgLite[]).filter((msg) => msg.thread_type !== SUPPORT_THREAD_TYPE);
 
   const seen = new Map<string, { last_text: string; last_at: string; unread_count: number }>();
   for (const msg of rows) {
@@ -232,13 +250,16 @@ export function subscribeToMessages(
   userId: string,
   otherUserId: string,
   onIncoming: (msg: MessageRow) => void,
-  options?: { bookingId?: string; threadType?: ChatThreadType },
+  options?: MessageThreadOptions,
 ) {
-  const bookingId = options?.bookingId?.trim();
+  const bookingId = options && 'bookingId' in options ? options.bookingId?.trim() : undefined;
   const threadType = options?.threadType;
-  const channelKey = bookingId && threadType
-    ? `msgs-${bookingId}-${threadType}`
-    : `msgs-${[userId, otherUserId].sort().join('-')}`;
+  const channelKey =
+    threadType === SUPPORT_THREAD_TYPE
+      ? `msgs-support-${[userId, otherUserId].sort().join('-')}`
+      : bookingId && threadType
+        ? `msgs-${bookingId}-${threadType}`
+        : `msgs-${[userId, otherUserId].sort().join('-')}`;
 
   return supabase
     .channel(channelKey)
@@ -248,7 +269,9 @@ export function subscribeToMessages(
       (payload) => {
         const msg = payload.new as MessageRow;
         if (msg.sender_id !== otherUserId || msg.receiver_id !== userId) return;
-        if (bookingId && threadType) {
+        if (threadType === SUPPORT_THREAD_TYPE) {
+          if (msg.thread_type !== SUPPORT_THREAD_TYPE || msg.booking_id) return;
+        } else if (bookingId && threadType) {
           if (msg.booking_id !== bookingId || msg.thread_type !== threadType) return;
         }
         onIncoming(msg);

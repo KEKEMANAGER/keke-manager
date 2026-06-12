@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UserAvatar } from '../../components/UserAvatar';
+import { SupportChatListRow } from '../../components/SupportChatListRow';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -21,6 +22,7 @@ import {
   type ConversationRow,
 } from '../../lib/messages';
 import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
+import { useSupportChatListEntry } from '../../lib/supportChat';
 import { supabase } from '../../lib/supabase';
 
 function formatListTime(iso: string, yesterday: string): string {
@@ -40,7 +42,10 @@ export default function DriverChatListScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const { adminId, summary: supportSummary, reload: reloadSupport, visible: showSupport } =
+    useSupportChatListEntry(user?.id, isAdmin);
 
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,8 +71,9 @@ export default function DriverChatListScreen() {
       }
       setError(null);
       setConversations(data);
+      await reloadSupport();
     },
-    [user?.id, t],
+    [user?.id, t, reloadSupport],
   );
 
   useEffect(() => {
@@ -89,6 +95,18 @@ export default function DriverChatListScreen() {
       void supabase.removeChannel(ch);
     };
   }, [user?.id, load]);
+
+  function openSupportChat() {
+    if (!adminId) return;
+    router.push({
+      pathname: '/(driver)/chat',
+      params: {
+        uid: adminId,
+        name: t('supportChat.title'),
+        threadType: 'support',
+      },
+    });
+  }
 
   function openChat(item: ConversationRow) {
     router.push({
@@ -135,11 +153,24 @@ export default function DriverChatListScreen() {
               colors={[COLORS.gold]}
             />
           }
+          ListHeaderComponent={
+            showSupport ? (
+              <SupportChatListRow
+                lastText={supportSummary?.last_text}
+                lastAt={supportSummary?.last_at}
+                unreadCount={supportSummary?.unread_count ?? 0}
+                onPress={openSupportChat}
+                formatTime={(iso) => formatListTime(iso, t('chat.yesterday'))}
+              />
+            ) : null
+          }
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="chatbubbles-outline" size={48} color={COLORS.textMuted} />
-              <Text style={styles.emptyText}>{t('chat.emptyConversations')}</Text>
-            </View>
+            !showSupport ? (
+              <View style={styles.emptyWrap}>
+                <Ionicons name="chatbubbles-outline" size={48} color={COLORS.textMuted} />
+                <Text style={styles.emptyText}>{t('chat.emptyConversations')}</Text>
+              </View>
+            ) : null
           }
           renderItem={({ item }) => (
             <Pressable

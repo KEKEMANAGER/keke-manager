@@ -1,5 +1,7 @@
 import { Linking, Platform } from 'react-native';
+import type { TourDayPersisted } from './bookings';
 import { formatLocationDisplay } from './bookingLocations';
+import { tourEndpointsFromDays } from './tourDays';
 
 /** Maps search query — append Georgia when missing for better geocoding. */
 export function navigationQueryFromLocation(name: string | null | undefined): string | null {
@@ -23,7 +25,7 @@ export type TripNavigationTargets = {
   destination: string | null;
 };
 
-type TripNavBooking = {
+export type TripNavBooking = {
   from_location?: string | null;
   from_location_type?: string | null;
   to_location?: string | null;
@@ -40,7 +42,7 @@ type TripNavBooking = {
     hotel?: string;
     hotel_type?: string | null;
   } | null;
-  tour_days?: Array<{ from?: string; to?: string }> | null;
+  tour_days?: TourDayPersisted[] | null;
 };
 
 /** Resolve pickup / destination text for Maps (transfer, tour legs, or plain from/to). */
@@ -64,12 +66,14 @@ export function tripNavigationTargets(booking: TripNavBooking): TripNavigationTa
     destination = navigationQueryFromBookingFields(tout.airport, tout.airport_type);
   }
 
-  const day1 = booking.tour_days?.[0];
-  if (!pickup && day1?.from?.trim()) {
-    pickup = navigationQueryFromLocation(day1.from);
-  }
-  if (!destination && day1?.to?.trim()) {
-    destination = navigationQueryFromLocation(day1.to);
+  if ((!pickup || !destination) && booking.tour_days?.length) {
+    const endpoints = tourEndpointsFromDays(booking.tour_days);
+    if (!pickup && endpoints.from) {
+      pickup = navigationQueryFromLocation(endpoints.from);
+    }
+    if (!destination && endpoints.to) {
+      destination = navigationQueryFromLocation(endpoints.to);
+    }
   }
 
   return { pickup, destination };

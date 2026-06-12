@@ -47,13 +47,19 @@ export default function CompanyChatScreen() {
       receiverRole?: ParticipantRole;
     }>();
 
-  const threadOpts =
-    bookingId?.trim() && threadType
+  const isSupport = threadType === 'support';
+  const threadOpts = isSupport
+    ? { threadType: 'support' as const }
+    : bookingId?.trim() && threadType
       ? { bookingId: bookingId.trim(), threadType }
       : undefined;
 
   const otherUserId = uid ?? '';
-  const otherName = name?.trim() || t('common.driver');
+  const otherName = isSupport
+    ? profile?.role === 'admin'
+      ? name?.trim() || t('supportChat.userFallback')
+      : t('supportChat.title')
+    : name?.trim() || t('common.driver');
 
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,7 +133,7 @@ export default function CompanyChatScreen() {
       senderId: user.id,
       receiverId: otherUserId,
       text: draft,
-      bookingId: threadOpts?.bookingId ?? null,
+      bookingId: threadOpts && 'bookingId' in threadOpts ? threadOpts.bookingId : null,
       threadType: threadOpts?.threadType ?? null,
       senderRole: senderRole ?? null,
       receiverRole: receiverRole ?? null,
@@ -171,7 +177,9 @@ export default function CompanyChatScreen() {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Ionicons name="chatbubble-outline" size={40} color={COLORS.textMuted} />
-              <Text style={styles.emptyText}>{t('chat.emptyMessages')}</Text>
+              <Text style={styles.emptyText}>
+                {isSupport ? t('supportChat.emptyMessages') : t('chat.emptyMessages')}
+              </Text>
             </View>
           }
           renderItem={({ item }) => {

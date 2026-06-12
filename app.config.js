@@ -122,6 +122,7 @@ module.exports = {
       supabaseAnonKey:
         process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || supabaseDefaults.anonKey || '',
       expoConnectUrl: process.env.EXPO_PUBLIC_EXPO_CONNECT_URL?.trim() || '',
+      supportUserId: process.env.EXPO_PUBLIC_SUPPORT_USER_ID?.trim() || '',
       eas: {
         ...(appJson.expo.extra?.eas ?? {}),
         projectId:

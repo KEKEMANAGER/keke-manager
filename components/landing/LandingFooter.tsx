@@ -60,6 +60,13 @@ export function LandingFooter({
             <Pressable onPress={() => void Linking.openURL('tel:+995551003411')}>
               <Text style={sx(styles.footerLink, landingFont({ fontWeight: '600' }))}>+995 551 003 411</Text>
             </Pressable>
+            <Link href="/support" asChild>
+              <Pressable style={styles.supportLinkWrap}>
+                <Text style={sx(styles.footerLink, landingFont({ fontWeight: '600' }))}>
+                  {copy.footerSupportChat}
+                </Text>
+              </Pressable>
+            </Link>
             <Text style={sx(styles.footerMuted, landingFont({ fontWeight: '400' }))}>Tbilisi, Georgia</Text>
           </View>
         </View>
@@ -125,6 +132,7 @@ const styles = StyleSheet.create({
   footerContactTitle: { fontSize: 16, color: LANDING.white, marginBottom: 10 },
   footerLink: { fontSize: 15, color: LANDING.accent, marginBottom: 8 },
   footerMuted: { fontSize: 14, color: 'rgba(255,255,255,0.55)' },
+  supportLinkWrap: { marginTop: 4 },
   footerBottom: {
     marginTop: 32,
     paddingTop: 20,

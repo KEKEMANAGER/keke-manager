@@ -35,6 +35,7 @@ type BookingPushTapPayload = {
   type?: string;
   booking_id?: string;
   sender_id?: string;
+  thread_type?: string;
 };
 
 function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | undefined): boolean {
@@ -68,7 +69,15 @@ export function PushNotificationListeners() {
       const senderId = String(data?.sender_id ?? '').trim();
       if (!senderId) return;
       const pathname = role === 'driver' ? '/(driver)/chat' : '/(app)/chat';
-      router.push({ pathname, params: { uid: senderId, name: '' } });
+      const threadType = typeof data?.thread_type === 'string' ? data.thread_type.trim() : '';
+      router.push({
+        pathname,
+        params: {
+          uid: senderId,
+          name: '',
+          ...(threadType ? { threadType } : {}),
+        },
+      });
     },
     [role, router],
   );

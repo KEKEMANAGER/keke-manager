@@ -266,7 +266,7 @@ function shouldRetryBookingInsertAlternateRouteColumn(message: string): boolean 
   );
 }
 
-function isTourServiceKind(kind: DbCanonicalKind | BookingType): boolean {
+function isTourServiceKind(kind: DbCanonicalKind | BookingType | string): boolean {
   const canonical = normalizeBookingKind(kind);
   return canonical === 'tour' || canonical === 'day_tour';
 }
@@ -1496,7 +1496,20 @@ export async function aggregateDriverStats(driverUserId: string) {
   const completed = rows.filter((r) => r.status === 'completed').length;
   const earnings = rows
     .filter((r) => r.status === 'completed')
-    .reduce((s, r) => s + completedDriverEarningsGel(r, id), 0);
+    .reduce(
+      (s, r) =>
+        s +
+        completedDriverEarningsGel(
+          {
+            price_gel: r.price_gel,
+            driver_payout_gel: r.driver_payout_gel,
+            host_driver_id: r.host_driver_id,
+            driver_id: r.driver_id ?? null,
+          },
+          id,
+        ),
+      0,
+    );
   return { completed, earnings, error: null };
 }
 

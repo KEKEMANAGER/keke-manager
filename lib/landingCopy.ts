@@ -67,6 +67,7 @@ export type LandingCopy = {
   footerCeo: string;
   footerCofounder: string;
   footerContact: string;
+  footerSupportChat: string;
   footerRights: string;
   footerPrivacy: string;
   footerTerms: string;
@@ -145,6 +146,7 @@ const EN: LandingCopy = {
   footerCeo: 'Akaki Kachibaia — CEO & FOUNDER',
   footerCofounder: 'Ani Kekelia — CO-FOUNDER',
   footerContact: 'Contact us',
+  footerSupportChat: 'In-app support chat',
   footerRights: '© 2025 KEKE Manager',
   footerPrivacy: 'Privacy',
   footerTerms: 'Terms',
@@ -224,6 +226,7 @@ const KA: LandingCopy = {
   footerCeo: 'Akaki Kachibaia — CEO & FOUNDER',
   footerCofounder: 'Ani Kekelia — CO-FOUNDER',
   footerContact: 'დაგვიკავშირდით',
+  footerSupportChat: 'საფორტი ჩათი აპში',
   footerRights: '© 2025 KEKE Manager',
   footerPrivacy: 'კონფიდენციალურობა',
   footerTerms: 'წესები',
@@ -301,6 +304,7 @@ const RU: LandingCopy = {
   ctaButton: 'Зарегистрироваться →',
   footerTagline: 'B2B экосистема в туризме',
   footerContact: 'Свяжитесь с нами',
+  footerSupportChat: 'Чат поддержки в приложении',
   footerRights: '© 2025 KEKE Manager',
   footerPrivacy: 'Конфиденциальность',
   footerTerms: 'Условия',

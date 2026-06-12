@@ -16,7 +16,8 @@ export async function captureAndSaveTourOdometer(
     if ('cancelled' in captured && captured.cancelled) {
       return { ok: false, cancelled: true };
     }
-    return { ok: false, error: captured.error ?? new Error('capture_failed') };
+    const err = 'error' in captured ? captured.error : null;
+    return { ok: false, error: err ?? new Error('capture_failed') };
   }
 
   const saved = await submitBookingOdometerPhoto(bookingId, driverUserId, phase, captured.uri);
@@ -40,7 +41,8 @@ export async function startTourTripWithOdometer(
       if ('cancelled' in odometer && odometer.cancelled) {
         return { ok: false, cancelled: true };
       }
-      return { ok: false, error: odometer.error ?? new Error('odometer_failed') };
+      const err = 'error' in odometer ? odometer.error : null;
+      return { ok: false, error: err ?? new Error('odometer_failed') };
     }
   }
 
@@ -65,7 +67,8 @@ export async function completeTourTripWithOdometer(
       if ('cancelled' in odometer && odometer.cancelled) {
         return { ok: false, cancelled: true };
       }
-      return { ok: false, error: odometer.error ?? new Error('odometer_failed') };
+      const err = 'error' in odometer ? odometer.error : null;
+      return { ok: false, error: err ?? new Error('odometer_failed') };
     }
   }
 

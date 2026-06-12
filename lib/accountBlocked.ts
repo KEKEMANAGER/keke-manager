@@ -1,3 +1,4 @@
+import { AuthError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export const ACCOUNT_BLOCKED_ERROR = 'account_blocked';
@@ -17,6 +18,6 @@ export async function fetchUserIsBlocked(userId: string): Promise<boolean> {
   return (data as { is_blocked?: boolean | null } | null)?.is_blocked === true;
 }
 
-export function accountBlockedAuthError(): Error {
-  return new Error(ACCOUNT_BLOCKED_ERROR);
+export function accountBlockedAuthError(): AuthError {
+  return new AuthError(ACCOUNT_BLOCKED_ERROR, 403, 'user_blocked');
 }
