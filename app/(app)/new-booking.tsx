@@ -283,9 +283,11 @@ function TransferSegmented({
 function ServiceKindSelector({
   value,
   onChange,
+  onGroupPress,
 }: {
   value: BookingKindUi;
   onChange: (k: BookingKindUi) => void;
+  onGroupPress: () => void;
 }) {
   const { t } = useTranslation();
   const items: { id: BookingKindUi; label: string }[] = [
@@ -321,6 +323,14 @@ function ServiceKindSelector({
             </Pressable>
           );
         })}
+        <Pressable
+          onPress={onGroupPress}
+          style={({ pressed }) => [styles.serviceKindBtn, styles.serviceKindBtnGroup, pressed && styles.pressed]}
+        >
+          <Text style={[styles.serviceKindBtnText, styles.serviceKindBtnTextGroup]} numberOfLines={2}>
+            {t('groupConvoy.shortTitle')}
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -1422,7 +1432,11 @@ export default function NewBookingScreen() {
           })}
         </Text>
 
-        <ServiceKindSelector value={booking_kind} onChange={set_booking_kind} />
+        <ServiceKindSelector
+          value={booking_kind}
+          onChange={set_booking_kind}
+          onGroupPress={() => router.push('/(app)/group-booking')}
+        />
 
         {step === 1 ? <Text style={styles.hint}>{t('newBooking.pickService')}</Text> : null}
 
@@ -2919,6 +2933,7 @@ const styles = StyleSheet.create({
   },
   serviceKindRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: SPACING.sm,
     alignItems: 'stretch',
   },
@@ -2938,6 +2953,15 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     backgroundColor: COLORS.goldTint,
     ...SHADOWS.gold,
+  },
+  serviceKindBtnGroup: {
+    borderColor: '#C7D2FE',
+    backgroundColor: '#EEF2FF',
+    minWidth: '22%',
+    flexGrow: 1,
+  },
+  serviceKindBtnTextGroup: {
+    color: '#4338CA',
   },
   serviceKindBtnText: {
     fontSize: 12,

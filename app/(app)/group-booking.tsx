@@ -158,12 +158,12 @@ export default function GroupBookingScreen() {
           <SearchableCitySelect
             label={t('groupConvoy.fromCity')}
             value={fromCity}
-            onChange={setFromCity}
+            onChange={(v) => setFromCity(v ?? '')}
           />
           <SearchableCitySelect
             label={t('groupConvoy.toCity')}
             value={toCity}
-            onChange={setToCity}
+            onChange={(v) => setToCity(v ?? '')}
           />
           <DateTimeField
             label={t('groupConvoy.startDate')}

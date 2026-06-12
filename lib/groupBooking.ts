@@ -280,7 +280,7 @@ export async function assignDriverToLeg(
     bookingId: legId,
     driverUserId: driverId,
     companyUserId: companyId,
-    voucherCode: leg.voucher_code ?? undefined,
+    voucherCode: leg.voucher_code?.trim() || `KEKE-${legId.slice(0, 8).toUpperCase()}`,
     kind: leg.kind,
     route: leg.route,
     from_location: leg.from_location,

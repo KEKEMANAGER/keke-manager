@@ -12,25 +12,25 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { APP_HEADER_BODY_HEIGHT } from '../../constants/layout';
-import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
-import { useAuth } from '../../contexts/AuthContext';
+import { APP_HEADER_BODY_HEIGHT } from '../../../constants/layout';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../../constants/theme';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   bookingStatusLabel,
   fetchBookingById,
   formatBookingDate,
   routeSummary,
   type BookingRow,
-} from '../../lib/bookings';
+} from '../../../lib/bookings';
 import {
   assignDriverToLeg,
   broadcastOpenLegs,
   fetchLegsForMaster,
   summarizeLegs,
-} from '../../lib/groupBooking';
-import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
-import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
-import { showErrorAlert } from '../../lib/validation';
+} from '../../../lib/groupBooking';
+import { fetchMatchingDrivers, type MatchingDriver } from '../../../lib/drivers';
+import { vehicleClassLabel, vehicleTypeLabel } from '../../../lib/vehicleCatalog';
+import { showErrorAlert } from '../../../lib/validation';
 
 export default function GroupDispatchScreen() {
   const { t } = useTranslation();
