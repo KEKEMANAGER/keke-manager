@@ -1540,6 +1540,12 @@
     "downloadPdf": "Скачать PDF",
     "print": "Печать",
     "loadError": "Не удалось загрузить ваучер",
+    "convoySummary": "{{count}} машин · всего {{passengers}} пасс.",
+    "convoyVehicles": "Машины ({{count}})",
+    "convoyLegN": "Машина {{n}}",
+    "legPrice": "Цена",
+    "legStatus": "Статус",
+    "driverPending": "Водитель ещё не назначен",
     "tabCompany": "Компания",
     "tabTourist": "Турист"
   },

@@ -2,7 +2,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { BookingRow } from './bookings';
 import type { CompanyVoucherData } from './companyVoucherData';
-import { fetchCompanyVoucherData } from './companyVoucherData';
+import { convoyVoucherCode, fetchCompanyVoucherData } from './companyVoucherData';
 import { generateCompanyVoucherHTML } from './companyVoucherHtml';
 import { generateTouristVoucherHTML } from './touristVoucherHtml';
 import {
@@ -10,10 +10,16 @@ import {
   type TouristVoucherLocale,
 } from './touristVoucherLocale';
 
-export async function shareCompanyVoucherPDF(data: CompanyVoucherData): Promise<void> {
-  const voucherCode =
+function voucherDisplayCode(data: CompanyVoucherData): string {
+  if (data.convoyLegs?.length) return convoyVoucherCode(data.booking);
+  return (
     data.booking.voucher_code?.trim() ||
-    `KEKE-${data.booking.id.slice(0, 6).toUpperCase()}`;
+    `KEKE-${data.booking.id.slice(0, 6).toUpperCase()}`
+  );
+}
+
+export async function shareCompanyVoucherPDF(data: CompanyVoucherData): Promise<void> {
+  const voucherCode = voucherDisplayCode(data);
   const { uri } = await Print.printToFileAsync({
     html: generateCompanyVoucherHTML(data),
     base64: false,
@@ -32,9 +38,7 @@ export async function shareTouristVoucherPDF(
   data: CompanyVoucherData,
   locale: TouristVoucherLocale,
 ): Promise<void> {
-  const voucherCode =
-    data.booking.voucher_code?.trim() ||
-    `KEKE-${data.booking.id.slice(0, 6).toUpperCase()}`;
+  const voucherCode = voucherDisplayCode(data);
   const { uri } = await Print.printToFileAsync({
     html: generateTouristVoucherHTML(data, locale),
     base64: false,

@@ -1478,6 +1478,12 @@
     "downloadPdf": "Download PDF",
     "print": "Print",
     "loadError": "Could not load voucher",
+    "convoySummary": "{{count}} vehicles · {{passengers}} passengers total",
+    "convoyVehicles": "Vehicles ({{count}})",
+    "convoyLegN": "Vehicle {{n}}",
+    "legPrice": "Price",
+    "legStatus": "Status",
+    "driverPending": "Driver not assigned yet",
     "tabCompany": "Company",
     "tabTourist": "Guest"
   },

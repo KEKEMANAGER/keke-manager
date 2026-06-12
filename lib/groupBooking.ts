@@ -205,6 +205,7 @@ export async function createGroupConvoy(
     ...master,
     is_group_master: true,
     group_code: groupCode,
+    voucher_code: groupCode,
     skip_driver_notifications: true,
     driver_id: null,
     vehicle_type: firstLeg.vehicle_type,

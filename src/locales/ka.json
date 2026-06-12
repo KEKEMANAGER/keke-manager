@@ -1475,6 +1475,12 @@
     "downloadPdf": "PDF გადმოწერა",
     "print": "ბეჭდვა",
     "loadError": "ვაუჩერის ჩატვირთვა ვერ მოხერხდა",
+    "convoySummary": "{{count}} მანქანა · სულ {{passengers}} მგზავრი",
+    "convoyVehicles": "მანქანები ({{count}})",
+    "convoyLegN": "მანქანა {{n}}",
+    "legPrice": "ფასი",
+    "legStatus": "სტატუსი",
+    "driverPending": "მძღოლი ჯერ არ არის მინიჭებული",
     "tabCompany": "კომპანია",
     "tabTourist": "ტურისტი"
   },

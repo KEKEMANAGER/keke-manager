@@ -20,12 +20,14 @@ import { useAuth } from '../contexts/AuthContext';
 import type { BookingRow, TourDayPersisted } from '../lib/bookings';
 import { bookingStatusLabel, formatBookingDate } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
-import type { CompanyVoucherData } from '../lib/companyVoucherData';
+import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from '../lib/companyVoucherData';
 import {
+  convoyVoucherCode,
   enrichCompanyVoucherFromBooking,
   fetchCompanyVoucherData,
   vehicleMakeModelYearLine,
 } from '../lib/companyVoucherData';
+import { vehicleClassLabel, vehicleTypeLabel } from '../lib/vehicleCatalog';
 import { formatStoredDateForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
@@ -65,6 +67,109 @@ function SectionHeader({ title }: { title: string }) {
   return <Text style={styles.sectionHeader}>{stripVoucherEmojis(title)}</Text>;
 }
 
+type ConvoyLegCardProps = {
+  leg: CompanyVoucherConvoyLeg;
+  onChat: (driverId: string, driverName: string, bookingId: string) => void;
+  onCall: (phone: string) => void;
+};
+
+function ConvoyLegVoucherCard({ leg, onChat, onCall }: ConvoyLegCardProps) {
+  const { t } = useTranslation();
+  const { booking, driver, vehicle } = leg;
+  const legPrice = bookingOfferedPriceGel(booking);
+
+  return (
+    <View style={styles.convoyLegCard}>
+      <Text style={styles.convoyLegTitle}>
+        {t('companyVoucher.convoyLegN', { n: leg.legIndex })}
+      </Text>
+      <DetailRow
+        label={t('companyVoucher.vehicleType')}
+        value={
+          booking.vehicle_type
+            ? vehicleTypeLabel(booking.vehicle_type)
+            : vehicle?.typeLabel ?? '—'
+        }
+      />
+      <DetailRow
+        label={t('companyVoucher.vehicleClass')}
+        value={
+          booking.vehicle_class
+            ? vehicleClassLabel(booking.vehicle_class)
+            : vehicle?.classLabel ?? '—'
+        }
+      />
+      <DetailRow label={t('companyVoucher.passengers')} value={String(booking.passengers ?? 1)} />
+      <DetailRow
+        label={t('companyVoucher.legPrice')}
+        value={`${legPrice.toLocaleString('ka-GE')} ₾`}
+      />
+      <DetailRow label={t('companyVoucher.legStatus')} value={bookingStatusLabel(booking.status)} />
+
+      {driver ? (
+        <View style={styles.convoyDriverBlock}>
+          <SectionHeader title={t('companyVoucher.sectionDriver')} />
+          <View style={styles.driverRow}>
+            <UserAvatar name={driver.fullName} uri={driver.avatarUrl} size={48} />
+            <View style={styles.driverMeta}>
+              <NameWithVerifiedBadge
+                name={driver.fullName ?? t('common.driver')}
+                verified={driver.isVerified}
+                isGuide={driver.isGuideDriver}
+                plainGuideBadge
+                textStyle={styles.driverName}
+              />
+              {driver.phone ? (
+                <Pressable onPress={() => onCall(driver.phone!)}>
+                  <Text style={styles.phoneLink}>{driver.phone}</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.metaLine}>{t('companyVoucher.phoneMissing')}</Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.actionRow}>
+            <Pressable
+              onPress={() =>
+                onChat(driver.userId, driver.fullName ?? t('common.driver'), booking.id)
+              }
+              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color={COLORS.black} />
+              <Text style={styles.actionBtnText}>{t('companyVoucher.chatDriver')}</Text>
+            </Pressable>
+            {driver.phone ? (
+              <Pressable
+                onPress={() => onCall(driver.phone!)}
+                style={({ pressed }) => [styles.actionBtnOutline, pressed && styles.pressed]}
+              >
+                <Ionicons name="call-outline" size={16} color={COLORS.goldDark} />
+                <Text style={styles.actionBtnOutlineText}>{t('companyVoucher.callDriver')}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : (
+        <Text style={styles.convoyPending}>{t('companyVoucher.driverPending')}</Text>
+      )}
+
+      {vehicle && (vehicle.plate || vehicle.makeName || vehicle.mainPhotoUrl) ? (
+        <View style={styles.convoyVehicleBlock}>
+          <SectionHeader title={t('companyVoucher.sectionVehicle')} />
+          {vehicle.mainPhotoUrl ? (
+            <Image source={{ uri: vehicle.mainPhotoUrl }} style={styles.vehicleHero} resizeMode="cover" />
+          ) : null}
+          <DetailRow
+            label={t('companyVoucher.makeModelYear')}
+            value={vehicleMakeModelYearLine(vehicle)}
+          />
+          {vehicle.plate ? <DetailRow label={t('companyVoucher.plate')} value={vehicle.plate} /> : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function CompanyBookingVoucherContent({
   data,
   onClose,
@@ -79,7 +184,10 @@ export function CompanyBookingVoucherContent({
   const [printing, setPrinting] = useState(false);
   const [voucherMode, setVoucherMode] = useState<VoucherMode>('company');
 
-  if (allowTouristTab && voucherMode === 'tourist') {
+  const { booking, driver, vehicle, host, company, convoyLegs } = data;
+  const isConvoy = !!(booking.is_group_master && convoyLegs && convoyLegs.length > 0);
+
+  if (allowTouristTab && !isConvoy && voucherMode === 'tourist') {
     return (
       <TouristBookingVoucherContent
         data={data}
@@ -91,15 +199,15 @@ export function CompanyBookingVoucherContent({
     );
   }
 
-  const { booking, driver, vehicle, host, company } = data;
   const viewerId = String(user?.id ?? '').trim();
   // Driver/host viewer sees the company card instead of their own driver card.
   const isCompanyViewer = !viewerId || viewerId === String(booking.company_id ?? '').trim();
   const isHostViewer = !!viewerId && viewerId === String(booking.host_driver_id ?? '').trim();
   const offeredGel = bookingOfferedPriceGel(booking);
   const bookingNumber = formatBookingDisplayNumber(booking.id);
-  const voucherCode =
-    booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
+  const voucherCode = isConvoy
+    ? convoyVoucherCode(booking)
+    : booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const isTour = booking.kind === 'tour' || booking.kind === 'day_tour';
   const tourDays = (booking.tour_days ?? []) as TourDayPersisted[];
   const logoUrl = booking.pickup_sign_logo_url?.trim();
@@ -123,13 +231,18 @@ export function CompanyBookingVoucherContent({
     }
   }
 
-  function openChat(peerId: string, peerName: string, threadType: 'company_driver' | 'company_host') {
+  function openChat(
+    peerId: string,
+    peerName: string,
+    threadType: 'company_driver' | 'company_host',
+    targetBookingId?: string,
+  ) {
     router.push({
       pathname: '/(app)/chat',
       params: {
         uid: peerId,
         name: peerName,
-        bookingId: booking.id,
+        bookingId: targetBookingId ?? booking.id,
         threadType,
         senderRole: 'company',
         receiverRole: threadType === 'company_host' ? 'host' : 'driver',
@@ -209,6 +322,14 @@ export function CompanyBookingVoucherContent({
           </View>
 
           <Text style={styles.voucherCode}>{voucherCode}</Text>
+          {isConvoy ? (
+            <Text style={styles.convoySummary}>
+              {t('companyVoucher.convoySummary', {
+                count: convoyLegs!.length,
+                passengers: booking.passengers ?? 1,
+              })}
+            </Text>
+          ) : null}
           <Text style={styles.statusLine}>{stripVoucherEmojis(bookingStatusLabel(booking.status))}</Text>
           {booking.status === 'completed' ? (
             <View style={styles.paymentBadgeWrap}>
@@ -391,7 +512,25 @@ export function CompanyBookingVoucherContent({
           </View>
         ) : null}
 
-        {isCompanyViewer && driver ? (
+        {isCompanyViewer && isConvoy ? (
+          <View style={[styles.card, SHADOWS.card]}>
+            <SectionHeader
+              title={t('companyVoucher.convoyVehicles', { count: convoyLegs!.length })}
+            />
+            {convoyLegs!.map((leg) => (
+              <ConvoyLegVoucherCard
+                key={leg.booking.id}
+                leg={leg}
+                onChat={(driverId, driverName, legBookingId) =>
+                  openChat(driverId, driverName, 'company_driver', legBookingId)
+                }
+                onCall={callPhone}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {isCompanyViewer && !isConvoy && driver ? (
           <View style={[styles.card, SHADOWS.card]}>
             <SectionHeader title={t('companyVoucher.sectionDriver')} />
             <View style={styles.driverRow}>
@@ -471,7 +610,7 @@ export function CompanyBookingVoucherContent({
           </View>
         ) : null}
 
-        {vehicle ? (
+        {!isConvoy && vehicle ? (
           <View style={[styles.card, SHADOWS.card]}>
             <SectionHeader title={t('companyVoucher.sectionVehicle')} />
             {vehicle.mainPhotoUrl ? (
@@ -495,7 +634,7 @@ export function CompanyBookingVoucherContent({
           </View>
         ) : null}
 
-        {isCompanyViewer && host ? (
+        {isCompanyViewer && !isConvoy && host ? (
           <View style={[styles.card, SHADOWS.card]}>
             <SectionHeader title={t('companyVoucher.sectionHost')} />
             <DetailRow label={t('companyVoucher.hostName')} value={host.fullName ?? '—'} />
@@ -810,6 +949,35 @@ const styles = StyleSheet.create({
   tourDayRoute: { fontSize: 13, marginTop: 4 },
   tourDayMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   tourNights: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  convoySummary: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.goldDark,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  convoyLegCard: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.background,
+  },
+  convoyLegTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.goldDark,
+    marginBottom: SPACING.sm,
+  },
+  convoyPending: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
+    marginTop: SPACING.sm,
+  },
+  convoyDriverBlock: { marginTop: SPACING.sm },
+  convoyVehicleBlock: { marginTop: SPACING.sm },
   footerActions: {
     flexDirection: 'row',
     gap: SPACING.sm,

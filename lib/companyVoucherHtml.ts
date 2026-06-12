@@ -1,8 +1,9 @@
 import { formatLocationDisplay } from './bookingLocations';
 import { bookingOfferedPriceGel } from './bookingPrice';
 import { formatBookingDisplayNumber, formatVoucherPriceGel, stripVoucherEmojis } from './bookingVoucherDisplay';
-import type { CompanyVoucherData } from './companyVoucherData';
-import { vehicleMakeModelYearLine } from './companyVoucherData';
+import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from './companyVoucherData';
+import { convoyVoucherCode, vehicleMakeModelYearLine } from './companyVoucherData';
+import { vehicleClassLabel, vehicleTypeLabel } from './vehicleCatalog';
 import { bookingKindLabel } from './bookingLabels';
 import { formatStoredDateForDisplay } from './dateTime';
 import { tourVoucherHtmlRows } from './tourDays';
@@ -57,12 +58,55 @@ const VOUCHER_STYLES = `
   .tour-day { background: #fafafa; border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
   .tour-day-title { font-weight: 700; font-size: 12px; color: #B45309; }
   .tour-day-body { font-size: 12px; color: #333; margin-top: 4px; }
+  .convoy-leg { border: 1px solid #eee; border-radius: 10px; padding: 12px; margin-bottom: 10px; background: #fafafa; }
+  .convoy-leg-title { font-weight: 800; font-size: 13px; color: #B45309; margin-bottom: 8px; }
 `;
 
+function convoyLegHtml(leg: CompanyVoucherConvoyLeg): string {
+  const { booking, driver, vehicle } = leg;
+  const legPrice = formatVoucherPriceGel(bookingOfferedPriceGel(booking));
+  const typeLabel = booking.vehicle_type
+    ? vehicleTypeLabel(booking.vehicle_type)
+    : vehicle?.typeLabel ?? '—';
+  const classLabel = booking.vehicle_class
+    ? vehicleClassLabel(booking.vehicle_class)
+    : vehicle?.classLabel ?? '—';
+
+  let driverBlock = '<div style="font-size:12px;color:#888">მძღოლი ჯერ არ არის მინიჭებული</div>';
+  if (driver) {
+    driverBlock = `
+      <div style="font-size:12px;font-weight:700">${escapeHtml(driver.fullName ?? '—')}</div>
+      ${driver.phone ? `<div style="font-size:12px"><a href="tel:${escapeHtml(driver.phone.replace(/\s/g, ''))}">${escapeHtml(driver.phone)}</a></div>` : ''}`;
+  }
+
+  let vehicleBlock = '';
+  if (vehicle) {
+    const mmY = vehicleMakeModelYearLine(vehicle);
+    vehicleBlock = `
+      ${vehicle.plate ? row('ნომერი', vehicle.plate) : ''}
+      ${row('მარკა / მოდელი / წელი', mmY)}`;
+  }
+
+  return `
+    <div class="convoy-leg">
+      <div class="convoy-leg-title">მანქანა ${leg.legIndex}</div>
+      ${row('ტიპი', typeLabel)}
+      ${row('კლასი', classLabel)}
+      ${row('მგზავრები', String(booking.passengers ?? 1))}
+      ${row('ფასი', legPrice)}
+      ${row('სტატუსი', booking.status ?? 'pending')}
+      ${sectionTitle('მძღოლი')}
+      ${driverBlock}
+      ${vehicleBlock ? `${sectionTitle('მანქანა')}${vehicleBlock}` : ''}
+    </div>`;
+}
+
 export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
-  const { booking, driver, vehicle, host } = data;
-  const voucherCode =
-    booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
+  const { booking, driver, vehicle, host, convoyLegs } = data;
+  const isConvoy = !!(booking.is_group_master && convoyLegs && convoyLegs.length > 0);
+  const voucherCode = isConvoy
+    ? convoyVoucherCode(booking)
+    : booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const tag = 'div';
 
   const updatedBadge =
@@ -153,6 +197,13 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ${host.phone ? row('ტელეფონი', host.phone) : ''}`;
   }
 
+  let convoySection = '';
+  if (isConvoy && convoyLegs) {
+    convoySection = `
+      ${sectionTitle(`მანქანები (${convoyLegs.length})`)}
+      ${convoyLegs.map(convoyLegHtml).join('\n')}`;
+  }
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -173,9 +224,10 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     <${tag} class="divider"></${tag}>
     ${sectionTitle('ჯავშანი')}
     ${bookingSection}
-    ${driverSection ? `<${tag} class="divider"></${tag}>${driverSection}` : ''}
-    ${vehicleSection ? `<${tag} class="divider"></${tag}>${vehicleSection}` : ''}
-    ${hostSection ? `<${tag} class="divider"></${tag}>${hostSection}` : ''}
+    ${convoySection ? `<${tag} class="divider"></${tag}>${convoySection}` : ''}
+    ${!isConvoy && driverSection ? `<${tag} class="divider"></${tag}>${driverSection}` : ''}
+    ${!isConvoy && vehicleSection ? `<${tag} class="divider"></${tag}>${vehicleSection}` : ''}
+    ${!isConvoy && hostSection ? `<${tag} class="divider"></${tag}>${hostSection}` : ''}
   </${tag}>
   <${tag} class="footer">KEKE Manager • ${new Date().toLocaleDateString('ka-GE')}</${tag}>
 </body>

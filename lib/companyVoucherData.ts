@@ -1,5 +1,6 @@
 import type { BookingRow } from './bookings';
 import { enrichBookingsForList, fetchBookingById } from './bookings';
+import { fetchLegsForMaster } from './groupBooking';
 import { fetchDriverAverageRating } from './ratings';
 import { resolveProfileAvatarUrl } from './profileAvatar';
 import { formatSpokenLanguagesList, sanitizeLanguageCodes } from './spokenLanguages';
@@ -59,12 +60,21 @@ export type CompanyVoucherCompany = {
   isVerified: boolean;
 };
 
+export type CompanyVoucherConvoyLeg = {
+  legIndex: number;
+  booking: BookingRow;
+  driver: CompanyVoucherDriver | null;
+  vehicle: CompanyVoucherVehicle | null;
+};
+
 export type CompanyVoucherData = {
   booking: BookingRow;
   driver: CompanyVoucherDriver | null;
   vehicle: CompanyVoucherVehicle | null;
   host: CompanyVoucherHost | null;
   company: CompanyVoucherCompany | null;
+  /** Large-group master: one voucher listing every vehicle + driver. */
+  convoyLegs?: CompanyVoucherConvoyLeg[];
 };
 
 type VehicleJoinRow = VehicleRow & {
@@ -336,6 +346,59 @@ async function fetchHostBlock(hostId: string, booking: BookingRow): Promise<Comp
   };
 }
 
+function vehicleFromBookingRow(booking: BookingRow): CompanyVoucherVehicle | null {
+  if (!booking.vehicle_type?.trim() && !booking.driver_plate?.trim()) return null;
+  const typeCode = normalizeVehicleType(booking.vehicle_type ?? '');
+  const classCode = normalizeVehicleClass(booking.vehicle_class ?? '');
+  return {
+    photoUrls: [],
+    mainPhotoUrl: null,
+    makeName: null,
+    modelName: null,
+    year: null,
+    plate: booking.driver_plate?.trim() || null,
+    color: null,
+    typeCode: typeCode ?? booking.vehicle_type?.trim() ?? null,
+    classCode: classCode ?? booking.vehicle_class?.trim() ?? null,
+    typeLabel: typeCode ? vehicleTypeLabel(typeCode) : booking.vehicle_type?.trim() || null,
+    classLabel: classCode ? vehicleClassLabel(classCode) : booking.vehicle_class?.trim() || null,
+  };
+}
+
+async function buildConvoyLegs(
+  masterId: string,
+  companyUserId?: string,
+): Promise<CompanyVoucherConvoyLeg[]> {
+  const { data: legs, error } = await fetchLegsForMaster(masterId, companyUserId);
+  if (error || legs.length === 0) return [];
+
+  const enriched = await enrichBookingsForList(legs);
+  const out: CompanyVoucherConvoyLeg[] = [];
+
+  for (const leg of enriched) {
+    const driverId = trimUserId(leg.driver_id);
+    let driver: CompanyVoucherDriver | null = null;
+    let vehicle: CompanyVoucherVehicle | null = null;
+
+    if (driverId) {
+      const block = await fetchDriverBlock(driverId, leg);
+      driver = block.driver;
+      vehicle = block.vehicle;
+    } else {
+      vehicle = vehicleFromBookingRow(leg);
+    }
+
+    out.push({
+      legIndex: leg.leg_index ?? out.length + 1,
+      booking: leg,
+      driver,
+      vehicle,
+    });
+  }
+
+  return out;
+}
+
 /** Loads booking + driver/vehicle/host details for the company voucher UI and PDF. */
 export async function fetchCompanyVoucherData(
   bookingId: string,
@@ -346,14 +409,33 @@ export async function fetchCompanyVoucherData(
   if (!raw) return { data: null, error: new Error('booking not found') };
 
   const [booking] = await enrichBookingsForList([raw]);
-  const driverId = trimUserId(booking.driver_id);
   const companyId = trimUserId(booking.company_id);
+  let company: CompanyVoucherCompany | null = null;
+  if (companyId) {
+    company = await fetchCompanyBlock(companyId, booking);
+  }
+
+  if (booking.is_group_master) {
+    const convoyLegs = await buildConvoyLegs(booking.id, companyUserId);
+    return {
+      data: {
+        booking,
+        driver: null,
+        vehicle: null,
+        host: null,
+        company,
+        convoyLegs,
+      },
+      error: null,
+    };
+  }
+
+  const driverId = trimUserId(booking.driver_id);
   let hostId = trimUserId(booking.host_driver_id);
 
   let driver: CompanyVoucherDriver | null = null;
   let vehicle: CompanyVoucherVehicle | null = null;
   let host: CompanyVoucherHost | null = null;
-  let company: CompanyVoucherCompany | null = null;
 
   if (driverId) {
     const block = await fetchDriverBlock(driverId, booking);
@@ -375,14 +457,18 @@ export async function fetchCompanyVoucherData(
     host = await fetchHostBlock(hostId, booking);
   }
 
-  if (companyId) {
-    company = await fetchCompanyBlock(companyId, booking);
-  }
-
   return {
     data: { booking, driver, vehicle, host, company },
     error: null,
   };
+}
+
+export function convoyVoucherCode(booking: BookingRow): string {
+  return (
+    booking.group_code?.trim() ||
+    booking.voucher_code?.trim() ||
+    `KEKE-${booking.id.slice(0, 6).toUpperCase()}`
+  );
 }
 
 /** Build voucher data when the booking row is already loaded (e.g. dashboard list). */
