@@ -1253,7 +1253,8 @@
     "you": "You: ",
     "yesterday": "Yesterday",
     "loadError": "Failed to load messages",
-    "sendError": "Failed to send message"
+    "sendError": "Failed to send message",
+    "activeBookingRequired": "You can only send messages while a booking is active"
   },
   "supportChat": {
     "title": "KEKE Support",

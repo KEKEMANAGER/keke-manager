@@ -139,6 +139,14 @@ export default function CompanyChatScreen() {
 
   async function onSend() {
     if (!user?.id || !text.trim() || sending) return;
+    if (
+      !isSupport &&
+      profile?.role !== 'admin' &&
+      !(threadOpts && 'bookingId' in threadOpts)
+    ) {
+      setSendError(t('chat.activeBookingRequired'));
+      return;
+    }
     const draft = text.trim();
     setText('');
     setSendError(null);

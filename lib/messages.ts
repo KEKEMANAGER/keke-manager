@@ -6,7 +6,7 @@ import { USERS_DIRECTORY } from './usersDirectory';
 import { trimUserId } from './userId';
 
 /** Bookings where company and driver may chat (assigned driver required). */
-const CHAT_BOOKING_STATUSES = ['accepted', 'confirmed', 'in_progress', 'completed'] as const;
+export const ACTIVE_CHAT_BOOKING_STATUSES = ['accepted', 'confirmed', 'in_progress'] as const;
 
 export type MessageRow = {
   id: string;
@@ -22,13 +22,33 @@ export type MessageRow = {
 };
 
 export type ConversationRow = {
+  conversation_key: string;
   other_user_id: string;
   other_user_name: string | null;
   other_user_avatar_url: string | null;
   last_text: string;
   last_at: string;
   unread_count: number;
+  booking_id?: string | null;
+  thread_type?: ChatThreadType | null;
 };
+
+type ConvBucket = {
+  other_user_id: string;
+  booking_id: string | null;
+  thread_type: ChatThreadType | null;
+  last_text: string;
+  last_at: string;
+  unread_count: number;
+};
+
+function conversationKey(
+  otherId: string,
+  bookingId: string | null,
+  threadType: ChatThreadType | null,
+): string {
+  return `${otherId}:${bookingId ?? ''}:${threadType ?? ''}`;
+}
 
 export type MessageThreadOptions =
   | { bookingId: string; threadType: ChatThreadType }
@@ -162,36 +182,89 @@ export async function markMessagesRead(
 
 async function mergeChatPartnersFromBookings(
   userId: string,
-  seen: Map<string, { last_text: string; last_at: string; unread_count: number }>,
+  buckets: Map<string, ConvBucket>,
 ): Promise<Error | null> {
   const id = trimUserId(userId);
   if (!id) return null;
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('company_id, driver_id, updated_at')
+    .select('id, company_id, driver_id, updated_at')
     .or(`company_id.eq.${id},driver_id.eq.${id}`)
-    .in('status', [...CHAT_BOOKING_STATUSES])
+    .in('status', [...ACTIVE_CHAT_BOOKING_STATUSES])
     .not('driver_id', 'is', null);
 
   if (error) return new Error(error.message);
 
   for (const row of data ?? []) {
+    const bookingId = trimUserId((row as { id: string }).id);
     const companyId = trimUserId((row as { company_id: string }).company_id);
     const driverId = trimUserId((row as { driver_id: string | null }).driver_id);
     const otherId = companyId === id ? driverId : companyId;
-    if (!otherId || otherId === id) continue;
+    if (!bookingId || !otherId || otherId === id) continue;
 
-    const at = String((row as { updated_at?: string }).updated_at ?? '').trim() || new Date().toISOString();
-    const existing = seen.get(otherId);
+    const at =
+      String((row as { updated_at?: string }).updated_at ?? '').trim() || new Date().toISOString();
+    const key = conversationKey(otherId, bookingId, 'company_driver');
+    const existing = buckets.get(key);
     if (!existing) {
-      seen.set(otherId, { last_text: '', last_at: at, unread_count: 0 });
+      buckets.set(key, {
+        other_user_id: otherId,
+        booking_id: bookingId,
+        thread_type: 'company_driver',
+        last_text: '',
+        last_at: at,
+        unread_count: 0,
+      });
     } else if (at > existing.last_at) {
       existing.last_at = at;
     }
   }
 
   return null;
+}
+
+async function loadActiveBookingIds(bookingIds: string[]): Promise<Set<string>> {
+  const ids = bookingIds.map((x) => trimUserId(x)).filter(Boolean);
+  if (ids.length === 0) return new Set();
+  const { data } = await supabase
+    .from('bookings')
+    .select('id')
+    .in('id', ids)
+    .in('status', [...ACTIVE_CHAT_BOOKING_STATUSES]);
+  return new Set(
+    ((data ?? []) as { id: string }[]).map((r) => trimUserId(r.id)).filter(Boolean),
+  );
+}
+
+async function loadActiveChatPeerIds(userId: string): Promise<Set<string>> {
+  const id = trimUserId(userId);
+  if (!id) return new Set();
+  const { data } = await supabase
+    .from('bookings')
+    .select('company_id, driver_id')
+    .or(`company_id.eq.${id},driver_id.eq.${id}`)
+    .in('status', [...ACTIVE_CHAT_BOOKING_STATUSES])
+    .not('driver_id', 'is', null);
+  const peers = new Set<string>();
+  for (const row of data ?? []) {
+    const companyId = trimUserId((row as { company_id: string }).company_id);
+    const driverId = trimUserId((row as { driver_id: string | null }).driver_id);
+    const otherId = companyId === id ? driverId : companyId;
+    if (otherId && otherId !== id) peers.add(otherId);
+  }
+  return peers;
+}
+
+function shouldShowConversation(
+  bucket: ConvBucket,
+  activeBookingIds: Set<string>,
+  activePeerIds: Set<string>,
+): boolean {
+  if (bucket.unread_count > 0) return true;
+  if (bucket.booking_id && activeBookingIds.has(bucket.booking_id)) return true;
+  if (!bucket.booking_id && activePeerIds.has(bucket.other_user_id)) return true;
+  return false;
 }
 
 export async function fetchConversations(userId: string): Promise<{
@@ -205,7 +278,7 @@ export async function fetchConversations(userId: string): Promise<{
 
   const { data, error } = await supabase
     .from('messages')
-    .select('sender_id, receiver_id, text, is_read, created_at')
+    .select('sender_id, receiver_id, text, is_read, created_at, booking_id, thread_type')
     .or(`sender_id.eq.${id},receiver_id.eq.${id}`)
     .order('created_at', { ascending: false });
 
@@ -213,30 +286,56 @@ export async function fetchConversations(userId: string): Promise<{
 
   type MsgLite = Pick<
     MessageRow,
-    'sender_id' | 'receiver_id' | 'text' | 'is_read' | 'created_at' | 'thread_type'
+    | 'sender_id'
+    | 'receiver_id'
+    | 'text'
+    | 'is_read'
+    | 'created_at'
+    | 'thread_type'
+    | 'booking_id'
   >;
   const rows = ((data ?? []) as MsgLite[]).filter((msg) => msg.thread_type !== SUPPORT_THREAD_TYPE);
 
-  const seen = new Map<string, { last_text: string; last_at: string; unread_count: number }>();
+  const buckets = new Map<string, ConvBucket>();
   for (const msg of rows) {
     const otherId = msg.sender_id === id ? msg.receiver_id : msg.sender_id;
     if (supportAdminId && otherId === supportAdminId) continue;
-    if (!seen.has(otherId)) {
-      seen.set(otherId, {
+
+    const bookingId = trimUserId(msg.booking_id ?? '') || null;
+    const threadType = (msg.thread_type ?? null) as ChatThreadType | null;
+    const key = conversationKey(otherId, bookingId, threadType);
+
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        other_user_id: otherId,
+        booking_id: bookingId,
+        thread_type: threadType,
         last_text: msg.text,
         last_at: msg.created_at,
         unread_count: msg.receiver_id === id && !msg.is_read ? 1 : 0,
       });
     } else {
-      const c = seen.get(otherId)!;
+      const c = buckets.get(key)!;
       if (msg.receiver_id === id && !msg.is_read) c.unread_count++;
     }
   }
 
-  const bookingErr = await mergeChatPartnersFromBookings(id, seen);
+  const bookingErr = await mergeChatPartnersFromBookings(id, buckets);
   if (bookingErr) return { data: [], error: bookingErr };
 
-  const otherIds = Array.from(seen.keys());
+  const bookingIds = [...buckets.values()]
+    .map((b) => b.booking_id)
+    .filter((x): x is string => !!x);
+  const [activeBookingIds, activePeerIds] = await Promise.all([
+    loadActiveBookingIds(bookingIds),
+    loadActiveChatPeerIds(id),
+  ]);
+
+  const visibleBuckets = [...buckets.values()].filter((b) =>
+    shouldShowConversation(b, activeBookingIds, activePeerIds),
+  );
+
+  const otherIds = [...new Set(visibleBuckets.map((b) => b.other_user_id))];
   if (otherIds.length === 0) return { data: [], error: null };
 
   const { data: users } = await supabase
@@ -249,12 +348,17 @@ export async function fetchConversations(userId: string): Promise<{
     ((users ?? []) as UserLite[]).map((u) => [u.id, u]),
   );
 
-  const conversations: ConversationRow[] = Array.from(seen.entries())
-    .map(([otherId, c]) => ({
-      other_user_id: otherId,
-      other_user_name: userMap.get(otherId)?.full_name ?? null,
-      other_user_avatar_url: userMap.get(otherId)?.avatar_url ?? null,
-      ...c,
+  const conversations: ConversationRow[] = visibleBuckets
+    .map((b) => ({
+      conversation_key: conversationKey(b.other_user_id, b.booking_id, b.thread_type),
+      other_user_id: b.other_user_id,
+      other_user_name: userMap.get(b.other_user_id)?.full_name ?? null,
+      other_user_avatar_url: userMap.get(b.other_user_id)?.avatar_url ?? null,
+      last_text: b.last_text,
+      last_at: b.last_at,
+      unread_count: b.unread_count,
+      booking_id: b.booking_id,
+      thread_type: b.thread_type,
     }))
     .sort((a, b) => b.last_at.localeCompare(a.last_at));
 

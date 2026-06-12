@@ -137,6 +137,10 @@ export default function DriverChatScreen() {
 
   async function onSend() {
     if (!user?.id || !text.trim() || sending) return;
+    if (!isSupport && !(threadOpts && 'bookingId' in threadOpts)) {
+      setSendError(t('chat.activeBookingRequired'));
+      return;
+    }
     const draft = text.trim();
     setText('');
     setSendError(null);

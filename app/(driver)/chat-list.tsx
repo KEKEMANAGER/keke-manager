@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,6 +24,8 @@ import {
 import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { useSupportChatListEntry } from '../../lib/supportChat';
 import { supabase } from '../../lib/supabase';
+import { notifyChatUnreadMayHaveChanged } from '../../lib/useChatUnreadCount';
+import type { ChatThreadType } from '../../lib/bookingChat';
 
 function formatListTime(iso: string, yesterday: string): string {
   const d = new Date(iso);
@@ -80,6 +82,13 @@ export default function DriverChatListScreen() {
     void load('initial');
   }, [load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      notifyChatUnreadMayHaveChanged();
+      void load('silent');
+    }, [load]),
+  );
+
   useEffect(() => {
     if (!user?.id) return;
     const ch = subscribeToConversationList(user.id, (msg) => {
@@ -110,12 +119,27 @@ export default function DriverChatListScreen() {
   }
 
   function openChat(item: ConversationRow) {
+    const params: Record<string, string> = {
+      uid: item.other_user_id,
+      name: item.other_user_name ?? '',
+      avatar: item.other_user_avatar_url ?? '',
+    };
+    if (item.booking_id?.trim()) params.bookingId = item.booking_id.trim();
+    if (item.thread_type) params.threadType = item.thread_type;
+    if (item.thread_type === 'company_driver') {
+      params.senderRole = 'driver';
+      params.receiverRole = 'company';
+    }
     router.push({
       pathname: '/(driver)/chat',
-      params: {
-        uid: item.other_user_id,
-        name: item.other_user_name ?? '',
-        avatar: item.other_user_avatar_url ?? '',
+      params: params as {
+        uid: string;
+        name: string;
+        avatar?: string;
+        bookingId?: string;
+        threadType?: ChatThreadType;
+        senderRole?: string;
+        receiverRole?: string;
       },
     });
   }
@@ -140,7 +164,7 @@ export default function DriverChatListScreen() {
       ) : (
         <FlatList
           data={conversations}
-          keyExtractor={(item) => item.other_user_id}
+          keyExtractor={(item) => item.conversation_key}
           contentContainerStyle={[
             styles.list,
             conversations.length === 0 && styles.listEmpty,
