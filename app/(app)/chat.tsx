@@ -27,6 +27,7 @@ import {
   type MessageRow,
 } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
+import { notifyChatUnreadMayHaveChanged } from '../../lib/useChatUnreadCount';
 import { setActiveChatPeerId } from '../../lib/webChatAlerts';
 
 function formatMsgTime(iso: string): string {
@@ -81,7 +82,8 @@ export default function CompanyChatScreen() {
     setMessages(data);
     setLoading(false);
     scrollToBottom(false);
-    void markMessagesRead(user.id, otherUserId, threadOpts);
+    await markMessagesRead(user.id, otherUserId, threadOpts);
+    notifyChatUnreadMayHaveChanged();
   }, [user?.id, otherUserId, scrollToBottom, threadOpts?.bookingId, threadOpts?.threadType]);
 
   useEffect(() => {
@@ -121,7 +123,9 @@ export default function CompanyChatScreen() {
       (msg) => {
         setMessages((prev) => [...prev, msg]);
         scrollToBottom(true);
-        void markMessagesRead(user.id!, otherUserId, threadOpts);
+        void markMessagesRead(user.id!, otherUserId, threadOpts).then(() =>
+          notifyChatUnreadMayHaveChanged(),
+        );
       },
       threadOpts,
     );

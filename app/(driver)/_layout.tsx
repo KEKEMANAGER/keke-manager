@@ -113,15 +113,13 @@ function DriverTabs() {
           name="chat-list"
           options={{
             title: t('tabs.chat'),
-            tabBarBadge: tabBadge,
-            tabBarBadgeStyle: {
-              backgroundColor: COLORS.error,
-              color: COLORS.text,
-              fontSize: 11,
-              fontWeight: '700',
-            },
             tabBarIcon: ({ color, focused }) => (
-              <TabBarIcon name="chatbubbles-outline" color={color} focused={focused} />
+              <TabBarIcon
+                name="chatbubbles-outline"
+                color={color}
+                focused={focused}
+                badge={tabBadge}
+              />
             ),
           }}
         />

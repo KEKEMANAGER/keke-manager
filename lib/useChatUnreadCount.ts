@@ -12,6 +12,15 @@ export function formatChatTabBadge(unread: number): string | number | undefined 
   return unread > 99 ? '99+' : unread;
 }
 
+const unreadRefreshListeners = new Set<() => void>();
+
+/** Call after markMessagesRead so tab badge updates immediately. */
+export function notifyChatUnreadMayHaveChanged(): void {
+  for (const listener of unreadRefreshListeners) {
+    listener();
+  }
+}
+
 export function useChatUnreadCount(userId: string | undefined) {
   const { t } = useTranslation();
   const [unread, setUnread] = useState(0);
@@ -51,6 +60,13 @@ export function useChatUnreadCount(userId: string | undefined) {
       void supabase.removeChannel(channel);
     };
   }, [userId, refresh]);
+
+  useEffect(() => {
+    unreadRefreshListeners.add(refresh);
+    return () => {
+      unreadRefreshListeners.delete(refresh);
+    };
+  }, [refresh]);
 
   return { unread, refresh, tabBadge: formatChatTabBadge(unread) };
 }
