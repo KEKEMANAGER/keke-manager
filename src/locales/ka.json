@@ -966,7 +966,12 @@
     "bgPermissionDeniedBody": "რომ აპის დახურვის შემდეგაც გაგრძელდეს ტრეკინგი, პარამეტრებში დართე ლოკაცია „ყოველთვის“.",
     "navigatePickup": "ნავიგაცია pickup-მდე",
     "navigateDestination": "ნავიგაცია დანიშნულებამდე",
-    "externalNavHint": "კომპანია KEKE რუკაზე გიყურებს. მისამართამდე Google/Apple Maps გამოიყენე."
+    "externalNavHint": "კომპანია KEKE რუკაზე გიყურებს. მისამართამდე Google/Apple Maps გამოიყენე.",
+    "completeNeedsInProgressTitle": "რეისი ჯერ არ დაწყებულა",
+    "completeNeedsInProgress": "ჯავშნის დასრულება შესაძლებელია მხოლოდ „გზაში“ სტატუსში.",
+    "startTripFirstHint": "ჯავშნებში დააჭირე „ტურის/ტრანსფერის დაწყება“, შემდეგ დაასრულე აქ.",
+    "alreadyCompleted": "ეს ჯავშანი უკვე დასრულებულია.",
+    "goToBookings": "ჯავშნებზე"
   },
   "tracking": {
     "title": "მძღოლის თვალყურება",

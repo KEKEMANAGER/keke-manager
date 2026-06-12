@@ -1381,16 +1381,47 @@ export async function startBookingTrip(bookingRowId: string, driverUserId: strin
   if (!isBookingRowUuid(rowId)) {
     return { ok: false as const, error: new Error('invalid booking id') };
   }
-  const drv = trimUserId(driverUserId);
-  if (!drv) {
+  const uid = trimUserId(driverUserId);
+  if (!uid) {
     return { ok: false as const, error: new Error('მძღოლის id არ არის') };
   }
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, status, driver_id, host_driver_id')
+    .eq('id', rowId)
+    .maybeSingle();
+
+  if (fetchErr) return { ok: false as const, error: fetchErr };
+  if (!existing) {
+    return { ok: false as const, error: new Error('ჯავშანი ვერ მოიძებნა') };
+  }
+
+  const row = existing as {
+    status?: string;
+    driver_id?: string | null;
+    host_driver_id?: string | null;
+  };
+
+  const status = String(row.status ?? '').toLowerCase();
+  if (status !== 'accepted' && status !== 'confirmed') {
+    return {
+      ok: false as const,
+      error: new Error('დაწყება ვერ მოხერხდა — ჯავშანი სხვა მდგომარეობაშია'),
+    };
+  }
+
+  const driverId = trimUserId(row.driver_id ?? '');
+  const hostId = trimUserId(row.host_driver_id ?? '');
+  if (!userIdsMatch(driverId, uid) && !userIdsMatch(hostId, uid)) {
+    return { ok: false as const, error: new Error('ეს ჯავშანი თქვენზე არ არის მინიჭებული') };
+  }
+
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'in_progress' })
     .eq('id', rowId)
     .or('status.eq.accepted,status.eq.confirmed')
-    .eq('driver_id', drv)
     .select('id')
     .maybeSingle();
   if (error) return { ok: false as const, error };

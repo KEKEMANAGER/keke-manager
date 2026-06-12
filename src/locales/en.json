@@ -969,7 +969,12 @@
     "bgPermissionDeniedBody": "To keep tracking the trip when the app is closed, allow location access \"Always\" in system settings.",
     "navigatePickup": "Navigate to pickup",
     "navigateDestination": "Navigate to destination",
-    "externalNavHint": "The company tracks you on KEKE. Use Google/Apple Maps for directions."
+    "externalNavHint": "The company tracks you on KEKE. Use Google/Apple Maps for directions.",
+    "completeNeedsInProgressTitle": "Trip not started yet",
+    "completeNeedsInProgress": "You can finish the booking only while it is in progress.",
+    "startTripFirstHint": "Tap \"Start tour/transfer\" on Bookings, then finish here.",
+    "alreadyCompleted": "This booking is already completed.",
+    "goToBookings": "Go to bookings"
   },
   "tracking": {
     "title": "Driver Tracking",

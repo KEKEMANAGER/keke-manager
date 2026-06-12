@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
@@ -32,9 +32,15 @@ const TBILISI: Region = {
   longitudeDelta: 0.08,
 };
 
+const TRIP_BOOKING_SELECT =
+  'id, kind, status, from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days';
+
+type TripBookingState = TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status'>;
+
 export default function DriverGpsScreen() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ autoStart?: string; bookingId?: string }>();
   const mapRef = useRef<MapView | null>(null);
@@ -47,32 +53,38 @@ export default function DriverGpsScreen() {
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
-  const [tripBooking, setTripBooking] = useState<(TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status'>) | null>(null);
+  const [tripBooking, setTripBooking] = useState<TripBookingState | null>(null);
 
   const bookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
 
-  useEffect(() => {
+  const refreshTripBooking = useCallback(async (): Promise<TripBookingState | null> => {
     if (!bookingId) {
       setTripBooking(null);
-      return;
+      return null;
     }
-    let cancelled = false;
-    void supabase
+    const { data } = await supabase
       .from('bookings')
-      .select(
-        'id, kind, status, from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days',
-      )
+      .select(TRIP_BOOKING_SELECT)
       .eq('id', bookingId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled && data) {
-          setTripBooking(data as TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status'>);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+      .maybeSingle();
+    if (data) {
+      const booking = data as TripBookingState;
+      setTripBooking(booking);
+      return booking;
+    }
+    setTripBooking(null);
+    return null;
   }, [bookingId]);
+
+  useEffect(() => {
+    void refreshTripBooking();
+  }, [refreshTripBooking]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshTripBooking();
+    }, [refreshTripBooking]),
+  );
 
   const stopWatch = useCallback(() => {
     if (watchRef.current) {
@@ -195,14 +207,44 @@ export default function DriverGpsScreen() {
     }
   }
 
+  function alertStartTripFirst() {
+    Alert.alert(t('gpsScreen.completeNeedsInProgressTitle'), t('gpsScreen.startTripFirstHint'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('gpsScreen.goToBookings'),
+        onPress: () => router.push('/(driver)/bookings'),
+      },
+    ]);
+  }
+
   async function completeActiveBooking(): Promise<boolean> {
-    if (!user?.id || !tripBooking?.id || tripBooking.status !== 'in_progress') {
+    if (!user?.id || !bookingId) {
       return false;
     }
 
-    const res = isTourBookingKind(tripBooking.kind)
-      ? await completeTourTripWithOdometer(tripBooking as BookingRow, user.id)
-      : await completeBooking(tripBooking.id, user.id).then((r) =>
+    const fresh = await refreshTripBooking();
+    const booking = fresh ?? tripBooking;
+    if (!booking?.id) {
+      return false;
+    }
+
+    const status = String(booking.status ?? '').toLowerCase();
+    if (status === 'completed') {
+      Alert.alert(t('common.success'), t('gpsScreen.alreadyCompleted'));
+      return false;
+    }
+    if (status === 'accepted' || status === 'confirmed') {
+      alertStartTripFirst();
+      return false;
+    }
+    if (status !== 'in_progress') {
+      Alert.alert(t('common.error'), t('gpsScreen.completeNeedsInProgress'));
+      return false;
+    }
+
+    const res = isTourBookingKind(booking.kind)
+      ? await completeTourTripWithOdometer(booking as BookingRow, user.id)
+      : await completeBooking(booking.id, user.id).then((r) =>
           r.ok ? { ok: true as const } : { ok: false as const, error: r.error ?? new Error('complete_failed') },
         );
 
@@ -217,6 +259,7 @@ export default function DriverGpsScreen() {
       return false;
     }
 
+    setTripBooking((prev) => (prev ? { ...prev, status: 'completed' } : null));
     Alert.alert(t('common.success'), t('bookings.completeSuccess'));
     return true;
   }
@@ -230,13 +273,18 @@ export default function DriverGpsScreen() {
     }
   }
 
+  const tripStatus = String(tripBooking?.status ?? '').toLowerCase();
+  const linkedInProgress = Boolean(bookingId && tripStatus === 'in_progress');
+  const needsStartTripFirst = Boolean(
+    bookingId && (tripStatus === 'accepted' || tripStatus === 'confirmed'),
+  );
+
   function handleTrackingToggle() {
     if (!isTracking) {
       void startTracking();
       return;
     }
 
-    const linkedInProgress = Boolean(bookingId && tripBooking?.status === 'in_progress');
     if (!linkedInProgress) {
       void stopTracking();
       return;
@@ -253,7 +301,6 @@ export default function DriverGpsScreen() {
     ]);
   }
 
-  const linkedInProgress = Boolean(bookingId && tripBooking?.status === 'in_progress');
   const endButtonLabel = isTracking
     ? linkedInProgress
       ? t('gpsScreen.endTrip')
@@ -294,6 +341,12 @@ export default function DriverGpsScreen() {
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.md }]}>
+        {needsStartTripFirst ? (
+          <View style={styles.hintBanner}>
+            <Ionicons name="information-circle-outline" size={18} color={COLORS.goldDark} />
+            <Text style={styles.hintBannerText}>{t('gpsScreen.startTripFirstHint')}</Text>
+          </View>
+        ) : null}
         {showTripNav && tripBooking ? (
           <View style={styles.navCard}>
             <View style={styles.navHeader}>
@@ -403,6 +456,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: COLORS.grayLight,
+    lineHeight: 18,
+  },
+  hintBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  hintBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
     lineHeight: 18,
   },
   toggle: {

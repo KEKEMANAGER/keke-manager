@@ -917,7 +917,12 @@
     "bgPermissionDeniedBody": "Чтобы отслеживание работало при закрытом приложении, разрешите доступ к геолокации «Всегда» в настройках.",
     "navigatePickup": "Навигация до pickup",
     "navigateDestination": "Навигация до пункта назначения",
-    "externalNavHint": "Компания видит вас на карте KEKE. Для маршрута используйте Google/Apple Maps."
+    "externalNavHint": "Компания видит вас на карте KEKE. Для маршрута используйте Google/Apple Maps.",
+    "completeNeedsInProgressTitle": "Рейс ещё не начат",
+    "completeNeedsInProgress": "Завершить бронирование можно только в статусе «В пути».",
+    "startTripFirstHint": "Нажмите «Начать тур/трансфер» в бронированиях, затем завершите здесь.",
+    "alreadyCompleted": "Это бронирование уже завершено.",
+    "goToBookings": "К бронированиям"
   },
   "tracking": {
     "title": "Отслеживание водителя",
