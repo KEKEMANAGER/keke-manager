@@ -61,6 +61,16 @@ export function useChatUnreadCount(userId: string | undefined) {
     };
   }, [userId, refresh]);
 
+  // Web: refetch when tab becomes visible (Realtime can miss events while backgrounded).
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onVisibility = () => {
+      if (!document.hidden) void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [refresh]);
+
   useEffect(() => {
     unreadRefreshListeners.add(refresh);
     return () => {

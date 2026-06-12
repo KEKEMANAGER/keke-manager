@@ -88,6 +88,7 @@ export default function CompanyChatListScreen() {
         void notifyIncomingChatMessageLocally({
           senderUserId: msg.sender_id,
           text: msg.text,
+          threadType: msg.thread_type,
         });
       }
     });

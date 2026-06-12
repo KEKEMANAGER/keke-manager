@@ -28,6 +28,7 @@ import {
 } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
 import { notifyChatUnreadMayHaveChanged } from '../../lib/useChatUnreadCount';
+import { SUPPORT_THREAD_TYPE } from '../../lib/supportChat';
 import { setActiveChatPeerId } from '../../lib/webChatAlerts';
 
 function formatMsgTime(iso: string): string {
@@ -49,9 +50,11 @@ export default function CompanyChatScreen() {
       receiverRole?: ParticipantRole;
     }>();
 
-  const isSupport = threadType === 'support';
+  const isSupport =
+    threadType === 'support' ||
+    (profile?.role === 'admin' && !bookingId?.trim());
   const threadOpts = isSupport
-    ? { threadType: 'support' as const }
+    ? { threadType: SUPPORT_THREAD_TYPE }
     : bookingId?.trim() && threadType
       ? { bookingId: bookingId.trim(), threadType }
       : undefined;

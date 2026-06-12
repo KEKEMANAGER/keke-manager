@@ -90,6 +90,7 @@ export async function notifyIncomingChatMessageLocally(params: {
   senderUserId: string;
   senderName?: string | null;
   text: string;
+  threadType?: string | null;
 }): Promise<void> {
   if (isWeb) return;
   const now = Date.now();

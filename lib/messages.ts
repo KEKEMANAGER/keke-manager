@@ -1,5 +1,5 @@
 import type { ChatThreadType, ParticipantRole } from './bookingChat';
-import { isSupportThreadType, SUPPORT_THREAD_TYPE } from './supportChat';
+import { isSupportThreadType, resolveSupportAdminUserId, SUPPORT_THREAD_TYPE } from './supportChat';
 import { notifyChatMessageRecipient } from './notifications';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
@@ -51,6 +51,18 @@ function applyThreadFilter<T extends { eq: (col: string, val: string) => T; is: 
   return query;
 }
 
+/** Untyped peer chat must not touch support thread (separate inbox row). */
+function applyThreadFilterOrExcludeSupport<
+  T extends {
+    eq: (col: string, val: string | boolean) => T;
+    is: (col: string, val: null) => T;
+    or: (filters: string) => T;
+  },
+>(query: T, options?: MessageThreadOptions): T {
+  if (options) return applyThreadFilter(query, options);
+  return query.or(`thread_type.is.null,thread_type.neq.${SUPPORT_THREAD_TYPE}`);
+}
+
 export async function fetchMessages(
   userId: string,
   otherUserId: string,
@@ -63,7 +75,7 @@ export async function fetchMessages(
       `and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`,
     );
 
-  query = applyThreadFilter(query, options);
+  query = applyThreadFilterOrExcludeSupport(query, options);
 
   const { data, error } = await query.order('created_at', { ascending: true });
   if (error) return { data: [], error: new Error(error.message) };
@@ -143,7 +155,7 @@ export async function markMessagesRead(
     .eq('sender_id', otherUserId)
     .eq('is_read', false);
 
-  query = applyThreadFilter(query, options);
+  query = applyThreadFilterOrExcludeSupport(query, options);
 
   await query;
 }
@@ -189,6 +201,8 @@ export async function fetchConversations(userId: string): Promise<{
   const id = trimUserId(userId);
   if (!id) return { data: [], error: null };
 
+  const supportAdminId = await resolveSupportAdminUserId();
+
   const { data, error } = await supabase
     .from('messages')
     .select('sender_id, receiver_id, text, is_read, created_at')
@@ -206,6 +220,7 @@ export async function fetchConversations(userId: string): Promise<{
   const seen = new Map<string, { last_text: string; last_at: string; unread_count: number }>();
   for (const msg of rows) {
     const otherId = msg.sender_id === id ? msg.receiver_id : msg.sender_id;
+    if (supportAdminId && otherId === supportAdminId) continue;
     if (!seen.has(otherId)) {
       seen.set(otherId, {
         last_text: msg.text,

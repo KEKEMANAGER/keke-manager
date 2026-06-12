@@ -5,27 +5,34 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AppDrawer } from '../../components/layout/AppDrawer';
 import { AppHeader } from '../../components/layout/AppHeader';
+import { ChatTabBarIcon } from '../../components/ChatTabBarIcon';
 import { TabBarIcon } from '../../components/TabBarIcon';
 import { APP_HEADER_BODY_HEIGHT, tabBarMinHeight, Z_INDEX } from '../../constants/layout';
 import { COLORS, SPACING } from '../../constants/theme';
 import { AuthScope } from '../../components/AuthScope';
 import { AppMenuProvider } from '../../contexts/AppMenuContext';
+import { ChatUnreadProvider } from '../../contexts/ChatUnreadContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { subscribeToConversationList } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
-import { useChatUnreadCount } from '../../lib/useChatUnreadCount';
+import { ensureWebNotificationPermission } from '../../lib/webChatAlerts';
 
-function CompanyTabs() {
+function CompanyTabsInner() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const segments = useSegments();
   const { user } = useAuth();
-  const { tabBadge } = useChatUnreadCount(user?.id);
   const bottomPad = Math.max(insets.bottom, SPACING.sm);
   const tabMinH = tabBarMinHeight(bottomPad);
   const onChat = segments[segments.length - 1] === 'chat';
   const scenePadTop = onChat ? 0 : insets.top + APP_HEADER_BODY_HEIGHT + 8;
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      void ensureWebNotificationPermission();
+    }
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -34,6 +41,7 @@ function CompanyTabs() {
         void notifyIncomingChatMessageLocally({
           senderUserId: msg.sender_id,
           text: msg.text,
+          threadType: msg.thread_type,
         });
       }
     });
@@ -121,18 +129,22 @@ function CompanyTabs() {
             options={{
               title: t('tabs.chat'),
               tabBarIcon: ({ color, focused }) => (
-                <TabBarIcon
-                  name="chatbubbles-outline"
-                  color={color}
-                  focused={focused}
-                  badge={tabBadge}
-                />
+                <ChatTabBarIcon color={color} focused={focused} />
               ),
             }}
           />
       </Tabs>
       <AppDrawer />
     </View>
+  );
+}
+
+function CompanyTabs() {
+  const { user } = useAuth();
+  return (
+    <ChatUnreadProvider userId={user?.id}>
+      <CompanyTabsInner />
+    </ChatUnreadProvider>
   );
 }
 

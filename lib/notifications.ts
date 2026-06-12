@@ -761,7 +761,11 @@ export async function notifyChatMessageRecipient(params: {
   }
 
   const preview = params.messageText.trim().slice(0, 120);
-  const { title, body } = getChatMessageNotificationContent(params.senderName, preview);
+  const senderLabel =
+    params.threadType?.trim() === 'support'
+      ? notifyT('supportChat.title', 'KEKE Support')
+      : params.senderName;
+  const { title, body } = getChatMessageNotificationContent(senderLabel, preview);
   const pushDataStr: Record<string, string> = {
     type: 'chat_message',
     sender_id: senderId,
