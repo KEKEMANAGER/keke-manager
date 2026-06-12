@@ -280,6 +280,53 @@ export function subscribeToMessages(
     .subscribe();
 }
 
+/** Total unread messages addressed to this user (all thread types). */
+export async function fetchUnreadMessageCount(userId: string): Promise<number> {
+  const id = trimUserId(userId);
+  if (!id) return 0;
+
+  const { count, error } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('receiver_id', id)
+    .eq('is_read', false);
+
+  if (error) {
+    if (__DEV__) console.warn('[messages] unread count:', error.message);
+    return 0;
+  }
+  return count ?? 0;
+}
+
+/** Refetch unread when messages arrive or are marked read. */
+export function subscribeToUnreadCount(userId: string, onChange: () => void) {
+  const id = trimUserId(userId);
+  const channelName = `unread-${id}-${Math.random().toString(36).slice(2, 10)}`;
+  return supabase
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${id}`,
+      },
+      () => onChange(),
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${id}`,
+      },
+      () => onChange(),
+    )
+    .subscribe();
+}
+
 export function subscribeToConversationList(
   userId: string,
   onChange: (msg?: MessageRow) => void,

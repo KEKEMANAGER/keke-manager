@@ -15,12 +15,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { subscribeToConversationList } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
+import { useChatUnreadCount } from '../../lib/useChatUnreadCount';
 
 function DriverTabs() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const segments = useSegments();
   const { user } = useAuth();
+  const { tabBadge } = useChatUnreadCount(user?.id);
   const bottomPad = Math.max(insets.bottom, SPACING.sm);
   const tabMinH = tabBarMinHeight(bottomPad);
   const onChat = segments[segments.length - 1] === 'chat';
@@ -111,6 +113,13 @@ function DriverTabs() {
           name="chat-list"
           options={{
             title: t('tabs.chat'),
+            tabBarBadge: tabBadge,
+            tabBarBadgeStyle: {
+              backgroundColor: COLORS.error,
+              color: COLORS.text,
+              fontSize: 11,
+              fontWeight: '700',
+            },
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon name="chatbubbles-outline" color={color} focused={focused} />
             ),

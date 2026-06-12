@@ -27,6 +27,7 @@ import {
   type MessageRow,
 } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
+import { setActiveChatPeerId } from '../../lib/webChatAlerts';
 
 function formatMsgTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -86,6 +87,12 @@ export default function CompanyChatScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !otherUserId) return;
+    setActiveChatPeerId(otherUserId);
+    return () => setActiveChatPeerId(null);
+  }, [otherUserId]);
 
   useEffect(() => {
     if (!otherUserId) {
