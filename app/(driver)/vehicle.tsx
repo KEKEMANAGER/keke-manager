@@ -298,7 +298,7 @@ function VehicleRegistrationMediaBlock({
   if (!vehicle || !vehicleId) return null;
 
   return (
-    <View style={styles.registrationMediaCard}>
+    <View style={styles.registrationMediaInForm}>
       <Text style={styles.registrationMediaTitle}>{t('vehicleScreen.registrationMedia')}</Text>
       <Text style={styles.registrationMediaSubtitle}>
         {vehicleRegistrationLabel(vehicle, t('vehicleScreen.vehicleN', { n: 1 }))}
@@ -938,32 +938,11 @@ export default function DriverVehiclePhotosScreen() {
             </Text>
           </Pressable>
 
-          {/* ── Per-vehicle photos + tech passport (view) ─────────────────── */}
           {selectedVehicle && formMode === 'view' ? (
-            <VehicleRegistrationMediaBlock
-              vehicle={selectedVehicle}
-              vehicleId={selectedId}
-              localUrls={localUrls}
-              uploadingKey={uploadingKey}
-              expandedSlots={expandedPhotoSlots}
-              onToggleSlot={togglePhotoSlot}
-              onDeletePhoto={confirmDeletePhoto}
-              onPickNative={pickNativeAndUpload}
-              webFileInputRefs={webFileInputRefs}
-              onWebFileChange={(slot) =>
-                handleWebFileInputChange(
-                  slot.column,
-                  slot.angle,
-                  t(`vehicleScreen.${slot.labelKey}`),
-                )
-              }
-              driverId={userId ?? undefined}
-              disabled={saveBusy}
-              onUpdated={() => void loadVehicles()}
-            />
+            <Text style={styles.viewEditHint}>{t('vehicleScreen.editToUploadMedia')}</Text>
           ) : null}
 
-          {/* ── Edit / Add form ───────────────────────────────────────────── */}
+          {/* ── Edit / Add form (photos, tech passport, metadata) ─────────── */}
           {isFormOpen ? (
             <View style={styles.formCard}>
               <Text style={styles.formCardTitle}>
@@ -1157,6 +1136,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: SPACING.sm,
   },
+  viewEditHint: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+  },
 
   // ── Vehicle list card ─────────────────────────────────────────────────────
   vehicleCard: {
@@ -1294,15 +1282,11 @@ const styles = StyleSheet.create({
   },
   saveError: { color: COLORS.error, fontSize: 13, marginTop: SPACING.sm },
 
-  registrationMediaCard: {
-    marginTop: SPACING.md,
+  registrationMediaInForm: {
     marginBottom: SPACING.md,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.card,
-    padding: SPACING.md,
-    ...SHADOWS.card,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
   },
   registrationMediaTitle: {
     color: COLORS.text,
