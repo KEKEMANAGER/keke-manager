@@ -2,6 +2,12 @@ import { storagePublicUrlBase, withCacheBust } from './mediaUpload';
 import { supabase } from './supabase';
 import type { VehicleRow } from './vehicles';
 
+function strField(v: unknown): string {
+  if (typeof v === 'string') return v.trim();
+  if (v == null) return '';
+  return String(v).trim();
+}
+
 export type VehicleVerificationStatus = 'pending' | 'submitted' | 'approved' | 'rejected';
 
 export type VehicleTechPassportSlot = 'tech_passport_front' | 'tech_passport_back';
@@ -13,7 +19,7 @@ export function vehicleTechPassportSlotUploaded(
   vehicle: Pick<VehicleRow, VehicleTechPassportSlot>,
   slot: VehicleTechPassportSlot,
 ): boolean {
-  return !!vehicle[slot]?.trim();
+  return !!strField(vehicle[slot]);
 }
 
 export function vehicleTechPassportComplete(
@@ -28,9 +34,9 @@ export function vehicleTechPassportComplete(
 /** Vehicle has minimum metadata before admin review. */
 export function vehicleRegistrationMetadataComplete(vehicle: VehicleRow): boolean {
   return !!(
-    vehicle.type?.trim() &&
-    vehicle.class?.trim() &&
-    vehicle.plate?.trim() &&
+    strField(vehicle.type) &&
+    strField(vehicle.class) &&
+    strField(vehicle.plate) &&
     vehicle.passenger_capacity != null &&
     vehicle.passenger_capacity > 0
   );

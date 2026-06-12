@@ -25,6 +25,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { VehicleTechPassportSection } from '../../components/driver/VehicleTechPassportSection';
+import { EditModeButtons } from '../../components/EditModeButtons';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { uploadMediaObject, vehiclePhotoObjectPath, withCacheBust } from '../../lib/mediaUpload';
 import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
@@ -258,7 +259,9 @@ function VehiclePhotosAccordion({
 }
 
 function vehicleRegistrationLabel(vehicle: VehicleRow, fallback: string): string {
-  const parts = [vehicle.model?.trim(), vehicle.plate?.trim()].filter(Boolean);
+  const model = typeof vehicle.model === 'string' ? vehicle.model.trim() : '';
+  const plate = typeof vehicle.plate === 'string' ? vehicle.plate.trim() : '';
+  const parts = [model, plate].filter(Boolean);
   return parts.length > 0 ? parts.join(' · ') : fallback;
 }
 
