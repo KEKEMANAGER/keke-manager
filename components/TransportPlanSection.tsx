@@ -22,8 +22,6 @@ import {
   type VehicleTypeCode,
 } from '../lib/vehicleCatalog';
 
-type CommissionMode = 'gel' | 'percent';
-
 type SingleProps = {
   passengers: string;
   onPassengersChange: (v: string) => void;
@@ -37,10 +35,8 @@ type Props = SingleProps & {
   multiVehicle: boolean;
   legs: TransportLegDraft[];
   onLegsChange: (legs: TransportLegDraft[]) => void;
-  onMultiVehicleChange: (enabled: boolean) => void;
-  showLegCommission?: boolean;
-  commissionMode?: CommissionMode;
-  onCommissionModeChange?: (mode: CommissionMode) => void;
+  onAddVehicle: () => void;
+  onCollapseToSingle: (leg: TransportLegDraft) => void;
   cityHint?: string | null;
 };
 
@@ -77,14 +73,49 @@ function InlineChipRow<T extends string>({
   );
 }
 
+function PassengerStepper({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  const num = Math.max(1, parseInt(value, 10) || 1);
+  return (
+    <View style={styles.stepperRow}>
+      <Text style={styles.fieldLabel}>{t('newBooking.form.passengers')}</Text>
+      <View style={styles.stepperControls}>
+        <Pressable
+          onPress={() => onChange(String(Math.max(1, num - 1)))}
+          style={styles.stepperBtn}
+        >
+          <Ionicons name="remove" size={20} color={COLORS.gold} />
+        </Pressable>
+        <Text style={styles.stepperValue}>{num}</Text>
+        <Pressable onPress={() => onChange(String(num + 1))} style={styles.stepperBtn}>
+          <Ionicons name="add" size={20} color={COLORS.gold} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function AddVehicleLink({ onPress, label }: { onPress: () => void; label: string }) {
+  return (
+    <Pressable onPress={onPress} style={styles.addVehicleLink}>
+      <Ionicons name="add" size={18} color={COLORS.gold} />
+      <Text style={styles.addVehicleLinkText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function TransportPlanSection({
   multiVehicle,
   legs,
   onLegsChange,
-  onMultiVehicleChange,
-  showLegCommission,
-  commissionMode = 'gel',
-  onCommissionModeChange,
+  onAddVehicle,
+  onCollapseToSingle,
   passengers,
   onPassengersChange,
   selectedVehicleType,
@@ -103,8 +134,13 @@ export function TransportPlanSection({
   };
 
   const removeLeg = (id: string) => {
-    if (legs.length <= 2) return;
-    onLegsChange(legs.filter((leg) => leg.id !== id));
+    if (legs.length <= 1) return;
+    const next = legs.filter((leg) => leg.id !== id);
+    if (next.length === 1) {
+      onCollapseToSingle(next[0]);
+    } else {
+      onLegsChange(next);
+    }
   };
 
   const addLeg = () => {
@@ -126,56 +162,11 @@ export function TransportPlanSection({
     setDriversLoading(false);
   };
 
-  const modeToggle = (
-    <View style={styles.modeRow}>
-      <Pressable
-        onPress={() => onMultiVehicleChange(false)}
-        style={[styles.modeBtn, !multiVehicle && styles.modeBtnActive]}
-      >
-        <Text style={[styles.modeBtnText, !multiVehicle && styles.modeBtnTextActive]}>
-          {t('transportPlan.modeStandard')}
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={() => onMultiVehicleChange(true)}
-        style={[styles.modeBtn, multiVehicle && styles.modeBtnActive]}
-      >
-        <Ionicons
-          name="bus-outline"
-          size={16}
-          color={multiVehicle ? COLORS.goldDark : COLORS.textSecondary}
-        />
-        <Text style={[styles.modeBtnText, multiVehicle && styles.modeBtnTextActive]}>
-          {t('transportPlan.modeLargeGroup')}
-        </Text>
-      </Pressable>
-    </View>
-  );
-
   if (!multiVehicle) {
-    const num = Math.max(1, parseInt(passengers, 10) || 1);
     return (
       <View style={styles.wrap}>
         <Text style={styles.sectionHeader}>{t('transportPlan.sectionTitle')}</Text>
-        {modeToggle}
-        <View style={styles.stepperRow}>
-          <Text style={styles.fieldLabel}>{t('newBooking.form.passengers')}</Text>
-          <View style={styles.stepperControls}>
-            <Pressable
-              onPress={() => onPassengersChange(String(Math.max(1, num - 1)))}
-              style={styles.stepperBtn}
-            >
-              <Ionicons name="remove" size={20} color={COLORS.gold} />
-            </Pressable>
-            <Text style={styles.stepperValue}>{num}</Text>
-            <Pressable
-              onPress={() => onPassengersChange(String(num + 1))}
-              style={styles.stepperBtn}
-            >
-              <Ionicons name="add" size={20} color={COLORS.gold} />
-            </Pressable>
-          </View>
-        </View>
+        <PassengerStepper value={passengers} onChange={onPassengersChange} />
         <Text style={styles.fieldLabel}>{t('newBooking.form.vehicleType')}</Text>
         <InlineChipRow
           options={VEHICLE_TYPES}
@@ -190,6 +181,7 @@ export function TransportPlanSection({
           onChange={onVehicleClassChange}
           labelFor={vehicleClassLabel}
         />
+        <AddVehicleLink onPress={onAddVehicle} label={t('transportPlan.addVehicle')} />
       </View>
     );
   }
@@ -200,55 +192,26 @@ export function TransportPlanSection({
   return (
     <View style={styles.wrap}>
       <Text style={styles.sectionHeader}>{t('transportPlan.sectionTitle')}</Text>
-      {modeToggle}
-      <Text style={styles.multiTitle}>{t('transportPlan.multiTitle')}</Text>
-      <Text style={styles.hint}>{t('transportPlan.multiHint')}</Text>
-      <Text style={styles.totalLine}>
-        {t('transportPlan.totalSeats', { total: totalAssigned })}
-        {totalPrice > 0 ? ` · ${t('transportPlan.totalPrice', { amount: totalPrice.toFixed(0) })}` : ''}
-      </Text>
-
-      {showLegCommission && onCommissionModeChange ? (
-        <>
-          <Text style={styles.fieldLabel}>{t('newBooking.form.commission')}</Text>
-          <View style={[styles.chipRow, styles.commissionModeRow]}>
-            <Pressable
-              onPress={() => onCommissionModeChange('gel')}
-              style={[styles.chipSmall, commissionMode === 'gel' && styles.chipActive]}
-            >
-              <Text style={[styles.chipTextSmall, commissionMode === 'gel' && styles.chipTextActive]}>
-                ₾
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => onCommissionModeChange('percent')}
-              style={[styles.chipSmall, commissionMode === 'percent' && styles.chipActive]}
-            >
-              <Text
-                style={[styles.chipTextSmall, commissionMode === 'percent' && styles.chipTextActive]}
-              >
-                %
-              </Text>
-            </Pressable>
-          </View>
-        </>
+      {totalAssigned > 0 ? (
+        <Text style={styles.totalLine}>
+          {t('transportPlan.totalSeats', { total: totalAssigned })}
+          {totalPrice > 0 ? ` · ${t('transportPlan.totalPrice', { amount: totalPrice.toFixed(0) })}` : ''}
+        </Text>
       ) : null}
 
       {legs.map((leg, index) => (
         <View key={leg.id} style={styles.legCard}>
           <View style={styles.legTop}>
             <Text style={styles.legTitle}>{t('transportPlan.legN', { n: index + 1 })}</Text>
-            {legs.length > 2 ? (
+            {legs.length >= 2 ? (
               <Pressable onPress={() => removeLeg(leg.id)} hitSlop={8}>
                 <Ionicons name="trash-outline" size={18} color={COLORS.error} />
               </Pressable>
             ) : null}
           </View>
-          <AuthInput
-            label={t('transportPlan.legPassengers')}
+          <PassengerStepper
             value={leg.passengers}
-            onChangeText={(v) => updateLeg(leg.id, { passengers: v.replace(/[^\d]/g, '') })}
-            keyboardType="number-pad"
+            onChange={(v) => updateLeg(leg.id, { passengers: v })}
           />
           <Text style={styles.fieldLabel}>{t('newBooking.form.vehicleType')}</Text>
           <InlineChipRow
@@ -276,19 +239,6 @@ export function TransportPlanSection({
           {parseLegPrice(leg.price_str) <= 0 ? (
             <Text style={styles.priceWarn}>{t('transportPlan.legPriceRequired')}</Text>
           ) : null}
-          {showLegCommission ? (
-            <AuthInput
-              label={
-                commissionMode === 'gel'
-                  ? t('transportPlan.legCommissionGel')
-                  : t('transportPlan.legCommissionPct')
-              }
-              value={leg.commission_str}
-              onChangeText={(v) => updateLeg(leg.id, { commission_str: v })}
-              keyboardType="decimal-pad"
-              placeholder={t('newBooking.form.placeholders.zero')}
-            />
-          ) : null}
           <Pressable onPress={() => void openDriverPicker(leg)} style={styles.driverPick}>
             <Ionicons name="person-outline" size={16} color={COLORS.goldDark} />
             <Text style={styles.driverPickText}>
@@ -298,10 +248,7 @@ export function TransportPlanSection({
         </View>
       ))}
 
-      <Pressable onPress={addLeg} style={styles.addLegBtn}>
-        <Ionicons name="add" size={18} color={COLORS.white} />
-        <Text style={styles.addLegText}>{t('transportPlan.addAnother')}</Text>
-      </Pressable>
+      <AddVehicleLink onPress={addLeg} label={t('transportPlan.addAnother')} />
 
       {pickerLegId ? (
         <View style={styles.driverModal}>
@@ -349,31 +296,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: SPACING.sm,
   },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: SPACING.md,
-  },
-  modeBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
-  },
-  modeBtnActive: {
-    borderColor: COLORS.gold,
-    backgroundColor: COLORS.goldTint,
-  },
-  modeBtnText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  modeBtnTextActive: { color: COLORS.goldDark, fontWeight: '700' },
-  multiTitle: { fontSize: 15, fontWeight: '700', color: COLORS.goldDark, marginBottom: 4 },
-  hint: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.sm },
   totalLine: { fontSize: 14, fontWeight: '700', color: COLORS.goldDark, marginBottom: SPACING.md },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 },
   stepperRow: { marginBottom: SPACING.md },
@@ -389,7 +311,6 @@ const styles = StyleSheet.create({
   },
   stepperValue: { fontSize: 20, fontWeight: '700', minWidth: 40, textAlign: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.md },
-  commissionModeRow: { marginBottom: SPACING.sm },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -408,6 +329,15 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, color: COLORS.textSecondary },
   chipTextSmall: { fontSize: 12, color: COLORS.textSecondary },
   chipTextActive: { color: COLORS.goldDark, fontWeight: '700' },
+  addVehicleLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.sm,
+    paddingVertical: 8,
+  },
+  addVehicleLinkText: { fontSize: 14, fontWeight: '700', color: COLORS.gold },
   legCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -421,17 +351,6 @@ const styles = StyleSheet.create({
   priceWarn: { fontSize: 12, color: COLORS.error, marginTop: -4, marginBottom: SPACING.sm },
   driverPick: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   driverPickText: { fontSize: 14, color: COLORS.goldDark, fontWeight: '600' },
-  addLegBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.gold,
-    borderRadius: RADIUS.md,
-    paddingVertical: 12,
-    marginBottom: SPACING.sm,
-  },
-  addLegText: { color: COLORS.white, fontWeight: '700' },
   driverModal: {
     borderWidth: 1,
     borderColor: COLORS.border,

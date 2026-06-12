@@ -7,8 +7,6 @@ export type TransportLegDraft = {
   passengers: string;
   /** Driver / client offer for this vehicle (GEL). */
   price_str: string;
-  /** Transfer commission for this vehicle (GEL or % — see wizard commission mode). */
-  commission_str: string;
   driver_id: string | null;
   driver_name: string | null;
 };
@@ -31,7 +29,6 @@ export function newTransportLeg(overrides?: Partial<TransportLegDraft>): Transpo
     vehicle_class: 'comfort',
     passengers: '1',
     price_str: '',
-    commission_str: '',
     driver_id: null,
     driver_name: null,
     ...overrides,

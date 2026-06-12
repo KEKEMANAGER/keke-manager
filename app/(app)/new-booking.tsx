@@ -103,8 +103,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 type PaymentWhen = 'now' | 'later' | 'clientCard';
-type CommissionMode = 'gel' | 'percent';
-
 const PAYMENT_OPTIONS: PaymentWhen[] = ['now', 'later', 'clientCard'];
 
 function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): string {
@@ -167,20 +165,6 @@ function parseAmountGeorgian(raw: string): number {
   if (!t) return 0;
   const n = parseFloat(t);
   return Number.isFinite(n) ? n : 0;
-}
-
-/** Commission as GEL for display and DB (percent is converted from client price). */
-function commissionGelAmount(
-  clientGel: number,
-  commissionRaw: string,
-  mode: CommissionMode,
-): number {
-  const v = parseAmountGeorgian(commissionRaw);
-  if (v <= 0) return 0;
-  if (mode === 'gel') return Math.round(v * 100) / 100;
-  const pct = Math.min(100, Math.max(0, v));
-  if (clientGel <= 0) return 0;
-  return Math.round(clientGel * (pct / 100) * 100) / 100;
 }
 
 function initialItineraryDay(day = 1): ItineraryDay {
@@ -898,8 +882,6 @@ export default function NewBookingScreen() {
   const [passengerName, setPassengerName] = useState('');
   const [passengerPhone, setPassengerPhone] = useState('');
   const [clientPriceStr, setClientPriceStr] = useState('');
-  const [commissionStr, setCommissionStr] = useState('');
-  const [commissionMode, setCommissionMode] = useState<CommissionMode>('gel');
   const [comment, setComment] = useState('');
   const [tourRouteDescription, setTourRouteDescription] = useState('');
 
@@ -1044,7 +1026,6 @@ export default function NewBookingScreen() {
         vehicle_class: vehicleClass,
         passengers,
         price_str: clientPriceStr,
-        commission_str: commissionStr,
         driver_id: driverTargetMode === 'specific' ? selectedDriverId : null,
         driver_name: picked?.full_name ?? null,
       }),
@@ -1058,21 +1039,25 @@ export default function NewBookingScreen() {
     vehicleClass,
     passengers,
     clientPriceStr,
-    commissionStr,
     driverTargetMode,
   ]);
 
-  const setLargeGroupMode = useCallback(
-    (enabled: boolean) => {
-      if (enabled) {
-        enableMultiVehicle();
-      } else {
-        setMultiVehicle(false);
-        setTransportLegs([]);
-      }
-    },
-    [enableMultiVehicle],
-  );
+  const collapseToSingleVehicle = useCallback((leg: TransportLegDraft) => {
+    setPassengers(leg.passengers);
+    setSelectedVehicleType(leg.vehicle_type);
+    setVehicleClass(leg.vehicle_class);
+    setClientPriceStr(leg.price_str);
+    if (leg.driver_id) {
+      setDriverTargetMode('specific');
+      setSelectedDriverId(leg.driver_id);
+      setSelectedDriverVehicleId(null);
+    } else {
+      setDriverTargetMode('all');
+      selectDriver(null, null);
+    }
+    setMultiVehicle(false);
+    setTransportLegs([]);
+  }, []);
 
   const pax = multiVehicle
     ? Math.max(1, sumLegPassengers(transportLegs))
@@ -1095,14 +1080,6 @@ export default function NewBookingScreen() {
     : offeredGelParsed > 0
       ? offeredGelParsed
       : estimateGel;
-  const commissionGelPreview = useMemo(
-    () =>
-      booking_kind === 'transfer' && offeredGelParsed > 0
-        ? commissionGelAmount(offeredGelParsed, commissionStr, commissionMode)
-        : 0,
-    [booking_kind, offeredGelParsed, commissionStr, commissionMode],
-  );
-
   const previewVoucherId = useMemo(
     () => `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`,
     [],
@@ -1208,8 +1185,6 @@ export default function NewBookingScreen() {
     setPassengerName('');
     setPassengerPhone('');
     setClientPriceStr('');
-    setCommissionStr('');
-    setCommissionMode('gel');
     setComment('');
     setTourRouteDescription('');
     setDays([initialItineraryDay(1)]);
@@ -1310,10 +1285,6 @@ export default function NewBookingScreen() {
     setSubmitting(true);
     setSubmitError(null);
     const offeredGel = offeredGelParsed;
-    const commissionGelDb =
-      booking_kind === 'transfer' && commissionStr.trim()
-        ? commissionGelAmount(offeredGel, commissionStr, commissionMode)
-        : null;
     const isMultiDayTour = booking_kind === 'tour';
     const isDayTour = booking_kind === 'dayTour';
     const isTour = isMultiDayTour || isDayTour;
@@ -1442,10 +1413,7 @@ export default function NewBookingScreen() {
       flight_direction: booking_kind === 'transfer' ? transferTab : null,
       pickup_time: null,
       client_price: offeredGel,
-      commission:
-        booking_kind === 'transfer' && commissionGelDb !== null && commissionGelDb > 0
-          ? commissionGelDb
-          : null,
+      commission: null,
       tour_days: tourDaysDb,
       itinerary: itineraryDb,
       transfer_in: transferInDb,
@@ -1472,10 +1440,6 @@ export default function NewBookingScreen() {
     if (multiVehicle && transportLegs.length >= 2) {
       const legs: GroupConvoyLegPlan[] = transportLegs.map((row, i) => {
         const legPrice = parseLegPrice(row.price_str);
-        const legCommission =
-          booking_kind === 'transfer' && row.commission_str.trim()
-            ? commissionGelAmount(legPrice, row.commission_str, commissionMode)
-            : null;
         return {
           legIndex: i + 1,
           passengers: legPassengers(row),
@@ -1484,25 +1448,18 @@ export default function NewBookingScreen() {
           driver_id: row.driver_id,
           price_gel: legPrice,
           client_price: legPrice,
-          commission: legCommission,
+          commission: null,
         };
       });
       const totalPax = sumLegPassengers(transportLegs);
       const convoyTotalPrice = legs.reduce((sum, leg) => sum + (leg.price_gel ?? 0), 0);
-      const convoyTotalCommission =
-        booking_kind === 'transfer'
-          ? legs.reduce((sum, leg) => sum + (leg.commission ?? 0), 0)
-          : null;
       const convoy = await createGroupConvoy(
         {
           ...insertPayload,
           passengers: totalPax,
           client_price: convoyTotalPrice,
           price_gel: convoyTotalPrice,
-          commission:
-            convoyTotalCommission != null && convoyTotalCommission > 0
-              ? convoyTotalCommission
-              : null,
+          commission: null,
           driver_id: null,
           vehicle_id: null,
         },
@@ -1553,10 +1510,8 @@ export default function NewBookingScreen() {
       multiVehicle={multiVehicle}
       legs={transportLegs}
       onLegsChange={setTransportLegs}
-      onMultiVehicleChange={setLargeGroupMode}
-      showLegCommission={booking_kind === 'transfer'}
-      commissionMode={commissionMode}
-      onCommissionModeChange={setCommissionMode}
+      onAddVehicle={enableMultiVehicle}
+      onCollapseToSingle={collapseToSingleVehicle}
       passengers={passengers}
       onPassengersChange={setPassengers}
       selectedVehicleType={selectedVehicleType}
@@ -1734,47 +1689,6 @@ export default function NewBookingScreen() {
                   onChangeText={setClientPriceStr}
                   keyboardType="decimal-pad"
                   placeholder={t('newBooking.form.placeholders.zero')}
-                />
-                <Text style={styles.fieldLabel}>{t('newBooking.form.commission')}</Text>
-                <View style={styles.chips}>
-                  <Pressable
-                    onPress={() => setCommissionMode('gel')}
-                    style={[styles.chip, commissionMode === 'gel' && styles.chipActive]}
-                  >
-                    <Text
-                      style={[styles.chipText, commissionMode === 'gel' && styles.chipTextActive]}
-                    >
-                      ₾
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setCommissionMode('percent')}
-                    style={[styles.chip, commissionMode === 'percent' && styles.chipActive]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        commissionMode === 'percent' && styles.chipTextActive,
-                      ]}
-                    >
-                      %
-                    </Text>
-                  </Pressable>
-                </View>
-                <AuthInput
-                  label={
-                    commissionMode === 'gel'
-                      ? t('newBooking.form.commissionGel')
-                      : t('newBooking.form.commissionPct')
-                  }
-                  value={commissionStr}
-                  onChangeText={setCommissionStr}
-                  keyboardType="decimal-pad"
-                  placeholder={
-                    commissionMode === 'gel'
-                      ? t('newBooking.form.placeholders.zero')
-                      : t('newBooking.form.placeholders.commissionPctExample')
-                  }
                 />
                 <Text style={styles.driverPayNote}>
                   {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}

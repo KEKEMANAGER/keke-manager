@@ -569,7 +569,7 @@
     "step3MultiHint": "Assign drivers per vehicle above; open legs are broadcast automatically.",
     "voucherMulti": "{{count}} vehicles · {{total}} passengers total",
     "voucherLegLine": "{{n}}. {{type}} · {{vehicleClass}} · {{pax}} pax · {{price}} · {{driver}}",
-    "multiBadge": "large group",
+    "multiBadge": "multiple vehicles",
     "cardMeta": "{{pax}} passengers · manage vehicles",
     "manageVehicles": "Vehicles"
   },
@@ -1564,7 +1564,7 @@
     "notAllowed": "Cannot edit in this status",
     "warnTitle": "Trip in progress",
     "warnInProgress": "The trip has already started. Save anyway?",
-    "masterBannerTitle": "Large group — master booking",
+    "masterBannerTitle": "Multiple vehicles — master booking",
     "masterBannerBody": "Route, date, and other shared fields sync to every vehicle automatically. Assigned drivers are notified.",
     "masterPassengers": "Total passengers",
     "masterPassengersHint": "Change per-vehicle passenger split on the Vehicles screen.",
