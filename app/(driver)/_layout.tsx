@@ -98,6 +98,7 @@ function DriverTabsInner() {
         <Tabs.Screen name="ratings" options={{ href: null }} />
         <Tabs.Screen name="my-host" options={{ href: null }} />
         <Tabs.Screen name="assigned-vehicle" options={{ href: null }} />
+        <Tabs.Screen name="convoy-chat/[masterId]" options={{ href: null }} />
 
         <Tabs.Screen
           name="bookings"

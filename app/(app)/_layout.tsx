@@ -97,6 +97,7 @@ function CompanyTabsInner() {
           <Tabs.Screen name="tracking" options={{ href: null }} />
           <Tabs.Screen name="admin-tracking" options={{ href: null }} />
           <Tabs.Screen name="group-dispatch/[id]" options={{ href: null }} />
+          <Tabs.Screen name="convoy-chat/[masterId]" options={{ href: null }} />
 
           <Tabs.Screen
             name="dashboard"

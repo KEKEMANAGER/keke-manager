@@ -54,7 +54,16 @@ export function BookingChatThreads({ bookingId, viewerUserId, chatStack }: Props
       {threads.map((thread) => (
         <Pressable
           key={thread.threadType}
-          onPress={() =>
+          onPress={() => {
+            if (thread.threadType === 'convoy') {
+              const convoyPath =
+                chatStack === 'app' ? '/(app)/convoy-chat/[masterId]' : '/(driver)/convoy-chat/[masterId]';
+              router.push({
+                pathname: convoyPath,
+                params: { masterId: thread.otherUserId },
+              });
+              return;
+            }
             router.push({
               pathname: basePath,
               params: {
@@ -65,15 +74,17 @@ export function BookingChatThreads({ bookingId, viewerUserId, chatStack }: Props
                 senderRole: thread.myRole,
                 receiverRole: thread.otherRole,
               },
-            })
-          }
+            });
+          }}
           style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
           <Ionicons name="chatbubble-ellipses-outline" size={20} color={COLORS.gold} />
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>{t(thread.labelKey)}</Text>
             <Text style={styles.rowSub} numberOfLines={1}>
-              {thread.otherUserName ?? thread.otherUserId.slice(0, 8)}
+              {thread.threadType === 'convoy'
+                ? t('convoyChat.threadHint')
+                : (thread.otherUserName ?? thread.otherUserId.slice(0, 8))}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />

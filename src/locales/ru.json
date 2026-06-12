@@ -1496,7 +1496,19 @@
     "noThreads": "Чат появится после назначения водителя и хоста.",
     "threadCompanyHost": "Компания ↔ хост",
     "threadCompanyDriver": "Компания ↔ водитель",
-    "threadHostDriver": "Хост ↔ водитель"
+    "threadHostDriver": "Хост ↔ водитель",
+    "threadConvoy": "Групповой чат (все водители)"
+  },
+  "convoyChat": {
+    "title": "Групповой чат",
+    "short": "Чат",
+    "open": "Групповой чат",
+    "subtitle": "{{count}} участников",
+    "threadHint": "Компания + все водители",
+    "placeholder": "Сообщение всем...",
+    "empty": "Сообщений пока нет. Напишите всем водителям.",
+    "notAvailable": "Чат доступен после назначения хотя бы одного водителя.",
+    "roleCompany": "Компания"
   },
   "companyVoucher": {
     "title": "Ваучер",

@@ -774,7 +774,19 @@
     "noThreads": "Chat will appear when a driver and host are assigned.",
     "threadCompanyHost": "Company ↔ Host",
     "threadCompanyDriver": "Company ↔ Driver",
-    "threadHostDriver": "Host ↔ Driver"
+    "threadHostDriver": "Host ↔ Driver",
+    "threadConvoy": "Group chat (all drivers)"
+  },
+  "convoyChat": {
+    "title": "Group chat",
+    "short": "Chat",
+    "open": "Group chat",
+    "subtitle": "{{count}} participants",
+    "threadHint": "Company + all drivers",
+    "placeholder": "Message everyone...",
+    "empty": "No messages yet. Write to all drivers.",
+    "notAvailable": "Chat opens after at least one driver is assigned.",
+    "roleCompany": "Company"
   },
   "booking": {
     "status": {

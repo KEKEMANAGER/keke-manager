@@ -1,10 +1,16 @@
+import { canAccessConvoyChat, resolveConvoyMasterId } from './convoyChat';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
 import { trimUserId } from './userId';
 
 export type ParticipantRole = 'company' | 'host' | 'driver';
 
-export type ChatThreadType = 'company_host' | 'company_driver' | 'host_driver' | 'support';
+export type ChatThreadType =
+  | 'company_host'
+  | 'company_driver'
+  | 'host_driver'
+  | 'support'
+  | 'convoy';
 
 export type BookingChatParties = {
   bookingId: string;
@@ -181,6 +187,20 @@ export async function fetchBookingChatThreads(
       myRole,
       otherRole,
       labelKey: def.labelKey,
+    });
+  }
+
+  const convoyMasterId = await resolveConvoyMasterId(bookingId);
+  if (convoyMasterId && (await canAccessConvoyChat(convoyMasterId, viewerId))) {
+    const myRole: ParticipantRole =
+      trimUserId(parties.companyId) === viewerId ? 'company' : 'driver';
+    threads.unshift({
+      threadType: 'convoy',
+      otherUserId: convoyMasterId,
+      otherUserName: null,
+      myRole,
+      otherRole: myRole === 'company' ? 'driver' : 'company',
+      labelKey: 'bookingChat.threadConvoy',
     });
   }
 

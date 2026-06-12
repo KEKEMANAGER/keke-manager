@@ -186,6 +186,21 @@ export default function GroupDispatchScreen() {
         )}
       </Pressable>
 
+      {summary.assignedLegs > 0 ? (
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/convoy-chat/[masterId]',
+              params: { masterId: master.id },
+            })
+          }
+          style={styles.convoyChatBtn}
+        >
+          <Ionicons name="chatbubbles-outline" size={18} color={COLORS.goldDark} />
+          <Text style={styles.convoyChatText}>{t('convoyChat.open')}</Text>
+        </Pressable>
+      ) : null}
+
       <Text style={styles.sectionTitle}>{t('groupConvoy.legsList')}</Text>
       {legs.map((leg) => (
         <View key={leg.id} style={styles.legCard}>
@@ -279,6 +294,19 @@ const styles = StyleSheet.create({
   },
   broadcastBtnDisabled: { opacity: 0.7 },
   broadcastText: { color: COLORS.white, fontWeight: '800', fontSize: 15 },
+  convoyChatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+    borderRadius: RADIUS.md,
+    paddingVertical: 12,
+    marginBottom: SPACING.lg,
+  },
+  convoyChatText: { color: COLORS.goldDark, fontWeight: '800', fontSize: 15 },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: SPACING.md, color: COLORS.text },
   legCard: {
     backgroundColor: COLORS.white,

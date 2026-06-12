@@ -586,6 +586,18 @@ export default function CompanyDashboardScreen() {
                     <Ionicons name="people-outline" size={16} color={COLORS.white} />
                     <Text style={styles.convoyDispatchText}>{t('transportPlan.manageVehicles')}</Text>
                   </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/convoy-chat/[masterId]',
+                        params: { masterId: b.id },
+                      })
+                    }
+                    style={styles.convoyChatBtn}
+                  >
+                    <Ionicons name="chatbubbles-outline" size={16} color={COLORS.goldDark} />
+                    <Text style={styles.convoyChatText}>{t('convoyChat.short')}</Text>
+                  </Pressable>
                   {canCompanyEditBooking(b.status).allowed ? (
                     <Pressable
                       onPress={() =>
@@ -1259,6 +1271,22 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.goldTint,
   },
   convoyEditText: {
+    color: COLORS.goldDark,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  convoyChatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.white,
+  },
+  convoyChatText: {
     color: COLORS.goldDark,
     fontWeight: '700',
     fontSize: 14,
