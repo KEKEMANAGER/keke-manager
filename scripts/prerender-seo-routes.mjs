@@ -11,6 +11,7 @@ import {
   buildBlogBreadcrumbSchema,
   buildBlogPostingSchema,
   buildFaqSchema,
+  buildHeadMeta,
   buildStaticHtmlPage,
   escapeHtml,
 } from './seoBuildMeta.mjs';
@@ -25,6 +26,42 @@ function writeHtml(relPath, html) {
   const out = path.join(distDir, relPath);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, html, 'utf8');
+}
+
+/** Auth routes: copy SPA index.html with route-specific meta (not static-only SEO stub). */
+function writeSpaRouteHtml(relPath, meta) {
+  const indexPath = path.join(distDir, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    console.warn(`prerender-seo: skip ${relPath} — dist/index.html missing`);
+    return false;
+  }
+
+  let html = fs.readFileSync(indexPath, 'utf8');
+  const lang = meta.lang || 'ka';
+  const headMeta = buildHeadMeta({
+    title: meta.title,
+    description: meta.description,
+    keywords: meta.keywords,
+    canonical: meta.canonical,
+    lang,
+    includeDefaultSchemas: meta.includeDefaultSchemas ?? false,
+    extraJsonLd: meta.extraJsonLd ?? [],
+  });
+
+  html = html.replace(/<html[^>]*>/i, `<html lang="${escapeHtml(lang)}">`);
+  html = html.replace(/<title>[^<]*<\/title>/i, `<title>${escapeHtml(meta.title)}</title>`);
+  html = html.replace(/<meta name="description"[^>]*>/i, '');
+  html = html.replace(/<meta name="keywords"[^>]*>/i, '');
+  html = html.replace(/<meta property="og:title"[^>]*>/gi, '');
+  html = html.replace(/<meta property="og:description"[^>]*>/gi, '');
+  html = html.replace(/<meta property="og:url"[^>]*>/gi, '');
+  html = html.replace(/<meta name="twitter:title"[^>]*>/gi, '');
+  html = html.replace(/<meta name="twitter:description"[^>]*>/gi, '');
+  html = html.replace(/<link rel="canonical"[^>]*>/i, '');
+  html = html.replace('</head>', `    ${headMeta}\n  </head>`);
+
+  writeHtml(relPath, html);
+  return true;
 }
 
 function bulletsHtml(bullets) {
@@ -169,42 +206,31 @@ function main() {
     }
   }
 
-  writeHtml(
-    'sign-up/index.html',
-    buildStaticHtmlPage({
+  if (
+    writeSpaRouteHtml('sign-up/index.html', {
       lang: 'ka',
       title: 'რეგისტრაცია | KEKE Manager',
       description:
         'დარეგისტრირდით KEKE Manager-ზე — B2B პლატფორმა ტურ ოპერატორებისა და მძღოლებისთვის საქართველოში. ტურ კომპანიებისთვის უფასო.',
       keywords: 'KEKE Manager რეგისტრაცია, tour operator sign up Georgia',
       canonical: `${SITE_URL}/sign-up`,
-      includeDefaultSchemas: false,
       extraJsonLd: [SCHEMA_ORGANIZATION],
-      bodyHtml: `
-        <h1>რეგისტრაცია KEKE Manager-ზე</h1>
-        <p>შექმენით ანგარიში ტურისტული კომპანიის, გიდ-მძღოლის, ჰოსტის ან მძღოლის როლით.</p>
-        <p><a href="/sign-up">გადადით რეგისტრაციის ფორმაზე →</a></p>`,
-    }),
-  );
-  count += 1;
+    })
+  ) {
+    count += 1;
+  }
 
-  writeHtml(
-    'sign-in/index.html',
-    buildStaticHtmlPage({
+  if (
+    writeSpaRouteHtml('sign-in/index.html', {
       lang: 'ka',
       title: 'შესვლა | KEKE Manager',
       description: 'შედით თქვენს KEKE Manager ანგარიშში — ჯავშნები, GPS, ვაუჩერი, ფლოტი.',
       keywords: 'KEKE Manager შესვლა, tour operator login',
       canonical: `${SITE_URL}/sign-in`,
-      includeDefaultSchemas: false,
-      bodyHtml: `
-        <h1>შესვლა KEKE Manager-ში</h1>
-        <p>შედით ტურ კომპანიის ან მძღოლის ანგარიშში.</p>
-        <p><a href="/sign-in">გადადით შესვლის ფორმაზე →</a></p>
-        <p>არ გაქვთ ანგარიში? <a href="/sign-up">რეგისტრაცია</a></p>`,
-    }),
-  );
-  count += 1;
+    })
+  ) {
+    count += 1;
+  }
 
   console.log(`prerender-seo: wrote ${count} static HTML pages`);
 }

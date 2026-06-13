@@ -87,9 +87,12 @@ const CRITICAL_LANDING_SHELL = `
   if (path === '/' || path === '/index.html') return;
   function hide() {
     var shell = document.getElementById('keke-lcp-shell');
-    if (!shell) return;
-    shell.classList.add('keke-lcp-done');
-    setTimeout(function () { shell.remove(); }, 250);
+    if (shell) {
+      shell.classList.add('keke-lcp-done');
+      setTimeout(function () { shell.remove(); }, 250);
+    }
+    var ns = document.querySelector('noscript');
+    if (ns) ns.remove();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', hide);
