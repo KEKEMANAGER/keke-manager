@@ -6,8 +6,10 @@ import {
   type InsertBookingInput,
 } from './bookings';
 import { formatTourBookingNotificationBody } from './tourDays';
+import { normalizeRequestedDriverCategory } from './driverCategory';
 import { notifyBookingVoucherCreated, notifyMatchingDriversOfNewBooking } from './notifications';
 import { resolveVehicleIdForBooking } from './bookingVehicle';
+import { sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
 import {
@@ -220,7 +222,7 @@ function masterToLegInsert(
     leg_index: leg.legIndex,
     group_code: groupCode,
     is_group_master: false,
-    skip_driver_notifications: false,
+    skip_driver_notifications: true,
     comment: legComment(masterRow, leg.legIndex, totalLegs),
     voucher_code: `${groupCode}-L${leg.legIndex}`,
   };
@@ -273,6 +275,22 @@ export async function createGroupConvoy(
       return { masterId, legIds, error: legErr ?? new Error(`leg ${leg.legIndex} insert failed`) };
     }
     legIds.push(legId);
+    const assignedDriverId = trimUserId(leg.driver_id);
+    if (assignedDriverId) {
+      void notifyBookingVoucherCreated({
+        bookingId: legId,
+        driverUserId: assignedDriverId,
+        companyUserId: master.company_id,
+        voucherCode: `${groupCode}-L${leg.legIndex}`,
+        kind: master.kind,
+        route: master.route,
+        from_location: master.from_location,
+        to_location: master.to_location,
+        tour_days: master.tour_days,
+        transfer_in: master.transfer_in,
+        transfer_out: master.transfer_out,
+      });
+    }
   }
 
   let broadcastCount = 0;
@@ -354,6 +372,22 @@ export async function broadcastOpenLegs(
   const { data: legs, error } = await fetchLegsForMaster(masterBookingId, companyUserId);
   if (error) return { count: 0, error };
 
+  const { data: master, error: masterErr } = await fetchBookingById(
+    masterBookingId,
+    companyUserId,
+  );
+  if (masterErr || !master) {
+    return { count: 0, error: masterErr ?? new Error('master not found') };
+  }
+
+  const requiredLanguages = (() => {
+    const codes = sanitizeLanguageCodes(master.required_languages ?? []);
+    return codes.length > 0 ? codes : undefined;
+  })();
+  const requestedDriverCategory = normalizeRequestedDriverCategory(
+    master.requested_driver_category ?? 'all',
+  );
+
   let count = 0;
   for (const leg of legs) {
     if (leg.driver_id || leg.status !== 'pending') continue;
@@ -366,8 +400,8 @@ export async function broadcastOpenLegs(
       vehicleClass: vehicleClass ?? undefined,
       bookingId: leg.id,
       showAlertIfEmpty: false,
-      requiredLanguages: undefined,
-      requestedDriverCategory: 'all',
+      requiredLanguages,
+      requestedDriverCategory,
       detailBody:
         leg.kind === 'tour'
           ? formatTourBookingNotificationBody({

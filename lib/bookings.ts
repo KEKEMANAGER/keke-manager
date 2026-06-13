@@ -393,6 +393,7 @@ export type BookingRow = {
   /** Set on insert; optional when row predates column. */
   voucher_code?: string | null;
   requested_driver_category?: RequestedDriverCategory | string | null;
+  required_languages?: string[] | null;
   /** Tour operator / staff name who created the booking. */
   created_by_name?: string | null;
   /** Group convoy master row (no driver; legs are child bookings). */

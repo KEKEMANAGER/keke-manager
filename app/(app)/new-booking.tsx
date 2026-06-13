@@ -1013,7 +1013,7 @@ export default function NewBookingScreen() {
       return days[0]?.from?.trim() || null;
     }
     if (booking_kind === 'tour' && tourDays.length > 0) {
-      return tourDays[0]?.fromPlace?.trim() || null;
+      return tourDays[0]?.from?.trim() || null;
     }
     return null;
   }, [booking_kind, transferTab, arrivalFrom.name, arrivalTo.name, departureFrom.name, departureTo.name, days, tourDays]);
