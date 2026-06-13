@@ -3,6 +3,7 @@ import {
   fetchBookingById,
   insertBooking,
   type BookingRow,
+  type BookingStatus,
   type InsertBookingInput,
 } from './bookings';
 import { formatTourBookingNotificationBody } from './tourDays';
@@ -299,6 +300,8 @@ export async function createGroupConvoy(
     broadcastCount = count;
   }
 
+  void syncConvoyMasterStatus(masterId, master.company_id);
+
   return { masterId, legIds, broadcastCount, error: null };
 }
 
@@ -362,6 +365,8 @@ export async function assignDriverToLeg(
     transfer_out: leg.transfer_out,
   });
 
+  void syncConvoyMasterFromBookingId(legId);
+
   return { ok: true, error: null };
 }
 
@@ -422,4 +427,139 @@ export async function broadcastOpenLegs(
     count++;
   }
   return { count, error: null };
+}
+
+const ACTIVE_LEG_STATUSES: BookingStatus[] = ['pending', 'accepted', 'confirmed', 'in_progress'];
+
+/** Derive coordinator row status from convoy leg rows. */
+export function deriveConvoyMasterStatus(legs: BookingRow[]): BookingStatus {
+  if (legs.length === 0) return 'pending';
+  const statuses = legs.map((leg) => leg.status);
+  if (statuses.every((s) => s === 'completed')) return 'completed';
+  if (statuses.some((s) => s === 'in_progress')) return 'in_progress';
+  if (statuses.every((s) => s === 'cancelled' || s === 'rejected')) return 'cancelled';
+  if (statuses.some((s) => s === 'accepted' || s === 'confirmed')) return 'accepted';
+  return 'pending';
+}
+
+/** True when company may cancel the whole convoy (no leg currently in progress). */
+export function canCancelConvoyMaster(legs: BookingRow[]): boolean {
+  if (legs.length === 0) return true;
+  if (legs.some((leg) => leg.status === 'in_progress')) return false;
+  if (legs.every((leg) => leg.status === 'completed')) return false;
+  return legs.some((leg) => ACTIVE_LEG_STATUSES.includes(leg.status));
+}
+
+export async function syncConvoyMasterStatus(
+  masterBookingId: string,
+  companyUserId?: string,
+): Promise<void> {
+  const masterId = String(masterBookingId ?? '').trim();
+  if (!masterId) return;
+
+  const { data: master, error: masterErr } = await fetchBookingById(masterId, companyUserId);
+  if (masterErr || !master?.is_group_master) return;
+
+  const { data: legs, error: legErr } = await fetchLegsForMaster(masterId, companyUserId);
+  if (legErr || legs.length === 0) return;
+
+  const nextStatus = deriveConvoyMasterStatus(legs);
+  if (nextStatus === master.status) return;
+
+  const companyId = trimUserId(companyUserId ?? master.company_id);
+  if (!companyId) return;
+
+  await supabase
+    .from('bookings')
+    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+    .eq('id', masterId)
+    .eq('company_id', companyId);
+}
+
+/** After any leg lifecycle change, refresh the parent master status. */
+export async function syncConvoyMasterFromBookingId(bookingId: string): Promise<void> {
+  const id = String(bookingId ?? '').trim();
+  if (!id) return;
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, parent_booking_id, company_id, is_group_master')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !data) return;
+
+  const row = data as {
+    id: string;
+    parent_booking_id?: string | null;
+    company_id?: string | null;
+    is_group_master?: boolean | null;
+  };
+
+  const masterId = row.is_group_master === true ? row.id : row.parent_booking_id?.trim();
+  if (!masterId) return;
+
+  await syncConvoyMasterStatus(masterId, row.company_id ?? undefined);
+}
+
+/** Cancel group master and all cancellable legs together. */
+export async function cancelConvoyByCompany(
+  masterBookingId: string,
+  companyUserId: string,
+): Promise<{ ok: boolean; error: Error | null }> {
+  const masterId = String(masterBookingId ?? '').trim();
+  const companyId = trimUserId(companyUserId);
+  if (!masterId || !companyId) {
+    return { ok: false, error: new Error('invalid ids') };
+  }
+
+  const { data: master, error: masterErr } = await fetchBookingById(masterId, companyId);
+  if (masterErr || !master) {
+    return { ok: false, error: masterErr ?? new Error('master not found') };
+  }
+  if (!master.is_group_master) {
+    return { ok: false, error: new Error('not a convoy master') };
+  }
+
+  const { data: legs, error: legErr } = await fetchLegsForMaster(masterId, companyId);
+  if (legErr) {
+    return { ok: false, error: legErr };
+  }
+
+  if (!canCancelConvoyMaster(legs)) {
+    return {
+      ok: false,
+      error: new Error('convoy_cancel_in_progress'),
+    };
+  }
+
+  const cancellable: BookingStatus[] = ['pending', 'accepted', 'confirmed'];
+  const now = new Date().toISOString();
+
+  for (const leg of legs) {
+    if (!cancellable.includes(leg.status)) continue;
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled', updated_at: now })
+      .eq('id', leg.id)
+      .eq('company_id', companyId)
+      .eq('status', leg.status);
+    if (error) {
+      return { ok: false, error: new Error(error.message) };
+    }
+  }
+
+  if (master.status !== 'completed' && master.status !== 'cancelled') {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled', updated_at: now })
+      .eq('id', masterId)
+      .eq('company_id', companyId)
+      .neq('status', 'completed');
+    if (error) {
+      return { ok: false, error: new Error(error.message) };
+    }
+  }
+
+  return { ok: true, error: null };
 }

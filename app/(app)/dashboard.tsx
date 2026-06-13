@@ -32,6 +32,7 @@ import {
 } from '../../lib/bookings';
 import {
   fetchConvoyDashboardByMasterIds,
+  canCancelConvoyMaster,
   type ConvoyMasterDashboard,
 } from '../../lib/groupBooking';
 import { EmergencyReplacementModal } from '../../components/EmergencyReplacementModal';
@@ -373,11 +374,19 @@ export default function CompanyDashboardScreen() {
       return;
     }
 
-    if (b.status !== 'pending') {
+    const convoy = b.is_group_master ? convoyByMaster[b.id] : undefined;
+    const canCancel = b.is_group_master
+      ? canCancelConvoyMaster(convoy?.legs ?? [])
+      : b.status === 'pending';
+
+    if (!canCancel) {
+      const msg = b.is_group_master
+        ? t('transportPlan.convoyCancelBlocked')
+        : t('companyDashboard.cancelPendingOnly');
       if (Platform.OS === 'web') {
-        window.alert(t('companyDashboard.cancelPendingOnly'));
+        window.alert(msg);
       } else {
-        Alert.alert(t('companyDashboard.cancelBooking'), t('companyDashboard.cancelPendingOnly'));
+        Alert.alert(t('companyDashboard.cancelBooking'), msg);
       }
       return;
     }
@@ -387,9 +396,13 @@ export default function CompanyDashboardScreen() {
       try {
         const res = await cancelBookingByCompany(b.id, userId);
         if (!res.ok) {
-          const msg = res.error
-            ? getSupabaseErrorMessage(res.error)
-            : t('companyDashboard.cancelFailed');
+          const raw = res.error?.message ?? '';
+          const msg =
+            raw === 'convoy_cancel_in_progress'
+              ? t('transportPlan.convoyCancelInProgress')
+              : res.error
+                ? getSupabaseErrorMessage(res.error)
+                : t('companyDashboard.cancelFailed');
           if (Platform.OS === 'web') {
             window.alert(msg);
           } else {
@@ -732,7 +745,9 @@ export default function CompanyDashboardScreen() {
             </View>
             )}
             <Text style={styles.price}>{formatGel(Number(b.price_gel))}</Text>
-            {b.status === 'pending' ? (
+            {(b.is_group_master
+              ? canCancelConvoyMaster(convoyByMaster[b.id]?.legs ?? [])
+              : b.status === 'pending') ? (
               <Pressable
                 onPress={() => void handleCancelBooking(b)}
                 disabled={cancellingId === b.id}

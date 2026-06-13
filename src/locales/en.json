@@ -575,7 +575,9 @@
     "cardMetaConvoy": "{{vehicles}} vehicles · {{assigned}}/{{vehicles}} drivers · {{pax}} passengers",
     "cardLegPreview": "{{n}}. {{type}} · {{pax}} pax · {{driver}}",
     "cardLegMore": "+{{count}} more",
-    "manageVehicles": "Vehicles"
+    "manageVehicles": "Vehicles",
+    "convoyCancelInProgress": "Cannot cancel — a vehicle is already in progress",
+    "convoyCancelBlocked": "Cancellation is not available for this booking right now"
   },
   "groupConvoy": {
     "shortTitle": "Group",

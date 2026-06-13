@@ -572,7 +572,9 @@
     "cardMetaConvoy": "{{vehicles}} მანქანა · {{assigned}}/{{vehicles}} მძღოლი · {{pax}} მგზავრი",
     "cardLegPreview": "{{n}}. {{type}} · {{pax}} მგზავრი · {{driver}}",
     "cardLegMore": "+{{count}} კიდევ",
-    "manageVehicles": "მანქანები"
+    "manageVehicles": "მანქანები",
+    "convoyCancelInProgress": "გაუქმება შეუძლებელია — ერთ-ერთი მანქანა უკვე გზაშია",
+    "convoyCancelBlocked": "გაუქმება ამ ჯავშანზე ახლა შეუძლებელია"
   },
   "groupConvoy": {
     "shortTitle": "ჯგუფი",

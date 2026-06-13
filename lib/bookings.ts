@@ -23,7 +23,7 @@ import {
 import { resolveVehicleIdForBooking } from './bookingVehicle';
 import { formatLocationRoute } from './bookingLocations';
 import { formatTourBookingNotificationBody } from './tourDays';
-import { sanitizeLanguageCodes } from './spokenLanguages';
+import { sanitizeLanguageCodes, driverMatchesRequiredLanguages } from './spokenLanguages';
 import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
 import { trimUserId, userIdsMatch } from './userId';
@@ -658,13 +658,15 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
 
   const { data: driverUserRow } = await supabase
     .from('users')
-    .select('is_guide_driver, is_hired_driver')
+    .select('is_guide_driver, is_hired_driver, languages')
     .eq('id', id)
     .maybeSingle();
   const driverFlags = (driverUserRow ?? {}) as {
     is_guide_driver?: boolean | null;
     is_hired_driver?: boolean | null;
+    languages?: string[] | null;
   };
+  const driverLanguages = sanitizeLanguageCodes(driverFlags.languages ?? []);
 
   // Primary source: all active vehicles (multiple allowed).
   const { data: activeVehicles } = await supabase
@@ -717,6 +719,7 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
       vehicle_type?: string | null;
       vehicle_class?: string | null;
       requested_driver_category?: string | null;
+      required_languages?: string[] | null;
     };
     const rowDriverId = row.driver_id != null ? String(row.driver_id).trim() : '';
     if (rowDriverId && rowDriverId !== id) {
@@ -728,6 +731,12 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
         driverFlags,
         normalizeRequestedDriverCategory(row.requested_driver_category),
       )
+    ) {
+      return false;
+    }
+    if (
+      !rowDriverId &&
+      !driverMatchesRequiredLanguages(driverLanguages, row.required_languages)
     ) {
       return false;
     }
@@ -1104,6 +1113,7 @@ export async function acceptBooking(
     driverPhone: driver.phone || undefined,
     driverPlate: driver.plate || undefined,
   });
+  void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
   return { ok: true as const, error: null };
 }
 
@@ -1227,6 +1237,8 @@ export async function hostAcceptBookingForSub(
     });
   }
 
+  void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
+
   return { ok: true as const, error: null };
 }
 
@@ -1248,6 +1260,7 @@ export async function rejectBooking(
   );
 
   if (!rpcError && rpcOk === true) {
+    void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
     return { ok: true as const, error: null };
   }
 
@@ -1294,6 +1307,7 @@ export async function rejectBooking(
   if (!data) {
     return { ok: false as const, error: new Error('ჯავშანი ვერ განახლდა') };
   }
+  void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
   return { ok: true as const, error: null };
 }
 
@@ -1406,6 +1420,8 @@ export async function completeBooking(bookingRowId: string, driverUserId: string
     });
   }
 
+  void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
+
   return { ok: true as const, error: null };
 }
 
@@ -1465,6 +1481,7 @@ export async function startBookingTrip(bookingRowId: string, driverUserId: strin
       error: new Error('დაწყება ვერ მოხერხდა — ჯავშანი სხვა მდგომარეობაშია ან სხვა მძღოლისაა'),
     };
   }
+  void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
   return { ok: true as const, error: null };
 }
 
@@ -1545,6 +1562,8 @@ export async function cancelBookingByDriver(bookingRowId: string, driverUserId: 
     });
   }
 
+  void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
+
   return { ok: true as const, error: null };
 }
 
@@ -1553,7 +1572,7 @@ export async function cancelBooking(bookingId: string, companyId: string) {
   return cancelBookingByCompany(bookingId, companyId);
 }
 
-/** Company cancels only while still pending (no driver assigned). */
+/** Company cancels pending booking, or whole convoy when master row. */
 export async function cancelBookingByCompany(bookingRowId: string, companyUserId: string) {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
@@ -1563,6 +1582,27 @@ export async function cancelBookingByCompany(bookingRowId: string, companyUserId
   if (!companyId) {
     return { ok: false as const, error: new Error('company id არ არის') };
   }
+
+  const { data: row, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('id, is_group_master')
+    .eq('id', rowId)
+    .eq('company_id', companyId)
+    .maybeSingle();
+
+  if (fetchErr) return { ok: false as const, error: new Error(fetchErr.message) };
+  if (!row) {
+    return { ok: false as const, error: new Error('booking not found') };
+  }
+
+  if ((row as { is_group_master?: boolean | null }).is_group_master === true) {
+    const { cancelConvoyByCompany } = await import('./groupBooking');
+    const res = await cancelConvoyByCompany(rowId, companyId);
+    return res.ok
+      ? { ok: true as const, error: null }
+      : { ok: false as const, error: res.error };
+  }
+
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'cancelled' })
@@ -1589,7 +1629,8 @@ export async function aggregateCompanyStats(companyUserId: string) {
   const { data, error } = await supabase
     .from('bookings')
     .select('price_gel, status')
-    .eq('company_id', id);
+    .eq('company_id', id)
+    .is('parent_booking_id', null);
   if (error || !data) return { total: 0, spent: 0, error };
   const rows = data as { price_gel: number; status: BookingStatus }[];
   const total = rows.length;

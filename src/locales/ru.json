@@ -1411,7 +1411,9 @@
     "cardMetaConvoy": "{{vehicles}} маш. · {{assigned}}/{{vehicles}} водит. · {{pax}} пасс.",
     "cardLegPreview": "{{n}}. {{type}} · {{pax}} пасс. · {{driver}}",
     "cardLegMore": "+{{count}} ещё",
-    "manageVehicles": "Машины"
+    "manageVehicles": "Машины",
+    "convoyCancelInProgress": "Отмена невозможна — одна машина уже в пути",
+    "convoyCancelBlocked": "Отмена сейчас недоступна для этого заказа"
   },
   "groupConvoy": {
     "shortTitle": "Группа",

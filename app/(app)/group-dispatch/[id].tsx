@@ -30,6 +30,8 @@ import {
   summarizeLegs,
 } from '../../../lib/groupBooking';
 import { fetchMatchingDrivers, type MatchingDriver } from '../../../lib/drivers';
+import { normalizeRequestedDriverCategory } from '../../../lib/driverCategory';
+import { sanitizeLanguageCodes } from '../../../lib/spokenLanguages';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../../lib/vehicleCatalog';
 import { showErrorAlert } from '../../../lib/validation';
 
@@ -89,12 +91,16 @@ export default function GroupDispatchScreen() {
   const openAssign = async (leg: BookingRow) => {
     setAssignLegId(leg.id);
     setDriversLoading(true);
+    const requiredLanguages = sanitizeLanguageCodes(master?.required_languages ?? []);
+    const driverCategory = normalizeRequestedDriverCategory(
+      master?.requested_driver_category ?? 'all',
+    );
     const { data } = await fetchMatchingDrivers(
       leg.vehicle_type ?? '',
       leg.vehicle_class ?? '',
-      null,
+      requiredLanguages.length > 0 ? requiredLanguages : null,
       leg.from_location,
-      'all',
+      driverCategory,
       leg.passengers,
     );
     setDrivers(data);

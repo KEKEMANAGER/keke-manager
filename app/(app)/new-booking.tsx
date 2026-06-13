@@ -1642,13 +1642,13 @@ export default function NewBookingScreen() {
 
             <View style={styles.compactDivider} />
 
-            {transportPlanBlock}
             <LanguageMultiSelect
               label={t('newBooking.form.requiredLanguages')}
               hint={t('newBooking.form.requiredLanguagesHint')}
               value={requiredLanguages}
               onChange={setRequiredLanguages}
             />
+            {transportPlanBlock}
 
             <View style={styles.compactRow}>
               <AuthInput
@@ -1739,6 +1739,12 @@ export default function NewBookingScreen() {
               placeholder={t('newBooking.form.placeholders.dateTime')}
               minimumDate={new Date()}
             />
+            <LanguageMultiSelect
+              label={t('newBooking.form.requiredLanguages')}
+              hint={t('newBooking.form.requiredLanguagesHint')}
+              value={requiredLanguages}
+              onChange={setRequiredLanguages}
+            />
             {transportPlanBlock}
             <View style={styles.dayTourCard}>
               <AuthInput
@@ -1760,13 +1766,6 @@ export default function NewBookingScreen() {
                 style={styles.textArea}
               />
             </View>
-
-            <LanguageMultiSelect
-              label={t('newBooking.form.requiredLanguages')}
-              hint={t('newBooking.form.requiredLanguagesHint')}
-              value={requiredLanguages}
-              onChange={setRequiredLanguages}
-            />
 
             <PickupSignLogoField
               value={pickupSignLogo}
@@ -1938,13 +1937,13 @@ export default function NewBookingScreen() {
               );
             })}
 
-            {transportPlanBlock}
             <LanguageMultiSelect
               label={t('newBooking.form.requiredLanguages')}
               hint={t('newBooking.form.requiredLanguagesHint')}
               value={requiredLanguages}
               onChange={setRequiredLanguages}
             />
+            {transportPlanBlock}
 
             <PickupSignLogoField
               value={pickupSignLogo}
