@@ -43,7 +43,7 @@ export async function shareVoucherPDF(
   booking: BookingRow,
   companyUserId?: string,
 ): Promise<void> {
-  const { data, error } = await fetchCompanyVoucherData(booking.id, companyUserId);
+  const { data, error } = await fetchCompanyVoucherData(booking.id, companyUserId, companyUserId);
   if (data) {
     await shareCompanyVoucherPDF(data);
     return;

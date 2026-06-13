@@ -3,6 +3,7 @@ import { bookingOfferedPriceGel } from './bookingPrice';
 import { formatBookingDisplayNumber, formatVoucherPriceGel, stripVoucherEmojis } from './bookingVoucherDisplay';
 import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from './companyVoucherData';
 import { convoyVoucherCode, vehicleMakeModelYearLine } from './companyVoucherData';
+import type { ConvoyPeerLeg } from './convoyPeers';
 import { vehicleClassLabel, vehicleTypeLabel } from './vehicleCatalog';
 import { bookingKindLabel } from './bookingLabels';
 import { formatStoredDateForDisplay } from './dateTime';
@@ -101,12 +102,30 @@ function convoyLegHtml(leg: CompanyVoucherConvoyLeg): string {
     </div>`;
 }
 
+function convoyPeerLegHtml(leg: ConvoyPeerLeg): string {
+  const typeLabel = leg.vehicleTypeLabel ?? leg.vehicleType ?? '—';
+  const classLabel = leg.vehicleClassLabel ?? leg.vehicleClass ?? '—';
+  const ownMark = leg.isOwnLeg ? ' · თქვენი მანქანა' : '';
+
+  return `
+    <div class="convoy-leg${leg.isOwnLeg ? ' convoy-peer-own' : ''}">
+      <div class="convoy-leg-title">მანქანა ${leg.legIndex}${escapeHtml(ownMark)}</div>
+      ${row('ტიპი', typeLabel)}
+      ${row('კლასი', classLabel)}
+      ${row('მგზავრები', String(leg.passengers))}
+      ${row('მძღოლი', leg.driverName ?? '—')}
+    </div>`;
+}
+
 export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
-  const { booking, driver, vehicle, host, convoyLegs } = data;
+  const { booking, driver, vehicle, host, convoyLegs, convoyPeerLegs } = data;
   const isConvoy = !!(booking.is_group_master && convoyLegs && convoyLegs.length > 0);
+  const hasConvoyPeers = !!(convoyPeerLegs && convoyPeerLegs.length > 0);
   const voucherCode = isConvoy
     ? convoyVoucherCode(booking)
-    : booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
+    : booking.group_code?.trim() ||
+      booking.voucher_code?.trim() ||
+      `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const tag = 'div';
 
   const updatedBadge =
@@ -204,6 +223,13 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ${convoyLegs.map(convoyLegHtml).join('\n')}`;
   }
 
+  let convoyPeerSection = '';
+  if (hasConvoyPeers && convoyPeerLegs) {
+    convoyPeerSection = `
+      ${sectionTitle(`სხვა მანქანები (${convoyPeerLegs.length})`)}
+      ${convoyPeerLegs.map(convoyPeerLegHtml).join('\n')}`;
+  }
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -225,6 +251,7 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     ${sectionTitle('ჯავშანი')}
     ${bookingSection}
     ${convoySection ? `<${tag} class="divider"></${tag}>${convoySection}` : ''}
+    ${convoyPeerSection ? `<${tag} class="divider"></${tag}>${convoyPeerSection}` : ''}
     ${!isConvoy && driverSection ? `<${tag} class="divider"></${tag}>${driverSection}` : ''}
     ${!isConvoy && vehicleSection ? `<${tag} class="divider"></${tag}>${vehicleSection}` : ''}
     ${!isConvoy && hostSection ? `<${tag} class="divider"></${tag}>${hostSection}` : ''}

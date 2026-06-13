@@ -29,7 +29,7 @@ export default function CompanyVoucherScreen() {
       return;
     }
     setLoading(true);
-    const res = await fetchCompanyVoucherData(bookingId, user.id);
+    const res = await fetchCompanyVoucherData(bookingId, user.id, user.id);
     setLoading(false);
     if (res.error || !res.data) {
       setError(res.error?.message ?? t('companyVoucher.loadError'));

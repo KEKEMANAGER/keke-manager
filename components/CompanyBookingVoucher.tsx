@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { BookingRow, TourDayPersisted } from '../lib/bookings';
 import { bookingStatusLabel, formatBookingDate } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
+import type { ConvoyPeerLeg } from '../lib/convoyPeers';
 import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from '../lib/companyVoucherData';
 import {
   convoyVoucherCode,
@@ -170,6 +171,32 @@ function ConvoyLegVoucherCard({ leg, onChat, onCall }: ConvoyLegCardProps) {
   );
 }
 
+function ConvoyPeerLegCard({ leg }: { leg: ConvoyPeerLeg }) {
+  const { t } = useTranslation();
+  const typeLabel = leg.vehicleTypeLabel ?? leg.vehicleType ?? '—';
+  const classLabel = leg.vehicleClassLabel ?? leg.vehicleClass ?? '—';
+
+  return (
+    <View style={[styles.convoyLegCard, leg.isOwnLeg && styles.convoyPeerOwn]}>
+      <View style={styles.convoyPeerTop}>
+        <Text style={styles.convoyLegTitle}>
+          {t('companyVoucher.convoyLegN', { n: leg.legIndex })}
+        </Text>
+        {leg.isOwnLeg ? (
+          <Text style={styles.convoyPeerOwnBadge}>{t('companyVoucher.convoyPeerOwnBadge')}</Text>
+        ) : null}
+      </View>
+      <DetailRow label={t('companyVoucher.vehicleType')} value={typeLabel} />
+      <DetailRow label={t('companyVoucher.vehicleClass')} value={classLabel} />
+      <DetailRow label={t('companyVoucher.passengers')} value={String(leg.passengers)} />
+      <DetailRow
+        label={t('companyVoucher.sectionDriver')}
+        value={leg.driverName ?? t('companyVoucher.driverPending')}
+      />
+    </View>
+  );
+}
+
 export function CompanyBookingVoucherContent({
   data,
   onClose,
@@ -184,8 +211,9 @@ export function CompanyBookingVoucherContent({
   const [printing, setPrinting] = useState(false);
   const [voucherMode, setVoucherMode] = useState<VoucherMode>('company');
 
-  const { booking, driver, vehicle, host, company, convoyLegs } = data;
+  const { booking, driver, vehicle, host, company, convoyLegs, convoyPeerLegs } = data;
   const isConvoy = !!(booking.is_group_master && convoyLegs && convoyLegs.length > 0);
+  const hasConvoyPeers = !!(convoyPeerLegs && convoyPeerLegs.length > 0);
 
   if (allowTouristTab && !isConvoy && voucherMode === 'tourist') {
     return (
@@ -207,7 +235,9 @@ export function CompanyBookingVoucherContent({
   const bookingNumber = formatBookingDisplayNumber(booking.id);
   const voucherCode = isConvoy
     ? convoyVoucherCode(booking)
-    : booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
+    : booking.group_code?.trim() ||
+      booking.voucher_code?.trim() ||
+      `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const isTour = booking.kind === 'tour' || booking.kind === 'day_tour';
   const tourDays = (booking.tour_days ?? []) as TourDayPersisted[];
   const logoUrl = booking.pickup_sign_logo_url?.trim();
@@ -328,6 +358,10 @@ export function CompanyBookingVoucherContent({
                 count: convoyLegs!.length,
                 passengers: booking.passengers ?? 1,
               })}
+            </Text>
+          ) : hasConvoyPeers ? (
+            <Text style={styles.convoySummary}>
+              {t('companyVoucher.convoyPeerSummary', { count: convoyPeerLegs!.length })}
             </Text>
           ) : null}
           <Text style={styles.statusLine}>{stripVoucherEmojis(bookingStatusLabel(booking.status))}</Text>
@@ -530,6 +564,18 @@ export function CompanyBookingVoucherContent({
           </View>
         ) : null}
 
+        {!isCompanyViewer && hasConvoyPeers ? (
+          <View style={[styles.card, SHADOWS.card]}>
+            <SectionHeader
+              title={t('companyVoucher.convoyPeersTitle', { count: convoyPeerLegs!.length })}
+            />
+            <Text style={styles.convoyPeerHint}>{t('companyVoucher.convoyPeerHint')}</Text>
+            {convoyPeerLegs!.map((leg) => (
+              <ConvoyPeerLegCard key={leg.legBookingId} leg={leg} />
+            ))}
+          </View>
+        ) : null}
+
         {isCompanyViewer && !isConvoy && driver ? (
           <View style={[styles.card, SHADOWS.card]}>
             <SectionHeader title={t('companyVoucher.sectionDriver')} />
@@ -709,7 +755,7 @@ export function CompanyBookingVoucherModal({ booking, visible, onClose }: ModalP
     setLoading(true);
     setError(null);
     const res = user?.id
-      ? await fetchCompanyVoucherData(booking.id, user.id)
+      ? await fetchCompanyVoucherData(booking.id, user.id, user.id)
       : await enrichCompanyVoucherFromBooking(booking);
     setLoading(false);
     if (res.error) setError(res.error.message);
@@ -969,6 +1015,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.goldDark,
     marginBottom: SPACING.sm,
+  },
+  convoyPeerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  convoyPeerOwn: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  convoyPeerOwnBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.goldDark,
+    textTransform: 'uppercase',
+  },
+  convoyPeerHint: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+    lineHeight: 17,
   },
   convoyPending: {
     fontSize: 13,

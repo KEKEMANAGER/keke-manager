@@ -1496,6 +1496,10 @@
     "legPrice": "Price",
     "legStatus": "Status",
     "driverPending": "Driver not assigned yet",
+    "convoyPeerSummary": "{{count}} vehicles on this booking",
+    "convoyPeersTitle": "Vehicles on this booking ({{count}})",
+    "convoyPeerHint": "Other drivers' prices are hidden — only your offer is shown above.",
+    "convoyPeerOwnBadge": "Yours",
     "tabCompany": "Company",
     "tabTourist": "Guest"
   },

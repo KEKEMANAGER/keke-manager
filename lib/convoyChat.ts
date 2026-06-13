@@ -1,5 +1,5 @@
 import type { ParticipantRole } from './bookingChat';
-import { fetchLegsForMaster } from './groupBooking';
+import { fetchConvoyPeerLegs } from './convoyPeers';
 import { notifyChatMessageRecipient } from './notifications';
 import type { MessageRow } from './messages';
 import { supabase } from './supabase';
@@ -52,7 +52,7 @@ export async function fetchConvoyParticipants(
   if (!masterRow) return { data: [], error: new Error('convoy master not found') };
 
   const companyId = trimUserId((masterRow as { company_id: string }).company_id);
-  const { data: legs, error: legErr } = await fetchLegsForMaster(master);
+  const { data: peerLegs, error: legErr } = await fetchConvoyPeerLegs(master, companyId || '');
   if (legErr) return { data: [], error: legErr };
 
   const userIds = new Set<string>();
@@ -61,8 +61,8 @@ export async function fetchConvoyParticipants(
     userIds.add(companyId);
     roles.set(companyId, 'company');
   }
-  for (const leg of legs) {
-    const driverId = trimUserId(leg.driver_id);
+  for (const leg of peerLegs) {
+    const driverId = trimUserId(leg.driverId);
     if (!driverId) continue;
     userIds.add(driverId);
     roles.set(driverId, 'driver');

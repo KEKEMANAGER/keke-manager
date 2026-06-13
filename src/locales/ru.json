@@ -1558,6 +1558,10 @@
     "legPrice": "Цена",
     "legStatus": "Статус",
     "driverPending": "Водитель ещё не назначен",
+    "convoyPeerSummary": "{{count}} машин в этом бронировании",
+    "convoyPeersTitle": "Машины в бронировании ({{count}})",
+    "convoyPeerHint": "Цены других водителей скрыты — только ваше предложение указано выше.",
+    "convoyPeerOwnBadge": "Ваша",
     "tabCompany": "Компания",
     "tabTourist": "Турист"
   },

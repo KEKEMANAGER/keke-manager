@@ -1493,6 +1493,10 @@
     "legPrice": "ფასი",
     "legStatus": "სტატუსი",
     "driverPending": "მძღოლი ჯერ არ არის მინიჭებული",
+    "convoyPeerSummary": "{{count}} მანქანა ამ ჯავშანზე",
+    "convoyPeersTitle": "მანქანები ამ ჯავშანზე ({{count}})",
+    "convoyPeerHint": "სხვა მძღოლების ფასები არ ჩანს — მხოლოდ თქვენი შეთავაზება ზემოთაა.",
+    "convoyPeerOwnBadge": "თქვენი",
     "tabCompany": "კომპანია",
     "tabTourist": "ტურისტი"
   },

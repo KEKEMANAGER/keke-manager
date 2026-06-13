@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { COLORS, SHADOWS, SPACING } from '../constants/theme';
+import { useAuth } from '../contexts/AuthContext';
 import type { BookingRow } from '../lib/bookings';
 import type { CompanyVoucherData } from '../lib/companyVoucherData';
 import { enrichCompanyVoucherFromBooking } from '../lib/companyVoucherData';
@@ -25,6 +26,7 @@ type Props = {
 
 export function BookingVoucherModal({ booking, visible, onClose }: Props) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<CompanyVoucherData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +39,7 @@ export function BookingVoucherModal({ booking, visible, onClose }: Props) {
     }
     let cancelled = false;
     setLoading(true);
-    void enrichCompanyVoucherFromBooking(booking).then(({ data: loaded, error }) => {
+    void enrichCompanyVoucherFromBooking(booking, user?.id).then(({ data: loaded, error }) => {
       if (cancelled) return;
       setData(loaded);
       setLoading(false);
@@ -48,7 +50,7 @@ export function BookingVoucherModal({ booking, visible, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [visible, booking?.id]);
+  }, [visible, booking?.id, user?.id]);
 
   if (!booking) return null;
 
