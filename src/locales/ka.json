@@ -1141,6 +1141,8 @@
     "pickSubForBooking": "მძღოლის მინიჭება",
     "pickSubForBookingSub": "ვინ წაიყვანს ტურს?",
     "acceptAsSelf": "თვითონ წავალ",
+    "acceptAsSelfHint": "შენ წაიყვან ტურს",
+    "pickSubSectionDrivers": "ფლოტის მძღოლები",
     "acceptActiveDriver": "ახლა მანქანაში: {{name}}",
     "tourCompletedHostTitle": "KEKE · ტური დასრულდა",
     "tourCompletedHostBody": "თქვენს მძღოლმა ტური დაასრულა",

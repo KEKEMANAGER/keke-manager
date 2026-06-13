@@ -5,8 +5,15 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Fri, 12 Jun 2026 09:35:45 GMT</lastBuildDate>
+    <lastBuildDate>Sat, 13 Jun 2026 09:12:51 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[ტურ-ოპერატორი vs მძღოლი: რა პრობლემებს წყვეტს KEKE Manager]]></title>
+      <link>https://kekemanager.com/blog/tour-operator-vs-driver-keke-manager-problems</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/tour-operator-vs-driver-keke-manager-problems</guid>
+      <pubDate>Fri, 12 Jun 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[WhatsApp-ის ქაოსის ნაცვლად — ერთი ეკრანი ტურ-ოპერატორისთვის, ღია ჯავშნები მძღოლისთვის. GPS, ვაუჩერი, ჩათი და ვერიფიკაცია ერთ აპში. კომპანიისთვის უფასო.]]></description>
+    </item>
     <item>
       <title><![CDATA[რამდენად მნიშვნელოვანია მძღოლი ტურის ან ტრანსფერის დროს?]]></title>
       <link>https://kekemanager.com/blog/how-important-is-the-driver-during-tour-transfer</link>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/multi-day-tour-planning-georgia</guid>
       <pubDate>Wed, 06 May 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[ლოჯისტიკა, მძღოლი-გიდი, ღამის გაჩერებები და ტრანსპორტი.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[ჯავშნების მართვის პროგრამა ტურ კომპანიებისთვის]]></title>
-      <link>https://kekemanager.com/blog/booking-management-software-tour-companies</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/booking-management-software-tour-companies</guid>
-      <pubDate>Tue, 05 May 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[რატომ სჭირდება ტურ ოფისს ცენტრალიზებული B2B ჯავშანი და ვაუჩერი.]]></description>
     </item>
   </channel>
 </rss>

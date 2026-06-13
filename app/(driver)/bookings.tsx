@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookingChangedBadge } from '../../components/BookingChangedBadge';
 import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
 import { FleetDriverPayoutModal } from '../../components/FleetDriverPayoutModal';
+import { FleetHostAcceptModal } from '../../components/FleetHostAcceptModal';
 import { BookingPaymentConfirm } from '../../components/BookingPaymentConfirm';
 import { BookingVoucherModal } from '../../components/BookingVoucherModal';
 import { EmptyState } from '../../components/EmptyState';
@@ -53,7 +54,6 @@ import {
 import {
   fetchAcceptedFleetMembersForHost,
   fetchFleetContext,
-  pickLiveFleetMember,
   type FleetMemberView,
 } from '../../lib/fleet';
 import { parseDriverPayoutInput } from '../../lib/bookingPayout';
@@ -187,6 +187,10 @@ export default function DriverBookingsScreen() {
   const [payoutPending, setPayoutPending] = useState<{
     item: BookingRow;
     member: FleetMemberView;
+  } | null>(null);
+  const [fleetAssignPending, setFleetAssignPending] = useState<{
+    item: BookingRow;
+    members: FleetMemberView[];
   } | null>(null);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
@@ -398,73 +402,7 @@ export default function DriverBookingsScreen() {
   }
 
   function showFleetAssignPicker(item: BookingRow, fleetMembers: FleetMemberView[]) {
-    const pickSub = (member: FleetMemberView) => beginAssignToSub(item, member);
-    const liveMember = pickLiveFleetMember(fleetMembers);
-
-    if (Platform.OS === 'web') {
-      const lines = [
-        `0. ${t('fleet.acceptAsSelf')}`,
-        ...(liveMember
-          ? [
-              `1. ${t('fleet.acceptActiveDriver', {
-                name:
-                  liveMember.sub_full_name?.trim() ||
-                  liveMember.sub_email ||
-                  t('common.driver'),
-              })}`,
-            ]
-          : []),
-        ...fleetMembers.map(
-          (m, i) =>
-            `${i + (liveMember ? 2 : 1)}. ${m.sub_full_name?.trim() || m.sub_email || m.sub_driver_id.slice(0, 8)}`,
-        ),
-      ];
-      const idx = window.prompt(`${t('fleet.pickSubForBooking')}\n${lines.join('\n')}`);
-      const n = Number(idx);
-      if (n === 0) {
-        void acceptAsSelf(item);
-        return;
-      }
-      if (liveMember && n === 1) {
-        pickSub(liveMember);
-        return;
-      }
-      const offset = liveMember ? 2 : 1;
-      const memberIndex = n - offset;
-      if (memberIndex >= 0 && memberIndex < fleetMembers.length) {
-        pickSub(fleetMembers[memberIndex]!);
-      }
-      return;
-    }
-
-    const buttons: {
-      text: string;
-      onPress?: () => void;
-      style?: 'cancel' | 'default' | 'destructive';
-    }[] = [
-      { text: t('fleet.acceptAsSelf'), onPress: () => void acceptAsSelf(item) },
-    ];
-
-    if (liveMember) {
-      const liveName =
-        liveMember.sub_full_name?.trim() || liveMember.sub_email || t('common.driver');
-      buttons.push({
-        text: t('fleet.acceptActiveDriver', { name: liveName }),
-        onPress: () => pickSub(liveMember),
-      });
-    }
-
-    for (const m of fleetMembers) {
-      if (liveMember && m.sub_driver_id === liveMember.sub_driver_id) continue;
-      buttons.push({
-        text: m.sub_full_name?.trim() || m.sub_email || t('common.driver'),
-        onPress: () => pickSub(m),
-      });
-    }
-
-    buttons.push({ text: t('common.cancel'), style: 'cancel' });
-
-    Alert.alert(t('fleet.pickSubForBooking'), t('fleet.pickSubForBookingSub'), buttons);
+    setFleetAssignPending({ item, members: fleetMembers });
   }
 
   async function onAccept(item: BookingRow) {
@@ -884,6 +822,23 @@ export default function DriverBookingsScreen() {
         visible={!!voucherBooking}
         onClose={() => setVoucherBooking(null)}
       />
+      {fleetAssignPending ? (
+        <FleetHostAcceptModal
+          visible
+          fleetMembers={fleetAssignPending.members}
+          onCancel={() => setFleetAssignPending(null)}
+          onSelectSelf={() => {
+            const pending = fleetAssignPending;
+            setFleetAssignPending(null);
+            void acceptAsSelf(pending.item);
+          }}
+          onSelectMember={(member) => {
+            const pending = fleetAssignPending;
+            setFleetAssignPending(null);
+            beginAssignToSub(pending.item, member);
+          }}
+        />
+      ) : null}
       {payoutPending ? (
         <FleetDriverPayoutModal
           visible

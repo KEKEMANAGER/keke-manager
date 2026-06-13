@@ -990,6 +990,8 @@
     "pickSubForBooking": "Назначить водителя",
     "pickSubForBookingSub": "Кто поведёт этот тур?",
     "acceptAsSelf": "Поеду сам",
+    "acceptAsSelfHint": "Вы поведёте этот тур",
+    "pickSubSectionDrivers": "Водители флота",
     "acceptActiveDriver": "Сейчас в машине: {{name}}",
     "tourCompletedHostTitle": "KEKE · Тур завершён",
     "tourCompletedHostBody": "Ваш водитель завершил тур",

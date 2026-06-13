@@ -1,6 +1,140 @@
 {
-  "generatedAt": "2026-06-12T09:35:45.023Z",
+  "generatedAt": "2026-06-13T09:12:51.011Z",
   "posts": [
+    {
+      "slug": "tour-operator-vs-driver-keke-manager-problems",
+      "title": "ტურ-ოპერატორი vs მძღოლი: რა პრობლემებს წყვეტს KEKE Manager",
+      "title_en": "Tour Operator vs Driver: What Problems Does KEKE Manager Solve?",
+      "title_ru": "Tour Operator vs Driver: What Problems Does KEKE Manager Solve?",
+      "description": "WhatsApp-ის ქაოსის ნაცვლად — ერთი ეკრანი ტურ-ოპერატორისთვის, ღია ჯავშნები მძღოლისთვის. GPS, ვაუჩერი, ჩათი და ვერიფიკაცია ერთ აპში. კომპანიისთვის უფასო.",
+      "description_en": "Replace WhatsApp chaos with one dashboard for tour operators and open bookings for drivers. GPS, vouchers, chat, and verification in one app. Free for companies; drivers from 29 GEL/month.",
+      "description_ru": "Replace WhatsApp chaos with one dashboard for tour operators and open bookings for drivers. GPS, vouchers, chat, and verification in one app. Free for companies; drivers from 29 GEL/month.",
+      "keywords": [
+        "ტურ-ოპერატორი",
+        "ტურისტული მძღოლი",
+        "KEKE Manager",
+        "B2B პლატფორმა",
+        "WhatsApp",
+        "GPS ტრეკინგი",
+        "ტრანსფერი საქართველო"
+      ],
+      "date": "2026-06-12",
+      "author": "KEKE Manager",
+      "category": "tour-operators",
+      "categoryName": "ტუროპერატორები",
+      "readingTime": 6,
+      "featuredImage": "/blog/tour-operator-vs-driver-keke-manager-problems-cover.svg",
+      "language": "ka",
+      "faq": [
+        {
+          "question": "რატომ არ არის საკმარისი WhatsApp ჯგუფი მძღოლების კოორდინაციისთვის?",
+          "answer": "ჯგუფური ჩატი არ ინახავს ჯავშნის ისტორიას, SLA-ს, ვაუჩერს და GPS-ს. სეზონში შეტყობინებები იკარგება — და ტურისტი რჩება პასუხის მოლოდინში."
+        },
+        {
+          "question": "KEKE Manager უფასოა ტურ-კომპანიისთვის?",
+          "answer": "დიახ — ტუროპერატორებისთვის პლატფორმა უფასოა. მძღოლი უერთდება ქსელს 29 ლარად თვეში — დაახლოებით ერთი ტრანსფერის ღირებულება."
+        },
+        {
+          "question": "რას ხედავს მძღოლი პლატფორმაზე?",
+          "answer": "ღია ჯავშნებს (მანქანის ტიპისა და ენების მიხედვით), აქტიურ ტურებს, ვაუჩერს, GPS-ს და ჩათს კომპანიასთან — ყველაფერს ერთ აპში."
+        },
+        {
+          "question": "რა არის ვერიფიცირებული მძღოლი KEKE Manager-ზე?",
+          "answer": "მძღოლი, რომელმაც გაიარა დოკუმენტების შემოწმება (მართვის მოწმობა, პირადობა, მანქანა). კომპანიები უპირატესობას ანიჭებენ დამოწმებულ პარტნიორებს."
+        }
+      ],
+      "related": [
+        "b2b-transport-platforms-vs-traditional-booking",
+        "how-important-is-the-driver-during-tour-transfer",
+        "booking-management-software-tour-companies",
+        "how-to-find-reliable-tour-driver-georgia"
+      ],
+      "verified": false,
+      "excerpt": "- საქართველოს ტურიზმი იზრდება, მაგრამ ტრანსპორტის კოორდინაცია ხშირად WhatsApp-ზეა დამყარებული — ეს ძვირია ორივე მხარისთვის. - ტურ-ოპერატორი სჭირდება ერთი ეკრან…",
+      "excerpt_en": "Georgia's tourism industry grows every season — but transport management still relies on outdated methods. Tour operators coordinate drivers through WhatsApp g…",
+      "html": "<h2 id=\"tldr\">📌 TL;DR</h2>\n<ul>\n<li>საქართველოს ტურიზმი იზრდება, მაგრამ ტრანსპორტის კოორდინაცია ხშირად WhatsApp-ზეა დამყარებული — ეს ძვირია ორივე მხარისთვის.</li>\n<li><strong>ტურ-ოპერატორი</strong> სჭირდება ერთი ეკრანი: ჯავშნები, მძღილები, GPS, ვაუჩერი — ზარების გარეშე.</li>\n<li><strong>მძღოლი</strong> სჭირდება ღია სამუშაო, სტაბილური შემოსავალი და ნდობის ნიშანი (ვერიფიკაცია).</li>\n<li><strong>KEKE Manager</strong> — ხიდი ორ მხარეს შორის: ჩათი, GPS, PDF ვაუჩერი, რეიტინგი, გადახდის დადასტურება.</li>\n<li>კომპანიისთვის <strong>უფასო</strong> · მძღოლისთვის <strong>29 ₾/თვე</strong> — <a href=\"https://kekemanager.com/sign-up\">დარეგისტრირდით</a>.</li>\n</ul>\n<hr/>\n<p>საქართველოს ტურიზმის ინდუსტრია ყოველ სეზონს იზრდება — მაგრამ ტრანსპორტის მართვა ჯერ კიდევ ძველ მეთოდებზეა დამყარებული. ტურ-ოპერატორები WhatsApp-ის ჯგუფებით ახერხებენ მძღოლების კოორდინაციას, ხოლო მძღოლები ათობით შეტყობინებას შორის ერევიან. <strong>KEKE Manager</strong> შეიქმნა სწორედ ამ ქაოსის მოსაგვარებლად.</p>\n<h2 id=\"ტურ-ოპერატორის-პრობლემები\">ტურ-ოპერატორის პრობლემები</h2>\n<p>ყოველი ტური კომპანიისთვის ნიშნავს საათობით ტელეფონზე საუბარს:</p>\n<ul>\n<li>ვინ ჩავა?</li>\n<li>რომელი მძღოლი?</li>\n<li>სად ყავს მანქანა?</li>\n<li>ფრენა დაგვიანდა — ვინ მიიღებს?</li>\n</ul>\n<p>ამ კითხვებზე პასუხი ხშირად მოდის გვიან — ზოგჯერ კი საერთოდ არ მოდის. Excel-ში ჩაწერილი სია, WhatsApp-ში „დადასტურებულია“ და ზეპირი ზარი აეროპორტში — სამი სხვადასხვა წყარო, სადაც ერთმანეთს ეწინააღმდეგება ინფორმაცია.</p>\n<p><strong>შედეგი:</strong> გაბრაზებული ტურისტი, დაკარგული რეპუტაცია, ორმაგი გადახდა „საგანგებო“ მძღოლისთვის.</p>\n<h3 id=\"რას-აძლევს-keke-manager-კომპანიას\">რას აძლევს KEKE Manager კომპანიას</h3>\n<p>KEKE Manager-ი კომპანიას აძლევს <strong>ერთ ეკრანს</strong>, სადაც ხედავს:</p>\n<ul>\n<li>ყველა ჯავშანს (ტრანსფერი, ტური, ერთდღიანი)</li>\n<li>მძღილის სტატუსს — pending, accepted, გზაში</li>\n<li><strong>რეალურ GPS-ს</strong> active trip-ის დროს</li>\n<li>PDF <strong>ვაუჩერს</strong> — ავტომატურად, ტურისტისთვის მზად</li>\n</ul>\n<p>ახალი ჯავშნის შექმნა სამ წუთს იღებს — ტელეფონის ზარების გარეშე. მძღოლი push-შეტყობინებას იღებს, იღებს ან უარყოფს ერთი დაკლიკებით. კომპანია ხედავს, სად არის მანქანა — ზარის გარეშე.</p>\n<h2 id=\"მძღოლის-პრობლემები\">მძღოლის პრობლემები</h2>\n<p>პროფესიონალი მძღოლი ყოველ დილას ელოდება — <strong>დარეკავენ თუ არა</strong>. სამუშაო არ არის გათვლილი, შემოსავალი — არ არის სტაბილური. ზაფხულის სეზონში ყველაფერი დატვირთულია, ზამთარში — ჩუმი.</p>\n<p>WhatsApp-ში „გაქვს ხვალ ტური?“ — არ არის ხელშეკრულება. არ არის ისტორია. არ არის გარანტია, რომ ზეპირი შეთანხმება შესრულდება.</p>\n<h3 id=\"რას-აძლევს-keke-manager-მძღოლს\">რას აძლევს KEKE Manager მძღოლს</h3>\n<p>KEKE Manager-ი მძღოლს აძლევს <strong>პლატფორმას</strong>, სადაც:</p>\n<ul>\n<li>ხედავს <strong>ღია ჯავშნებს</strong> — შენი მანქანის ტიპის, კლასის და ენების მიხედვით</li>\n<li><strong>ირჩევ</strong> სამუშაოს — არა პასიურად ელოდები ზარს</li>\n<li><strong>ადგენ</strong> საკუთარ გრაფიკს — calendar view, active და completed trips</li>\n<li>იღებს <strong>ვაუჩერს</strong> ტელეფონზე — PDF, route, კლიენტის დეტალები</li>\n<li><strong>ვერიფიცირებული ნიშანი</strong> — ნდობის სიმბოლო; კომპანიები უპირატესობას ანიჭებენ დამოწმებულ მძღოლებს</li>\n</ul>\n<p>29 ლარი თვეში — დაახლოებით <strong>ერთი ტრანსფერის</strong> ღირებულება. ერთი კარგად შესრულებული აეროპორტის რეისი ხშირად უფრო მეტს გამოიმუშავებს.</p>\n<h2 id=\"ერთი-პლატფორმა-ორი-მხარე\">ერთი პლატფორმა — ორი მხარე</h2>\n<p>KEKE Manager არ არის მხოლოდ ჯავშნის სისტემა. ეს არის <strong>ხიდი</strong> კომპანიასა და მძღოლს შორის:</p>\n<table><thead><tr>\n<th>ფუნქცია</th>\n<th>კომპანია</th>\n<th>მძღოლი</th>\n</tr></thead><tbody>\n<tr>\n<td>ჯავშანი</td>\n<td>ქმნის, რედაქტირებს</td>\n<td>იღებს / უარყოფს</td>\n</tr>\n<tr>\n<td>GPS</td>\n<td>live tracking</td>\n<td>background location trip-ზე</td>\n</tr>\n<tr>\n<td>ვაუჩერი</td>\n<td>PDF კლიენტისთვის</td>\n<td>ტელეფონზე, share</td>\n</tr>\n<tr>\n<td>ჩათი</td>\n<td>კომპანია ↔ მძღოლი</td>\n<td>იგივე thread</td>\n</tr>\n<tr>\n<td>რეიტინგი</td>\n<td>მძღოლს აფასებს</td>\n<td>ისტორია, reputation</td>\n</tr>\n<tr>\n<td>გადახდა</td>\n<td>დადასტურება</td>\n<td>IBAN, payout</td>\n</tr>\n</tbody></table>\n<p><strong>ფლოტის მფლობელებისთვის</strong> — sub მძღოლების მართვა, fleet map, „თვითონ წავალ თუ მძღოლი“ არჩევა. <strong>დაქირავებული მძღოლისთვის</strong> — host-ის მანქანა, მინიჭებული ტურები.</p>\n<h2 id=\"ფასები-გამჭვირვალე\">ფასები — გამჭვირვალე</h2>\n<ul>\n<li><strong>ტურ-კომპანია / ტუროპერატორი:</strong> პლატფორმა <strong>სრულიად უფასო</strong></li>\n<li><strong>მძღოლი / ფლოტის host:</strong> <strong>29 ₾ / თვე</strong> — ერთი ტრანსფერის ღირებულება, მთელი თვის ქსელი</li>\n</ul>\n<p>კომისია ტურის ფასიდან <strong>არ იჭრება</strong>. კომპანია და მძღოლი ფასს თავად ადგენენ.</p>\n<h2 id=\"როგორ-დაიწყო\">როგორ დაიწყო</h2>\n<ol>\n<li><a href=\"https://kekemanager.com/sign-up\">დარეგისტრირდით</a> — კომპანია ან მძღოლი</li>\n<li>შეავსეთ პროფილი და (მძღოლისთვის) მანქანა + ვერიფიკაცია</li>\n<li>შექმენით ან მიიღეთ პირველი ჯავშანი</li>\n</ol>\n<p>დამატებითი გზამკვლევები: <a href=\"/blog/b2b-transport-platforms-vs-traditional-booking\">B2B პლატფორმა vs ტრადიციული ჯავშანი</a> · <a href=\"/blog/how-important-is-the-driver-during-tour-transfer\">რამდენად მნიშვნელოვანია მძღოლი</a>.</p>",
+      "html_en": "<p>Georgia's tourism industry grows every season — but transport management still relies on outdated methods. Tour operators coordinate drivers through WhatsApp groups, while drivers get lost in dozens of messages. <strong>KEKE Manager</strong> was built to solve exactly this chaos.</p>\n<h2 id=\"the-tour-operators-problems\">The tour operator's problems</h2>\n<p>Every tour means hours on the phone:</p>\n<ul>\n<li>Who's going?</li>\n<li>Which driver?</li>\n<li>Where's the vehicle?</li>\n<li>Flight delayed — who picks up?</li>\n</ul>\n<p>Answers often arrive late — or not at all. A spreadsheet, a WhatsApp “confirmed”, and a frantic airport call rarely tell the same story.</p>\n<p><strong>The result:</strong> frustrated tourists, damaged reputation, and emergency payments to whoever answers first.</p>\n<h3 id=\"what-keke-manager-gives-companies\">What KEKE Manager gives companies</h3>\n<p>One dashboard where you see:</p>\n<ul>\n<li>All bookings (transfer, multi-day tour, day tour)</li>\n<li>Driver status — pending, accepted, in progress</li>\n<li><strong>Real-time GPS</strong> during active trips</li>\n<li><strong>PDF vouchers</strong> generated automatically</li>\n</ul>\n<p>Creating a new booking takes about three minutes — no phone calls. Drivers get push alerts and accept or reject in one tap. You see where the vehicle is without calling anyone.</p>\n<h2 id=\"the-drivers-problems\">The driver's problems</h2>\n<p>A professional driver starts every morning waiting — <strong>will anyone call?</strong> Work is unpredictable; income is unstable. Summer is overloaded; winter is quiet.</p>\n<p>A WhatsApp “you free tomorrow?” is not a contract. There is no history and no guarantee the verbal deal will hold.</p>\n<h3 id=\"what-keke-manager-gives-drivers\">What KEKE Manager gives drivers</h3>\n<p>A platform where you:</p>\n<ul>\n<li>See <strong>open bookings</strong> matched to your vehicle type, class, and languages</li>\n<li><strong>Choose</strong> work instead of waiting for calls</li>\n<li>Manage your <strong>schedule</strong> — calendar, active and completed trips</li>\n<li>Get <strong>vouchers</strong> on your phone — PDF with route and client details</li>\n<li>Earn a <strong>verified badge</strong> — companies consistently prefer vetted drivers</li>\n</ul>\n<p><strong>29 GEL per month</strong> — roughly the cost of a single transfer. One solid airport run often pays for the subscription.</p>\n<h2 id=\"one-platform-two-sides\">One platform — two sides</h2>\n<p>KEKE Manager is more than a booking system. It is a <strong>bridge</strong> between companies and drivers:</p>\n<table><thead><tr>\n<th>Feature</th>\n<th>Company</th>\n<th>Driver</th>\n</tr></thead><tbody>\n<tr>\n<td>Bookings</td>\n<td>Create, edit</td>\n<td>Accept / reject</td>\n</tr>\n<tr>\n<td>GPS</td>\n<td>Live tracking</td>\n<td>Background location on trip</td>\n</tr>\n<tr>\n<td>Voucher</td>\n<td>PDF for clients</td>\n<td>On phone, share</td>\n</tr>\n<tr>\n<td>Chat</td>\n<td>Company ↔ driver</td>\n<td>Same thread</td>\n</tr>\n<tr>\n<td>Ratings</td>\n<td>Rate the driver</td>\n<td>Build reputation</td>\n</tr>\n<tr>\n<td>Payment</td>\n<td>Confirm paid</td>\n<td>IBAN, payout</td>\n</tr>\n</tbody></table>\n<p><strong>Fleet hosts</strong> manage sub-drivers, fleet map, and “I'll drive vs assign driver”. <strong>Hired drivers</strong> use the host's vehicle and assigned tours only.</p>\n<h2 id=\"pricing-transparent\">Pricing — transparent</h2>\n<ul>\n<li><strong>Tour operator / company:</strong> platform is <strong>completely free</strong></li>\n<li><strong>Driver / fleet host:</strong> <strong>29 GEL / month</strong> — about one transfer, full network access</li>\n</ul>\n<p>No commission cut from the tour price. Companies and drivers set their own rates.</p>\n<h2 id=\"get-started\">Get started</h2>\n<ol>\n<li><a href=\"https://kekemanager.com/sign-up\">Sign up</a> — company or driver</li>\n<li>Complete profile and (for drivers) vehicle + verification</li>\n<li>Create or accept your first booking</li>\n</ol>\n<p>Related guides: <a href=\"/blog/b2b-transport-platforms-vs-traditional-booking\">B2B transport platforms vs traditional booking</a> · <a href=\"/blog/how-important-is-the-driver-during-tour-transfer\">How important is the driver during a tour</a>.</p>",
+      "toc": [
+        {
+          "id": "tldr",
+          "level": 2,
+          "text": "📌 TL;DR"
+        },
+        {
+          "id": "ტურ-ოპერატორის-პრობლემები",
+          "level": 2,
+          "text": "ტურ-ოპერატორის პრობლემები"
+        },
+        {
+          "id": "რას-აძლევს-keke-manager-კომპანიას",
+          "level": 3,
+          "text": "რას აძლევს KEKE Manager კომპანიას"
+        },
+        {
+          "id": "მძღოლის-პრობლემები",
+          "level": 2,
+          "text": "მძღოლის პრობლემები"
+        },
+        {
+          "id": "რას-აძლევს-keke-manager-მძღოლს",
+          "level": 3,
+          "text": "რას აძლევს KEKE Manager მძღოლს"
+        },
+        {
+          "id": "ერთი-პლატფორმა-ორი-მხარე",
+          "level": 2,
+          "text": "ერთი პლატფორმა — ორი მხარე"
+        },
+        {
+          "id": "ფასები-გამჭვირვალე",
+          "level": 2,
+          "text": "ფასები — გამჭვირვალე"
+        },
+        {
+          "id": "როგორ-დაიწყო",
+          "level": 2,
+          "text": "როგორ დაიწყო"
+        }
+      ],
+      "toc_en": [
+        {
+          "id": "the-tour-operators-problems",
+          "level": 2,
+          "text": "The tour operator's problems"
+        },
+        {
+          "id": "what-keke-manager-gives-companies",
+          "level": 3,
+          "text": "What KEKE Manager gives companies"
+        },
+        {
+          "id": "the-drivers-problems",
+          "level": 2,
+          "text": "The driver's problems"
+        },
+        {
+          "id": "what-keke-manager-gives-drivers",
+          "level": 3,
+          "text": "What KEKE Manager gives drivers"
+        },
+        {
+          "id": "one-platform-two-sides",
+          "level": 2,
+          "text": "One platform — two sides"
+        },
+        {
+          "id": "pricing-transparent",
+          "level": 2,
+          "text": "Pricing — transparent"
+        },
+        {
+          "id": "get-started",
+          "level": 2,
+          "text": "Get started"
+        }
+      ],
+      "wordCount": 532
+    },
     {
       "slug": "how-important-is-the-driver-during-tour-transfer",
       "title": "რამდენად მნიშვნელოვანია მძღოლი ტურის ან ტრანსფერის დროს?",

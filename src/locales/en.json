@@ -1144,6 +1144,8 @@
     "pickSubForBooking": "Assign driver",
     "pickSubForBookingSub": "Who will drive this trip?",
     "acceptAsSelf": "I'll drive myself",
+    "acceptAsSelfHint": "You will drive this trip",
+    "pickSubSectionDrivers": "Fleet drivers",
     "acceptActiveDriver": "On the vehicle now: {{name}}",
     "tourCompletedHostTitle": "KEKE · Tour completed",
     "tourCompletedHostBody": "Your fleet driver finished the trip",
