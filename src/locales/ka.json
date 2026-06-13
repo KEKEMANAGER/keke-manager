@@ -569,6 +569,9 @@
     "voucherLegLine": "{{n}}. {{type}} · {{vehicleClass}} · {{pax}} მგზავრი · {{price}} · {{driver}}",
     "multiBadge": "რამდენიმე მანქანა",
     "cardMeta": "{{pax}} მგზავრი · რამდენიმე მანქანა",
+    "cardMetaConvoy": "{{vehicles}} მანქანა · {{assigned}}/{{vehicles}} მძღოლი · {{pax}} მგზავრი",
+    "cardLegPreview": "{{n}}. {{type}} · {{pax}} მგზავრი · {{driver}}",
+    "cardLegMore": "+{{count}} კიდევ",
     "manageVehicles": "მანქანები"
   },
   "groupConvoy": {

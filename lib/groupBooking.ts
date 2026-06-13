@@ -111,6 +111,44 @@ export function summarizeLegs(legs: BookingRow[]): GroupConvoyLegSummary {
   };
 }
 
+export type ConvoyMasterDashboard = {
+  summary: GroupConvoyLegSummary;
+  legs: BookingRow[];
+};
+
+/** Batch-load convoy legs for dashboard master cards (one query for all masters). */
+export async function fetchConvoyDashboardByMasterIds(
+  masterIds: string[],
+  companyUserId?: string,
+): Promise<{ data: Record<string, ConvoyMasterDashboard>; error: Error | null }> {
+  const ids = masterIds.map((id) => String(id ?? '').trim()).filter(Boolean);
+  if (ids.length === 0) {
+    return { data: {}, error: null };
+  }
+
+  let query = supabase
+    .from('bookings')
+    .select('*')
+    .in('parent_booking_id', ids)
+    .order('leg_index', { ascending: true });
+  const companyId = trimUserId(companyUserId);
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+  const { data, error } = await query;
+  if (error) {
+    return { data: {}, error: new Error(error.message) };
+  }
+
+  const enriched = await enrichBookingsForList((data ?? []) as BookingRow[]);
+  const byMaster: Record<string, ConvoyMasterDashboard> = {};
+  for (const masterId of ids) {
+    const legs = enriched.filter((leg) => leg.parent_booking_id === masterId);
+    byMaster[masterId] = { summary: summarizeLegs(legs), legs };
+  }
+  return { data: byMaster, error: null };
+}
+
 export async function fetchLegsForMaster(
   masterBookingId: string,
   companyUserId?: string,

@@ -30,6 +30,10 @@ import {
   subscribeBookingsChanges,
   unsubscribeChannel,
 } from '../../lib/bookings';
+import {
+  fetchConvoyDashboardByMasterIds,
+  type ConvoyMasterDashboard,
+} from '../../lib/groupBooking';
 import { EmergencyReplacementModal } from '../../components/EmergencyReplacementModal';
 import {
   CompanyOnboardingOverlay,
@@ -170,6 +174,7 @@ export default function CompanyDashboardScreen() {
   const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
   const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(() => new Set());
   const [emergencyOpen, setEmergencyOpen] = useState(false);
+  const [convoyByMaster, setConvoyByMaster] = useState<Record<string, ConvoyMasterDashboard>>({});
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -208,8 +213,18 @@ export default function CompanyDashboardScreen() {
     if (bRes.error) {
       setError(getSupabaseErrorMessage(bRes.error));
       setBookings([]);
+      setConvoyByMaster({});
     } else {
       setBookings(bRes.data);
+      const masterIds = (bRes.data ?? [])
+        .filter((b) => b.is_group_master === true)
+        .map((b) => b.id);
+      if (masterIds.length === 0) {
+        setConvoyByMaster({});
+      } else {
+        const convoyRes = await fetchConvoyDashboardByMasterIds(masterIds, userId);
+        setConvoyByMaster(convoyRes.error ? {} : convoyRes.data);
+      }
     }
     if (sRes.error) {
       setTotalCount(0);
@@ -570,9 +585,48 @@ export default function CompanyDashboardScreen() {
                 {b.group_code ? (
                   <Text style={styles.convoyCode}>{b.group_code}</Text>
                 ) : null}
-                <Text style={styles.convoyMeta}>
-                  {t('transportPlan.cardMeta', { pax: b.passengers })}
-                </Text>
+                {(() => {
+                  const convoy = convoyByMaster[b.id];
+                  const summary = convoy?.summary;
+                  const legs = convoy?.legs ?? [];
+                  const vehicles = summary?.totalLegs ?? 0;
+                  const assigned = summary?.assignedLegs ?? 0;
+                  return (
+                    <>
+                      <Text style={styles.convoyMeta}>
+                        {vehicles > 0
+                          ? t('transportPlan.cardMetaConvoy', {
+                              vehicles,
+                              assigned,
+                              pax: b.passengers,
+                            })
+                          : t('transportPlan.cardMeta', { pax: b.passengers })}
+                      </Text>
+                      {legs.length > 0 ? (
+                        <View style={styles.convoyLegPreview}>
+                          {legs.slice(0, 4).map((leg) => (
+                            <Text key={leg.id} style={styles.convoyLegLine} numberOfLines={1}>
+                              {t('transportPlan.cardLegPreview', {
+                                n: leg.leg_index ?? 0,
+                                type: vehicleTypeLabel(leg.vehicle_type ?? ''),
+                                pax: leg.passengers,
+                                driver: leg.driver_display_name?.trim()
+                                  || (leg.driver_id
+                                    ? t('company.driverDefault')
+                                    : t('transportPlan.driverBroadcast')),
+                              })}
+                            </Text>
+                          ))}
+                          {legs.length > 4 ? (
+                            <Text style={styles.convoyLegMore}>
+                              {t('transportPlan.cardLegMore', { count: legs.length - 4 })}
+                            </Text>
+                          ) : null}
+                        </View>
+                      ) : null}
+                    </>
+                  );
+                })()}
                 <View style={styles.convoyBtnRow}>
                   <Pressable
                     onPress={() =>
@@ -1233,7 +1287,20 @@ const styles = StyleSheet.create({
   convoyMeta: {
     fontSize: 14,
     color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  convoyLegPreview: {
     marginBottom: SPACING.sm,
+    gap: 2,
+  },
+  convoyLegLine: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  convoyLegMore: {
+    fontSize: 12,
+    color: COLORS.gray,
+    fontStyle: 'italic',
   },
   convoyBtnRow: {
     flexDirection: 'row',

@@ -1408,6 +1408,9 @@
     "voucherLegLine": "{{n}}. {{type}} · {{vehicleClass}} · {{pax}} пасс. · {{price}} · {{driver}}",
     "multiBadge": "несколько машин",
     "cardMeta": "{{pax}} пасс. · несколько машин",
+    "cardMetaConvoy": "{{vehicles}} маш. · {{assigned}}/{{vehicles}} водит. · {{pax}} пасс.",
+    "cardLegPreview": "{{n}}. {{type}} · {{pax}} пасс. · {{driver}}",
+    "cardLegMore": "+{{count}} ещё",
     "manageVehicles": "Машины"
   },
   "groupConvoy": {
