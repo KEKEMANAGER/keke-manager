@@ -1026,8 +1026,10 @@ export default function NewBookingScreen() {
         vehicle_class: vehicleClass,
         passengers,
         price_str: clientPriceStr,
+        driver_target_mode: driverTargetMode,
         driver_id: driverTargetMode === 'specific' ? selectedDriverId : null,
         driver_name: picked?.full_name ?? null,
+        driver_vehicle_id: driverTargetMode === 'specific' ? selectedDriverVehicleId : null,
       }),
       newTransportLeg({ passengers: '1' }),
     ]);
@@ -1035,6 +1037,7 @@ export default function NewBookingScreen() {
   }, [
     matchingDrivers,
     selectedDriverId,
+    selectedDriverVehicleId,
     selectedVehicleType,
     vehicleClass,
     passengers,
@@ -1047,12 +1050,12 @@ export default function NewBookingScreen() {
     setSelectedVehicleType(leg.vehicle_type);
     setVehicleClass(leg.vehicle_class);
     setClientPriceStr(leg.price_str);
-    if (leg.driver_id) {
-      setDriverTargetMode('specific');
+    const mode = leg.driver_target_mode ?? (leg.driver_id ? 'specific' : 'all');
+    setDriverTargetMode(mode);
+    if (mode === 'specific' && leg.driver_id) {
       setSelectedDriverId(leg.driver_id);
-      setSelectedDriverVehicleId(null);
+      setSelectedDriverVehicleId(leg.driver_vehicle_id);
     } else {
-      setDriverTargetMode('all');
       selectDriver(null, null);
     }
     setMultiVehicle(false);
@@ -1215,7 +1218,8 @@ export default function NewBookingScreen() {
       if (transportLegs.length < 2) {
         return t('transportPlan.needTwoVehicles');
       }
-      for (const leg of transportLegs) {
+      for (let i = 0; i < transportLegs.length; i++) {
+        const leg = transportLegs[i];
         if (!normalizeVehicleType(leg.vehicle_type)) {
           return t('newBooking.validation.vehicleType');
         }
@@ -1227,6 +1231,9 @@ export default function NewBookingScreen() {
         }
         if (parseLegPrice(leg.price_str) <= 0) {
           return t('transportPlan.legPriceRequired');
+        }
+        if (leg.driver_target_mode === 'specific' && !leg.driver_id) {
+          return t('newBooking.validation.driverPickLeg', { n: i + 1 });
         }
       }
       if (!legPricesValid(transportLegs)) {
@@ -1440,12 +1447,14 @@ export default function NewBookingScreen() {
     if (multiVehicle && transportLegs.length >= 2) {
       const legs: GroupConvoyLegPlan[] = transportLegs.map((row, i) => {
         const legPrice = parseLegPrice(row.price_str);
+        const specific = row.driver_target_mode === 'specific';
         return {
           legIndex: i + 1,
           passengers: legPassengers(row),
           vehicle_type: row.vehicle_type,
           vehicle_class: row.vehicle_class,
-          driver_id: row.driver_id,
+          driver_id: specific ? row.driver_id : null,
+          vehicle_id: specific ? row.driver_vehicle_id : null,
           price_gel: legPrice,
           client_price: legPrice,
           commission: null,
@@ -1519,6 +1528,9 @@ export default function NewBookingScreen() {
       vehicleClass={vehicleClass}
       onVehicleClassChange={setVehicleClass}
       cityHint={bookingCityHint}
+      requiredLanguages={requiredLanguages}
+      driverCategory={driverCategory}
+      onDriverCategoryChange={setDriverCategory}
     />
   );
 
@@ -2026,7 +2038,10 @@ export default function NewBookingScreen() {
                         vehicleClass: vehicleClassLabel(leg.vehicle_class),
                         pax: legPassengers(leg),
                         price: formatGel(parseLegPrice(leg.price_str)),
-                        driver: leg.driver_name ?? t('transportPlan.driverBroadcast'),
+                        driver:
+                          leg.driver_target_mode === 'specific' && leg.driver_name
+                            ? leg.driver_name
+                            : t('transportPlan.driverBroadcast'),
                       })}
                     </Text>
                   ))}
@@ -2246,9 +2261,7 @@ export default function NewBookingScreen() {
                   onFilterByMinSeatsChange={setFilterByMinSeats}
                 />
               </>
-            ) : (
-              <Text style={styles.multiDriverHint}>{t('transportPlan.step3MultiHint')}</Text>
-            )}
+            ) : null}
 
             {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
 

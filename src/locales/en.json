@@ -455,6 +455,7 @@
       "vehicleType": "Select vehicle type",
       "vehicleClass": "Select class",
       "driverPick": "Select a driver or choose \"Send to all drivers\"",
+      "driverPickLeg": "Vehicle {{n}}: select a driver or choose \"All matching drivers\"",
       "passengers": "Enter number of passengers",
       "session": "Session not found. Please sign in again",
       "operator": "Select an operator"
@@ -570,7 +571,7 @@
     "voucherMulti": "{{count}} vehicles · {{total}} passengers total",
     "voucherLegLine": "{{n}}. {{type}} · {{vehicleClass}} · {{pax}} pax · {{price}} · {{driver}}",
     "multiBadge": "multiple vehicles",
-    "cardMeta": "{{pax}} passengers · manage vehicles",
+    "cardMeta": "{{pax}} passengers · multiple vehicles",
     "manageVehicles": "Vehicles"
   },
   "groupConvoy": {
@@ -599,9 +600,9 @@
     "vehicleCount": "Number of vehicles",
     "seatsPerVehicle": "Seats per vehicle",
     "splitPreview": "Distribution",
-    "legShort": "Leg {{n}}",
+    "legShort": "Vehicle {{n}}",
     "defaultVehicle": "Default vehicle",
-    "legTitle": "Leg {{n}} · {{pax}} pax",
+    "legTitle": "Vehicle {{n}} · {{pax}} pax",
     "assignDriverOptional": "Driver (optional)",
     "pickDriver": "Pick driver",
     "noDrivers": "No matching drivers found",
@@ -613,18 +614,20 @@
     "validationDate": "Select a start date",
     "validationPassengers": "At least 2 passengers required",
     "validationLegs": "At least one leg is required",
-    "dispatchTitle": "Convoy dispatch",
+    "dispatchTitle": "Vehicles on this booking",
+    "dispatchHint": "This booking has multiple vehicles. Each has its own driver and price.",
     "vehicles": "Vehicles",
-    "assigned": "Assigned",
-    "broadcastOpen": "Broadcast open legs",
-    "legsList": "Legs",
+    "assigned": "Drivers set",
+    "broadcastOpen": "Notify drivers (not yet assigned)",
+    "legsList": "Vehicle list",
+    "legPrice": "Price",
     "driverAssigned": "Driver: {{name}}",
     "driverPending": "No driver assigned",
     "assignDriver": "Assign driver",
-    "masterNotFound": "Convoy not found",
-    "noOpenLegs": "All legs are already assigned or not pending",
-    "cardMeta": "{{pax}} passengers · manage legs",
-    "openDispatch": "Dispatch"
+    "masterNotFound": "Booking not found",
+    "noOpenLegs": "Every vehicle already has a driver or is no longer open",
+    "cardMeta": "{{pax}} passengers · multiple vehicles",
+    "openDispatch": "Vehicles"
   },
   "emergencyReplacement": {
     "button": "🆘 Emergency replacement",
@@ -775,12 +778,12 @@
     "threadCompanyHost": "Company ↔ Host",
     "threadCompanyDriver": "Company ↔ Driver",
     "threadHostDriver": "Host ↔ Driver",
-    "threadConvoy": "Group chat (all drivers)"
+    "threadConvoy": "Chat with all drivers"
   },
   "convoyChat": {
-    "title": "Group chat",
+    "title": "Chat with all drivers",
     "short": "Chat",
-    "open": "Group chat",
+    "open": "Chat with all drivers",
     "subtitle": "{{count}} participants",
     "threadHint": "Company + all drivers",
     "placeholder": "Message everyone...",

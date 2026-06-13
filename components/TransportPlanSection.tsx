@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AuthInput } from './AuthInput';
+import { DriverCategorySelect } from './DriverCategorySelect';
+import { TransportLegDriverSection } from './TransportLegDriverSection';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
-import { fetchMatchingDrivers, type MatchingDriver } from '../lib/drivers';
+import type { RequestedDriverCategory } from '../lib/driverCategory';
 import {
   legPassengers,
   newTransportLeg,
@@ -38,6 +39,9 @@ type Props = SingleProps & {
   onAddVehicle: () => void;
   onCollapseToSingle: (leg: TransportLegDraft) => void;
   cityHint?: string | null;
+  requiredLanguages: string[];
+  driverCategory: RequestedDriverCategory;
+  onDriverCategoryChange: (c: RequestedDriverCategory) => void;
 };
 
 function InlineChipRow<T extends string>({
@@ -123,11 +127,11 @@ export function TransportPlanSection({
   vehicleClass,
   onVehicleClassChange,
   cityHint,
+  requiredLanguages,
+  driverCategory,
+  onDriverCategoryChange,
 }: Props) {
   const { t } = useTranslation();
-  const [pickerLegId, setPickerLegId] = useState<string | null>(null);
-  const [drivers, setDrivers] = useState<MatchingDriver[]>([]);
-  const [driversLoading, setDriversLoading] = useState(false);
 
   const updateLeg = (id: string, patch: Partial<TransportLegDraft>) => {
     onLegsChange(legs.map((leg) => (leg.id === id ? { ...leg, ...patch } : leg)));
@@ -147,19 +151,10 @@ export function TransportPlanSection({
     onLegsChange([...legs, newTransportLeg({ passengers: '1' })]);
   };
 
-  const openDriverPicker = async (leg: TransportLegDraft) => {
-    setPickerLegId(leg.id);
-    setDriversLoading(true);
-    const { data } = await fetchMatchingDrivers(
-      leg.vehicle_type,
-      leg.vehicle_class,
-      null,
-      cityHint?.trim() || null,
-      'all',
-      legPassengers(leg),
-    );
-    setDrivers(data);
-    setDriversLoading(false);
+  const clearLegDriver = {
+    driver_id: null as string | null,
+    driver_name: null as string | null,
+    driver_vehicle_id: null as string | null,
   };
 
   if (!multiVehicle) {
@@ -199,6 +194,8 @@ export function TransportPlanSection({
         </Text>
       ) : null}
 
+      <DriverCategorySelect value={driverCategory} onChange={onDriverCategoryChange} />
+
       {legs.map((leg, index) => (
         <View key={leg.id} style={styles.legCard}>
           <View style={styles.legTop}>
@@ -217,7 +214,7 @@ export function TransportPlanSection({
           <InlineChipRow
             options={VEHICLE_TYPES}
             value={leg.vehicle_type}
-            onChange={(vt) => updateLeg(leg.id, { vehicle_type: vt, driver_id: null, driver_name: null })}
+            onChange={(vt) => updateLeg(leg.id, { vehicle_type: vt, ...clearLegDriver })}
             labelFor={vehicleTypeLabel}
             compact
           />
@@ -225,7 +222,7 @@ export function TransportPlanSection({
           <InlineChipRow
             options={VEHICLE_CLASSES}
             value={leg.vehicle_class}
-            onChange={(vc) => updateLeg(leg.id, { vehicle_class: vc, driver_id: null, driver_name: null })}
+            onChange={(vc) => updateLeg(leg.id, { vehicle_class: vc, ...clearLegDriver })}
             labelFor={vehicleClassLabel}
             compact
           />
@@ -239,51 +236,17 @@ export function TransportPlanSection({
           {parseLegPrice(leg.price_str) <= 0 ? (
             <Text style={styles.priceWarn}>{t('transportPlan.legPriceRequired')}</Text>
           ) : null}
-          <Pressable onPress={() => void openDriverPicker(leg)} style={styles.driverPick}>
-            <Ionicons name="person-outline" size={16} color={COLORS.goldDark} />
-            <Text style={styles.driverPickText}>
-              {leg.driver_name ?? t('transportPlan.driverOptional')}
-            </Text>
-          </Pressable>
+          <TransportLegDriverSection
+            leg={leg}
+            onChange={(patch) => updateLeg(leg.id, patch)}
+            cityHint={cityHint}
+            requiredLanguages={requiredLanguages}
+            driverCategory={driverCategory}
+          />
         </View>
       ))}
 
       <AddVehicleLink onPress={addLeg} label={t('transportPlan.addAnother')} />
-
-      {pickerLegId ? (
-        <View style={styles.driverModal}>
-          <Text style={styles.driverModalTitle}>{t('transportPlan.pickDriver')}</Text>
-          {driversLoading ? (
-            <ActivityIndicator color={COLORS.gold} />
-          ) : drivers.length === 0 ? (
-            <Text style={styles.empty}>{t('transportPlan.noDrivers')}</Text>
-          ) : (
-            drivers.map((d) => (
-              <Pressable
-                key={d.id}
-                onPress={() => {
-                  updateLeg(pickerLegId, {
-                    driver_id: d.id,
-                    driver_name: d.full_name ?? d.id.slice(0, 8),
-                  });
-                  setPickerLegId(null);
-                }}
-                style={styles.driverRow}
-              >
-                <Text style={styles.driverName}>{d.full_name ?? '—'}</Text>
-                <Text style={styles.driverMeta}>
-                  {[d.vehicle?.type ? vehicleTypeLabel(d.vehicle.type) : null, d.vehicle?.plate]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Text>
-              </Pressable>
-            ))
-          )}
-          <Pressable onPress={() => setPickerLegId(null)} style={styles.modalClose}>
-            <Text style={styles.modalCloseText}>{t('common.cancel')}</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -314,14 +277,14 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: RADIUS.full,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   chipSmall: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: RADIUS.full,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -349,25 +312,4 @@ const styles = StyleSheet.create({
   legTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   legTitle: { fontSize: 15, fontWeight: '700', marginBottom: SPACING.sm },
   priceWarn: { fontSize: 12, color: COLORS.error, marginTop: -4, marginBottom: SPACING.sm },
-  driverPick: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  driverPickText: { fontSize: 14, color: COLORS.goldDark, fontWeight: '600' },
-  driverModal: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginTop: SPACING.sm,
-    backgroundColor: COLORS.surfaceAlt,
-  },
-  driverModalTitle: { fontSize: 15, fontWeight: '700', marginBottom: SPACING.sm },
-  empty: { color: COLORS.textSecondary, marginBottom: SPACING.sm },
-  driverRow: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  driverName: { fontSize: 15, fontWeight: '600' },
-  driverMeta: { fontSize: 12, color: COLORS.textSecondary },
-  modalClose: { marginTop: SPACING.sm, alignItems: 'center' },
-  modalCloseText: { color: COLORS.textSecondary, fontWeight: '600' },
 });

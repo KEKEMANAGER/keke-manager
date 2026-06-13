@@ -23,6 +23,7 @@ export type GroupConvoyLegPlan = {
   vehicle_type: VehicleTypeCode;
   vehicle_class: VehicleClassCode;
   driver_id?: string | null;
+  vehicle_id?: string | null;
   price_gel?: number;
   client_price?: number;
   commission?: number | null;
@@ -173,6 +174,7 @@ function masterToLegInsert(
     vehicle_type: leg.vehicle_type,
     vehicle_class: leg.vehicle_class,
     driver_id: leg.driver_id ?? null,
+    vehicle_id: leg.vehicle_id ?? null,
     price_gel: price,
     client_price: leg.client_price ?? price,
     commission: leg.commission ?? null,

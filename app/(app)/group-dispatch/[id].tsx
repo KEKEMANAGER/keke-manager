@@ -22,6 +22,7 @@ import {
   routeSummary,
   type BookingRow,
 } from '../../../lib/bookings';
+import { bookingOfferedPriceGel } from '../../../lib/bookingPrice';
 import {
   assignDriverToLeg,
   broadcastOpenLegs,
@@ -150,6 +151,7 @@ export default function GroupDispatchScreen() {
       </Pressable>
 
       <Text style={styles.title}>{t('groupConvoy.dispatchTitle')}</Text>
+      <Text style={styles.hint}>{t('groupConvoy.dispatchHint')}</Text>
       {master.group_code ? (
         <Text style={styles.code}>{master.group_code}</Text>
       ) : null}
@@ -217,6 +219,9 @@ export default function GroupDispatchScreen() {
               .filter(Boolean)
               .join(' · ')}
           </Text>
+          <Text style={styles.legPrice}>
+            {t('groupConvoy.legPrice')}: {bookingOfferedPriceGel(leg).toLocaleString('ka-GE')} ₾
+          </Text>
           <Text style={styles.legDriver}>
             {leg.driver_display_name
               ? t('groupConvoy.driverAssigned', { name: leg.driver_display_name })
@@ -268,7 +273,14 @@ const styles = StyleSheet.create({
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.md },
   backText: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   title: { fontSize: 22, fontWeight: '800', color: COLORS.text },
-  code: { fontSize: 14, fontWeight: '700', color: COLORS.goldDark, marginTop: 4 },
+  hint: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
+  },
+  code: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted, marginTop: 4 },
   route: { fontSize: 16, fontWeight: '600', color: COLORS.text, marginTop: SPACING.sm },
   date: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.lg },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.lg },
@@ -321,10 +333,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceAlt,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: RADIUS.full,
+    borderRadius: 999,
   },
   statusText: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
   legMeta: { fontSize: 13, color: COLORS.textSecondary, marginTop: 6 },
+  legPrice: { fontSize: 14, fontWeight: '700', color: COLORS.goldDark, marginTop: 6 },
   legDriver: { fontSize: 14, color: COLORS.text, marginTop: 6 },
   assignBtn: {
     marginTop: SPACING.sm,

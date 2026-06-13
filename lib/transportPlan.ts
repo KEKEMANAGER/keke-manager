@@ -1,5 +1,7 @@
 import type { VehicleClassCode, VehicleTypeCode } from './vehicleCatalog';
 
+export type LegDriverTargetMode = 'all' | 'specific';
+
 export type TransportLegDraft = {
   id: string;
   vehicle_type: VehicleTypeCode;
@@ -7,8 +9,10 @@ export type TransportLegDraft = {
   passengers: string;
   /** Driver / client offer for this vehicle (GEL). */
   price_str: string;
+  driver_target_mode: LegDriverTargetMode;
   driver_id: string | null;
   driver_name: string | null;
+  driver_vehicle_id: string | null;
 };
 
 export function parseLegPrice(raw: string): number {
@@ -29,8 +33,10 @@ export function newTransportLeg(overrides?: Partial<TransportLegDraft>): Transpo
     vehicle_class: 'comfort',
     passengers: '1',
     price_str: '',
+    driver_target_mode: 'all',
     driver_id: null,
     driver_name: null,
+    driver_vehicle_id: null,
     ...overrides,
   };
 }

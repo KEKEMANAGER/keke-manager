@@ -1,7 +1,6 @@
 import type { BookingRow } from './bookings';
 import { enrichBookingsForList, fetchBookingById } from './bookings';
-import { fetchConvoyPeerLegs } from './convoyPeers';
-import { fetchLegsForMaster } from './groupBooking';
+import { fetchConvoyPeerLegs, type ConvoyPeerLeg } from './convoyPeers';
 import { fetchLegsForMaster } from './groupBooking';
 import { fetchDriverAverageRating } from './ratings';
 import { resolveProfileAvatarUrl } from './profileAvatar';
