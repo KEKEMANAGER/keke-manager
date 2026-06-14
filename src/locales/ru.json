@@ -184,6 +184,10 @@
     "end": "Конец",
     "waitingStart": "Водитель загрузит фото при старте тура",
     "waitingEnd": "Фото в конце появится после завершения тура",
+    "badgeWaiting": "Одометр ⏳",
+    "badgeStartDone": "Старт ✓",
+    "badgeComplete": "Одометр ✓",
+    "viewBooking": "Открыть",
     "cameraDenied": "Для фото одометра нужен доступ к камере",
     "uploadFailed": "Не удалось загрузить фото",
     "saveFailed": "Не удалось сохранить фото одометра"
@@ -644,6 +648,10 @@
     "voucherTitle": "KEKE · Ваучер",
     "voucherBodyPrefix": "Ваучер",
     "emergencyAssignedTitle": "KEKE · Замена",
+    "odometerStartTitle": "KEKE · Одометр (старт)",
+    "odometerStartBody": "Водитель загрузил фото одометра при старте.",
+    "odometerEndTitle": "KEKE · Одометр (конец)",
+    "odometerEndBody": "Водитель загрузил фото одометра в конце."
   },
   "booking": {
     "status": {

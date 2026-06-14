@@ -14,7 +14,9 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
+import { BookingOdometerSection } from '../../components/BookingOdometerSection';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { fetchBookingById, type BookingRow } from '../../lib/bookings';
 import { fetchFleetDriverIdsAround } from '../../lib/fleet';
 import {
   fetchLocationsForDriverIds,
@@ -82,6 +84,7 @@ export default function CompanyTrackingScreen() {
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [booking, setBooking] = useState<BookingInfo | null>(null);
+  const [tourBooking, setTourBooking] = useState<BookingRow | null>(null);
   const [pins, setPins] = useState<DriverLocationPin[]>([]);
   const [fleetIds, setFleetIds] = useState<string[]>([]);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
@@ -102,16 +105,60 @@ export default function CompanyTrackingScreen() {
 
   useEffect(() => {
     if (!bookingId) return;
-    void supabase
-      .from('bookings')
-      .select(
-        'driver_id, driver_display_name, driver_phone, status, from_location, to_location, vehicle_type, vehicle_class',
+    void (async () => {
+      const { data: full } = await fetchBookingById(bookingId);
+      if (full) {
+        setTourBooking(full);
+        setBooking({
+          driver_id: full.driver_id ?? '',
+          driver_display_name: full.driver_display_name,
+          driver_phone: full.driver_phone,
+          status: full.status,
+          from_location: full.from_location,
+          to_location: full.to_location,
+          vehicle_type: full.vehicle_type,
+          vehicle_class: full.vehicle_class,
+        });
+        return;
+      }
+      const { data } = await supabase
+        .from('bookings')
+        .select(
+          'driver_id, driver_display_name, driver_phone, status, from_location, to_location, vehicle_type, vehicle_class',
+        )
+        .eq('id', bookingId)
+        .maybeSingle();
+      if (data) setBooking(data as BookingInfo);
+    })();
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (!bookingId) return;
+    const channel = supabase
+      .channel(`tracking-booking-${bookingId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bookings', filter: `id=eq.${bookingId}` },
+        (_payload) => {
+          void fetchBookingById(bookingId).then(({ data: row }) => {
+            if (!row) return;
+            setTourBooking(row);
+            setBooking((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: row.status,
+                    driver_id: row.driver_id ?? prev.driver_id,
+                  }
+                : prev,
+            );
+          });
+        },
       )
-      .eq('id', bookingId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) setBooking(data as BookingInfo);
-      });
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [bookingId]);
 
   useEffect(() => {
@@ -304,6 +351,7 @@ export default function CompanyTrackingScreen() {
               <Text style={styles.noSignalText}>{t('tracking.noSignalHint')}</Text>
             </View>
           ) : null}
+          {tourBooking ? <BookingOdometerSection booking={tourBooking} compact /> : null}
         </View>
       </View>
     );
@@ -444,6 +492,7 @@ export default function CompanyTrackingScreen() {
             <Text style={styles.noSignalText}>{t('tracking.noSignalHint')}</Text>
           </View>
         ) : null}
+        {tourBooking ? <BookingOdometerSection booking={tourBooking} compact /> : null}
       </View>
     </View>
   );

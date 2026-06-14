@@ -664,6 +664,56 @@ export async function notifyCompanyDriverCancelledBooking(params: {
   if (!res.ok && __DEV__) console.warn('[notify] driver_cancelled push failed:', res.error);
 }
 
+/** Driver uploaded tour odometer photo — notify booking company. */
+export async function notifyCompanyOdometerPhoto(params: {
+  companyUserId: string;
+  bookingId: string;
+  phase: 'start' | 'end';
+  routeSummary?: string;
+}): Promise<void> {
+  const companyUserId = params.companyUserId.trim();
+  const bookingId = params.bookingId.trim();
+  if (!companyUserId || !bookingId) return;
+
+  const title =
+    params.phase === 'start'
+      ? notifyT('notifications.odometerStartTitle', 'KEKE · Odometer (start)')
+      : notifyT('notifications.odometerEndTitle', 'KEKE · Odometer (end)');
+  const bodyLine =
+    params.phase === 'start'
+      ? notifyT('notifications.odometerStartBody', 'Driver uploaded the start odometer photo.')
+      : notifyT('notifications.odometerEndBody', 'Driver uploaded the end odometer photo.');
+  const body = [bodyLine, params.routeSummary?.trim()].filter(Boolean).join('\n');
+
+  const pushData: Record<string, string> = {
+    type: 'booking_odometer',
+    booking_id: bookingId,
+    odometer_phase: params.phase,
+  };
+
+  await insertInAppNotifications([
+    {
+      user_id: companyUserId,
+      type: 'booking_odometer',
+      title,
+      body,
+      data: { ...pushData },
+    },
+  ]);
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('push_token')
+    .eq('id', companyUserId)
+    .maybeSingle();
+
+  const token = (profile as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  if (!token) return;
+
+  const res = await sendExpoPushNotification(token, title, body, pushData);
+  if (!res.ok && __DEV__) console.warn('[notify] booking_odometer push failed:', res.error);
+}
+
 /** Push copy for chat messages. */
 export function getChatMessageNotificationContent(senderName: string, preview: string) {
   const name = senderName.trim() || notifyT('common.newMessage', 'New message');

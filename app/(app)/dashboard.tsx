@@ -46,7 +46,7 @@ import { BookingChatThreads } from '../../components/BookingChatThreads';
 import { DriverProfileCard } from '../../components/DriverProfileCard';
 import { UserAvatar } from '../../components/UserAvatar';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
-import { BookingOdometerSection } from '../../components/BookingOdometerSection';
+import { BookingOdometerSection, BookingOdometerBadge } from '../../components/BookingOdometerSection';
 import { EmptyState } from '../../components/EmptyState';
 import { canCompanyEditBooking } from '../../lib/bookingUpdate';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
@@ -591,16 +591,19 @@ export default function CompanyDashboardScreen() {
         <>
           {recentActiveBookings.map((b) => (
           <View key={b.id} style={[styles.bookingCard, bookingCardStatusBorder(b.status)]}>
-            <View style={styles.bookingTop}>
+              <View style={styles.bookingTop}>
               <Text style={styles.bookingType}>
                 {b.is_group_master
                   ? `${bookingTypeLabel(b.kind, b.flight_direction)} · ${t('transportPlan.multiBadge')}`
                   : bookingTypeLabel(b.kind, b.flight_direction)}
               </Text>
-              <View style={[styles.statusPill, statusStyle(b.status)]}>
-                <Text style={[styles.statusText, statusLabelColor(b.status)]}>
-                  {bookingStatusLabel(b.status)}
-                </Text>
+              <View style={styles.bookingTopBadges}>
+                <BookingOdometerBadge booking={b} />
+                <View style={[styles.statusPill, statusStyle(b.status)]}>
+                  <Text style={[styles.statusText, statusLabelColor(b.status)]}>
+                    {bookingStatusLabel(b.status)}
+                  </Text>
+                </View>
               </View>
             </View>
             <Text style={styles.route}>{routeSummary(b)}</Text>
@@ -1243,6 +1246,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  bookingTopBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
   bookingType: {
     color: COLORS.goldLight,

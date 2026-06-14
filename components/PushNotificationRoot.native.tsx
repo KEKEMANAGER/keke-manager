@@ -42,6 +42,16 @@ type BookingPushTapPayload = {
   thread_type?: string;
 };
 
+function companyOpensBookingNotificationTypes(data: BookingPushTapPayload | undefined): boolean {
+  const payloadType = data?.type;
+  return (
+    payloadType === 'booking_accepted' ||
+    payloadType === 'booking_odometer' ||
+    payloadType === 'booking_driver_cancelled' ||
+    payloadType === 'booking_voucher'
+  );
+}
+
 function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | undefined): boolean {
   const payloadType = data?.type;
   return (
@@ -109,6 +119,24 @@ export function PushNotificationListeners() {
     [role, router],
   );
 
+  const navigateCompanyBookingFromTap = useCallback(
+    (response: Notifications.NotificationResponse) => {
+      if (role !== 'company') return;
+      const data = response.notification.request.content.data as BookingPushTapPayload | undefined;
+      if (!companyOpensBookingNotificationTypes(data)) return;
+      const id = response.notification.request.identifier;
+      if (handledOpenRef.current === id) return;
+      handledOpenRef.current = id;
+      const bid = typeof data?.booking_id === 'string' ? data.booking_id.trim() : '';
+      if (bid) {
+        router.push(`/(app)/company-voucher/${encodeURIComponent(bid)}`);
+      } else {
+        router.push('/(app)/history');
+      }
+    },
+    [role, router],
+  );
+
   const lastOpenedFromNotification = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
@@ -120,8 +148,16 @@ export function PushNotificationListeners() {
       navigateChatFromTap(lastOpenedFromNotification);
     } else if (role === 'driver') {
       navigateDriverBookingFromTap(lastOpenedFromNotification);
+    } else if (role === 'company') {
+      navigateCompanyBookingFromTap(lastOpenedFromNotification);
     }
-  }, [lastOpenedFromNotification, role, navigateChatFromTap, navigateDriverBookingFromTap]);
+  }, [
+    lastOpenedFromNotification,
+    role,
+    navigateChatFromTap,
+    navigateDriverBookingFromTap,
+    navigateCompanyBookingFromTap,
+  ]);
 
   useEffect(() => {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
@@ -164,6 +200,8 @@ export function PushNotificationListeners() {
         const isBooking =
           data?.type === 'new_booking' ||
           data?.type === 'booking_confirmed' ||
+          data?.type === 'booking_accepted' ||
+          data?.type === 'booking_odometer' ||
           data?.type === 'emergency_replacement' ||
           data?.type === 'booking_voucher' ||
           !data?.type;
@@ -186,6 +224,20 @@ export function PushNotificationListeners() {
             },
           });
         }
+        if (role === 'company' && data) {
+          const pushData = data;
+          buttons.push({
+            text: t('bookingOdometer.viewBooking'),
+            onPress: () => {
+              const bid = typeof pushData.booking_id === 'string' ? pushData.booking_id.trim() : '';
+              if (bid) {
+                router.push(`/(app)/company-voucher/${encodeURIComponent(bid)}`);
+              } else {
+                router.push('/(app)/history');
+              }
+            },
+          });
+        }
 
         Alert.alert(title, body, buttons);
       })();
@@ -195,6 +247,8 @@ export function PushNotificationListeners() {
       const data = response.notification.request.content.data as BookingPushTapPayload | undefined;
       if (isChatTapPayload(data)) {
         navigateChatFromTap(response);
+      } else if (role === 'company') {
+        navigateCompanyBookingFromTap(response);
       } else {
         navigateDriverBookingFromTap(response);
       }
@@ -204,7 +258,15 @@ export function PushNotificationListeners() {
       receivedSub.remove();
       responseSub.remove();
     };
-  }, [navigateChatFromTap, navigateDriverBookingFromTap, role, router, t, user?.id]);
+  }, [
+    navigateChatFromTap,
+    navigateCompanyBookingFromTap,
+    navigateDriverBookingFromTap,
+    role,
+    router,
+    t,
+    user?.id,
+  ]);
 
   return null;
 }

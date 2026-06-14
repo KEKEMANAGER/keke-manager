@@ -184,6 +184,10 @@
     "end": "დასრულება",
     "waitingStart": "მძღოლი დაწყებისას გადაიღებს ფოტოს",
     "waitingEnd": "ტურის ბოლოს გამოჩნდება საბოლოო ფოტო",
+    "badgeWaiting": "ოდომეტრი ⏳",
+    "badgeStartDone": "დაწყება ✓",
+    "badgeComplete": "ოდომეტრი ✓",
+    "viewBooking": "ნახვა",
     "cameraDenied": "კამერის უფლება საჭიროა ოდომეტრის ფოტოსთვის",
     "uploadFailed": "ფოტოს ატვირთვა ვერ მოხერხდა",
     "saveFailed": "ოდომეტრის შენახვა ვერ მოხერხდა"
@@ -767,6 +771,10 @@
     "voucherTitle": "KEKE · ვაუჩერი",
     "voucherBodyPrefix": "ვაუჩერი",
     "emergencyAssignedTitle": "KEKE · ჩანაცვლება",
+    "odometerStartTitle": "KEKE · ოდომეტრი (დაწყება)",
+    "odometerStartBody": "მძღოლი ატვირთა დაწყების ოდომეტრის ფოტო.",
+    "odometerEndTitle": "KEKE · ოდომეტრი (დასრულება)",
+    "odometerEndBody": "მძღოლი ატვირთა დასრულების ოდომეტრის ფოტო."
   },
   "hiredDriver": {
     "assignedTripTitle": "მინიჭებული ტური",

@@ -186,6 +186,10 @@
     "end": "End",
     "waitingStart": "Driver will upload a photo when the tour starts",
     "waitingEnd": "End photo appears when the tour is finished",
+    "badgeWaiting": "Odometer ⏳",
+    "badgeStartDone": "Start ✓",
+    "badgeComplete": "Odometer ✓",
+    "viewBooking": "View",
     "cameraDenied": "Camera access is required for the odometer photo",
     "uploadFailed": "Could not upload photo",
     "saveFailed": "Could not save odometer photo"
@@ -770,6 +774,10 @@
     "voucherTitle": "KEKE · Voucher",
     "voucherBodyPrefix": "Voucher",
     "emergencyAssignedTitle": "KEKE · Replacement",
+    "odometerStartTitle": "KEKE · Odometer (start)",
+    "odometerStartBody": "Driver uploaded the start odometer photo.",
+    "odometerEndTitle": "KEKE · Odometer (end)",
+    "odometerEndBody": "Driver uploaded the end odometer photo."
   },
   "hiredDriver": {
     "assignedTripTitle": "Assigned trip",

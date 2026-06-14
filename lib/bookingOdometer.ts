@@ -1,6 +1,8 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
+import { routeSummary, type BookingRow } from './bookings';
 import { uploadMediaObject } from './mediaUpload';
+import { notifyCompanyOdometerPhoto } from './notifications';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
 
@@ -102,11 +104,39 @@ export async function saveBookingOdometerPhoto(
     .update(patch)
     .eq('id', id)
     .eq('driver_id', uid)
-    .select('id')
+    .select('id, company_id, kind, route, from_location, to_location, booking_type')
     .maybeSingle();
 
   if (error) return { ok: false, error: new Error(error.message) };
   if (!data) return { ok: false, error: new Error('odometer_save_failed') };
+
+  const row = data as {
+    company_id?: string | null;
+    kind?: string;
+    booking_type?: string;
+    route?: string | null;
+    from_location?: string | null;
+    to_location?: string | null;
+  };
+  const companyId = trimUserId(row.company_id);
+  if (companyId) {
+    void notifyCompanyOdometerPhoto({
+      companyUserId: companyId,
+      bookingId: id,
+      phase,
+      routeSummary: routeSummary({
+        kind: (row.kind ?? row.booking_type ?? 'tour') as BookingRow['kind'],
+        route: row.route,
+        from_location: row.from_location,
+        to_location: row.to_location,
+      } as BookingRow),
+    }).catch((e: unknown) => {
+      if (__DEV__) {
+        console.warn('[odometer] company notify failed:', e instanceof Error ? e.message : e);
+      }
+    });
+  }
+
   return { ok: true, error: null };
 }
 

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { EmptyState } from '../../components/EmptyState';
-import { BookingOdometerSection } from '../../components/BookingOdometerSection';
+import { BookingOdometerSection, BookingOdometerBadge } from '../../components/BookingOdometerSection';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -305,9 +305,12 @@ export default function CompanyHistoryScreen() {
             <View key={r.id} style={styles.card}>
               <View style={styles.cardTop}>
                 <Text style={styles.type}>{bookingTypeLabel(r.kind, r.flight_direction)}</Text>
-                <Text style={[styles.status, { color: statusColor(r.status) }]}>
-                  {bookingStatusLabel(r.status)}
-                </Text>
+                <View style={styles.cardTopRight}>
+                  <BookingOdometerBadge booking={r} />
+                  <Text style={[styles.status, { color: statusColor(r.status) }]}>
+                    {bookingStatusLabel(r.status)}
+                  </Text>
+                </View>
               </View>
               <Text style={styles.route}>{routeSummary(r)}</Text>
               <View style={styles.cardBottom}>
@@ -456,7 +459,17 @@ const styles = StyleSheet.create({
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  cardTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
   type: {
     color: COLORS.goldLight,

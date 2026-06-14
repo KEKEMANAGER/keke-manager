@@ -67,17 +67,50 @@ function OdometerSlot({
   );
 }
 
+export type OdometerDisplayStatus = 'waiting' | 'partial' | 'complete';
+
+/** Tours with an assigned driver — company sees odometer block from accept through completion. */
 export function shouldShowBookingOdometer(booking: BookingRow): boolean {
   if (!isTourBookingKind(booking.kind)) return false;
+  const hasDriver = !!booking.driver_id?.trim();
   if (
-    booking.odometer_start_photo_url ||
-    booking.odometer_end_photo_url ||
-    booking.status === 'in_progress' ||
-    booking.status === 'completed'
+    hasDriver &&
+    (booking.status === 'accepted' ||
+      booking.status === 'in_progress' ||
+      booking.status === 'completed')
   ) {
     return true;
   }
-  return false;
+  return !!(booking.odometer_start_photo_url || booking.odometer_end_photo_url);
+}
+
+export function bookingOdometerDisplayStatus(booking: BookingRow): OdometerDisplayStatus | null {
+  if (!shouldShowBookingOdometer(booking)) return null;
+  const hasStart = !!booking.odometer_start_photo_url?.trim();
+  const hasEnd = !!booking.odometer_end_photo_url?.trim();
+  if (hasStart && hasEnd) return 'complete';
+  if (hasStart) return 'partial';
+  return 'waiting';
+}
+
+export function BookingOdometerBadge({ booking }: { booking: BookingRow }) {
+  const { t } = useTranslation();
+  const status = bookingOdometerDisplayStatus(booking);
+  if (!status) return null;
+
+  const cfg =
+    status === 'complete'
+      ? { bg: '#DCFCE7', color: '#15803D', label: t('bookingOdometer.badgeComplete') }
+      : status === 'partial'
+        ? { bg: '#FEF3C7', color: '#B45309', label: t('bookingOdometer.badgeStartDone') }
+        : { bg: '#F3F4F6', color: '#6B7280', label: t('bookingOdometer.badgeWaiting') };
+
+  return (
+    <View style={[badgeStyles.pill, { backgroundColor: cfg.bg }]}>
+      <Ionicons name="speedometer-outline" size={12} color={cfg.color} />
+      <Text style={[badgeStyles.text, { color: cfg.color }]}>{cfg.label}</Text>
+    </View>
+  );
 }
 
 export function BookingOdometerSection({ booking, style, compact }: Props) {
@@ -140,6 +173,21 @@ export function BookingOdometerSection({ booking, style, compact }: Props) {
     </>
   );
 }
+
+const badgeStyles = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  text: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+});
 
 const styles = StyleSheet.create({
   wrap: {
