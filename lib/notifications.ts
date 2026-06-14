@@ -754,6 +754,95 @@ export async function notifyBookingVoucherCreated(params: {
   }
 }
 
+/** Driver notified when company assigns them via emergency replacement search. */
+export async function notifyEmergencyReplacementAssigned(params: {
+  bookingId: string;
+  driverUserId: string;
+  companyUserId: string;
+  voucherCode: string;
+  kind?: string | null;
+  route?: string | null;
+  from_location?: string | null;
+  to_location?: string | null;
+  tour_days?: unknown;
+  transfer_in?: unknown;
+  transfer_out?: unknown;
+  breakdownLocation?: string | null;
+  breakdownLocationType?: string | null;
+}): Promise<void> {
+  const bookingId = params.bookingId.trim();
+  const driverId = params.driverUserId.trim();
+  const companyId = params.companyUserId.trim();
+  const code = params.voucherCode.trim();
+  if (!bookingId || !driverId || !code) return;
+
+  const routeLine =
+    params.route?.trim() ||
+    [params.from_location, params.to_location].filter((x) => x?.trim()).join(' → ') ||
+    '';
+  const tourDetail =
+    normalizePushBookingKind(params.kind) === 'tour' ||
+    normalizePushBookingKind(params.kind) === 'day_tour'
+      ? formatTourBookingNotificationBody({
+          tour_days: params.tour_days as Parameters<typeof formatTourBookingNotificationBody>[0]['tour_days'],
+          transfer_in: params.transfer_in as Parameters<typeof formatTourBookingNotificationBody>[0]['transfer_in'],
+          transfer_out: params.transfer_out as Parameters<typeof formatTourBookingNotificationBody>[0]['transfer_out'],
+        })
+      : '';
+
+  const title = notifyT(
+    'notifications.emergencyAssignedTitle',
+    'KEKE · Emergency replacement',
+  );
+  const intro = notifyT(
+    'notifications.emergencyAssignedBody',
+    'A tour company assigned you as a replacement driver. Open the booking and confirm.',
+  );
+  const breakdownLine = params.breakdownLocation?.trim()
+    ? notifyT('notifications.emergencyBreakdownLine', 'Breakdown location: {{location}}').replace(
+        '{{location}}',
+        params.breakdownLocation.trim(),
+      )
+    : null;
+  const body = [
+    intro,
+    breakdownLine,
+    code ? `${notifyT('notifications.voucherBodyPrefix', 'Voucher')} ${code}` : null,
+    routeLine,
+    tourDetail,
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 900);
+
+  const data: Record<string, unknown> = {
+    type: 'emergency_replacement',
+    booking_id: bookingId,
+    voucher_code: code,
+  };
+
+  await insertInAppNotifications([{ user_id: driverId, type: 'emergency_replacement', title, body, data }]);
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('push_token')
+    .eq('id', driverId)
+    .maybeSingle();
+
+  const token = (profile as { push_token?: string | null } | null)?.push_token?.trim() ?? '';
+  if (!token) return;
+
+  const pushData: Record<string, string> = {
+    type: 'emergency_replacement',
+    booking_id: bookingId,
+    voucher_code: code,
+  };
+  const res = await sendExpoPushNotification(token, title, body, pushData);
+  if (!res.ok && __DEV__) {
+    console.warn('[notify] emergency_replacement push failed:', res.error);
+  }
+}
+
 export async function notifyChatMessageRecipient(params: {
   receiverUserId: string;
   senderUserId: string;

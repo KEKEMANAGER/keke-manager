@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookingChangedBadge } from '../../components/BookingChangedBadge';
+import { EmergencyReplacementBanner } from '../../components/EmergencyReplacementBanner';
 import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
 import { FleetDriverPayoutModal } from '../../components/FleetDriverPayoutModal';
 import { FleetHostAcceptModal } from '../../components/FleetHostAcceptModal';
@@ -691,6 +692,7 @@ export default function DriverBookingsScreen() {
               ) : null}
               <Text style={styles.date}>{formatBookingDate(item)}</Text>
               <Text style={styles.route}>{routeSummary(item)}</Text>
+              <EmergencyReplacementBanner booking={item} showNavigate />
               <BookingChangedBadge booking={item} onAcknowledged={() => void load('silent')} />
 
               {item.status === 'in_progress' ? (

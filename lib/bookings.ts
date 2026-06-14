@@ -418,6 +418,11 @@ export type BookingRow = {
   odometer_start_at?: string | null;
   odometer_end_photo_url?: string | null;
   odometer_end_at?: string | null;
+  /** Company assigned replacement driver via emergency search. */
+  is_emergency_replacement?: boolean | null;
+  /** Where the broken-down vehicle is waiting (text + optional type). */
+  breakdown_location?: string | null;
+  breakdown_location_type?: string | null;
 };
 
 export type InsertBookingInput = {
@@ -486,6 +491,17 @@ export {
   setBookingPickupSignLogoUrl,
   type PickupSignLogoFile,
 } from './pickupSignLogo';
+
+/** Label for emergency replacement booking picker (convoy leg vs single). */
+export function emergencyAssignmentBookingLabel(row: BookingRow): string {
+  const route = routeSummary(row);
+  const code = row.group_code?.trim();
+  const legIdx = row.leg_index;
+  if (row.parent_booking_id && code && legIdx != null && legIdx > 0) {
+    return `${code} · L${legIdx} — ${route}`;
+  }
+  return route;
+}
 
 export function routeSummary(row: BookingRow): string {
   if (isTransferKind(row.kind)) {

@@ -647,7 +647,16 @@
     "noPhone": "ტელეფონი არ არის მითითებული",
     "noPendingBookings": "მოლოდინში ჯავშანი არ არის დასანიშნად",
     "pickBooking": "აირჩიეთ ჯავშანი",
-    "pickBookingHint": "შეიყვანეთ ნომერი (1, 2, …)"
+    "pickBookingHint": "შეიყვანეთ ნომერი (1, 2, …)",
+    "targetBooking": "ჯავშანი",
+    "breakdownLabel": "სად დგას გაჭერილი ავტომობილი?",
+    "breakdownPlaceholder": "მისამართი ან ადგილი",
+    "breakdownRequired": "მიუთითეთ გაჭერის ადგილი",
+    "breakdownNotesLabel": "დამატებითი შენიშვნა (არასავალდებულო)",
+    "breakdownNotesPlaceholder": "მაგ. საბუქსე, პირველი შესვლა, ნაცრისფერი Sprinter",
+    "replacementBadge": "🆘 ჩანაცვლება",
+    "navigateBreakdown": "ნავიგაცია გაჭერის ადგილზე",
+    "noBreakdownLocation": "გაჭერის ადგილი არ არის მითითებული"
   },
   "auth": {
     "tagline": "B2B სატრანსპორტო პლატფორმა",
@@ -761,7 +770,10 @@
     "newChatTitle": "{{name}}",
     "newChatBody": "ახალი შეტყობინება",
     "voucherTitle": "KEKE · ვაუჩერი",
-    "voucherBodyPrefix": "ვაუჩერი"
+    "voucherBodyPrefix": "ვაუჩერი",
+    "emergencyAssignedTitle": "KEKE · გადაუდებელი ჩანაცვლება",
+    "emergencyAssignedBody": "ტურ-ოპერატორმა დაგინიშნა ჩანაცვლებად. გახსენით ჯავშანი და დაადასტურეთ.",
+    "emergencyBreakdownLine": "გაჭერის ადგილი: {{location}}"
   },
   "hiredDriver": {
     "assignedTripTitle": "მინიჭებული ტური",

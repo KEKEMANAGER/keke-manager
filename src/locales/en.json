@@ -650,7 +650,16 @@
     "noPhone": "No phone number on file",
     "noPendingBookings": "No pending bookings to assign",
     "pickBooking": "Choose a booking",
-    "pickBookingHint": "Enter number (1, 2, …)"
+    "pickBookingHint": "Enter number (1, 2, …)",
+    "targetBooking": "Booking",
+    "breakdownLabel": "Where is the broken-down vehicle?",
+    "breakdownPlaceholder": "Address or place name",
+    "breakdownRequired": "Enter the breakdown location",
+    "breakdownNotesLabel": "Extra note (optional)",
+    "breakdownNotesPlaceholder": "e.g. parking lot, gate B, grey Sprinter",
+    "replacementBadge": "🆘 Replacement",
+    "navigateBreakdown": "Navigate to breakdown",
+    "noBreakdownLocation": "No breakdown location provided"
   },
   "auth": {
     "tagline": "B2B transport platform",
@@ -764,7 +773,10 @@
     "newChatTitle": "{{name}}",
     "newChatBody": "You have a new message",
     "voucherTitle": "KEKE · Voucher",
-    "voucherBodyPrefix": "Voucher"
+    "voucherBodyPrefix": "Voucher",
+    "emergencyAssignedTitle": "KEKE · Emergency replacement",
+    "emergencyAssignedBody": "A tour company assigned you as a replacement driver. Open the booking and confirm.",
+    "emergencyBreakdownLine": "Breakdown location: {{location}}"
   },
   "hiredDriver": {
     "assignedTripTitle": "Assigned trip",

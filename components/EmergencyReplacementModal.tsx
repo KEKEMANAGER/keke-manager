@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,11 +10,13 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { BookingRow } from '../lib/bookings';
-import { routeSummary } from '../lib/bookings';
+import { emergencyAssignmentBookingLabel } from '../lib/bookings';
+import { emptyLocationValue, locationValueIsComplete } from '../lib/bookingLocations';
 import {
   assignEmergencyDriverToBooking,
   findAvailableDriversInCity,
@@ -23,6 +25,7 @@ import {
 import { getSupabaseErrorMessage } from '../lib/errorHandler';
 import { vehicleClassLabel, vehicleTypeLabel } from '../lib/vehicleCatalog';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
+import { LocationPicker } from './LocationPicker';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { SearchableCitySelect } from './SearchableCitySelect';
 import { UserAvatar } from './UserAvatar';
@@ -49,6 +52,10 @@ export function EmergencyReplacementModal({
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [bookingPickDriver, setBookingPickDriver] = useState<AvailableDriverRow | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [breakdownLocation, setBreakdownLocation] = useState(emptyLocationValue());
+  const [breakdownNotes, setBreakdownNotes] = useState('');
 
   const reset = useCallback(() => {
     setCity(null);
@@ -57,7 +64,22 @@ export function EmergencyReplacementModal({
     setAssigningId(null);
     setError(null);
     setSearched(false);
+    setBookingPickDriver(null);
+    setSelectedBookingId(null);
+    setBreakdownLocation(emptyLocationValue());
+    setBreakdownNotes('');
   }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    const first = assignableBookings[0]?.id ?? null;
+    setSelectedBookingId(first);
+  }, [visible, assignableBookings]);
+
+  const selectedBooking = useMemo(
+    () => assignableBookings.find((b) => b.id === selectedBookingId) ?? assignableBookings[0] ?? null,
+    [assignableBookings, selectedBookingId],
+  );
 
   function handleClose() {
     reset();
@@ -77,16 +99,27 @@ export function EmergencyReplacementModal({
     return { vehicleType: firstType, vehicleClass: firstClass || undefined };
   }, [assignableBookings]);
 
+  function validateBreakdown(): boolean {
+    if (!locationValueIsComplete(breakdownLocation)) {
+      const msg = t('emergencyReplacement.breakdownRequired');
+      setError(msg);
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert(t('common.error'), msg);
+      return false;
+    }
+    return true;
+  }
+
   async function handleSearch() {
     const trimmed = city?.trim();
     if (!trimmed) {
       setError(t('driverAvailability.cityRequired'));
       return;
     }
+    if (!validateBreakdown()) return;
     setLoading(true);
     setError(null);
     setSearched(true);
-    // Emergency: search by city (and vehicle type only). Class is validated on assign.
     const searchFilter =
       sharedVehicleFilter?.vehicleType != null
         ? { vehicleType: sharedVehicleFilter.vehicleType }
@@ -112,6 +145,29 @@ export function EmergencyReplacementModal({
     void Linking.openURL(`tel:${trimmed}`);
   }
 
+  async function runAssign(driver: AvailableDriverRow, bookingId: string) {
+    if (!companyUserId) return;
+    if (!validateBreakdown()) return;
+    setAssigningId(driver.id);
+    const res = await assignEmergencyDriverToBooking(bookingId, companyUserId, driver, {
+      location: breakdownLocation,
+      notes: breakdownNotes.trim() || null,
+    });
+    setAssigningId(null);
+    setBookingPickDriver(null);
+    if (!res.ok) {
+      const msg = getSupabaseErrorMessage(res.error) || t('emergencyReplacement.assignFailed');
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert(t('common.error'), msg);
+      return;
+    }
+    await onAssigned();
+    handleClose();
+    const ok = t('emergencyReplacement.assignSuccess');
+    if (Platform.OS === 'web') window.alert(ok);
+    else Alert.alert(t('common.success'), ok);
+  }
+
   function pickBookingForDriver(driver: AvailableDriverRow) {
     if (!companyUserId) return;
     if (assignableBookings.length === 0) {
@@ -120,59 +176,135 @@ export function EmergencyReplacementModal({
       else Alert.alert(t('emergencyReplacement.assignTitle'), msg);
       return;
     }
+    if (!validateBreakdown()) return;
 
-    const runAssign = async (bookingId: string) => {
-      setAssigningId(driver.id);
-      const res = await assignEmergencyDriverToBooking(bookingId, companyUserId, driver);
-      setAssigningId(null);
-      if (!res.ok) {
-        const msg = getSupabaseErrorMessage(res.error) || t('emergencyReplacement.assignFailed');
-        if (Platform.OS === 'web') window.alert(msg);
-        else Alert.alert(t('common.error'), msg);
-        return;
-      }
-      await onAssigned();
-      handleClose();
-      const ok = t('emergencyReplacement.assignSuccess');
-      if (Platform.OS === 'web') window.alert(ok);
-      else Alert.alert(t('common.success'), ok);
-    };
+    const bookingId = selectedBooking?.id;
+    if (!bookingId) return;
 
     if (assignableBookings.length === 1) {
-      void runAssign(assignableBookings[0]!.id);
+      void runAssign(driver, bookingId);
       return;
     }
 
-    if (Platform.OS === 'web') {
-      const labels = assignableBookings.map((b, i) => `${i + 1}. ${routeSummary(b)}`);
-      const pick = window.prompt(
-        `${t('emergencyReplacement.pickBooking')}\n${labels.join('\n')}\n\n${t('emergencyReplacement.pickBookingHint')}`,
-        '1',
-      );
-      const idx = Number(pick) - 1;
-      if (Number.isInteger(idx) && assignableBookings[idx]) {
-        void runAssign(assignableBookings[idx]!.id);
-      }
-      return;
-    }
-
-    Alert.alert(
-      t('emergencyReplacement.assignTitle'),
-      t('emergencyReplacement.pickBooking'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        ...assignableBookings.slice(0, 5).map((b) => ({
-          text: routeSummary(b).slice(0, 48),
-          onPress: () => void runAssign(b.id),
-        })),
-      ],
-    );
+    setBookingPickDriver(driver);
   }
 
   const emptyMessage = useMemo(() => {
     if (!searched) return t('emergencyReplacement.searchHint');
     return t('emergencyReplacement.noDrivers');
   }, [searched, t]);
+
+  const listHeader = (
+    <>
+      {assignableBookings.length === 0 ? (
+        <Text style={styles.warnText}>{t('emergencyReplacement.noPendingBookings')}</Text>
+      ) : (
+        <>
+          {assignableBookings.length > 1 ? (
+            <View style={styles.bookingSelectBlock}>
+              <Text style={styles.sectionLabel}>{t('emergencyReplacement.pickBooking')}</Text>
+              {assignableBookings.map((b) => {
+                const active = (selectedBookingId ?? b.id) === b.id;
+                return (
+                  <Pressable
+                    key={b.id}
+                    onPress={() => setSelectedBookingId(b.id)}
+                    style={({ pressed }) => [
+                      styles.bookingSelectRow,
+                      active && styles.bookingSelectRowActive,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.bookingPickRowText}>{emergencyAssignmentBookingLabel(b)}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : selectedBooking ? (
+            <View style={styles.singleBookingBlock}>
+              <Text style={styles.sectionLabel}>{t('emergencyReplacement.targetBooking')}</Text>
+              <Text style={styles.singleBookingText}>{emergencyAssignmentBookingLabel(selectedBooking)}</Text>
+            </View>
+          ) : null}
+
+          <LocationPicker
+            label={t('emergencyReplacement.breakdownLabel')}
+            value={breakdownLocation}
+            onChange={setBreakdownLocation}
+            allowedTypes={['address', 'hotel', 'airport', 'train_station']}
+            textPlaceholder={t('emergencyReplacement.breakdownPlaceholder')}
+          />
+          <Text style={styles.fieldLabel}>{t('emergencyReplacement.breakdownNotesLabel')}</Text>
+          <TextInput
+            value={breakdownNotes}
+            onChangeText={setBreakdownNotes}
+            placeholder={t('emergencyReplacement.breakdownNotesPlaceholder')}
+            style={styles.notesInput}
+            multiline
+          />
+        </>
+      )}
+
+      <SearchableCitySelect
+        label={t('emergencyReplacement.cityLabel')}
+        value={city}
+        onChange={setCity}
+        disabled={loading || !!assigningId || assignableBookings.length === 0}
+        error={error && !searched ? error : null}
+      />
+
+      <Pressable
+        onPress={() => void handleSearch()}
+        disabled={loading || !!assigningId || assignableBookings.length === 0}
+        style={({ pressed }) => [styles.searchBtn, pressed && styles.pressed]}
+      >
+        {loading ? (
+          <ActivityIndicator color={COLORS.white} size="small" />
+        ) : (
+          <Text style={styles.searchBtnText}>{t('emergencyReplacement.search')}</Text>
+        )}
+      </Pressable>
+
+      {searched && !loading ? (
+        <Text style={styles.resultCount}>
+          {t('emergencyReplacement.foundCount', { count: drivers.length })}
+        </Text>
+      ) : null}
+
+      {bookingPickDriver ? (
+        <View style={styles.bookingPickBlock}>
+          <Text style={styles.bookingPickTitle}>{t('emergencyReplacement.pickBooking')}</Text>
+          <Text style={styles.bookingPickHint}>
+            {bookingPickDriver.full_name ?? t('company.driverDefault')}
+          </Text>
+          {assignableBookings.map((b) => (
+            <Pressable
+              key={b.id}
+              onPress={() => void runAssign(bookingPickDriver, b.id)}
+              disabled={!!assigningId}
+              style={({ pressed }) => [styles.bookingPickRow, pressed && styles.pressed]}
+            >
+              <Text style={styles.bookingPickRowText}>{emergencyAssignmentBookingLabel(b)}</Text>
+              <Text style={styles.bookingPickRowMeta}>
+                {[
+                  b.vehicle_type ? vehicleTypeLabel(b.vehicle_type) : null,
+                  b.vehicle_class ? vehicleClassLabel(b.vehicle_class) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </Pressable>
+          ))}
+          <Pressable
+            onPress={() => setBookingPickDriver(null)}
+            style={({ pressed }) => [styles.bookingPickCancel, pressed && styles.pressed]}
+          >
+            <Text style={styles.bookingPickCancelText}>{t('common.cancel')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </>
+  );
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
@@ -185,37 +317,12 @@ export function EmergencyReplacementModal({
             </Pressable>
           </View>
 
-          <SearchableCitySelect
-            label={t('emergencyReplacement.cityLabel')}
-            value={city}
-            onChange={setCity}
-            disabled={loading || !!assigningId}
-            error={error && !searched ? error : null}
-          />
-
-          <Pressable
-            onPress={() => void handleSearch()}
-            disabled={loading || !!assigningId}
-            style={({ pressed }) => [styles.searchBtn, pressed && styles.pressed]}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.white} size="small" />
-            ) : (
-              <Text style={styles.searchBtnText}>{t('emergencyReplacement.search')}</Text>
-            )}
-          </Pressable>
-
-          {searched && !loading ? (
-            <Text style={styles.resultCount}>
-              {t('emergencyReplacement.foundCount', { count: drivers.length })}
-            </Text>
-          ) : null}
-
           <FlatList
             data={drivers}
             keyExtractor={(item) => item.id}
             style={styles.list}
             keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={listHeader}
             ListEmptyComponent={
               searched && !loading ? (
                 <Text style={styles.emptyText}>{emptyMessage}</Text>
@@ -286,7 +393,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    maxHeight: '88%',
+    maxHeight: '92%',
     backgroundColor: COLORS.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -305,6 +412,59 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: SPACING.sm,
   },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  singleBookingBlock: {
+    marginBottom: SPACING.sm,
+  },
+  singleBookingText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  bookingSelectBlock: {
+    marginBottom: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  bookingSelectRow: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.button,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.surface,
+  },
+  bookingSelectRowActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: 'rgba(245, 166, 35, 0.1)',
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    marginTop: SPACING.xs,
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.button,
+    padding: SPACING.sm,
+    minHeight: 56,
+    fontSize: 14,
+    color: COLORS.text,
+    backgroundColor: COLORS.surface,
+    marginBottom: SPACING.sm,
+    textAlignVertical: 'top',
+  },
+  warnText: {
+    color: '#B91C1C',
+    fontSize: 13,
+    marginBottom: SPACING.sm,
+  },
   searchBtn: {
     backgroundColor: COLORS.gold,
     borderRadius: RADIUS.button,
@@ -322,7 +482,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   list: {
-    maxHeight: 360,
+    maxHeight: 420,
   },
   emptyText: {
     textAlign: 'center',
@@ -392,5 +552,52 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.88,
+  },
+  bookingPickBlock: {
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    borderRadius: RADIUS.card,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    backgroundColor: 'rgba(245, 166, 35, 0.08)',
+    gap: SPACING.xs,
+  },
+  bookingPickTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  bookingPickHint: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  bookingPickRow: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.button,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    marginTop: SPACING.xs,
+  },
+  bookingPickRowText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  bookingPickRowMeta: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  bookingPickCancel: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  bookingPickCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
 });

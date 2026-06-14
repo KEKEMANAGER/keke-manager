@@ -641,7 +641,10 @@
     "driverCancelledBody": "Водитель отменил бронирование",
     "driverCancelledBy": "Водитель {{name}} отменил бронирование",
     "voucherTitle": "KEKE · Ваучер",
-    "voucherBodyPrefix": "Ваучер"
+    "voucherBodyPrefix": "Ваучер",
+    "emergencyAssignedTitle": "KEKE · Срочная замена",
+    "emergencyAssignedBody": "Туроператор назначил вас на замену. Откройте бронирование и подтвердите.",
+    "emergencyBreakdownLine": "Место поломки: {{location}}"
   },
   "booking": {
     "status": {
@@ -1488,7 +1491,16 @@
     "noPhone": "Телефон не указан",
     "noPendingBookings": "Нет ожидающих бронирований для назначения",
     "pickBooking": "Выберите бронирование",
-    "pickBookingHint": "Введите номер (1, 2, …)"
+    "pickBookingHint": "Введите номер (1, 2, …)",
+    "targetBooking": "Бронирование",
+    "breakdownLabel": "Где стоит сломанный автомобиль?",
+    "breakdownPlaceholder": "Адрес или место",
+    "breakdownRequired": "Укажите место поломки",
+    "breakdownNotesLabel": "Доп. примечание (необяз.)",
+    "breakdownNotesPlaceholder": "напр. парковка, ворота B, серый Sprinter",
+    "replacementBadge": "🆘 Замена",
+    "navigateBreakdown": "Маршрут к месту поломки",
+    "noBreakdownLocation": "Место поломки не указано"
   },
   "hiredDriver": {
     "assignedTripTitle": "Назначенная поездка",

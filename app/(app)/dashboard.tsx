@@ -36,6 +36,7 @@ import {
   type ConvoyMasterDashboard,
 } from '../../lib/groupBooking';
 import { EmergencyReplacementModal } from '../../components/EmergencyReplacementModal';
+import { EmergencyReplacementBanner } from '../../components/EmergencyReplacementBanner';
 import {
   CompanyOnboardingOverlay,
   type OnboardingTargetRects,
@@ -346,10 +347,24 @@ export default function CompanyDashboardScreen() {
     [bookings],
   );
 
-  const assignableEmergencyBookings = useMemo(
-    () => bookings.filter((b) => b.status === 'pending'),
-    [bookings],
-  );
+  const assignableEmergencyBookings = useMemo(() => {
+    const openSingles = bookings.filter(
+      (b) =>
+        b.status === 'pending' &&
+        !b.is_group_master &&
+        !b.parent_booking_id &&
+        !b.driver_id,
+    );
+    const openLegs: BookingRow[] = [];
+    for (const convoy of Object.values(convoyByMaster)) {
+      for (const leg of convoy.legs) {
+        if (leg.status === 'pending' && !leg.driver_id) {
+          openLegs.push(leg);
+        }
+      }
+    }
+    return [...openLegs, ...openSingles];
+  }, [bookings, convoyByMaster]);
 
   const spentThisMonth = useMemo(() => {
     const now = new Date();
@@ -592,6 +607,7 @@ export default function CompanyDashboardScreen() {
               </View>
             </View>
             <Text style={styles.route}>{routeSummary(b)}</Text>
+            <EmergencyReplacementBanner booking={b} compact />
             <Text style={styles.date}>{formatBookingDate(b)}</Text>
             {b.is_group_master ? (
               <View style={styles.convoyBlock}>

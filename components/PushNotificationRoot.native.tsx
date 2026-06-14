@@ -47,6 +47,8 @@ function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | unde
   return (
     payloadType === 'new_booking' ||
     payloadType === 'booking_confirmed' ||
+    payloadType === 'emergency_replacement' ||
+    payloadType === 'booking_voucher' ||
     payloadType === 'test'
   );
 }
@@ -162,6 +164,8 @@ export function PushNotificationListeners() {
         const isBooking =
           data?.type === 'new_booking' ||
           data?.type === 'booking_confirmed' ||
+          data?.type === 'emergency_replacement' ||
+          data?.type === 'booking_voucher' ||
           !data?.type;
 
         if (!isBooking) return;
