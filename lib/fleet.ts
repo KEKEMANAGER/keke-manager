@@ -1,5 +1,6 @@
 import type { DriverLocationRow } from './locations';
 import { notifyFleetInviteToSub } from './fleetNotifications';
+import { sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
 import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
@@ -26,6 +27,34 @@ export type FleetMemberView = DriverFleetRow & {
     'id' | 'model' | 'plate' | 'type' | 'class' | 'is_active' | 'photo_front'
   > | null;
   location: DriverLocationRow | null;
+};
+
+export type FleetMemberProfile = {
+  sub_driver_id: string;
+  fleet_id: string;
+  fleet_status: FleetInviteStatus;
+  fleet_created_at: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  languages: string[];
+  experience_years: number | null;
+  is_verified: boolean;
+  vehicle_id: string | null;
+  vehicle_model: string | null;
+  vehicle_plate: string | null;
+  vehicle_type: string | null;
+  vehicle_class: string | null;
+  vehicle_color: string | null;
+  vehicle_year: number | null;
+  vehicle_photo_front: string | null;
+  rating_average: number;
+  rating_count: number;
+  active_booking_id: string | null;
+  active_booking_route: string | null;
+  active_booking_status: string | null;
 };
 
 export type FleetInviteView = DriverFleetRow & {
@@ -248,6 +277,59 @@ export async function fetchFleetForHost(
         location: f.status === 'accepted' ? locMap.get(f.sub_driver_id) ?? null : null,
       };
     }),
+    error: null,
+  };
+}
+
+/** Host: full sub-driver profile for fleet detail sheet. */
+export async function fetchFleetMemberProfile(
+  hostDriverId: string,
+  subDriverId: string,
+): Promise<{ data: FleetMemberProfile | null; error: Error | null }> {
+  const hostId = hostDriverId.trim();
+  const subId = subDriverId.trim();
+  if (!hostId || !subId) {
+    return { data: null, error: new Error('invalid fleet member') };
+  }
+
+  const { data, error } = await supabase.rpc('get_fleet_member_profile', {
+    p_host_driver_id: hostId,
+    p_sub_driver_id: subId,
+  });
+
+  if (error) return { data: null, error: new Error(error.message) };
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  if (!row) return { data: null, error: null };
+
+  return {
+    data: {
+      sub_driver_id: String(row.sub_driver_id ?? subId),
+      fleet_id: String(row.fleet_id ?? ''),
+      fleet_status: fleetStatus({ status: String(row.fleet_status ?? 'accepted') }),
+      fleet_created_at: String(row.fleet_created_at ?? ''),
+      full_name: (row.full_name as string | null) ?? null,
+      email: (row.email as string | null) ?? null,
+      phone: (row.phone as string | null) ?? null,
+      avatar_url: (row.avatar_url as string | null) ?? null,
+      bio: (row.bio as string | null) ?? null,
+      languages: sanitizeLanguageCodes(row.languages),
+      experience_years:
+        typeof row.experience_years === 'number' ? row.experience_years : null,
+      is_verified: row.is_verified === true,
+      vehicle_id: row.vehicle_id ? String(row.vehicle_id) : null,
+      vehicle_model: (row.vehicle_model as string | null) ?? null,
+      vehicle_plate: (row.vehicle_plate as string | null) ?? null,
+      vehicle_type: (row.vehicle_type as string | null) ?? null,
+      vehicle_class: (row.vehicle_class as string | null) ?? null,
+      vehicle_color: (row.vehicle_color as string | null) ?? null,
+      vehicle_year: typeof row.vehicle_year === 'number' ? row.vehicle_year : null,
+      vehicle_photo_front: (row.vehicle_photo_front as string | null) ?? null,
+      rating_average: Number(row.rating_average ?? 0) || 0,
+      rating_count: Number(row.rating_count ?? 0) || 0,
+      active_booking_id: row.active_booking_id ? String(row.active_booking_id) : null,
+      active_booking_route: (row.active_booking_route as string | null) ?? null,
+      active_booking_status: (row.active_booking_status as string | null) ?? null,
+    },
     error: null,
   };
 }

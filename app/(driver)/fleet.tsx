@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -24,6 +25,7 @@ import {
   vehicleTypeLabel,
 } from '../../lib/vehicleCatalog';
 import { useAuth } from '../../contexts/AuthContext';
+import { FleetMemberDetailModal } from '../../components/FleetMemberDetailModal';
 
 function formatAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -41,11 +43,13 @@ function gpsStatus(loc: FleetMemberView['location'], t: (k: string) => string) {
 
 function FleetMemberCard({
   member,
+  onPress,
   onChat,
   onRemove,
   busy,
 }: {
   member: FleetMemberView;
+  onPress: () => void;
   onChat: () => void;
   onRemove: () => void;
   busy: boolean;
@@ -66,7 +70,10 @@ function FleetMemberCard({
   const isPending = member.status === 'pending';
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
       <View style={styles.cardTop}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
@@ -99,14 +106,20 @@ function FleetMemberCard({
 
       <View style={styles.cardActions}>
         <Pressable
-          onPress={onChat}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            onChat();
+          }}
           style={({ pressed }) => [styles.actionBtn, styles.actionBtnGold, pressed && styles.pressed]}
         >
           <Ionicons name="chatbubble-outline" size={16} color={COLORS.goldDark} />
           <Text style={styles.actionBtnGoldText}>{t('fleet.chat')}</Text>
         </Pressable>
         <Pressable
-          onPress={onRemove}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            onRemove();
+          }}
           disabled={busy}
           style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed, busy && styles.disabled]}
         >
@@ -114,7 +127,7 @@ function FleetMemberCard({
           <Text style={styles.actionBtnDangerText}>{t('fleet.remove')}</Text>
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -130,6 +143,7 @@ export default function DriverFleetScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [detailMember, setDetailMember] = useState<FleetMemberView | null>(null);
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
@@ -163,7 +177,14 @@ export default function DriverFleetScreen() {
 
   useEffect(() => {
     if (!userId || members.length === 0) return;
-    const subIds = members.map((m) => m.sub_driver_id);
+    const subIds = members.map((m) => m.sub_driver_id).filter(Boolean);
+    if (subIds.length === 0) return;
+
+    const filter =
+      subIds.length === 1
+        ? `driver_id=eq.${subIds[0]}`
+        : `driver_id=in.(${subIds.map((id) => `"${id}"`).join(',')})`;
+
     const ch = supabase
       .channel(`fleet-host-locs-${userId}`)
       .on(
@@ -172,7 +193,7 @@ export default function DriverFleetScreen() {
           event: '*',
           schema: 'public',
           table: 'driver_locations',
-          filter: `driver_id=in.(${subIds.join(',')})`,
+          filter,
         },
         () => void load('silent'),
       )
@@ -183,6 +204,12 @@ export default function DriverFleetScreen() {
     };
   }, [userId, members, load]);
 
+  function callPhone(phone: string | null) {
+    const trimmed = phone?.trim();
+    if (!trimmed) return;
+    void Linking.openURL(`tel:${trimmed.replace(/\s/g, '')}`);
+  }
+
   async function handleRemove(member: FleetMemberView) {
     if (!userId) return;
     setRemovingId(member.id);
@@ -192,7 +219,20 @@ export default function DriverFleetScreen() {
       setError(err.message);
       return;
     }
+    if (detailMember?.id === member.id) {
+      setDetailMember(null);
+    }
     void load('silent');
+  }
+
+  function openChat(member: FleetMemberView) {
+    router.push({
+      pathname: '/(driver)/chat',
+      params: {
+        uid: member.sub_driver_id,
+        name: member.sub_full_name?.trim() || member.sub_email || '',
+      },
+    });
   }
 
   return (
@@ -246,19 +286,26 @@ export default function DriverFleetScreen() {
             key={m.id}
             member={m}
             busy={removingId === m.id}
-            onChat={() =>
-              router.push({
-                pathname: '/(driver)/chat',
-                params: {
-                  uid: m.sub_driver_id,
-                  name: m.sub_full_name?.trim() || m.sub_email || '',
-                },
-              })
-            }
+            onPress={() => setDetailMember(m)}
+            onChat={() => openChat(m)}
             onRemove={() => void handleRemove(m)}
           />
         ))
       )}
+
+      <FleetMemberDetailModal
+        member={detailMember}
+        hostDriverId={userId}
+        visible={!!detailMember}
+        onClose={() => setDetailMember(null)}
+        onChat={(member) => {
+          setDetailMember(null);
+          openChat(member);
+        }}
+        onCall={callPhone}
+        onRemove={(member) => void handleRemove(member)}
+        removing={!!detailMember && removingId === detailMember.id}
+      />
     </ScrollView>
   );
 }
