@@ -35,6 +35,8 @@ export default function CompanyDriversScreen() {
       null,
       null,
       'all',
+      null,
+      { sortMode: 'rating' },
     );
     if (!error) setDrivers(data);
   }, []);

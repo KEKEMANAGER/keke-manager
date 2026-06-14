@@ -487,6 +487,7 @@ function MatchingDriversSection({
       cityFilter,
       driverCategory,
       filterByMinSeats && minPassengerCapacity > 0 ? minPassengerCapacity : null,
+      { sortMode: driverTargetMode === 'all' ? 'rating' : 'name' },
     ).then(({ data, error }) => {
       if (cancelled) return;
       setLoading(false);
@@ -520,6 +521,7 @@ function MatchingDriversSection({
     driverCategory,
     minPassengerCapacity,
     filterByMinSeats,
+    driverTargetMode,
   ]);
 
   if (!active || !normType || !normClass) {

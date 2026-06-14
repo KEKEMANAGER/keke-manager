@@ -61,6 +61,7 @@ export function TransportLegDriverSection({
       cityHint?.trim() || null,
       driverCategory,
       filterByMinSeats && minPax > 0 ? minPax : null,
+      { sortMode: mode === 'all' ? 'rating' : 'name' },
     ).then(({ data, error }) => {
       if (cancelled) return;
       setLoading(false);
@@ -100,6 +101,7 @@ export function TransportLegDriverSection({
     driverCategory,
     minPax,
     filterByMinSeats,
+    mode,
   ]);
 
   const setMode = (next: DriverTargetMode) => {

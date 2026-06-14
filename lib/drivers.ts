@@ -1,4 +1,5 @@
 import { resolveProfileAvatarUrl } from './profileAvatar';
+import { computeRatingAveragesFromRows, sortMatchingDrivers } from './driverRatingSort';
 import { fetchDriverAverageRating } from './ratings';
 import { firstVehiclePhotoUrl } from './vehiclePhotos';
 import { fetchVehiclesByDriver } from './vehicles';
@@ -128,26 +129,10 @@ type UserRow = {
   is_guide_driver?: boolean | null;
 };
 
-function computeRatingAverages(
-  rows: { driver_id: string; overall: number }[],
-): Map<string, { average: number; count: number }> {
-  const acc = new Map<string, { sum: number; count: number }>();
-  for (const row of rows) {
-    const id = String(row.driver_id);
-    const prev = acc.get(id) ?? { sum: 0, count: 0 };
-    prev.sum += Number(row.overall);
-    prev.count += 1;
-    acc.set(id, prev);
-  }
-  const out = new Map<string, { average: number; count: number }>();
-  for (const [id, { sum, count }] of acc) {
-    out.set(id, {
-      average: Math.round((sum / count) * 10) / 10,
-      count,
-    });
-  }
-  return out;
-}
+export type FetchMatchingDriversOptions = {
+  /** `rating` for open broadcast lists; `name` when picking a specific driver. Default: `name`. */
+  sortMode?: 'name' | 'rating';
+};
 
 /** Drivers whose `profiles` vehicle prefs match the booking selection. */
 export async function fetchMatchingDrivers(
@@ -157,6 +142,7 @@ export async function fetchMatchingDrivers(
   cityFilter?: string | null,
   driverCategory?: RequestedDriverCategory | null,
   minPassengerCapacity?: number | null,
+  options?: FetchMatchingDriversOptions,
 ): Promise<{ data: MatchingDriver[]; error: Error | null }> {
   const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
   const cityNorm = cityFilter?.trim() || null;
@@ -363,7 +349,7 @@ export async function fetchMatchingDrivers(
     missingFromUsersDirectory: candidateDriverIds.filter((id) => !userById.has(id)),
   });
 
-  const ratingByDriver = computeRatingAverages(
+  const ratingByDriver = computeRatingAveragesFromRows(
     (ratingsRes.data ?? []) as { driver_id: string; overall: number }[],
   );
 
@@ -507,16 +493,18 @@ export async function fetchMatchingDrivers(
     });
   }
 
-  drivers.sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'ka'));
+  const sortMode = options?.sortMode === 'rating' ? 'rating' : 'name';
+  const sortedDrivers = sortMatchingDrivers(drivers, sortMode);
 
   logFetchMatchingDrivers('done', {
-    matchedCount: drivers.length,
-    matchedIds: drivers.map((d) => d.id),
+    matchedCount: sortedDrivers.length,
+    matchedIds: sortedDrivers.map((d) => d.id),
+    sortMode,
     excludedCount: exclusions.length,
     exclusions,
   });
 
-  return { data: drivers, error: null };
+  return { data: sortedDrivers, error: null };
 }
 
 export async function fetchDriverProfile(

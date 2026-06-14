@@ -14,6 +14,7 @@ import {
   SCHEDULE_OVERLAP_BUFFER_MS,
 } from './driverSchedules';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
+import { sendBroadcastPushInRatingWaves } from './dispatchPushWaves';
 import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { formatTourBookingNotificationBody } from './tourDays';
@@ -534,13 +535,31 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     })),
   );
 
-  const tokens = [...new Set(recipients.map((r) => r.token))];
-  const batch = await sendExpoPushToMany(tokens, title, body, data);
+  const uniqueTokens = [...new Set(recipients.map((r) => r.token.trim()).filter(Boolean))];
+
+  let sentCount = 0;
+  let failedCount = 0;
+
+  if (targetedDriverId) {
+    const batch = await sendExpoPushToMany(uniqueTokens, title, body, data);
+    sentCount = batch.sentCount;
+    failedCount = batch.failedCount;
+  } else {
+    const batch = await sendBroadcastPushInRatingWaves(
+      recipients,
+      title,
+      body,
+      data,
+      params.bookingId,
+    );
+    sentCount = batch.sentCount;
+    failedCount = batch.failedCount;
+  }
 
   return {
-    tokenCount: tokens.length,
-    sentCount: batch.sentCount,
-    failedCount: batch.failedCount,
+    tokenCount: uniqueTokens.length,
+    sentCount,
+    failedCount,
     vehicleType,
     vehicleClass,
     message: null,
