@@ -754,7 +754,7 @@ export async function notifyBookingVoucherCreated(params: {
   }
 }
 
-/** Driver notified when company assigns them via emergency replacement search. */
+/** Driver notified when company assigns them as urgent replacement (same as voucher, different title). */
 export async function notifyEmergencyReplacementAssigned(params: {
   bookingId: string;
   driverUserId: string;
@@ -767,8 +767,6 @@ export async function notifyEmergencyReplacementAssigned(params: {
   tour_days?: unknown;
   transfer_in?: unknown;
   transfer_out?: unknown;
-  breakdownLocation?: string | null;
-  breakdownLocationType?: string | null;
 }): Promise<void> {
   const bookingId = params.bookingId.trim();
   const driverId = params.driverUserId.trim();
@@ -790,24 +788,9 @@ export async function notifyEmergencyReplacementAssigned(params: {
         })
       : '';
 
-  const title = notifyT(
-    'notifications.emergencyAssignedTitle',
-    'KEKE · Emergency replacement',
-  );
-  const intro = notifyT(
-    'notifications.emergencyAssignedBody',
-    'A tour company assigned you as a replacement driver. Open the booking and confirm.',
-  );
-  const breakdownLine = params.breakdownLocation?.trim()
-    ? notifyT('notifications.emergencyBreakdownLine', 'Breakdown location: {{location}}').replace(
-        '{{location}}',
-        params.breakdownLocation.trim(),
-      )
-    : null;
+  const title = notifyT('notifications.emergencyAssignedTitle', 'KEKE · Replacement');
   const body = [
-    intro,
-    breakdownLine,
-    code ? `${notifyT('notifications.voucherBodyPrefix', 'Voucher')} ${code}` : null,
+    notifyT('notifications.voucherBodyPrefix', `Voucher ${code}`),
     routeLine,
     tourDetail,
   ]
@@ -816,12 +799,13 @@ export async function notifyEmergencyReplacementAssigned(params: {
     .slice(0, 900);
 
   const data: Record<string, unknown> = {
-    type: 'emergency_replacement',
+    type: 'booking_voucher',
     booking_id: bookingId,
     voucher_code: code,
+    is_emergency_replacement: true,
   };
 
-  await insertInAppNotifications([{ user_id: driverId, type: 'emergency_replacement', title, body, data }]);
+  await insertInAppNotifications([{ user_id: driverId, type: 'booking_voucher', title, body, data }]);
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -833,13 +817,13 @@ export async function notifyEmergencyReplacementAssigned(params: {
   if (!token) return;
 
   const pushData: Record<string, string> = {
-    type: 'emergency_replacement',
+    type: 'booking_voucher',
     booking_id: bookingId,
     voucher_code: code,
   };
   const res = await sendExpoPushNotification(token, title, body, pushData);
   if (!res.ok && __DEV__) {
-    console.warn('[notify] emergency_replacement push failed:', res.error);
+    console.warn('[notify] emergency replacement push failed:', res.error);
   }
 }
 

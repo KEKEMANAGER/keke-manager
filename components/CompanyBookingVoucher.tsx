@@ -33,11 +33,12 @@ import { formatStoredDateForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
 import { formatLocationRoute, formatLocationDisplay } from '../lib/bookingLocations';
-import { formatBookingDisplayNumber, formatVoucherPriceGel, stripVoucherEmojis } from '../lib/bookingVoucherDisplay';
+import { formatVoucherPriceGel, stripVoucherEmojis } from '../lib/bookingVoucherDisplay';
 import { formatBankAccountForDisplay } from '../lib/bankAccount';
 import { shareCompanyVoucherPDF } from '../lib/voucher';
 import { BookingPaymentBadge } from './BookingPaymentBadge';
 import { BookingOdometerSection, shouldShowBookingOdometer } from './BookingOdometerSection';
+import { MeetGreetVoucherSection } from './MeetGreetVoucherSection';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { TouristBookingVoucherContent } from './TouristBookingVoucher';
 import { UserAvatar } from './UserAvatar';
@@ -232,7 +233,6 @@ export function CompanyBookingVoucherContent({
   const isCompanyViewer = !viewerId || viewerId === String(booking.company_id ?? '').trim();
   const isHostViewer = !!viewerId && viewerId === String(booking.host_driver_id ?? '').trim();
   const offeredGel = bookingOfferedPriceGel(booking);
-  const bookingNumber = formatBookingDisplayNumber(booking.id);
   const voucherCode = isConvoy
     ? convoyVoucherCode(booking)
     : booking.group_code?.trim() ||
@@ -240,8 +240,6 @@ export function CompanyBookingVoucherContent({
       `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const isTour = booking.kind === 'tour' || booking.kind === 'day_tour';
   const tourDays = (booking.tour_days ?? []) as TourDayPersisted[];
-  const logoUrl = booking.pickup_sign_logo_url?.trim();
-  const logoIsPdf = logoUrl ? /\.pdf(\?|$)/i.test(logoUrl) : false;
 
   async function onPdf() {
     setSharing(true);
@@ -325,21 +323,12 @@ export function CompanyBookingVoucherContent({
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.voucherBox, SHADOWS.gold]}>
-          <Text style={styles.bookingNumberLine}>
-            {stripVoucherEmojis(`${t('companyVoucher.bookingNumber')} ${bookingNumber}`)}
-          </Text>
           <Text style={styles.priceOfferLine}>
-            {stripVoucherEmojis(`${t('companyVoucher.clientPrice')}: ${formatVoucherPriceGel(offeredGel)}`)}
-          </Text>
-          <Text style={styles.priceOfferLine}>
-            {stripVoucherEmojis(`${t('companyVoucher.driverPrice')}: ${formatVoucherPriceGel(offeredGel)}`)}
+            {stripVoucherEmojis(`${t('companyVoucher.price')}: ${formatVoucherPriceGel(offeredGel)}`)}
           </Text>
 
-          <View style={styles.voucherTopRow}>
-            <View style={styles.voucherPill}>
-              <Text style={styles.voucherPillText}>{t('companyVoucher.badge')}</Text>
-            </View>
-            {booking.driver_update_pending ? (
+          {booking.driver_update_pending ? (
+            <View style={styles.voucherTopRow}>
               <View style={styles.updatedPill}>
                 <Text style={styles.updatedPillText}>
                   {t('companyVoucher.updated')}{' '}
@@ -348,8 +337,8 @@ export function CompanyBookingVoucherContent({
                   )}
                 </Text>
               </View>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
 
           <Text style={styles.voucherCode}>{voucherCode}</Text>
           {isConvoy ? (
@@ -396,27 +385,16 @@ export function CompanyBookingVoucherContent({
               value={booking.flight_number.trim()}
             />
           ) : null}
-          <DetailRow
-            label={t('companyVoucher.offeredPrice')}
-            value={`${offeredGel.toLocaleString('ka-GE')} ₾`}
-          />
-          {booking.sign_text?.trim() ? (
-            <DetailRow label={t('bookings.voucherPickupSignName')} value={booking.sign_text.trim()} />
-          ) : null}
 
-          {logoUrl ? (
-            <View style={styles.logoBlock}>
-              <Text style={styles.logoTitle}>{t('bookings.voucherPickupSignLogo')}</Text>
-              {logoIsPdf ? (
-                <Pressable onPress={() => void Linking.openURL(logoUrl)} style={styles.pdfBox}>
-                  <Ionicons name="document-text-outline" size={40} color={COLORS.goldDark} />
-                  <Text style={styles.pdfHint}>{t('bookings.voucherPickupSignPdfHint')}</Text>
-                </Pressable>
-              ) : (
-                <Image source={{ uri: logoUrl }} style={styles.logoImage} resizeMode="contain" />
-              )}
-            </View>
-          ) : null}
+          <MeetGreetVoucherSection
+            booking={booking}
+            sectionTitle={t('bookings.voucherMeetGreetSection')}
+            passengerNameLabel={t('companyVoucher.passengerName')}
+            passengerPhoneLabel={t('companyVoucher.passengerPhone')}
+            pickupSignNameLabel={t('bookings.voucherPickupSignName')}
+            pickupSignLogoLabel={t('bookings.voucherPickupSignLogo')}
+            pickupSignPdfHint={t('bookings.voucherPickupSignPdfHint')}
+          />
 
           {booking.comment?.trim() ? (
             <View style={styles.notesBlock}>

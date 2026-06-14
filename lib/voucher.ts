@@ -57,8 +57,10 @@ export async function shareTouristVoucherPDF(
 export async function shareVoucherPDF(
   booking: BookingRow,
   companyUserId?: string,
+  viewerUserId?: string,
 ): Promise<void> {
-  const { data, error } = await fetchCompanyVoucherData(booking.id, companyUserId, companyUserId);
+  const viewerId = viewerUserId ?? companyUserId;
+  const { data, error } = await fetchCompanyVoucherData(booking.id, companyUserId, viewerId);
   if (data) {
     await shareCompanyVoucherPDF(data);
     return;

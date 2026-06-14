@@ -348,17 +348,14 @@ export default function CompanyDashboardScreen() {
   );
 
   const assignableEmergencyBookings = useMemo(() => {
-    const openSingles = bookings.filter(
-      (b) =>
-        b.status === 'pending' &&
-        !b.is_group_master &&
-        !b.parent_booking_id &&
-        !b.driver_id,
-    );
+    const isAssignable = (b: BookingRow) =>
+      b.status === 'pending' && !b.is_group_master;
+
+    const openSingles = bookings.filter(isAssignable).filter((b) => !b.parent_booking_id);
     const openLegs: BookingRow[] = [];
     for (const convoy of Object.values(convoyByMaster)) {
       for (const leg of convoy.legs) {
-        if (leg.status === 'pending' && !leg.driver_id) {
+        if (isAssignable(leg)) {
           openLegs.push(leg);
         }
       }

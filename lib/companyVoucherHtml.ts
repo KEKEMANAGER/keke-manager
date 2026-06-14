@@ -1,6 +1,6 @@
 import { formatLocationDisplay } from './bookingLocations';
 import { bookingOfferedPriceGel } from './bookingPrice';
-import { formatBookingDisplayNumber, formatVoucherPriceGel, stripVoucherEmojis } from './bookingVoucherDisplay';
+import { formatVoucherPriceGel, stripVoucherEmojis } from './bookingVoucherDisplay';
 import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from './companyVoucherData';
 import { convoyVoucherCode, vehicleMakeModelYearLine } from './companyVoucherData';
 import type { ConvoyPeerLeg } from './convoyPeers';
@@ -133,7 +133,6 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ? `<span class="updated-badge">განახლდა ${escapeHtml(formatStoredDateForDisplay(booking.updated_at.slice(0, 10)))}</span>`
       : '';
 
-  const bookingNumber = formatBookingDisplayNumber(booking.id);
   const offeredGel = bookingOfferedPriceGel(booking);
   const priceLine = formatVoucherPriceGel(offeredGel);
 
@@ -150,7 +149,6 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     booking.flight_number?.trim()
       ? row('ფრენის ნომერი', booking.flight_number.trim())
       : '',
-    booking.sign_text?.trim() ? row('დასახვედრი სახელი', booking.sign_text.trim()) : '',
     pickupSignVoucherHtmlSection(booking),
     booking.comment?.trim() ? row('შენიშვნა', booking.comment.trim()) : '',
     booking.kind === 'tour' || booking.kind === 'day_tour' ? tourVoucherHtmlRows(booking) : '',
@@ -242,10 +240,8 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
     <${tag} class="subtitle">B2B სატრანსპორტო პლატფორმა</${tag}>
   </${tag}>
   <${tag} class="voucher-box">
-    <span class="status">ვაუჩერი</span>${updatedBadge}
-    <${tag} class="booking-number">${escapeHtml(stripVoucherEmojis(`ჯავშანი ${bookingNumber}`))}</${tag}>
-    <${tag} class="price-offer">${escapeHtml(stripVoucherEmojis(`კლიენტის ფასი: ${priceLine}`))}</${tag}>
-    <${tag} class="price-offer">${escapeHtml(stripVoucherEmojis(`მძღოლი: ${priceLine}`))}</${tag}>
+    ${updatedBadge}
+    <${tag} class="price-offer">${escapeHtml(stripVoucherEmojis(`ფასი: ${priceLine}`))}</${tag}>
     <${tag} class="voucher-id">${escapeHtml(voucherCode)}</${tag}>
     <${tag} class="divider"></${tag}>
     ${sectionTitle('ჯავშანი')}

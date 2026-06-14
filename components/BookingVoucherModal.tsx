@@ -15,7 +15,7 @@ import { COLORS, SHADOWS, SPACING } from '../constants/theme';
 import { useAuth } from '../contexts/AuthContext';
 import type { BookingRow } from '../lib/bookings';
 import type { CompanyVoucherData } from '../lib/companyVoucherData';
-import { enrichCompanyVoucherFromBooking } from '../lib/companyVoucherData';
+import { fetchCompanyVoucherData } from '../lib/companyVoucherData';
 import { CompanyBookingVoucherContent } from './CompanyBookingVoucher';
 
 type Props = {
@@ -39,9 +39,17 @@ export function BookingVoucherModal({ booking, visible, onClose }: Props) {
     }
     let cancelled = false;
     setLoading(true);
-    void enrichCompanyVoucherFromBooking(booking, user?.id).then(({ data: loaded, error }) => {
+    void fetchCompanyVoucherData(booking.id, undefined, user?.id).then(({ data: loaded, error }) => {
       if (cancelled) return;
-      setData(loaded);
+      setData(
+        loaded ?? {
+          booking,
+          driver: null,
+          vehicle: null,
+          host: null,
+          company: null,
+        },
+      );
       setLoading(false);
       if (__DEV__ && error) {
         console.warn('[BookingVoucherModal]', error.message);

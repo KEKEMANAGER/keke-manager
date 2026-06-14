@@ -37,6 +37,7 @@ import {
 } from '../lib/touristVoucherLocale';
 import { shareTouristVoucherPDF } from '../lib/voucher';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
+import { MeetGreetVoucherSection } from './MeetGreetVoucherSection';
 import { UserAvatar } from './UserAvatar';
 import { VoucherModeTabs, type VoucherMode } from './VoucherModeTabs';
 
@@ -109,8 +110,6 @@ export function TouristBookingVoucherContent({
     booking.voucher_code?.trim() || `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const isTour = booking.kind === 'tour' || booking.kind === 'day_tour';
   const tourDays = (booking.tour_days ?? []) as TourDayPersisted[];
-  const logoUrl = booking.pickup_sign_logo_url?.trim();
-  const logoIsPdf = logoUrl ? /\.pdf(\?|$)/i.test(logoUrl) : false;
   const companyName = booking.company_name?.trim() || '—';
 
   async function onSharePdf() {
@@ -214,23 +213,16 @@ export function TouristBookingVoucherContent({
           {booking.flight_number?.trim() ? (
             <DetailRow label={s.flightNumber} value={booking.flight_number.trim()} />
           ) : null}
-          {booking.sign_text?.trim() ? (
-            <DetailRow label={s.pickupSignName} value={booking.sign_text.trim()} />
-          ) : null}
 
-          {logoUrl ? (
-            <View style={styles.logoBlock}>
-              <Text style={styles.logoTitle}>{s.pickupSignLogo}</Text>
-              {logoIsPdf ? (
-                <Pressable onPress={() => void Linking.openURL(logoUrl)} style={styles.pdfBox}>
-                  <Ionicons name="document-text-outline" size={40} color={COLORS.goldDark} />
-                  <Text style={styles.pdfHint}>{s.pickupSignPdfHint}</Text>
-                </Pressable>
-              ) : (
-                <Image source={{ uri: logoUrl }} style={styles.logoImage} resizeMode="contain" />
-              )}
-            </View>
-          ) : null}
+          <MeetGreetVoucherSection
+            booking={booking}
+            sectionTitle={s.meetGreetSection}
+            passengerNameLabel={s.passengerName}
+            passengerPhoneLabel={s.passengerPhone}
+            pickupSignNameLabel={s.pickupSignName}
+            pickupSignLogoLabel={s.pickupSignLogo}
+            pickupSignPdfHint={s.pickupSignPdfHint}
+          />
 
           {booking.comment?.trim() ? (
             <View style={styles.notesBlock}>

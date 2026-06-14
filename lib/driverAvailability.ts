@@ -1,6 +1,4 @@
 import { isBookingRowUuid } from './bookings';
-import type { EmergencyBreakdownInput } from './emergencyReplacement';
-import { breakdownLocationPersistFields } from './emergencyReplacement';
 import { notifyEmergencyReplacementAssigned } from './notifications';
 import { resolveVehicleIdForBooking } from './bookingVehicle';
 import { supabase } from './supabase';
@@ -89,12 +87,11 @@ export async function findAvailableDriversInCity(
   return { data: rows, error: null };
 }
 
-/** Company assigns an available driver to a pending booking (emergency replacement). */
+/** Company assigns an available driver to a pending booking (urgent replacement). */
 export async function assignEmergencyDriverToBooking(
   bookingRowId: string,
   companyUserId: string,
   driver: AvailableDriverRow,
-  breakdown: EmergencyBreakdownInput,
 ) {
   const rowId = String(bookingRowId).trim();
   const companyId = trimUserId(companyUserId);
@@ -104,14 +101,6 @@ export async function assignEmergencyDriverToBooking(
   }
   if (!companyId || !driverId) {
     return { ok: false as const, error: new Error('არასწორი მონაცემები') };
-  }
-
-  const breakdownFields = breakdownLocationPersistFields(breakdown);
-  if (!breakdownFields.breakdown_location) {
-    return {
-      ok: false as const,
-      error: new Error('მიუთითეთ სად დგას გაჭერილი ავტომობილი'),
-    };
   }
 
   const { data: bookingRow, error: fetchErr } = await supabase
@@ -156,11 +145,8 @@ export async function assignEmergencyDriverToBooking(
   }
 
   const existingDriverId = trimUserId(row.driver_id);
-  if (existingDriverId && existingDriverId !== driverId) {
-    return {
-      ok: false as const,
-      error: new Error('ამ ჯავშანზე უკვე სხვა მძღოლია მინიჭებული'),
-    };
+  if (existingDriverId && existingDriverId === driverId) {
+    return { ok: false as const, error: new Error('ეს მძღოლი უკვე მინიჭებულია ამ ჯავშანზე') };
   }
 
   const bookingVehicleType =
@@ -191,8 +177,6 @@ export async function assignEmergencyDriverToBooking(
       driver_plate: driver.vehicle_plate?.trim() || null,
       vehicle_id: vehicleId,
       is_emergency_replacement: true,
-      breakdown_location: breakdownFields.breakdown_location,
-      breakdown_location_type: breakdownFields.breakdown_location_type,
       updated_at: new Date().toISOString(),
     })
     .eq('id', rowId)
@@ -221,8 +205,6 @@ export async function assignEmergencyDriverToBooking(
     tour_days: row.tour_days,
     transfer_in: row.transfer_in,
     transfer_out: row.transfer_out,
-    breakdownLocation: breakdownFields.breakdown_location,
-    breakdownLocationType: breakdownFields.breakdown_location_type,
   });
 
   void setDriverUnavailable(driverId);

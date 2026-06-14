@@ -10,13 +10,11 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { BookingRow } from '../lib/bookings';
 import { emergencyAssignmentBookingLabel } from '../lib/bookings';
-import { emptyLocationValue, locationValueIsComplete } from '../lib/bookingLocations';
 import {
   assignEmergencyDriverToBooking,
   findAvailableDriversInCity,
@@ -25,7 +23,6 @@ import {
 import { getSupabaseErrorMessage } from '../lib/errorHandler';
 import { vehicleClassLabel, vehicleTypeLabel } from '../lib/vehicleCatalog';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
-import { LocationPicker } from './LocationPicker';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { SearchableCitySelect } from './SearchableCitySelect';
 import { UserAvatar } from './UserAvatar';
@@ -54,8 +51,6 @@ export function EmergencyReplacementModal({
   const [searched, setSearched] = useState(false);
   const [bookingPickDriver, setBookingPickDriver] = useState<AvailableDriverRow | null>(null);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
-  const [breakdownLocation, setBreakdownLocation] = useState(emptyLocationValue());
-  const [breakdownNotes, setBreakdownNotes] = useState('');
 
   const reset = useCallback(() => {
     setCity(null);
@@ -66,8 +61,6 @@ export function EmergencyReplacementModal({
     setSearched(false);
     setBookingPickDriver(null);
     setSelectedBookingId(null);
-    setBreakdownLocation(emptyLocationValue());
-    setBreakdownNotes('');
   }, []);
 
   useEffect(() => {
@@ -99,24 +92,12 @@ export function EmergencyReplacementModal({
     return { vehicleType: firstType, vehicleClass: firstClass || undefined };
   }, [assignableBookings]);
 
-  function validateBreakdown(): boolean {
-    if (!locationValueIsComplete(breakdownLocation)) {
-      const msg = t('emergencyReplacement.breakdownRequired');
-      setError(msg);
-      if (Platform.OS === 'web') window.alert(msg);
-      else Alert.alert(t('common.error'), msg);
-      return false;
-    }
-    return true;
-  }
-
   async function handleSearch() {
     const trimmed = city?.trim();
     if (!trimmed) {
       setError(t('driverAvailability.cityRequired'));
       return;
     }
-    if (!validateBreakdown()) return;
     setLoading(true);
     setError(null);
     setSearched(true);
@@ -145,14 +126,20 @@ export function EmergencyReplacementModal({
     void Linking.openURL(`tel:${trimmed}`);
   }
 
+  function showAssignSuccess(driver: AvailableDriverRow) {
+    const name = driver.full_name?.trim() || t('company.driverDefault');
+    const phone = driver.phone?.trim();
+    const ok = phone
+      ? t('emergencyReplacement.assignSuccessPhone', { name, phone })
+      : t('emergencyReplacement.assignSuccess', { name });
+    if (Platform.OS === 'web') window.alert(ok);
+    else Alert.alert(t('common.success'), ok);
+  }
+
   async function runAssign(driver: AvailableDriverRow, bookingId: string) {
     if (!companyUserId) return;
-    if (!validateBreakdown()) return;
     setAssigningId(driver.id);
-    const res = await assignEmergencyDriverToBooking(bookingId, companyUserId, driver, {
-      location: breakdownLocation,
-      notes: breakdownNotes.trim() || null,
-    });
+    const res = await assignEmergencyDriverToBooking(bookingId, companyUserId, driver);
     setAssigningId(null);
     setBookingPickDriver(null);
     if (!res.ok) {
@@ -163,9 +150,7 @@ export function EmergencyReplacementModal({
     }
     await onAssigned();
     handleClose();
-    const ok = t('emergencyReplacement.assignSuccess');
-    if (Platform.OS === 'web') window.alert(ok);
-    else Alert.alert(t('common.success'), ok);
+    showAssignSuccess(driver);
   }
 
   function pickBookingForDriver(driver: AvailableDriverRow) {
@@ -176,7 +161,6 @@ export function EmergencyReplacementModal({
       else Alert.alert(t('emergencyReplacement.assignTitle'), msg);
       return;
     }
-    if (!validateBreakdown()) return;
 
     const bookingId = selectedBooking?.id;
     if (!bookingId) return;
@@ -200,6 +184,7 @@ export function EmergencyReplacementModal({
         <Text style={styles.warnText}>{t('emergencyReplacement.noPendingBookings')}</Text>
       ) : (
         <>
+          <Text style={styles.hintText}>{t('emergencyReplacement.bookingHint')}</Text>
           {assignableBookings.length > 1 ? (
             <View style={styles.bookingSelectBlock}>
               <Text style={styles.sectionLabel}>{t('emergencyReplacement.pickBooking')}</Text>
@@ -226,22 +211,6 @@ export function EmergencyReplacementModal({
               <Text style={styles.singleBookingText}>{emergencyAssignmentBookingLabel(selectedBooking)}</Text>
             </View>
           ) : null}
-
-          <LocationPicker
-            label={t('emergencyReplacement.breakdownLabel')}
-            value={breakdownLocation}
-            onChange={setBreakdownLocation}
-            allowedTypes={['address', 'hotel', 'airport', 'train_station']}
-            textPlaceholder={t('emergencyReplacement.breakdownPlaceholder')}
-          />
-          <Text style={styles.fieldLabel}>{t('emergencyReplacement.breakdownNotesLabel')}</Text>
-          <TextInput
-            value={breakdownNotes}
-            onChangeText={setBreakdownNotes}
-            placeholder={t('emergencyReplacement.breakdownNotesPlaceholder')}
-            style={styles.notesInput}
-            multiline
-          />
         </>
       )}
 
@@ -412,6 +381,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: SPACING.sm,
   },
+  hintText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+    marginBottom: SPACING.sm,
+  },
   sectionLabel: {
     fontSize: 13,
     fontWeight: '700',
@@ -440,25 +415,6 @@ const styles = StyleSheet.create({
   bookingSelectRowActive: {
     borderColor: COLORS.gold,
     backgroundColor: 'rgba(245, 166, 35, 0.1)',
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-    marginTop: SPACING.xs,
-  },
-  notesInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.button,
-    padding: SPACING.sm,
-    minHeight: 56,
-    fontSize: 14,
-    color: COLORS.text,
-    backgroundColor: COLORS.surface,
-    marginBottom: SPACING.sm,
-    textAlignVertical: 'top',
   },
   warnText: {
     color: '#B91C1C',

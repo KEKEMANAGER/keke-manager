@@ -19,6 +19,7 @@ import {
   touristVoucherStrings,
   type TouristVoucherLocale,
 } from './touristVoucherLocale';
+import { pickupSignVoucherHtmlSection } from './voucherPickupSign';
 
 function escapeHtml(s: string): string {
   return s
@@ -70,35 +71,14 @@ function pickupSignHtml(
   booking: CompanyVoucherData['booking'],
   s: ReturnType<typeof touristVoucherStrings>,
 ): string {
-  const parts: string[] = [];
-  const signName = booking.sign_text?.trim();
-  const logoUrl = booking.pickup_sign_logo_url?.trim();
-
-  if (signName) {
-    parts.push(row(s.pickupSignName, signName));
-  }
-
-  if (logoUrl) {
-    const safeUrl = escapeHtml(logoUrl);
-    const isPdf = /\.pdf(\?|$)/i.test(logoUrl);
-    parts.push('<div class="divider"></div>');
-    parts.push('<div style="text-align:center;margin:16px 0">');
-    parts.push(
-      `<div style="font-size:13px;color:#888;font-weight:600;margin-bottom:10px">${escapeHtml(s.pickupSignLogo)}</div>`,
-    );
-    if (isPdf) {
-      parts.push(
-        `<a href="${safeUrl}" target="_blank" rel="noopener" style="color:#B45309;font-weight:700;font-size:14px">${escapeHtml(s.pickupSignPdfHint)}</a>`,
-      );
-    } else {
-      parts.push(
-        `<img src="${safeUrl}" alt="" style="max-width:400px;max-height:200px;width:auto;height:auto;display:block;margin:0 auto;border-radius:8px" />`,
-      );
-    }
-    parts.push('</div>');
-  }
-
-  return parts.join('\n');
+  return pickupSignVoucherHtmlSection(booking, {
+    sectionTitle: s.meetGreetSection,
+    passengerName: s.passengerName,
+    passengerPhone: s.passengerPhone,
+    pickupSignName: s.pickupSignName,
+    pickupSignLogo: s.pickupSignLogo,
+    pickupSignPdfHint: s.pickupSignPdfHint,
+  });
 }
 
 function tourLabels(

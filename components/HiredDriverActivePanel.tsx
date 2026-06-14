@@ -170,7 +170,7 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
           />
         ) : null}
         <Pressable
-          onPress={() => void shareVoucherPDF(booking)}
+          onPress={() => void shareVoucherPDF(booking, undefined, driverUserId)}
           style={({ pressed }) => [styles.outlineBtn, pressed && styles.pressed]}
         >
           <Text style={styles.outlineBtnText}>📄 {t('common.voucher')}</Text>
