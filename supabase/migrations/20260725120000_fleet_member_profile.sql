@@ -14,7 +14,7 @@ RETURNS TABLE (
   phone text,
   avatar_url text,
   bio text,
-  languages jsonb,
+  languages text[],
   experience_years integer,
   is_verified boolean,
   vehicle_id uuid,
@@ -60,12 +60,12 @@ AS $$
     (
       SELECT ROUND(AVG(r.overall)::numeric, 2)
       FROM public.ratings r
-      WHERE r.driver_id = f.sub_driver_id::text
+      WHERE r.driver_id::text = f.sub_driver_id::text
     ) AS rating_average,
     (
       SELECT COUNT(*)::integer
       FROM public.ratings r
-      WHERE r.driver_id = f.sub_driver_id::text
+      WHERE r.driver_id::text = f.sub_driver_id::text
     ) AS rating_count,
     ab.id AS active_booking_id,
     ab.route AS active_booking_route,
