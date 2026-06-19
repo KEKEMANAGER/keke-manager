@@ -1,0 +1,4 @@
+﻿Starting project at D:\keke-manager-app
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+
