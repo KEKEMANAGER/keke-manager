@@ -5,11 +5,20 @@ const config = getDefaultConfig(__dirname);
 const upstreamResolveRequest = config.resolver.resolveRequest;
 
 const VECTOR_ICONS_SHIM = path.resolve(__dirname, 'metro-shims/expo-vector-icons.js');
+const SUPABASE_ROOT = path.join(__dirname, 'node_modules', '@supabase', 'supabase-js');
+const SUPABASE_CJS = {
+  '@supabase/supabase-js': path.join(SUPABASE_ROOT, 'dist', 'index.cjs'),
+  '@supabase/supabase-js/cors': path.join(SUPABASE_ROOT, 'dist', 'cors.cjs'),
+};
 
 config.resolver.resolveRequest = (context, moduleName, platform, ...rest) => {
   // Hermes cannot compile dynamic import(OTEL_PKG) from transitive deps (e.g. Supabase).
   if (moduleName === '@opentelemetry' || moduleName.startsWith('@opentelemetry/')) {
     return { type: 'empty' };
+  }
+  const supabaseCjs = SUPABASE_CJS[moduleName];
+  if (supabaseCjs) {
+    return { type: 'sourceFile', filePath: supabaseCjs };
   }
   // App only uses Ionicons — IconsLazy pulls every font (AntDesign, Fontisto, …).
   if (
