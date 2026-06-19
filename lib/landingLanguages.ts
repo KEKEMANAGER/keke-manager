@@ -1,4 +1,4 @@
-/** Landing page language picker (33 codes). App UI: ka, en, ru, hy (+ en fallback for hy). */
+/** Landing SEO supports 33 codes; language picker shows ka/en/ru only for now. */
 export type LandingLangCode =
   | 'ka'
   | 'en'
@@ -70,7 +70,14 @@ export const LANDING_LANGUAGES: { code: LandingLangCode; label: string }[] = [
   { code: 'hy', label: 'HY' },
 ];
 
-export const APP_SYNCED_LANDING_LANGS = new Set<LandingLangCode>(['ka', 'en', 'ru', 'hy']);
+/** Languages shown in landing/blog language selectors. */
+export const LANGUAGE_SELECTOR_LANGUAGES: { code: LandingLangCode; label: string }[] = [
+  { code: 'ka', label: 'KA' },
+  { code: 'en', label: 'EN' },
+  { code: 'ru', label: 'RU' },
+];
+
+export const APP_SYNCED_LANDING_LANGS = new Set<LandingLangCode>(['ka', 'en', 'ru']);
 
 const LANDING_LANG_CODE_SET = new Set<string>(LANDING_LANGUAGES.map((l) => l.code));
 

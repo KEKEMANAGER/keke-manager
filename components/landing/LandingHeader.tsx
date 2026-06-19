@@ -14,7 +14,7 @@ import {
 import type { LandingCopy } from '../../lib/landingCopy';
 import {
   APP_SYNCED_LANDING_LANGS,
-  LANDING_LANGUAGES,
+  LANGUAGE_SELECTOR_LANGUAGES,
   type LandingLangCode,
 } from '../../lib/landingLanguages';
 import { persistLanguage, type AppLanguage } from '../../src/lib/i18n';
@@ -132,7 +132,7 @@ export function LandingHeader({
               {langOpen ? (
                 <View style={sx(styles.langMenu, isMobile ? styles.langMenuMobile : undefined)}>
                   <ScrollView style={{ maxHeight: 280 }} nestedScrollEnabled>
-                    {LANDING_LANGUAGES.map((l) => (
+                    {LANGUAGE_SELECTOR_LANGUAGES.map((l) => (
                       <Pressable key={l.code} style={styles.langItem} onPress={() => void handleLangPick(l.code)}>
                         <Text
                           style={sx(
