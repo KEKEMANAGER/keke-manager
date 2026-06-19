@@ -7,6 +7,10 @@ const upstreamResolveRequest = config.resolver.resolveRequest;
 const VECTOR_ICONS_SHIM = path.resolve(__dirname, 'metro-shims/expo-vector-icons.js');
 
 config.resolver.resolveRequest = (context, moduleName, platform, ...rest) => {
+  // Hermes cannot compile dynamic import(OTEL_PKG) from transitive deps (e.g. Supabase).
+  if (moduleName === '@opentelemetry' || moduleName.startsWith('@opentelemetry/')) {
+    return { type: 'empty' };
+  }
   // App only uses Ionicons — IconsLazy pulls every font (AntDesign, Fontisto, …).
   if (
     moduleName === '@expo/vector-icons' ||
