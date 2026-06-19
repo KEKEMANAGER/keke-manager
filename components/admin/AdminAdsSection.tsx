@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'react-native';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -76,7 +76,7 @@ export function AdminAdsSection() {
       if (upErr) { setError(upErr.message); setUploading(false); return; }
       const { data: urlData } = supabase.storage.from('ads').getPublicUrl(fileName);
       setForm((p) => ({ ...p, image_url: urlData.publicUrl }));
-    } catch (e) {
+    } catch {
       setError('ატვირთვა ვერ მოხერხდა');
     }
     setUploading(false);

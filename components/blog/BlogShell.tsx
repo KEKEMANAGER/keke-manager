@@ -1,16 +1,16 @@
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { blogLangToLandingLang, landingLangToBlogLang } from '../../lib/blogLandingLang';
+import { blogLangToLandingLang } from '../../lib/blogLandingLang';
 import { getLandingCopy } from '../../lib/landingCopy';
 import {
   APP_SYNCED_LANDING_LANGS,
   LANDING_LANGUAGES,
   type LandingLangCode,
 } from '../../lib/landingLanguages';
-import { useBlogLang } from '../../lib/useBlogLang';
+import { useLandingLang, persistLandingLang } from '../../lib/useLandingLang';
 import { persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { LandingFooter } from '../landing/LandingFooter';
 import { LandingHeader } from '../landing/LandingHeader';
@@ -29,16 +29,11 @@ function homeHashUrl(sectionId: string, lang: LandingLangCode): string {
 export function BlogShell({ children }: Props) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const blogLang = useBlogLang();
+  const landingLang = useLandingLang();
   const { width, isMobile, isTablet, isDesktop, containerPadding } = useLandingBreakpoint();
 
-  const [landingLang, setLandingLang] = useState<LandingLangCode>(() => blogLangToLandingLang(blogLang));
   const [langOpen, setLangOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
-
-  useEffect(() => {
-    setLandingLang(blogLangToLandingLang(blogLang));
-  }, [blogLang]);
 
   const copy = useMemo(() => getLandingCopy(landingLang), [landingLang]);
   const currentLangLabel = LANDING_LANGUAGES.find((l) => l.code === landingLang)?.label ?? 'KA';
@@ -57,10 +52,10 @@ export function BlogShell({ children }: Props) {
 
   const onLangPick = useCallback(
     async (code: LandingLangCode) => {
-      setLandingLang(code);
       setLangOpen(false);
-      const nextBlogLang = landingLangToBlogLang(code);
-      router.setParams({ lang: nextBlogLang });
+      await persistLandingLang(code);
+      if (code === 'ka') router.setParams({ lang: undefined as unknown as string });
+      else router.setParams({ lang: code });
       if (APP_SYNCED_LANDING_LANGS.has(code)) {
         await persistLanguage(code as AppLanguage);
       }

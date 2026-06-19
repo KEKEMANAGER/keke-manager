@@ -1,4 +1,4 @@
-export type BlogLang = 'ka' | 'en' | 'ru';
+export type BlogLang = 'ka' | 'en' | 'ru' | 'hy';
 
 export type BlogCategoryId =
   | 'tour-operators'
@@ -66,7 +66,8 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
 export function categoryLabel(categoryId: BlogCategoryId, lang: BlogLang = 'ka'): string {
   const cat = BLOG_CATEGORIES.find((c) => c.id === categoryId);
   if (!cat) return categoryId;
-  return lang === 'ka' ? cat.nameKa : cat.name;
+  if (lang === 'ka') return cat.nameKa;
+  return cat.name;
 }
 
 export type BlogAuthorProfile = {

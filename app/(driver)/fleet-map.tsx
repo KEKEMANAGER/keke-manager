@@ -74,7 +74,7 @@ export default function FleetMapScreen() {
       },
       400,
     );
-  }, [loc?.latitude, loc?.longitude]);
+  }, [loc]);
 
   const pins: LeafletMapPin[] = loc
     ? [

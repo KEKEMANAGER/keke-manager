@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -51,11 +51,15 @@ export default function DriverChatScreen() {
     }>();
 
   const isSupport = threadType === 'support';
-  const threadOpts = isSupport
-    ? { threadType: SUPPORT_THREAD_TYPE }
-    : bookingId?.trim() && threadType
-      ? { bookingId: bookingId.trim(), threadType }
-      : undefined;
+  const threadOpts = useMemo(
+    () =>
+      isSupport
+        ? { threadType: SUPPORT_THREAD_TYPE }
+        : bookingId?.trim() && threadType
+          ? { bookingId: bookingId.trim(), threadType }
+          : undefined,
+    [isSupport, bookingId, threadType],
+  );
 
   const otherUserId = uid ?? '';
   const otherName = isSupport
@@ -85,7 +89,7 @@ export default function DriverChatScreen() {
     scrollToBottom(false);
     await markMessagesRead(user.id, otherUserId, threadOpts);
     notifyChatUnreadMayHaveChanged();
-  }, [user?.id, otherUserId, scrollToBottom, threadOpts?.bookingId, threadOpts?.threadType]);
+  }, [user?.id, otherUserId, scrollToBottom, threadOpts]);
 
   useEffect(() => {
     void load();
@@ -133,7 +137,7 @@ export default function DriverChatScreen() {
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, [user?.id, otherUserId, scrollToBottom, threadOpts?.bookingId, threadOpts?.threadType]);
+  }, [user?.id, otherUserId, scrollToBottom, threadOpts]);
 
   async function onSend() {
     if (!user?.id || !text.trim() || sending) return;

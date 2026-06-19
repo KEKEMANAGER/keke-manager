@@ -7,7 +7,6 @@ import { TransportLegDriverSection } from './TransportLegDriverSection';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import type { RequestedDriverCategory } from '../lib/driverCategory';
 import {
-  legPassengers,
   newTransportLeg,
   parseLegPrice,
   sumLegPassengers,

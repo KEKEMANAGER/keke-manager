@@ -64,7 +64,6 @@ import { isPickupSignLogoPdf } from '../../lib/pickupSignLogo';
 import {
   normalizeVehicleClass,
   normalizeVehicleType,
-  VEHICLE_CLASSES,
   VEHICLE_TYPES,
   vehicleClassLabel,
   vehicleTypeLabel,
@@ -169,10 +168,6 @@ function parseAmountGeorgian(raw: string): number {
 
 function initialItineraryDay(day = 1): ItineraryDay {
   return { day, from: '', to: '', stops: '' };
-}
-
-function emptyTransferLeg(): TourTransferLeg {
-  return { date: '', flight: '', passengerName: '' };
 }
 
 function persistItineraryForDb(days: ItineraryDay[]): ItineraryDay[] {
@@ -522,6 +517,10 @@ function MatchingDriversSection({
     minPassengerCapacity,
     filterByMinSeats,
     driverTargetMode,
+    onDriversLoaded,
+    onSelectDriver,
+    onDriverTargetModeChange,
+    selectedDriverId,
   ]);
 
   if (!active || !normType || !normClass) {
@@ -710,119 +709,6 @@ function MatchingDriversSection({
   );
 }
 
-// ─── Reusable inline dropdown (no external deps) ───────────────────────────
-function InlineDropdown<T extends string>({
-  label,
-  value,
-  options,
-  labelFor,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: readonly T[];
-  labelFor: (v: T) => string;
-  onChange: (v: T) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <View style={styles.ddWrapper}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable
-        onPress={() => setOpen((o) => !o)}
-        style={({ pressed }) => [styles.ddTrigger, pressed && styles.pressed]}
-      >
-        <Text style={styles.ddTriggerText}>{labelFor(value)}</Text>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.gold} />
-      </Pressable>
-      {open && (
-        <View style={styles.ddList}>
-          {options.map((opt) => {
-            const active = opt === value;
-            return (
-              <Pressable
-                key={opt}
-                onPress={() => { onChange(opt); setOpen(false); }}
-                style={({ pressed }) => [styles.ddItem, active && styles.ddItemActive, pressed && styles.pressed]}
-              >
-                <Text style={[styles.ddItemText, active && styles.ddItemTextActive]}>
-                  {labelFor(opt)}
-                </Text>
-                {active && <Ionicons name="checkmark" size={16} color={COLORS.gold} />}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-    </View>
-  );
-}
-
-// ─── Passenger stepper ──────────────────────────────────────────────────────
-function PassengerStepper({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const { t } = useTranslation();
-  const num = Math.max(1, parseInt(value, 10) || 1);
-  return (
-    <View style={styles.stepperWrapper}>
-      <Text style={styles.fieldLabel}>{t('newBooking.form.passengers')}</Text>
-      <View style={styles.stepperRow}>
-        <Pressable
-          onPress={() => onChange(String(Math.max(1, num - 1)))}
-          style={({ pressed }) => [styles.stepperBtn, pressed && styles.pressed]}
-        >
-          <Ionicons name="remove" size={20} color={COLORS.gold} />
-        </Pressable>
-        <Text style={styles.stepperValue}>{num}</Text>
-        <Pressable
-          onPress={() => onChange(String(Math.min(50, num + 1)))}
-          style={({ pressed }) => [styles.stepperBtn, pressed && styles.pressed]}
-        >
-          <Ionicons name="add" size={20} color={COLORS.gold} />
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function VehiclePicker({
-  selectedVehicleType,
-  onVehicleTypeChange,
-  vehicleClass,
-  onVehicleClassChange,
-}: {
-  selectedVehicleType: VehicleTypeCode;
-  onVehicleTypeChange: (type: VehicleTypeCode) => void;
-  vehicleClass: VehicleClassCode;
-  onVehicleClassChange: (cls: VehicleClassCode) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <>
-      <Text style={styles.sectionHeader}>{t('newBooking.vehicleSection')}</Text>
-      <InlineDropdown
-        label={t('newBooking.form.vehicleType')}
-        value={selectedVehicleType}
-        options={VEHICLE_TYPES}
-        labelFor={vehicleTypeLabel}
-        onChange={onVehicleTypeChange}
-      />
-      <InlineDropdown
-        label={t('newBooking.form.vehicleClass')}
-        value={vehicleClass}
-        options={VEHICLE_CLASSES}
-        labelFor={vehicleClassLabel}
-        onChange={onVehicleClassChange}
-      />
-    </>
-  );
-}
-
 export default function NewBookingScreen() {
   const { t, i18n } = useTranslation();
   const { user, profile } = useAuth();
@@ -888,8 +774,6 @@ export default function NewBookingScreen() {
   const [tourRouteDescription, setTourRouteDescription] = useState('');
 
   const [days, setDays] = useState<ItineraryDay[]>(() => [initialItineraryDay(1)]);
-  const [transferIn, setTransferIn] = useState<TourTransferLeg>(() => emptyTransferLeg());
-  const [transferOut, setTransferOut] = useState<TourTransferLeg>(() => emptyTransferLeg());
   const [transferInDateTime, setTransferInDateTime] = useState<Date | null>(null);
   const [transferOutDateTime, setTransferOutDateTime] = useState<Date | null>(null);
   const [hasArrivalTransfer, setHasArrivalTransfer] = useState(false);
@@ -1107,18 +991,6 @@ export default function NewBookingScreen() {
     setTourDays((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   }
 
-  function addDay() {
-    if (booking_kind === 'dayTour') return;
-    setDays((prev) => [...prev, initialItineraryDay(prev.length + 1)]);
-  }
-
-  function removeDay(index: number) {
-    if (index === 0) return;
-    setDays((prev) =>
-      prev.filter((_, i) => i !== index).map((d, i) => ({ ...d, day: i + 1 })),
-    );
-  }
-
   function validateStep2(): string | null {
     if (booking_kind === 'transfer') {
       if (transferTab === 'arrival') {
@@ -1193,8 +1065,6 @@ export default function NewBookingScreen() {
     setComment('');
     setTourRouteDescription('');
     setDays([initialItineraryDay(1)]);
-    setTransferIn(emptyTransferLeg());
-    setTransferOut(emptyTransferLeg());
     setTransferInDateTime(null);
     setTransferOutDateTime(null);
     setHasArrivalTransfer(false);

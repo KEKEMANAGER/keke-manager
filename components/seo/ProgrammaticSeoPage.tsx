@@ -10,9 +10,11 @@ import {
   seoLandingServiceSchema,
   seoLandingWebPageSchema,
 } from '../../lib/seoLandingMeta';
-import type { SeoLandingPage } from '../../lib/seoLandingPages';
-import { SEO_DRIVER_COUNT } from '../../lib/seoLandingPages';
-import type { SeoLandingLang } from '../../lib/seoLandingPages';
+import {
+  SEO_DRIVER_COUNT,
+  type SeoLandingLang,
+  type SeoLandingPage,
+} from '../../lib/seoLandingPages';
 import { sx } from '../../lib/sx';
 import { BlogSeoHead } from '../blog/BlogSeoHead';
 import { SeoLandingShell } from './SeoLandingShell';
@@ -106,7 +108,12 @@ export function ProgrammaticSeoPage({
           ogType: 'website',
           author: 'KEKE Manager',
           keywords: meta.keywords,
-          hreflang: { ka: meta.hreflang.ka, en: meta.hreflang.en, ru: meta.hreflang.en },
+          hreflang: {
+            ka: meta.hreflang.ka,
+            en: meta.hreflang.en,
+            ru: meta.hreflang.en,
+            hy: meta.hreflang.en,
+          },
         }}
         schemas={schemas}
       />

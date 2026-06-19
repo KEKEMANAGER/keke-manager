@@ -25,12 +25,6 @@ type Props = {
   disabled?: boolean;
 };
 
-function mapValidationError(key: string, t: (k: string) => string): string {
-  if (key === 'pickupSignLogo.invalidType') return t('newBooking.pickupSignLogo.invalidType');
-  if (key === 'pickupSignLogo.tooLarge') return t('newBooking.pickupSignLogo.tooLarge');
-  return t('newBooking.pickupSignLogo.pickFailed');
-}
-
 export function PickupSignLogoField({ value, onChange, disabled }: Props) {
   const { t } = useTranslation();
   const webInputRef = useRef<HTMLInputElement | null>(null);

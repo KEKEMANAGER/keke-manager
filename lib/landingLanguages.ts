@@ -1,4 +1,4 @@
-/** Landing page language picker (33 codes). App i18n fully supports ka, en, ru. */
+/** Landing page language picker (33 codes). App UI: ka, en, ru, hy (+ en fallback for hy). */
 export type LandingLangCode =
   | 'ka'
   | 'en'
@@ -70,4 +70,10 @@ export const LANDING_LANGUAGES: { code: LandingLangCode; label: string }[] = [
   { code: 'hy', label: 'HY' },
 ];
 
-export const APP_SYNCED_LANDING_LANGS = new Set<LandingLangCode>(['ka', 'en', 'ru']);
+export const APP_SYNCED_LANDING_LANGS = new Set<LandingLangCode>(['ka', 'en', 'ru', 'hy']);
+
+const LANDING_LANG_CODE_SET = new Set<string>(LANDING_LANGUAGES.map((l) => l.code));
+
+export function isLandingLangCode(code: string): code is LandingLangCode {
+  return LANDING_LANG_CODE_SET.has(code);
+}

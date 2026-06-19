@@ -78,11 +78,11 @@ export default function DriverProfileScreen() {
   const { t, i18n } = useTranslation();
   const vehicleTypeOptions = useMemo(
     () => vehicleTypeUiOptions(),
-    [i18n.language, i18n.resolvedLanguage],
+    [],
   );
   const vehicleClassOptions = useMemo(
     () => vehicleClassUiOptions(),
-    [i18n.language, i18n.resolvedLanguage],
+    [],
   );
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();

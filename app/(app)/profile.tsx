@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -56,7 +56,6 @@ function companyDisplayName(
 
 export default function CompanyProfileScreen() {
   const { t, i18n } = useTranslation();
-  const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const layout = useAppLayoutInsets();
   const defaultCompany = t('companyProfile.defaultCompany');
@@ -127,7 +126,7 @@ export default function CompanyProfileScreen() {
     setPhone(row.company_phone?.trim() ?? row.phone?.trim() ?? profile?.company_phone ?? profile?.phone ?? '');
     setTaxId(row.company_id_code?.trim() ?? row.tax_id?.trim() ?? profile?.company_id_code ?? '');
     setCompanyDirector(row.company_director?.trim() ?? profile?.company_director ?? '');
-  }, [user?.id, profile, user]);
+  }, [profile, user, defaultCompany]);
 
   const loadMembers = useCallback(async () => {
     if (!user?.id) {

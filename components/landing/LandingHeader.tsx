@@ -9,6 +9,7 @@ import {
   Text,
   View,
   type ImageStyle,
+  type ViewStyle,
 } from 'react-native';
 import type { LandingCopy } from '../../lib/landingCopy';
 import {
@@ -19,7 +20,6 @@ import {
 import { persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import { LANDING_BP } from './useLandingBreakpoint';
 import { LANDING, landingFont, sx } from './landingTheme';
-import type { ViewStyle } from 'react-native';
 
 import { BRAND_LOGO } from '../../lib/brandLogo';
 
@@ -66,8 +66,7 @@ export function LandingHeader({
   onCloseMenus,
 }: Props) {
   const isWide = width >= LANDING_BP.mobileMax;
-  const blogHref =
-    lang === 'ka' ? '/blog' : APP_SYNCED_LANDING_LANGS.has(lang) ? `/blog?lang=${lang}` : '/blog?lang=en';
+  const blogHref = lang === 'ka' ? '/blog' : `/blog?lang=${lang}`;
 
   const handleLangPick = useCallback(
     async (code: LandingLangCode) => {

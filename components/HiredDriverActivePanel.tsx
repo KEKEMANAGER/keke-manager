@@ -73,7 +73,7 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
         navigateToTripGps(router, booking.id);
       }
     },
-    [booking, driverUserId, onTripUpdated, router],
+    [booking, driverUserId, onTripUpdated, router, t],
   );
 
   if (!booking) {

@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Modal,
@@ -58,7 +57,7 @@ export function BookingVoucherModal({ booking, visible, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [visible, booking?.id, user?.id]);
+  }, [visible, booking, user?.id]);
 
   if (!booking) return null;
 

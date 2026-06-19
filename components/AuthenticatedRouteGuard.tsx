@@ -47,7 +47,7 @@ export function AuthenticatedRouteGuard() {
     if (target && !isCurrentRoute(segments, target)) {
       router.replace(target);
     }
-  }, [loading, userId, role, segments, router]);
+  }, [loading, userId, role, segments, router, pathname]);
 
   return null;
 }

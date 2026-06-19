@@ -19,11 +19,13 @@ export function blogIndexSeo(lang: SeoLang = 'ka'): BlogSeoMeta {
     ka: 'KEKE Manager Blog — ტურისტული ტრანსპორტის ინსაითები',
     en: 'KEKE Manager Blog — Tourism Transport Insights',
     ru: 'KEKE Manager Blog — Туристический транспорт',
+    hy: 'KEKE Manager Blog — Տուրիստական տրանսպորտ',
   };
   const descriptions: Record<SeoLang, string> = {
     ka: 'სტატიები ტუროპერატორებისთვის, მძღოლებისთვის და ფლოტის მფლობელებისთვის საქართველოში — ტრანსფერი, ფასები, B2B პლატფორმები.',
     en: 'Guides for tour operators, drivers, and fleet owners in Georgia — transfers, pricing, B2B transport software.',
     ru: 'Статьи для туроператоров, водителей и владельцев автопарка в Грузии.',
+    hy: 'Հոդվածներ տուրոպերատորների, վարորդների և ֆլոտի սեփականատերերի համար։',
   };
   return {
     title: titles[lang],
@@ -38,19 +40,28 @@ export function blogIndexSeo(lang: SeoLang = 'ka'): BlogSeoMeta {
       ka: `${SITE_URL}/blog`,
       en: `${SITE_URL}/blog?lang=en`,
       ru: `${SITE_URL}/blog?lang=ru`,
+      hy: `${SITE_URL}/blog?lang=hy`,
     },
   };
 }
 
 export function blogArticleSeo(post: BlogPost, lang: SeoLang = 'ka'): BlogSeoMeta {
   const title =
-    lang === 'en' ? post.title_en || post.title : lang === 'ru' ? post.title_ru || post.title_en : post.title;
+    lang === 'en'
+      ? post.title_en || post.title
+      : lang === 'ru'
+        ? post.title_ru || post.title_en
+        : lang === 'hy'
+          ? post.title_en || post.title
+          : post.title;
   const description =
     lang === 'en'
       ? post.description_en || post.description
       : lang === 'ru'
         ? post.description_ru || post.description_en
-        : post.description;
+        : lang === 'hy'
+          ? post.description_en || post.description
+          : post.description;
 
   const canonical = `${SITE_URL}/blog/${post.slug}`;
   const ogImage = post.featuredImage.startsWith('http')
@@ -71,6 +82,7 @@ export function blogArticleSeo(post: BlogPost, lang: SeoLang = 'ka'): BlogSeoMet
       ka: `${SITE_URL}/blog/${post.slug}`,
       en: `${SITE_URL}/blog/${post.slug}?lang=en`,
       ru: `${SITE_URL}/blog/${post.slug}?lang=ru`,
+      hy: `${SITE_URL}/blog/${post.slug}?lang=hy`,
     },
   };
 }

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { COLORS, RADIUS, SPACING } from '../constants/theme';
+import { RADIUS, SPACING } from '../constants/theme';
 import type { BookingRow } from '../lib/bookings';
 import { bookingIsEmergencyReplacement } from '../lib/emergencyReplacement';
 import { DriverTripNavigationButtons } from './DriverTripNavigationButtons';

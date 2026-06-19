@@ -20,40 +20,10 @@ import {
   blogFaqSchema,
   blogPostingSchema,
 } from '../../lib/blogSeoMeta';
+import { getBlogArticleUi } from '../../lib/blogUiCopy';
 import { useBlogLang } from '../../lib/useBlogLang';
 import { LANDING, landingFont, sx } from '../../components/landing/landingTheme';
 import { useLandingBreakpoint } from '../../components/landing/useLandingBreakpoint';
-
-const COPY = {
-  ka: {
-    home: 'მთავარი',
-    blog: 'ბლოგი',
-    toc: 'სარჩევი',
-    faq: 'ხშირი კითხვები',
-    related: 'მსგავსი სტატიები',
-    share: { copy: 'ლინკის კოპირება', whatsapp: 'WhatsApp', email: 'ელფოსტა', copied: 'დაკოპირდა' },
-    ctaTitle: 'სცადეთ KEKE Manager უფასოდ',
-    ctaSub: 'ტურისტული კომპანიებისთვის — ჯავშნები, GPS, ვერიფიკაცია, რეიტინგი.',
-    ctaBtn: 'დაწყება →',
-    newsletterTitle: 'გამოიწერეთ ბლოგი',
-    newsletterSub: 'ახალი სტატიები ტურისტული ტრანსპორტის შესახებ.',
-    notFound: 'სტატია ვერ მოიძებნა',
-  },
-  en: {
-    home: 'Home',
-    blog: 'Blog',
-    toc: 'Table of contents',
-    faq: 'FAQ',
-    related: 'Related articles',
-    share: { copy: 'Copy link', whatsapp: 'WhatsApp', email: 'Email', copied: 'Copied' },
-    ctaTitle: 'Try KEKE Manager free',
-    ctaSub: 'For tour companies — bookings, GPS, verification, ratings.',
-    ctaBtn: 'Get started →',
-    newsletterTitle: 'Subscribe',
-    newsletterSub: 'New articles on tourist transport in Georgia.',
-    notFound: 'Article not found',
-  },
-};
 
 export function generateStaticParams() {
   return getAllSlugs().map((slug) => ({ slug }));
@@ -83,14 +53,14 @@ export default function BlogArticleScreen() {
   const { slug: rawSlug } = useLocalSearchParams<{ slug?: string }>();
   const slug = Array.isArray(rawSlug) ? rawSlug[0] : rawSlug;
   const lang = useBlogLang();
-  const copy = lang === 'en' ? COPY.en : COPY.ka;
+  const copy = getBlogArticleUi(lang);
   const { isDesktop } = useLandingBreakpoint();
-  const { version: manifestVersion } = useBlogManifestReady();
+  useBlogManifestReady();
 
-  const post = useMemo(() => (slug ? getPostBySlug(slug, lang) : null), [slug, lang, manifestVersion]);
+  const post = useMemo(() => (slug ? getPostBySlug(slug, lang) : null), [slug, lang]);
   const related = useMemo(
     () => (slug ? getRelatedPosts(slug, 4, lang) : []),
-    [slug, lang, manifestVersion],
+    [slug, lang],
   );
 
   const seo = post ? blogArticleSeo(post, lang) : null;

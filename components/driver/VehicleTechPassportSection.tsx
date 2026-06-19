@@ -12,7 +12,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
-  storagePublicUrlBase,
   uploadMediaObject,
   vehicleTechPassportObjectPath,
   withCacheBust,

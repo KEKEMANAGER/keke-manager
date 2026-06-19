@@ -1,4 +1,5 @@
 import type { LandingLangCode } from './landingLanguages';
+import { LANDING_LANGUAGES } from './landingLanguages';
 
 export type LandingCopy = {
   metaTitle: string;
@@ -310,12 +311,101 @@ const RU: LandingCopy = {
   footerTerms: 'Условия',
 };
 
-const BY_LANG: Partial<Record<LandingLangCode, LandingCopy>> = {
+const HY: LandingCopy = {
+  ...EN,
+  metaTitle: 'KEKE Manager — B2B տուրիստական էկոհամակարգ',
+  metaDescription:
+    'Մեկ հարթակ տուրիստական ընկերությունների, գիդ-վարորդների, հոստերի և աշխատանք փնտրող վարորդների համար։ Ամրագրումներ, GPS, վաուչերներ, չատ։',
+  navHome: 'Գլխավոր',
+  navFeatures: 'Ֆունկցիաներ',
+  navRoles: 'Դերեր',
+  navContact: 'Կապ',
+  signIn: 'Մուտք',
+  signUp: 'Գրանցվել',
+  heroBadge: 'B2B էկոհամակարգ տուրիզմում',
+  heroTitle1: 'Մեկ հարթակ,',
+  heroTitle2: 'անսահմանափակ հնարավորություններ',
+  heroSubtitle:
+    'Տուրիստական ընկերություններ, գիդ-վարորդներ, սեփական մեքենայով վարորդներ (հոստեր) և աշխատանք փնտրող վարորդներ — բոլորը մեկ էկոհամակարգում։',
+  heroCtaPrimary: 'Սկսել անվճար →',
+  heroCtaSecondary: '▶ Ինչպես է աշխատում',
+  rolesTitle: '4 դեր, մեկ հարթակ',
+  roleCompanyTitle: 'Տուրիստական ընկերություն',
+  roleCompanyText:
+    'Ստեղծեք ամրագրումներ, ընտրեք վարորդներ, վերահսկեք ֆլոտը իրական ժամանակում։ Վաուչեր, GPS և չատ — միասին։',
+  roleGuideTitle: 'Գիդ-վարորդ',
+  roleGuideText:
+    'Սեփական մեքենայով վարորդ, ով նաև լիցenzավորված գիդ է։ Խոսում է լեզուներով և ուղեկցում է զբոսաշրջիկներին։',
+  roleHostTitle: 'Վարորդ սեփական մեքենայով',
+  roleHostTitleAccent: '(հոստ)',
+  roleHostText:
+    'Խոսում է լեզուներով հաղորդակցական մակարդակով։ Մի քանի մեքենա — գտեք և назначեք վարորդներ ձեր ֆլոտում։',
+  roleJobSeekerTitle: 'Վարորդ — աշխատանքի որոնում',
+  roleJobSeekerText:
+    'Փորձ ունե՞ք, բայց մեքենա չկա։ Հոստերը փնտրում են հուսալի վարորդներ իրենց ֆլոտի համար։',
+  servicesLabel: 'Ծառայություններ',
+  servicesTitle: '3 ծառայություն մեկ հարթակում',
+  servicesSubtitle: 'Ընտրեք ձեզ անհրաժեշտ ծառայությունը — մենք կուղեկցենք ամբողջ գործընթացին',
+  serviceTransferTitle: 'Տրանսֆեր',
+  serviceTransferDesc: 'A կետից B — արագ և հարմարավետ երթ',
+  serviceTransferF1: 'Օդանավակայանի տրանսֆեր',
+  serviceTransferF2: 'Հotel-to-hotel',
+  serviceTransferF3: 'Հետևում իրական ժամանակում',
+  serviceTransferF4: 'Фиксված գին',
+  serviceOneDayTitle: 'Միօրյա տուր',
+  serviceOneDayDesc: 'Ամբողջ օրվա էքսկուրսիա կանգառներով և գիդով',
+  serviceOneDayF1: 'Բազմաթիվ կանգառներ',
+  serviceOneDayF2: 'Գիդ-վարորդի ընտրություն',
+  serviceOneDayF3: 'Վաուչեր маршруտով',
+  serviceOneDayF4: 'Гибкий ժամանակացույց',
+  serviceMultiDayTitle: 'Բազմօրյա տուր',
+  serviceMultiDayDesc: 'Ամբողջական ծրագիր հotelներով և գիշերակացներով',
+  serviceMultiDayF1: 'Օրացույցով օրերի կառավարում',
+  serviceMultiDayF2: 'Գիշերակացի հotelներ',
+  serviceMultiDayF3: 'Օրական маршрут',
+  serviceMultiDayF4: 'Վաուչեր բոլոր մանրամասներով',
+  featuresTitle: 'Ամեն ինչ, ինչ ձեզ պետք է',
+  featureGpsTitle: 'GPS իրական ժամանակում',
+  featureGpsText: 'Տեսեք վարորդին քարտեզի վրա ցանկացած պահի',
+  featureVoucherTitle: 'PDF վաուչեր',
+  featureVoucherText: 'Ավտոմատ գեներացիա, մեկ սեղմումով',
+  featureChatTitle: 'Եռակողմ չատ',
+  featureChatText: 'Ընկերություն, հոստ, վարորդ — միասին',
+  featureTourTitle: 'Բազմօրյա տուր',
+  featureTourText: 'Ամբողջական маршрут + հotelներ',
+  featureRatingTitle: 'Վարկանիշ',
+  featureRatingText: 'Ստուգված վարորդներ + ակնարկներ',
+  featureLangTitle: '33 լեզու',
+  featureLangText: 'Միջազգային հարթակ',
+  ctaTitle1: 'Պատրա՞ստ եք',
+  ctaTitle2: 'սկսելու',
+  ctaSubtitle: 'Գրանցվեք, անցեք վերահսկում և ստացեք կամ ստեղծեք առաջին ամրագրումը',
+  ctaButton: 'Գրանցվել հիմա →',
+  footerTagline: 'B2B էկոհամակարգ տուրիզմում',
+  footerContact: 'Կապվեք մեզ հետ',
+  footerSupportChat: 'Աջակցության չատ հավելվածում',
+  footerRights: '© 2025 KEKE Manager',
+  footerPrivacy: 'Գաղտնիություն',
+  footerTerms: 'Պայմաններ',
+};
+
+const PRIMARY_LANDING: Partial<Record<LandingLangCode, LandingCopy>> = {
   ka: KA,
   en: EN,
   ru: RU,
+  hy: HY,
 };
 
+function buildLandingRegistry(): Record<LandingLangCode, LandingCopy> {
+  const out = {} as Record<LandingLangCode, LandingCopy>;
+  for (const { code } of LANDING_LANGUAGES) {
+    out[code] = PRIMARY_LANDING[code] ?? EN;
+  }
+  return out;
+}
+
+const LANDING_REGISTRY = buildLandingRegistry();
+
 export function getLandingCopy(lang: LandingLangCode): LandingCopy {
-  return BY_LANG[lang] ?? EN;
+  return LANDING_REGISTRY[lang] ?? EN;
 }

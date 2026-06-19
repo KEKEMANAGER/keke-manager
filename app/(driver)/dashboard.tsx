@@ -208,7 +208,7 @@ export default function DriverDashboardScreen() {
       setRatingAvg(ratingRes.average);
       setRatingCount(ratingRes.count);
     }
-  }, [userId, profile?.is_hired_driver]);
+  }, [userId, profile]);
 
   useEffect(() => {
     void load('initial');

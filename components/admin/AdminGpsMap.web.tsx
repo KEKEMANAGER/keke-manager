@@ -82,17 +82,15 @@ export function AdminGpsMap({
   mapHeight,
 }: AdminGpsMapProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const layerRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<Map<string, any>>(new Map());
   const onSelectRef = useRef(onSelectDriver);
   const [mapReady, setMapReady] = useState(false);
   onSelectRef.current = onSelectDriver;
 
   useEffect(() => {
+    const markers = markersRef.current;
     const el = hostRef.current;
     if (!el || mapRef.current) return;
 
@@ -123,7 +121,7 @@ export function AdminGpsMap({
       window.clearTimeout(t2);
       const map = mapRef.current;
       if (map) {
-        markersRef.current.clear();
+        markers.clear();
         map.remove();
         mapRef.current = null;
         layerRef.current = null;

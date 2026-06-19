@@ -37,7 +37,7 @@ export function AdminVehicleVerifySection({
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [, setRejectTargetId] = useState<string | null>(null);
   const rejectResolveRef = useRef<((value: string | null) => void) | null>(null);
 
   const load = useCallback(async (silent = false) => {

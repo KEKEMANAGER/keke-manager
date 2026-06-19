@@ -4,7 +4,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   Alert,
   Dimensions,
   Modal,
@@ -50,7 +49,6 @@ import { BookingOdometerSection, BookingOdometerBadge } from '../../components/B
 import { EmptyState } from '../../components/EmptyState';
 import { canCompanyEditBooking } from '../../lib/bookingUpdate';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
-import { supabase } from '../../lib/supabase';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { APP_HEADER_BODY_HEIGHT } from '../../constants/layout';
 import type { DriverProfile } from '../../lib/drivers';

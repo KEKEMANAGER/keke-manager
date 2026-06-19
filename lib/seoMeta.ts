@@ -8,7 +8,7 @@ export const OG_TITLE = 'KEKE Manager — B2B Tourism Transport Platform';
 export const OG_DESCRIPTION =
   "Georgia's first B2B platform connecting tour operators and drivers. GPS tracking, bookings and digital vouchers — all in one app.";
 
-export type SeoLang = 'ka' | 'en' | 'ru';
+export type SeoLang = 'ka' | 'en' | 'ru' | 'hy';
 
 export type SeoMetaEntry = {
   title: string;
@@ -42,19 +42,27 @@ export const SEO_META: Record<SeoLang, SeoMetaEntry> = {
       'туристический транспорт грузия, водитель тур, гид водитель, бронирование, тбилиси трансфер, B2B транспорт',
     ogLocale: 'ru_RU',
   },
+  hy: {
+    title: 'KEKE Manager — B2B հարթակ տուրիստական տրանսպортի համար',
+    description:
+      'B2B էկոհամակարգ տուրիստական ընկերությունների, գիդ-վարորդների և ֆլոտի սեփականատերերի համար։ Ամրագրումներ, GPS, վարկանիշներ, 33 լեզու։',
+    keywords:
+      'tourist transport armenia, tour driver, booking platform, B2B transport, Yerevan transfer',
+    ogLocale: 'hy_AM',
+  },
 };
 
 export const DEFAULT_SEO_LANG: SeoLang = 'ka';
 
 export function resolveSeoLang(code: string | null | undefined): SeoMetaEntry {
-  if (code === 'en' || code === 'ru' || code === 'ka') {
+  if (code === 'en' || code === 'ru' || code === 'ka' || code === 'hy') {
     return SEO_META[code];
   }
   return SEO_META.en;
 }
 
 export function isSeoLang(code: string): code is SeoLang {
-  return code === 'ka' || code === 'en' || code === 'ru';
+  return code === 'ka' || code === 'en' || code === 'ru' || code === 'hy';
 }
 
 export const SCHEMA_SOFTWARE_APPLICATION = {
@@ -90,7 +98,7 @@ export const SCHEMA_SOFTWARE_APPLICATION = {
       { '@type': 'Person', name: 'Ani Kekelia', jobTitle: 'Co-Founder' },
     ],
   },
-  inLanguage: ['ka', 'en', 'ru'],
+  inLanguage: ['ka', 'en', 'ru', 'hy'],
 } as const;
 
 export const SCHEMA_ORGANIZATION = {
@@ -105,7 +113,7 @@ export const SCHEMA_ORGANIZATION = {
     contactType: 'Customer Service',
     email: 'info@kekemanager.com',
     areaServed: 'GE',
-    availableLanguage: ['Georgian', 'English', 'Russian'],
+    availableLanguage: ['Georgian', 'English', 'Russian', 'Armenian'],
   },
   sameAs: [] as string[],
 } as const;

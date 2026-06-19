@@ -11,45 +11,19 @@ import { getAllPosts, paginatePosts, searchPosts } from '../../lib/blog';
 import { useBlogManifestReady } from '../../lib/BlogManifestProvider';
 import { blogIndexSeo } from '../../lib/blogSeoMeta';
 import type { BlogCategoryId } from '../../lib/blogTypes';
+import { getBlogUiCopy } from '../../lib/blogUiCopy';
 import { useBlogLang } from '../../lib/useBlogLang';
+import { useLandingLang } from '../../lib/useLandingLang';
 import { LANDING, landingFont, sx } from '../../components/landing/landingTheme';
 
 const PER_PAGE = 12;
 
-const COPY = {
-  ka: {
-    hero: 'KEKE Manager Blog',
-    sub: 'ტურისტული ტრანსპორტის ინსაითები ტუროპერატორებისთვის, მძღოლებისთვის და ფლოტის მფლობელებისთვის საქართველოში.',
-    search: 'ძებნა სტატიებში...',
-    shown: 'ნაჩვენებია',
-    newsletterTitle: 'გამოიწერეთ ახალი სტატიები',
-    newsletterSub: 'იღებთ პრაქტიკულ რჩევებს ტურისტული ტრანსპორტის შესახებ.',
-    ctaTitle: 'სცადეთ KEKE Manager უფასოდ',
-    ctaSub: 'ტურისტული კომპანიებისთვის უფასო — ჯავშნები, GPS, რეიტინგი.',
-    ctaBtn: 'დაწყება →',
-    prev: 'წინა',
-    next: 'შემდეგი',
-  },
-  en: {
-    hero: 'KEKE Manager Blog',
-    sub: 'Tourism transport insights for tour operators, drivers, and fleet owners in Georgia.',
-    search: 'Search articles...',
-    shown: 'Showing',
-    newsletterTitle: 'Subscribe to new articles',
-    newsletterSub: 'Practical guides on tourist transport and B2B platforms.',
-    ctaTitle: 'Try KEKE Manager free',
-    ctaSub: 'Free for tour companies — bookings, GPS, ratings.',
-    ctaBtn: 'Get started →',
-    prev: 'Previous',
-    next: 'Next',
-  },
-};
-
 export default function BlogIndexScreen() {
   const params = useLocalSearchParams<{ category?: string; page?: string }>();
+  const landingLang = useLandingLang();
   const lang = useBlogLang();
-  const copy = lang === 'en' ? COPY.en : COPY.ka;
-  const { version: manifestVersion } = useBlogManifestReady();
+  const copy = getBlogUiCopy(landingLang);
+  useBlogManifestReady();
 
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<BlogCategoryId | 'all'>(
@@ -62,7 +36,7 @@ export default function BlogIndexScreen() {
     if (category !== 'all') posts = posts.filter((p) => p.category === category);
     if (query.trim()) posts = searchPosts(query, lang).filter((p) => category === 'all' || p.category === category);
     return posts;
-  }, [lang, category, query, manifestVersion]);
+  }, [lang, category, query]);
 
   const { items, totalPages, page: safePage } = paginatePosts(filtered, page, PER_PAGE);
   const seo = blogIndexSeo(lang);

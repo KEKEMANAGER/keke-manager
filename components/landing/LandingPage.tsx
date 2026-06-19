@@ -2,27 +2,26 @@ import { Link } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import {
   Image,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View} from 'react-native';
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLandingCopy } from '../../lib/landingCopy';
 import {
-  isSeoLang,
   OG_DESCRIPTION,
   OG_IMAGE_URL,
   OG_TITLE,
-  resolveSeoLang,
   SITE_URL,
 } from '../../lib/seoMeta';
 import {
   APP_SYNCED_LANDING_LANGS,
   LANDING_LANGUAGES,
   type LandingLangCode} from '../../lib/landingLanguages';
+import { persistLandingLang, useLandingLang } from '../../lib/useLandingLang';
 import { persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 import {
   IconChat,
@@ -35,7 +34,7 @@ import {
   IllustrationGuide,
   IllustrationHost,
   IllustrationJobSeeker,
-  KekeLogoBadge} from './LandingIllustrations';
+} from './LandingIllustrations';
 import { LandingHeader } from './LandingHeader';
 import { LandingPageScroll } from './LandingPageScroll';
 import { LANDING, landingFont, sx } from './landingTheme';
@@ -76,11 +75,13 @@ function scrollToSection(id: string) {
   }
 }
 
-function useLandingMeta(copy: ReturnType<typeof getLandingCopy>) {
+function useLandingMeta(copy: ReturnType<typeof getLandingCopy>, lang: LandingLangCode) {
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const apply = () => {
       document.title = copy.metaTitle;
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' || lang === 'he' ? 'rtl' : 'ltr';
       const setMeta = (name: string, content: string, prop = false) => {
       const attr = prop ? 'property' : 'name';
       let el = document.querySelector(`meta[${attr}="${name}"]`);
@@ -118,7 +119,7 @@ function useLandingMeta(copy: ReturnType<typeof getLandingCopy>) {
     }
     const t = window.setTimeout(apply, 0);
     return () => clearTimeout(t);
-  }, [copy.metaTitle, copy.metaDescription]);
+  }, [copy.metaTitle, copy.metaDescription, lang]);
 }
 
 type RoleSlide = {
@@ -140,13 +141,18 @@ export function LandingPage() {
     });
     return () => cancelAnimationFrame(id);
   }, []);
-  const [lang, setLang] = useState<LandingLangCode>('ka');
+  const resolvedLang = useLandingLang();
+  const [lang, setLang] = useState<LandingLangCode>(resolvedLang);
   const [langOpen, setLangOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    setLang(resolvedLang);
+  }, [resolvedLang]);
   const copy = useMemo(() => getLandingCopy(lang), [lang]);
 
-  useLandingMeta(copy);
+  useLandingMeta(copy, lang);
 
   const slides: RoleSlide[] = useMemo(
     () => [
@@ -201,6 +207,7 @@ export function LandingPage() {
   const onLangPick = useCallback(async (code: LandingLangCode) => {
     setLang(code);
     setLangOpen(false);
+    await persistLandingLang(code);
     if (APP_SYNCED_LANDING_LANGS.has(code)) {
       await persistLanguage(code as AppLanguage);
     }

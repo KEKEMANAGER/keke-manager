@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import type { LandingCopy } from '../../lib/landingCopy';
 import { LANDING_BP } from './useLandingBreakpoint';
 import {

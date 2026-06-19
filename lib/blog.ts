@@ -43,13 +43,13 @@ export async function hydrateBlogManifestFromWeb(): Promise<boolean> {
 
 function localizedHtml(post: BlogPost, lang: BlogLang): string {
   if (lang === 'en' && post.html_en?.trim()) return post.html_en;
-  if (lang === 'ru' && post.html_en?.trim()) return post.html_en;
+  if ((lang === 'ru' || lang === 'hy') && post.html_en?.trim()) return post.html_en;
   return post.html;
 }
 
 function localizedToc(post: BlogPost, lang: BlogLang): BlogPost['toc'] {
   if (lang === 'en' && post.toc_en?.length) return post.toc_en;
-  if (lang === 'ru' && post.toc_en?.length) return post.toc_en;
+  if ((lang === 'ru' || lang === 'hy') && post.toc_en?.length) return post.toc_en;
   return post.toc;
 }
 
@@ -60,15 +60,15 @@ function postLang(post: BlogPost, lang?: BlogLang): BlogPost {
       categoryName: categoryLabel(post.category, 'ka'),
     };
   }
-  if (lang === 'en') {
+  if (lang === 'en' || lang === 'hy') {
     return {
       ...post,
       title: post.title_en || post.title,
       description: post.description_en || post.description,
       excerpt: post.excerpt_en || post.excerpt,
-      html: localizedHtml(post, 'en'),
-      toc: localizedToc(post, 'en'),
-      categoryName: categoryLabel(post.category, 'en'),
+      html: localizedHtml(post, lang),
+      toc: localizedToc(post, lang),
+      categoryName: categoryLabel(post.category, lang),
     };
   }
   return {
