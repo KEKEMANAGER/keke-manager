@@ -190,8 +190,7 @@ function mapAdminVehicleRows(
 export async function fetchAdminVehicleVerificationQueueCount(): Promise<number> {
   const { count, error } = await supabase
     .from('vehicles')
-    .select('*', { count: 'exact', head: true })
-    .in('verification_status', ['pending', 'submitted']);
+    .select('*', { count: 'exact', head: true });
 
   if (error) return 0;
   return count ?? 0;
