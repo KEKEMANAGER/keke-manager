@@ -91,7 +91,7 @@ export default function CompanyDriversScreen() {
           return (
             <Pressable
               key={d.id}
-              onPress={() => router.push('/(app)/new-booking')}
+              onPress={() => router.push(`/(app)/driver/${d.id}`)}
               style={({ pressed }) => [styles.card, SHADOWS.card, pressed && styles.cardPressed]}
             >
               <View style={styles.cardTop}>

@@ -274,9 +274,10 @@
   },
   "adminVehicleVerify": {
     "sectionTitle": "მანქანების რეგისტრაცია",
-    "emptyPending": "შემოწმებაში მანქანები არ არის",
+    "emptyPending": "მანქანები არ არის",
     "driver": "მძღოლი",
     "plate": "ნომერი",
+    "vehicleType": "ტიპი",
     "approveSuccess": "მანქანა დადასტურდა",
     "rejectSuccess": "მანქანის რეგისტრაცია უარყოფილია"
   },

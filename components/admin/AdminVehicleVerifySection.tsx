@@ -20,7 +20,19 @@ import {
   rejectVehicleVerification,
   type AdminVehicleVerificationRow,
 } from '../../lib/vehicleVerification';
+import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { adminStyles } from './adminStyles';
+
+function vehicleNeedsReview(status: AdminVehicleVerificationRow['verification_status']): boolean {
+  return status === 'pending' || status === 'submitted';
+}
+
+function vehicleTypeDisplay(v: AdminVehicleVerificationRow): string {
+  const type = v.type ? vehicleTypeLabel(v.type) : null;
+  const cls = v.class ? vehicleClassLabel(v.class) : null;
+  if (type && cls) return `${type} · ${cls}`;
+  return type ?? cls ?? '—';
+}
 
 export function AdminVehicleVerifySection({
   searchQuery = '',
@@ -69,7 +81,8 @@ export function AdminVehicleVerifySection({
       const email = (v.driver_email ?? '').trim().toLowerCase();
       const plate = (v.plate ?? '').trim().toLowerCase();
       const model = (v.model ?? '').trim().toLowerCase();
-      return name.includes(q) || email.includes(q) || plate.includes(q) || model.includes(q);
+      const type = vehicleTypeDisplay(v).toLowerCase();
+      return name.includes(q) || email.includes(q) || plate.includes(q) || model.includes(q) || type.includes(q);
     });
   }, [rows, searchQuery]);
 
@@ -112,7 +125,13 @@ export function AdminVehicleVerifySection({
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
-    setRows((prev) => prev.filter((r) => r.id !== vehicleId));
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === vehicleId
+          ? { ...r, verification_status: 'approved', is_verified: true, rejection_reason: null }
+          : r,
+      ),
+    );
     Alert.alert(t('common.success'), t('adminVehicleVerify.approveSuccess'));
     void load(true);
   }
@@ -127,7 +146,19 @@ export function AdminVehicleVerifySection({
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
-    setRows((prev) => prev.filter((r) => r.id !== vehicleId));
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === vehicleId
+          ? {
+              ...r,
+              verification_status: 'rejected',
+              is_verified: false,
+              rejection_reason: reason,
+              is_active: false,
+            }
+          : r,
+      ),
+    );
     Alert.alert(t('common.success'), t('adminVehicleVerify.rejectSuccess'));
     void load(true);
   }
@@ -174,10 +205,13 @@ export function AdminVehicleVerifySection({
         filteredRows.map((v) => (
           <View key={v.id} style={adminStyles.card}>
             <Text style={adminStyles.cardTitle}>
-              {v.model?.trim() || v.plate?.trim() || v.id.slice(0, 8)}
+              {v.plate?.trim() || v.model?.trim() || v.id.slice(0, 8)}
             </Text>
             <Text style={adminStyles.cardMeta}>
               {t('adminVehicleVerify.driver')}: {v.driver_name?.trim() || v.driver_email || '—'}
+            </Text>
+            <Text style={adminStyles.cardMeta}>
+              {t('adminVehicleVerify.vehicleType')}: {vehicleTypeDisplay(v)}
             </Text>
             <Text style={adminStyles.cardMeta}>
               {t('adminVehicleVerify.plate')}: {v.plate?.trim() || '—'}
@@ -185,30 +219,34 @@ export function AdminVehicleVerifySection({
             <Text style={adminStyles.cardMeta}>
               {t('adminVerify.status')}: {t(`vehicleScreen.verificationStatus_${v.verification_status}`)}
             </Text>
-            <View style={styles.docGrid}>
-              {docButton(v, v.tech_passport_front, 'verificationScreen.tech_passport_front')}
-              {docButton(v, v.tech_passport_back, 'verificationScreen.tech_passport_back')}
-            </View>
-            <View style={adminStyles.btnRow}>
-              <Pressable
-                onPress={() => void onApprove(v.id)}
-                disabled={actingId === v.id}
-                style={({ pressed }) => [styles.approve, (pressed || actingId === v.id) && { opacity: 0.88 }]}
-              >
-                {actingId === v.id ? (
-                  <ActivityIndicator color="#0f0f0f" />
-                ) : (
-                  <Text style={styles.approveText}>{t('adminVerify.approveAction')}</Text>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={() => void onReject(v.id)}
-                disabled={actingId === v.id}
-                style={({ pressed }) => [styles.reject, (pressed || actingId === v.id) && { opacity: 0.88 }]}
-              >
-                <Text style={styles.rejectText}>{t('adminVerify.rejectAction')}</Text>
-              </Pressable>
-            </View>
+            {vehicleNeedsReview(v.verification_status) ? (
+              <>
+                <View style={styles.docGrid}>
+                  {docButton(v, v.tech_passport_front, 'verificationScreen.tech_passport_front')}
+                  {docButton(v, v.tech_passport_back, 'verificationScreen.tech_passport_back')}
+                </View>
+                <View style={adminStyles.btnRow}>
+                  <Pressable
+                    onPress={() => void onApprove(v.id)}
+                    disabled={actingId === v.id}
+                    style={({ pressed }) => [styles.approve, (pressed || actingId === v.id) && { opacity: 0.88 }]}
+                  >
+                    {actingId === v.id ? (
+                      <ActivityIndicator color="#0f0f0f" />
+                    ) : (
+                      <Text style={styles.approveText}>{t('adminVerify.approveAction')}</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void onReject(v.id)}
+                    disabled={actingId === v.id}
+                    style={({ pressed }) => [styles.reject, (pressed || actingId === v.id) && { opacity: 0.88 }]}
+                  >
+                    <Text style={styles.rejectText}>{t('adminVerify.rejectAction')}</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
           </View>
         ))
       )}

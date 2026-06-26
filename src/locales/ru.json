@@ -274,9 +274,10 @@
   },
   "adminVehicleVerify": {
     "sectionTitle": "Регистрация авто",
-    "emptyPending": "Нет авто на проверке",
+    "emptyPending": "Нет зарегистрированных авто",
     "driver": "Водитель",
     "plate": "Номер",
+    "vehicleType": "Тип",
     "approveSuccess": "Авто подтверждено",
     "rejectSuccess": "Регистрация авто отклонена"
   },

@@ -43,8 +43,8 @@
       }
     },
     "android": {
-      "package": "com.akuna.kekemanager",
-      "versionCode": 6,
+      "package": "com.keke.manager",
+      "versionCode": 12,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

@@ -276,9 +276,10 @@
   },
   "adminVehicleVerify": {
     "sectionTitle": "Vehicle registration",
-    "emptyPending": "No vehicles awaiting review",
+    "emptyPending": "No vehicles registered",
     "driver": "Driver",
     "plate": "Plate",
+    "vehicleType": "Type",
     "approveSuccess": "Vehicle approved",
     "rejectSuccess": "Vehicle registration rejected"
   },

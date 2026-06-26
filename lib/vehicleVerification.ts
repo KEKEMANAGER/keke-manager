@@ -148,26 +148,50 @@ function bustUrl(url: string | null | undefined): string | null {
   return withCacheBust(url.trim()) ?? url.trim();
 }
 
-async function approvedOwnerIdsForVehicleQueue(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('users')
-    .select('id')
-    .eq('verification_status', 'approved')
-    .eq('is_verified', true);
+async function fetchDriverNamesById(
+  driverIds: string[],
+): Promise<Map<string, { full_name: string | null; email: string | null }>> {
+  const usersById = new Map<string, { full_name: string | null; email: string | null }>();
+  if (driverIds.length === 0) return usersById;
 
-  if (error) return [];
-  return (data ?? []).map((row) => String((row as { id: string }).id));
+  const { data: users } = await supabase
+    .from('users')
+    .select('id, full_name, email')
+    .in('id', driverIds);
+
+  for (const u of users ?? []) {
+    const row = u as { id: string; full_name: string | null; email: string | null };
+    usersById.set(row.id, { full_name: row.full_name, email: row.email });
+  }
+  return usersById;
+}
+
+function mapAdminVehicleRows(
+  vehicles: VehicleRow[],
+  usersById: Map<string, { full_name: string | null; email: string | null }>,
+): AdminVehicleVerificationRow[] {
+  return vehicles.map((v) => {
+    const u = usersById.get(v.driver_id);
+    return {
+      ...v,
+      tech_passport_front: bustUrl(v.tech_passport_front),
+      tech_passport_back: bustUrl(v.tech_passport_back),
+      photo_front: bustUrl(v.photo_front),
+      photo_left: bustUrl(v.photo_left),
+      photo_right: bustUrl(v.photo_right),
+      photo_interior: bustUrl(v.photo_interior),
+      photo_rear: bustUrl(v.photo_rear),
+      driver_name: u?.full_name ?? null,
+      driver_email: u?.email ?? null,
+    };
+  });
 }
 
 export async function fetchAdminVehicleVerificationQueueCount(): Promise<number> {
-  const ownerIds = await approvedOwnerIdsForVehicleQueue();
-  if (ownerIds.length === 0) return 0;
-
   const { count, error } = await supabase
     .from('vehicles')
     .select('*', { count: 'exact', head: true })
-    .eq('verification_status', 'submitted')
-    .in('driver_id', ownerIds);
+    .in('verification_status', ['pending', 'submitted']);
 
   if (error) return 0;
   return count ?? 0;
@@ -177,49 +201,19 @@ export async function fetchAdminVehicleVerificationQueue(): Promise<{
   data: AdminVehicleVerificationRow[];
   error: Error | null;
 }> {
-  const ownerIds = await approvedOwnerIdsForVehicleQueue();
-  if (ownerIds.length === 0) return { data: [], error: null };
-
   const { data, error } = await supabase
     .from('vehicles')
     .select(ADMIN_VEHICLE_SELECT)
-    .eq('verification_status', 'submitted')
-    .in('driver_id', ownerIds)
     .order('updated_at', { ascending: false });
 
   if (error) return { data: [], error: new Error(error.message) };
 
   const vehicles = (data ?? []) as VehicleRow[];
   const driverIds = [...new Set(vehicles.map((v) => v.driver_id))];
-
-  let usersById = new Map<string, { full_name: string | null; email: string | null }>();
-  if (driverIds.length > 0) {
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, full_name, email')
-      .in('id', driverIds);
-    for (const u of users ?? []) {
-      const row = u as { id: string; full_name: string | null; email: string | null };
-      usersById.set(row.id, { full_name: row.full_name, email: row.email });
-    }
-  }
+  const usersById = await fetchDriverNamesById(driverIds);
 
   return {
-    data: vehicles.map((v) => {
-      const u = usersById.get(v.driver_id);
-      return {
-        ...v,
-        tech_passport_front: bustUrl(v.tech_passport_front),
-        tech_passport_back: bustUrl(v.tech_passport_back),
-        photo_front: bustUrl(v.photo_front),
-        photo_left: bustUrl(v.photo_left),
-        photo_right: bustUrl(v.photo_right),
-        photo_interior: bustUrl(v.photo_interior),
-        photo_rear: bustUrl(v.photo_rear),
-        driver_name: u?.full_name ?? null,
-        driver_email: u?.email ?? null,
-      };
-    }),
+    data: mapAdminVehicleRows(vehicles, usersById),
     error: null,
   };
 }
@@ -234,16 +228,14 @@ export async function approveVehicleVerification(
     p_vehicle_id: id,
   });
 
-  if (!rpcErr) {
-    if (rpcOk === true) return { error: null };
-    return { error: new Error('Vehicle not found or not awaiting review') };
-  }
+  if (!rpcErr && rpcOk === true) return { error: null };
 
   const rpcMissing =
-    rpcErr.code === 'PGRST202' ||
-    /could not find the function/i.test(rpcErr.message ?? '');
+    rpcErr &&
+    (rpcErr.code === 'PGRST202' ||
+      /could not find the function/i.test(rpcErr.message ?? ''));
 
-  if (!rpcMissing) {
+  if (rpcErr && !rpcMissing) {
     return { error: new Error(rpcErr.message) };
   }
 
@@ -256,7 +248,7 @@ export async function approveVehicleVerification(
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('verification_status', 'submitted')
+    .in('verification_status', ['pending', 'submitted'])
     .select('id');
 
   if (error) return { error: new Error(error.message) };
@@ -280,16 +272,14 @@ export async function rejectVehicleVerification(
     p_reason: trimmedReason,
   });
 
-  if (!rpcErr) {
-    if (rpcOk === true) return { error: null };
-    return { error: new Error('Vehicle not found or not awaiting review') };
-  }
+  if (!rpcErr && rpcOk === true) return { error: null };
 
   const rpcMissing =
-    rpcErr.code === 'PGRST202' ||
-    /could not find the function/i.test(rpcErr.message ?? '');
+    rpcErr &&
+    (rpcErr.code === 'PGRST202' ||
+      /could not find the function/i.test(rpcErr.message ?? ''));
 
-  if (!rpcMissing) {
+  if (rpcErr && !rpcMissing) {
     return { error: new Error(rpcErr.message) };
   }
 
@@ -303,7 +293,7 @@ export async function rejectVehicleVerification(
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('verification_status', 'submitted')
+    .in('verification_status', ['pending', 'submitted'])
     .select('id');
 
   if (error) return { error: new Error(error.message) };

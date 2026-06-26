@@ -90,6 +90,7 @@ function CompanyTabsInner() {
           <Tabs.Screen name="history" options={{ href: null }} />
           <Tabs.Screen name="bookings" options={{ href: null }} />
           <Tabs.Screen name="drivers" options={{ href: null }} />
+          <Tabs.Screen name="driver/[id]" options={{ href: null }} />
           <Tabs.Screen name="settings" options={{ href: null }} />
           <Tabs.Screen name="edit-booking/[id]" options={{ href: null }} />
           <Tabs.Screen name="company-voucher/[id]" options={{ href: null }} />
