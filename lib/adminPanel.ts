@@ -112,6 +112,20 @@ export const deleteAdminUser = async (userId: string): Promise<{ error: Error | 
   const id = userId.trim();
   if (!id) return { error: new Error('user id missing') };
 
+  const { error: rpcError } = await supabase.rpc('admin_delete_user', { p_target_id: id });
+  if (!rpcError) {
+    return { error: null };
+  }
+
+  const rpcMissing =
+    rpcError.code === 'PGRST202' ||
+    /could not find the function/i.test(rpcError.message ?? '');
+
+  if (!rpcMissing) {
+    return { error: new Error(rpcError.message) };
+  }
+
+  // Fallback for environments where the RPC migration is not applied yet.
   const { data, error: fnError } = await supabase.functions.invoke<AdminDeleteUserResponse>(
     'admin-delete-user',
     { body: { userId: id } },

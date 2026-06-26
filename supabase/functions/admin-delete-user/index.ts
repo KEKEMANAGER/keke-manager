@@ -72,14 +72,9 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { error: delPublic } = await admin.from('users').delete().eq('id', targetId);
-    if (delPublic) {
-      return jsonResponse({ error: delPublic.message }, 400);
-    }
-
-    const { error: delAuth } = await admin.auth.admin.deleteUser(targetId);
-    if (delAuth) {
-      return jsonResponse({ error: delAuth.message }, 400);
+    const { error: purgeErr } = await admin.rpc('purge_user_data', { p_target_id: targetId });
+    if (purgeErr) {
+      return jsonResponse({ error: purgeErr.message }, 400);
     }
 
     return jsonResponse({ ok: true }, 200);

@@ -32,6 +32,7 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
   const [actingId, setActingId] = useState<string | null>(null);
   const [roleTarget, setRoleTarget] = useState<AdminUserRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
@@ -128,18 +129,22 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
   }
 
   function confirmDelete(u: AdminUserRow) {
+    setDeleteError(null);
     setDeleteTarget(u);
   }
 
   async function runDelete(userId: string) {
-    setDeleteTarget(null);
     setActingId(userId);
+    setDeleteError(null);
     const { error: err } = await deleteAdminUser(userId);
     setActingId(null);
     if (err) {
+      setDeleteError(err.message);
       Alert.alert(t('system.errorTitle'), err.message);
       return;
     }
+    setDeleteTarget(null);
+    setDeleteError(null);
     setRows((prev) => prev.filter((r) => r.id !== userId));
   }
 
@@ -253,25 +258,53 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
         visible={!!deleteTarget}
         transparent
         animationType="fade"
-        onRequestClose={() => setDeleteTarget(null)}
+        onRequestClose={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setDeleteTarget(null)}>
-          <View style={styles.modalCard}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }}
+        >
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>{t('adminPanel.deleteTitle')}</Text>
             <Text style={styles.modalSub}>{t('adminPanel.deleteMessage')}</Text>
             <Text style={styles.modalSub}>
               {deleteTarget?.full_name?.trim() || deleteTarget?.email || '—'}
             </Text>
+            {deleteError ? (
+              <View style={styles.deleteErrorBox}>
+                <Text style={styles.deleteErrorText}>{deleteError}</Text>
+              </View>
+            ) : null}
             <Pressable
               onPress={() => deleteTarget && void runDelete(deleteTarget.id)}
-              style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.88 }]}
+              disabled={actingId === deleteTarget?.id}
+              style={({ pressed }) => [
+                styles.deleteBtn,
+                (pressed || actingId === deleteTarget?.id) && { opacity: 0.88 },
+              ]}
             >
-              <Text style={styles.deleteBtnText}>{t('adminPanel.deleteConfirm')}</Text>
+              {actingId === deleteTarget?.id ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <Text style={styles.deleteBtnText}>{t('adminPanel.deleteConfirm')}</Text>
+              )}
             </Pressable>
-            <Pressable onPress={() => setDeleteTarget(null)} style={styles.modalCancel}>
+            <Pressable
+              onPress={() => {
+                setDeleteTarget(null);
+                setDeleteError(null);
+              }}
+              style={styles.modalCancel}
+            >
               <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
             </Pressable>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </View>
@@ -335,6 +368,16 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '800',
     fontSize: 14,
+  },
+  deleteErrorBox: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: RADIUS.button,
+    padding: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  deleteErrorText: {
+    color: COLORS.error,
+    fontSize: 13,
   },
   tapHint: {
     color: COLORS.gold,
