@@ -12,13 +12,13 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { EmptyState } from '../../components/EmptyState';
-import { StarRow } from '../../components/StarRow';
-import { APP_HEADER_BODY_HEIGHT } from '../../constants/layout';
-import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
-import { fetchMatchingDrivers, type MatchingDriver } from '../../lib/drivers';
-import { withCacheBust } from '../../lib/mediaUpload';
-import { VEHICLE_CLASSES, VEHICLE_TYPES } from '../../lib/vehicleCatalog';
+import { EmptyState } from '../../../components/EmptyState';
+import { StarRow } from '../../../components/StarRow';
+import { APP_HEADER_BODY_HEIGHT } from '../../../constants/layout';
+import { COLORS, RADIUS, SHADOWS, SPACING } from '../../../constants/theme';
+import { fetchMatchingDrivers, type MatchingDriver } from '../../../lib/drivers';
+import { withCacheBust } from '../../../lib/mediaUpload';
+import { VEHICLE_CLASSES, VEHICLE_TYPES } from '../../../lib/vehicleCatalog';
 
 export default function CompanyDriversScreen() {
   const { t } = useTranslation();
@@ -91,7 +91,12 @@ export default function CompanyDriversScreen() {
           return (
             <Pressable
               key={d.id}
-              onPress={() => router.push(`/(app)/driver/${d.id}`)}
+              onPress={() =>
+                router.push({
+                  pathname: '/(app)/drivers/[id]',
+                  params: { id: d.id },
+                })
+              }
               style={({ pressed }) => [styles.card, SHADOWS.card, pressed && styles.cardPressed]}
             >
               <View style={styles.cardTop}>
