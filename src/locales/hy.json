@@ -1091,7 +1091,18 @@
     "completeNeedsInProgress": "You can finish the booking only while it is in progress.",
     "startTripFirstHint": "Tap \"Start tour/transfer\" on Bookings, then finish here.",
     "alreadyCompleted": "This booking is already completed.",
-    "goToBookings": "Go to bookings"
+    "goToBookings": "Go to bookings",
+    "bgDisclosure": {
+      "title": "Background location access",
+      "whyLabel": "Why we need this",
+      "why": "KEKE MANAGER collects your location in the background while GPS tracking is active during an active trip, so the tour operator that assigned the booking can monitor your position on the live map.",
+      "dataLabel": "Data collected",
+      "dataCollected": "GPS coordinates (latitude and longitude), updated periodically while trip tracking is turned on.",
+      "usageLabel": "How it is used",
+      "dataUsage": "Location data is sent securely to KEKE MANAGER and shown to the tour operator for the active booking only. It is used for live trip monitoring—not for advertising. Tracking stops when you end the trip or turn off GPS.",
+      "accept": "Accept",
+      "decline": "Decline"
+    }
   },
   "tracking": {
     "title": "Driver Tracking",

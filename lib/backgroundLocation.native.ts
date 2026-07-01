@@ -91,6 +91,11 @@ export type StartBackgroundLocationOptions = {
   notificationTitle?: string;
   /** Localized body for the Android foreground-service notification. */
   notificationBody?: string;
+  /**
+   * When false, skips background permission request and background updates (foreground-only).
+   * Use after the user declines the prominent disclosure dialog.
+   */
+  requestBackground?: boolean;
 };
 
 /**
@@ -101,6 +106,7 @@ export async function startBackgroundLocation(
   options: StartBackgroundLocationOptions,
 ): Promise<StartBackgroundLocationResult> {
   const { driverId, bookingId, notificationTitle, notificationBody } = options;
+  const requestBackground = options.requestBackground !== false;
   if (Platform.OS === 'web') return { ok: false, reason: 'web' };
 
   const id = driverId?.trim();
@@ -113,11 +119,13 @@ export async function startBackgroundLocation(
     }
 
     let backgroundGranted = false;
-    try {
-      const bg = await Location.requestBackgroundPermissionsAsync();
-      backgroundGranted = bg.status === 'granted';
-    } catch (e) {
-      if (__DEV__) console.warn('[bg-location] background permission request failed:', e);
+    if (requestBackground) {
+      try {
+        const bg = await Location.requestBackgroundPermissionsAsync();
+        backgroundGranted = bg.status === 'granted';
+      } catch (e) {
+        if (__DEV__) console.warn('[bg-location] background permission request failed:', e);
+      }
     }
 
     await AsyncStorage.setItem(ACTIVE_DRIVER_KEY, id);

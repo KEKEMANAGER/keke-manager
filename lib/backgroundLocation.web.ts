@@ -13,6 +13,7 @@ export type StartBackgroundLocationOptions = {
   bookingId?: string | null;
   notificationTitle?: string;
   notificationBody?: string;
+  requestBackground?: boolean;
 };
 
 export async function startBackgroundLocation(

@@ -7,6 +7,7 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { DriverTripNavigationButtons } from '../../components/DriverTripNavigationButtons';
+import { BackgroundLocationDisclosureModal } from '../../components/BackgroundLocationDisclosureModal';
 import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,9 +49,11 @@ export default function DriverGpsScreen() {
   const watchRef = useRef<Location.LocationSubscription | null>(null);
   const autoStartHandledRef = useRef(false);
   const pickupNavOpenedRef = useRef(false);
+  const disclosureResolverRef = useRef<((accepted: boolean) => void) | null>(null);
 
   const [isTracking, setIsTracking] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [disclosureVisible, setDisclosureVisible] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
@@ -135,15 +138,44 @@ export default function DriverGpsScreen() {
     }
   }, [user?.id]);
 
+  const promptBackgroundDisclosure = useCallback((): Promise<boolean> => {
+    return new Promise((resolve) => {
+      disclosureResolverRef.current = resolve;
+      setDisclosureVisible(true);
+    });
+  }, []);
+
+  const resolveDisclosure = useCallback((accepted: boolean) => {
+    setDisclosureVisible(false);
+    const resolve = disclosureResolverRef.current;
+    disclosureResolverRef.current = null;
+    resolve?.(accepted);
+  }, []);
+
+  /** Show Google Play prominent disclosure before background permission, if not already granted. */
+  const ensureBackgroundDisclosure = useCallback(async (): Promise<boolean> => {
+    if (Platform.OS === 'web') return false;
+    try {
+      const bg = await Location.getBackgroundPermissionsAsync();
+      if (bg.status === 'granted') return true;
+    } catch (e) {
+      if (__DEV__) console.warn('[gps] getBackgroundPermissionsAsync failed:', e);
+    }
+    return promptBackgroundDisclosure();
+  }, [promptBackgroundDisclosure]);
+
   const startTracking = useCallback(async () => {
     if (Platform.OS === 'web') return false;
     if (!user?.id) return false;
+
+    const backgroundAccepted = await ensureBackgroundDisclosure();
 
     const result = await startBackgroundLocation({
       driverId: user.id,
       bookingId: bookingId || null,
       notificationTitle: t('gpsScreen.bgServiceTitle'),
       notificationBody: t('gpsScreen.bgServiceBody'),
+      requestBackground: backgroundAccepted,
     });
 
     if (!result.ok) {
@@ -154,7 +186,7 @@ export default function DriverGpsScreen() {
       return false;
     }
 
-    if (!result.backgroundGranted) {
+    if (!result.backgroundGranted && backgroundAccepted) {
       Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
     }
 
@@ -163,7 +195,7 @@ export default function DriverGpsScreen() {
     setIsTracking(true);
     await attachForegroundWatch();
     return true;
-  }, [user?.id, bookingId, t, attachForegroundWatch]);
+  }, [user?.id, bookingId, t, attachForegroundWatch, ensureBackgroundDisclosure]);
 
   /** Restore tracking state if background task is already running (e.g. screen re-mounted mid-trip). */
   useEffect(() => {
@@ -350,6 +382,11 @@ export default function DriverGpsScreen() {
 
   return (
     <View style={styles.screen}>
+      <BackgroundLocationDisclosureModal
+        visible={disclosureVisible}
+        onAccept={() => resolveDisclosure(true)}
+        onDecline={() => resolveDisclosure(false)}
+      />
       <MapErrorBoundary
         key={mapEpoch}
         onRetry={() => setMapEpoch((n) => n + 1)}
