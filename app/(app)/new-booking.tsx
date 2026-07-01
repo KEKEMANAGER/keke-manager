@@ -5,13 +5,11 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
-  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -94,13 +92,11 @@ import { formatSpokenLanguagesList } from '../../lib/spokenLanguages';
 import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
+import { safeLayoutAnimation } from '../../lib/safeLayoutAnimation';
+import { coerceValidDate } from '../../lib/dateTime';
 
 type BookingKindUi = 'transfer' | 'tour' | 'dayTour';
 type TransferTab = 'arrival' | 'departure';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 type PaymentWhen = 'now' | 'later' | 'clientCard';
 const PAYMENT_OPTIONS: PaymentWhen[] = ['now', 'later', 'clientCard'];
 
@@ -117,7 +113,12 @@ function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): strin
 }
 
 function formatGel(n: number) {
-  return `${n.toLocaleString('ka-GE')} ₾`;
+  const safe = Number.isFinite(n) ? n : 0;
+  try {
+    return `${safe.toLocaleString('ka-GE')} ₾`;
+  } catch {
+    return `${safe} ₾`;
+  }
 }
 
 function mapPickupSignLogoError(
@@ -134,7 +135,7 @@ function mapPickupSignLogoError(
 
 
 function switchTransferTab(setTab: (t: TransferTab) => void, tab: TransferTab) {
-  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  safeLayoutAnimation();
   setTab(tab);
 }
 
@@ -216,7 +217,7 @@ function OptionalTransferToggle({
   return (
     <Pressable
       onPress={() => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        safeLayoutAnimation();
         onChange(!value);
       }}
       style={({ pressed }) => [
@@ -294,7 +295,7 @@ function ServiceKindSelector({
             <Pressable
               key={item.id}
               onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                safeLayoutAnimation();
                 onChange(item.id);
               }}
               style={({ pressed }) => [
@@ -483,24 +484,34 @@ function MatchingDriversSection({
       driverCategory,
       filterByMinSeats && minPassengerCapacity > 0 ? minPassengerCapacity : null,
       { sortMode: driverTargetMode === 'all' ? 'rating' : 'name' },
-    ).then(({ data, error }) => {
-      if (cancelled) return;
-      setLoading(false);
-      if (error) {
-        setLoadError(error.message);
+    )
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setLoading(false);
+        if (error) {
+          setLoadError(error.message);
+          setDrivers([]);
+          onDriversLoaded?.([]);
+          return;
+        }
+        const list = Array.isArray(data) ? data : [];
+        setDrivers(list);
+        onDriversLoaded?.(list);
+        if (list.length === 0) {
+          onDriverTargetModeChange('all');
+          onSelectDriver(null, null);
+        } else if (selectedDriverId && !list.some((d) => d?.id === selectedDriverId)) {
+          onSelectDriver(null, null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoading(false);
+        const message = err instanceof Error ? err.message : t('common.error');
+        setLoadError(message);
         setDrivers([]);
         onDriversLoaded?.([]);
-        return;
-      }
-      setDrivers(data);
-      onDriversLoaded?.(data);
-      if (data.length === 0) {
-        onDriverTargetModeChange('all');
-        onSelectDriver(null, null);
-      } else if (selectedDriverId && !data.some((d) => d.id === selectedDriverId)) {
-        onSelectDriver(null, null);
-      }
-    });
+      });
 
     return () => {
       cancelled = true;
@@ -521,6 +532,7 @@ function MatchingDriversSection({
     onSelectDriver,
     onDriverTargetModeChange,
     selectedDriverId,
+    t,
   ]);
 
   if (!active || !normType || !normClass) {
@@ -625,18 +637,21 @@ function MatchingDriversSection({
 
           {driverTargetMode === 'specific'
             ? drivers.map((driver) => {
+                if (!driver?.id) return null;
                 const selected = selectedDriverId === driver.id;
                 const vehicleLine = matchingDriverVehicleLine(driver.vehicle, (count) =>
                   t('newBooking.vehicleSeats', { count }),
                 );
-                const langs = formatDriverLanguages(driver.languages);
+                const langs = formatDriverLanguages(driver.languages ?? []);
+                const experienceYears = Number(driver.experience_years) || 0;
                 const experienceLine =
-                  driver.experience_years > 0
-                    ? t('newBooking.experienceYears', { years: driver.experience_years })
+                  experienceYears > 0
+                    ? t('newBooking.experienceYears', { years: experienceYears })
                     : null;
+                const ratingCount = Number(driver.rating_count) || 0;
                 const ratingLine =
                   driver.rating != null
-                    ? `⭐ ${driver.rating}${driver.rating_count > 0 ? ` (${driver.rating_count})` : ''}`
+                    ? `⭐ ${driver.rating}${ratingCount > 0 ? ` (${ratingCount})` : ''}`
                     : '⭐ —';
                 return (
                   <Pressable
@@ -839,17 +854,23 @@ export default function NewBookingScreen() {
       return;
     }
     setOperatorsLoading(true);
-    const { data, error } = await fetchCompanyMembers(user.id);
-    setOperatorsLoading(false);
-    if (error) {
+    try {
+      const { data, error } = await fetchCompanyMembers(user.id);
+      if (error) {
+        setOperators([]);
+        return;
+      }
+      const list = Array.isArray(data) ? data : [];
+      setOperators(list);
+      setSelectedOperatorName((prev) => {
+        if (prev && list.some((m) => m?.name === prev)) return prev;
+        return list[0]?.name ?? null;
+      });
+    } catch {
       setOperators([]);
-      return;
+    } finally {
+      setOperatorsLoading(false);
     }
-    setOperators(data);
-    setSelectedOperatorName((prev) => {
-      if (prev && data.some((m) => m.name === prev)) return prev;
-      return data[0]?.name ?? null;
-    });
   }, [user?.id]);
 
   useEffect(() => {
@@ -881,7 +902,13 @@ export default function NewBookingScreen() {
       setTourDays([]);
       return;
     }
-    setTourDays((prev) => generateTourDaysFromRange(tourStartDate, tourEndDate, prev));
+    const start = coerceValidDate(tourStartDate);
+    const end = coerceValidDate(tourEndDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setTourDays([]);
+      return;
+    }
+    setTourDays((prev) => generateTourDaysFromRange(start, end, prev));
   }, [booking_kind, tourStartDate, tourEndDate]);
 
   const tourOvernightCount = useMemo(
@@ -973,6 +1000,14 @@ export default function NewBookingScreen() {
     () => `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`,
     [],
   );
+  const minimumBookingDate = useMemo(() => new Date(), []);
+  const tourEndMinimumDate = useMemo(
+    () =>
+      tourStartDate instanceof Date && !Number.isNaN(tourStartDate.getTime())
+        ? tourStartDate
+        : minimumBookingDate,
+    [tourStartDate, minimumBookingDate],
+  );
   const companyName = useMemo(
     () => companyDisplayName(profile, user) ?? t('common.companyDefault'),
     [profile, user, t],
@@ -1017,8 +1052,14 @@ export default function NewBookingScreen() {
       if (!tourStartDate || !tourEndDate) {
         return t('newBooking.validation.tourDates');
       }
-      if (tourEndDate.getTime() < tourStartDate.getTime()) {
-        return t('newBooking.validation.tourEndBeforeStart');
+      if (
+        Number.isNaN(tourStartDate.getTime()) ||
+        Number.isNaN(tourEndDate.getTime()) ||
+        tourEndDate.getTime() < tourStartDate.getTime()
+      ) {
+        return tourEndDate.getTime() < tourStartDate.getTime()
+          ? t('newBooking.validation.tourEndBeforeStart')
+          : t('newBooking.validation.tourDates');
       }
       if (!tourDays.length || !tourDays.some((d) => d.from.trim())) {
         return t('newBooking.validation.tourDays');
@@ -1469,7 +1510,7 @@ export default function NewBookingScreen() {
                     value={arrivalDateTime}
                     onChange={setArrivalDateTime}
                     placeholder={t('newBooking.form.placeholders.dateTime')}
-                    minimumDate={new Date()}
+                    minimumDate={minimumBookingDate}
                   />
                   <LocationPicker
                     label={t('newBooking.form.dropoffLocation')}
@@ -1495,7 +1536,7 @@ export default function NewBookingScreen() {
                     value={departureDateTime}
                     onChange={setDepartureDateTime}
                     placeholder={t('newBooking.form.placeholders.dateTime')}
-                    minimumDate={new Date()}
+                    minimumDate={minimumBookingDate}
                   />
                   <LocationPicker
                     label={t('newBooking.form.dropoffLocation')}
@@ -1609,7 +1650,7 @@ export default function NewBookingScreen() {
               value={bookingDateTime}
               onChange={setBookingDateTime}
               placeholder={t('newBooking.form.placeholders.dateTime')}
-              minimumDate={new Date()}
+              minimumDate={minimumBookingDate}
             />
             <LanguageMultiSelect
               label={t('newBooking.form.requiredLanguages')}
@@ -1687,7 +1728,7 @@ export default function NewBookingScreen() {
                   value={transferInDateTime}
                   onChange={setTransferInDateTime}
                   placeholder={t('newBooking.form.placeholders.dateTime')}
-                  minimumDate={new Date()}
+                  minimumDate={minimumBookingDate}
                 />
                 <LocationPicker
                   label={t('newBooking.form.transferInFrom')}
@@ -1721,7 +1762,7 @@ export default function NewBookingScreen() {
                   value={transferOutDateTime}
                   onChange={setTransferOutDateTime}
                   placeholder={t('newBooking.form.placeholders.dateTime')}
-                  minimumDate={new Date()}
+                  minimumDate={minimumBookingDate}
                 />
                 <LocationPicker
                   label={t('newBooking.form.transferOutFrom')}
@@ -1748,14 +1789,14 @@ export default function NewBookingScreen() {
               value={tourStartDate}
               onChange={setTourStartDate}
               placeholder={t('newBooking.form.placeholders.dateTime')}
-              minimumDate={new Date()}
+              minimumDate={minimumBookingDate}
             />
             <DateTimeField
               label={t('newBooking.form.tourEndDate')}
               value={tourEndDate}
               onChange={setTourEndDate}
               placeholder={t('newBooking.form.placeholders.dateTime')}
-              minimumDate={tourStartDate ?? new Date()}
+              minimumDate={tourEndMinimumDate}
             />
             {tourDays.length > 0 ? (
               <Text style={styles.tourOvernightSummary}>
@@ -1763,25 +1804,26 @@ export default function NewBookingScreen() {
               </Text>
             ) : null}
             {tourDays.map((day, dayIndex) => {
+              if (!day) return null;
               const isLastDay = dayIndex === tourDays.length - 1;
               return (
-                <View key={`tour-day-${day.date}-${dayIndex}`} style={styles.tourDayBlock}>
+                <View key={`tour-day-${day.date ?? dayIndex}-${dayIndex}`} style={styles.tourDayBlock}>
                   <Text style={styles.tourDayTitle}>
-                    {t('newBooking.form.dayN', { n: day.day })}
+                    {t('newBooking.form.dayN', { n: day.day ?? dayIndex + 1 })}
                   </Text>
                   <AuthInput
                     label={t('newBooking.form.from')}
-                    value={day.from}
+                    value={day.from ?? ''}
                     onChangeText={(text) => patchTourDay(dayIndex, { from: text })}
                   />
                   <AuthInput
                     label={t('newBooking.form.to')}
-                    value={day.to}
+                    value={day.to ?? ''}
                     onChangeText={(text) => patchTourDay(dayIndex, { to: text })}
                   />
                   <AuthInput
                     label={t('newBooking.form.stops')}
-                    value={day.stops}
+                    value={day.stops ?? ''}
                     onChangeText={(text) => patchTourDay(dayIndex, { stops: text })}
                     placeholder={t('newBooking.form.placeholders.stopsExample')}
                     multiline
@@ -1791,14 +1833,14 @@ export default function NewBookingScreen() {
                     <>
                       <AuthInput
                         label={t('newBooking.form.touristHotel')}
-                        value={day.touristHotel}
+                        value={day.touristHotel ?? ''}
                         onChangeText={(text) => patchTourDay(dayIndex, { touristHotel: text })}
                         placeholder={t('newBooking.form.placeholders.touristHotel')}
                       />
                       <Text style={styles.fieldHint}>{t('newBooking.form.touristHotelHint')}</Text>
                       <AuthInput
                         label={t('newBooking.form.driverOvernight')}
-                        value={day.driverOvernight}
+                        value={day.driverOvernight ?? ''}
                         onChangeText={(text) => patchTourDay(dayIndex, { driverOvernight: text })}
                         placeholder={t('newBooking.form.placeholders.driverOvernight')}
                       />

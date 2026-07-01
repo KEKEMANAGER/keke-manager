@@ -36,14 +36,16 @@ export function LocationPicker({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [otherSelected, setOtherSelected] = useState(false);
   const types = allowedTypes.length > 0 ? allowedTypes : LOCATION_TYPES;
-  const selectedType = value.type && types.includes(value.type) ? value.type : null;
+  const safeName = typeof value?.name === 'string' ? value.name : '';
+  const safeType = value?.type ?? null;
+  const selectedType = safeType && types.includes(safeType) ? safeType : null;
   const presets = selectedType ? presetOptionsForType(selectedType) : [];
   const useDropdown = selectedType ? locationUsesPresetDropdown(selectedType) : false;
-  const nameTrim = value.name.trim();
+  const nameTrim = safeName.trim();
   const isPreset = selectedType ? isPresetLocationName(selectedType, nameTrim) : false;
   const isCustom =
     useDropdown &&
-    (otherSelected || isCustomPresetLocation(selectedType, value.name));
+    (otherSelected || isCustomPresetLocation(selectedType, safeName));
   const otherLabelKey =
     selectedType === 'train_station'
       ? 'locationPicker.otherTrainStation'
@@ -117,7 +119,7 @@ export function LocationPicker({
           {dropdownOpen ? (
             <View style={styles.ddList}>
               {presets.map((option) => {
-                const active = isPreset && value.name === option;
+                const active = isPreset && safeName === option;
                 return (
                   <Pressable
                     key={option}
@@ -161,8 +163,8 @@ export function LocationPicker({
           ) : null}
           {isCustom ? (
             <TextInput
-              value={value.name}
-              onChangeText={(name) => onChange({ type: selectedType, name })}
+              value={safeName}
+              onChangeText={(name) => onChange({ type: selectedType, name: name ?? '' })}
               placeholder={t(customPlaceholderKey)}
               placeholderTextColor={COLORS.textMuted}
               style={[styles.textInput, styles.customInput]}
@@ -171,8 +173,8 @@ export function LocationPicker({
         </>
       ) : (
         <TextInput
-          value={value.name}
-          onChangeText={(name) => onChange({ type: selectedType, name })}
+          value={safeName}
+          onChangeText={(name) => onChange({ type: selectedType, name: name ?? '' })}
           placeholder={
             textPlaceholder ||
             (selectedType === 'hotel'

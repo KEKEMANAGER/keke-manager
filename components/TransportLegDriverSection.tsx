@@ -61,30 +61,38 @@ export function TransportLegDriverSection({
       driverCategory,
       filterByMinSeats && minPax > 0 ? minPax : null,
       { sortMode: mode === 'all' ? 'rating' : 'name' },
-    ).then(({ data, error }) => {
-      if (cancelled) return;
-      setLoading(false);
-      if (error) {
-        setLoadError(error.message);
+    )
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setLoading(false);
+        if (error) {
+          setLoadError(error.message);
+          setDrivers([]);
+          return;
+        }
+        const list = Array.isArray(data) ? data : [];
+        setDrivers(list);
+        if (list.length === 0) {
+          onChange({
+            driver_target_mode: 'all',
+            driver_id: null,
+            driver_name: null,
+            driver_vehicle_id: null,
+          });
+        } else if (leg.driver_id && !list.some((d) => d?.id === leg.driver_id)) {
+          onChange({
+            driver_id: null,
+            driver_name: null,
+            driver_vehicle_id: null,
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoading(false);
+        setLoadError(err instanceof Error ? err.message : t('common.error'));
         setDrivers([]);
-        return;
-      }
-      setDrivers(data);
-      if (data.length === 0) {
-        onChange({
-          driver_target_mode: 'all',
-          driver_id: null,
-          driver_name: null,
-          driver_vehicle_id: null,
-        });
-      } else if (leg.driver_id && !data.some((d) => d.id === leg.driver_id)) {
-        onChange({
-          driver_id: null,
-          driver_name: null,
-          driver_vehicle_id: null,
-        });
-      }
-    });
+      });
 
     return () => {
       cancelled = true;
@@ -101,6 +109,7 @@ export function TransportLegDriverSection({
     minPax,
     filterByMinSeats,
     mode,
+    t,
   ]);
 
   const setMode = (next: DriverTargetMode) => {
@@ -175,14 +184,16 @@ export function TransportLegDriverSection({
 
           {mode === 'specific'
             ? drivers.map((driver) => {
+                if (!driver?.id) return null;
                 const selected = leg.driver_id === driver.id;
                 const vehicleLine = matchingDriverVehicleLine(driver.vehicle, (count) =>
                   t('newBooking.vehicleSeats', { count }),
                 );
-                const langs = formatDriverLanguages(driver.languages);
+                const langs = formatDriverLanguages(driver.languages ?? []);
+                const ratingCount = Number(driver.rating_count) || 0;
                 const ratingLine =
                   driver.rating != null
-                    ? `⭐ ${driver.rating}${driver.rating_count > 0 ? ` (${driver.rating_count})` : ''}`
+                    ? `⭐ ${driver.rating}${ratingCount > 0 ? ` (${ratingCount})` : ''}`
                     : '⭐ —';
                 return (
                   <Pressable

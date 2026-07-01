@@ -41,6 +41,13 @@ export function mergeDateAndTime(datePart: Date, timePart: Date): Date {
   return merged;
 }
 
+/** Returns a finite Date; falls back when value is null or invalid. */
+export function coerceValidDate(value: Date | null | undefined, fallback?: Date): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return new Date(value);
+  if (fallback instanceof Date && !Number.isNaN(fallback.getTime())) return new Date(fallback);
+  return new Date();
+}
+
 /** Parse `profiles.birth_date` (YYYY-MM-DD) or ISO datetime. */
 export function parseBirthDate(value: string | null | undefined): Date | null {
   const raw = value?.trim();

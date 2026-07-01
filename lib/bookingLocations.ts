@@ -132,8 +132,9 @@ export function formatLocationRoute(
   return `${from} → ${to}`;
 }
 
-export function locationValueIsComplete(value: LocationValue): boolean {
-  return Boolean(value.type && value.name.trim());
+export function locationValueIsComplete(value: LocationValue | null | undefined): boolean {
+  if (!value?.type) return false;
+  return Boolean(String(value.name ?? '').trim());
 }
 
 export function locationFromTransferLeg(

@@ -10,7 +10,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import { formatDisplayDateTime, formatDisplayTime, mergeDateAndTime } from '../lib/dateTime';
+import { openAndroidDateTimeFlow } from '../lib/androidDateTimePicker';
+import {
+  coerceValidDate,
+  formatDisplayDateTime,
+  formatDisplayTime,
+  mergeDateAndTime,
+} from '../lib/dateTime';
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
@@ -37,20 +43,40 @@ export function DateTimeField({
   const { t } = useTranslation();
   const resolvedPlaceholder = placeholder ?? t('dateTimeField.default');
   const [step, setStep] = useState<PickerStep>('none');
-  const [draft, setDraft] = useState<Date>(() => value ?? new Date());
-  /** Date portion kept between Android/iOS date → time steps */
-  const datePartRef = useRef<Date>(value ?? new Date());
+  const [draft, setDraft] = useState<Date>(() => coerceValidDate(value));
+  /** Date portion kept between iOS date → time steps */
+  const datePartRef = useRef<Date>(coerceValidDate(value));
+
+  const safeValue =
+    value instanceof Date && !Number.isNaN(value.getTime()) ? value : null;
 
   const displayText =
-    value == null
+    safeValue == null
       ? ''
       : mode === 'time'
-        ? formatDisplayTime(value)
-        : formatDisplayDateTime(value);
+        ? formatDisplayTime(safeValue)
+        : formatDisplayDateTime(safeValue);
+
+  function finish(next: Date) {
+    if (Number.isNaN(next.getTime())) return;
+    onChange(next);
+    setStep('none');
+  }
 
   function openPicker() {
-    const base = value ?? new Date();
+    const base = coerceValidDate(safeValue);
     datePartRef.current = base;
+
+    if (Platform.OS === 'android') {
+      openAndroidDateTimeFlow({
+        value: safeValue,
+        mode,
+        minimumDate,
+        onChange: (picked) => finish(picked),
+      });
+      return;
+    }
+
     setDraft(base);
     setStep(mode === 'time' ? 'time' : 'date');
   }
@@ -59,15 +85,10 @@ export function DateTimeField({
     setStep('none');
   }
 
-  function finish(next: Date) {
-    onChange(next);
-    closePicker();
-  }
-
   function openTimeStep(afterDate: Date) {
     datePartRef.current = afterDate;
-    const withPreservedTime = value
-      ? mergeDateAndTime(afterDate, value)
+    const withPreservedTime = safeValue
+      ? mergeDateAndTime(afterDate, safeValue)
       : afterDate;
     setDraft(withPreservedTime);
     closePicker();
@@ -82,29 +103,23 @@ export function DateTimeField({
       return;
     }
 
-    const picked = selected ?? draft;
+    const picked = coerceValidDate(selected ?? draft);
 
     if (step === 'date') {
       datePartRef.current = picked;
       setDraft(picked);
       if (mode === 'datetime') {
-        if (Platform.OS === 'android') {
-          openTimeStep(picked);
-        }
+        openTimeStep(picked);
       } else {
         finish(picked);
       }
       return;
     }
 
-    // time step
     const final =
       mode === 'datetime' ? mergeDateAndTime(datePartRef.current, picked) : picked;
     setDraft(final);
-
-    if (Platform.OS === 'android') {
-      finish(final);
-    }
+    finish(final);
   }
 
   function confirmIosStep() {
@@ -116,6 +131,11 @@ export function DateTimeField({
       mode === 'datetime' ? mergeDateAndTime(datePartRef.current, draft) : draft;
     finish(final);
   }
+
+  const safeMinimumDate =
+    minimumDate instanceof Date && !Number.isNaN(minimumDate.getTime())
+      ? minimumDate
+      : undefined;
 
   return (
     <View style={styles.wrap}>
@@ -131,32 +151,30 @@ export function DateTimeField({
         </Text>
       </Pressable>
 
-      {step !== 'none' ? (
+      {Platform.OS === 'ios' && step !== 'none' ? (
         <View style={styles.pickerSheet}>
           <DateTimePicker
-            value={draft}
+            value={coerceValidDate(draft)}
             mode={step === 'date' ? 'date' : 'time'}
-            display={Platform.OS === 'ios' ? 'spinner' : step === 'date' ? 'calendar' : 'clock'}
+            display="spinner"
             is24Hour
             minuteInterval={1}
-            minimumDate={step === 'date' ? minimumDate : undefined}
+            minimumDate={step === 'date' ? safeMinimumDate : undefined}
             onChange={onPickerChange}
             themeVariant="light"
           />
-          {Platform.OS === 'ios' ? (
-            <View style={styles.iosActions}>
-              <Pressable onPress={closePicker} style={styles.iosBtnGhost}>
-                <Text style={styles.iosBtnGhostText}>{t('dateTimeField.cancel')}</Text>
-              </Pressable>
-              <Pressable onPress={confirmIosStep} style={styles.iosBtnPrimary}>
-                <Text style={styles.iosBtnPrimaryText}>
-                  {step === 'date' && mode === 'datetime'
-                    ? t('dateTimeField.nextToTime')
-                    : t('dateTimeField.done')}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
+          <View style={styles.iosActions}>
+            <Pressable onPress={closePicker} style={styles.iosBtnGhost}>
+              <Text style={styles.iosBtnGhostText}>{t('dateTimeField.cancel')}</Text>
+            </Pressable>
+            <Pressable onPress={confirmIosStep} style={styles.iosBtnPrimary}>
+              <Text style={styles.iosBtnPrimaryText}>
+                {step === 'date' && mode === 'datetime'
+                  ? t('dateTimeField.nextToTime')
+                  : t('dateTimeField.done')}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       ) : null}
     </View>

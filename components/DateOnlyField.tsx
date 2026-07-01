@@ -4,7 +4,8 @@ import DateTimePicker, {
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { formatDisplayDate } from '../lib/dateTime';
+import { openAndroidDateTimePicker } from '../lib/androidDateTimePicker';
+import { coerceValidDate, formatDisplayDate } from '../lib/dateTime';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 type Props = {
@@ -25,12 +26,23 @@ export function DateOnlyField({
   const { t } = useTranslation();
   const resolvedPlaceholder = placeholder ?? t('dateOnlyField.default');
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Date>(() => value ?? new Date());
+  const [draft, setDraft] = useState<Date>(() => coerceValidDate(value));
 
-  const displayText = value == null ? '' : formatDisplayDate(value);
+  const safeValue =
+    value instanceof Date && !Number.isNaN(value.getTime()) ? value : null;
+  const displayText = safeValue == null ? '' : formatDisplayDate(safeValue);
 
   function openPicker() {
-    setDraft(value ?? new Date());
+    if (Platform.OS === 'android') {
+      openAndroidDateTimePicker({
+        value: safeValue,
+        mode: 'date',
+        maximumDate,
+        onSelect: (picked) => onChange(picked),
+      });
+      return;
+    }
+    setDraft(coerceValidDate(safeValue));
     setOpen(true);
   }
 
@@ -43,18 +55,21 @@ export function DateOnlyField({
       closePicker();
       return;
     }
-    const picked = selected ?? draft;
+    const picked = coerceValidDate(selected ?? draft);
     setDraft(picked);
-    if (Platform.OS === 'android') {
-      onChange(picked);
-      closePicker();
-    }
+    onChange(picked);
+    closePicker();
   }
 
   function confirmIos() {
-    onChange(draft);
+    onChange(coerceValidDate(draft));
     closePicker();
   }
+
+  const safeMaximumDate =
+    maximumDate instanceof Date && !Number.isNaN(maximumDate.getTime())
+      ? maximumDate
+      : undefined;
 
   return (
     <View style={styles.wrap}>
@@ -70,26 +85,24 @@ export function DateOnlyField({
         </Text>
       </Pressable>
 
-      {open ? (
+      {Platform.OS === 'ios' && open ? (
         <View style={styles.pickerSheet}>
           <DateTimePicker
-            value={draft}
+            value={coerceValidDate(draft)}
             mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
-            maximumDate={maximumDate}
+            display="spinner"
+            maximumDate={safeMaximumDate}
             onChange={onPickerChange}
             themeVariant="light"
           />
-          {Platform.OS === 'ios' ? (
-            <View style={styles.iosActions}>
-              <Pressable onPress={closePicker} style={styles.iosBtnGhost}>
-                <Text style={styles.iosBtnGhostText}>{t('dateTimeField.cancel')}</Text>
-              </Pressable>
-              <Pressable onPress={confirmIos} style={styles.iosBtnPrimary}>
-                <Text style={styles.iosBtnPrimaryText}>{t('dateTimeField.done')}</Text>
-              </Pressable>
-            </View>
-          ) : null}
+          <View style={styles.iosActions}>
+            <Pressable onPress={closePicker} style={styles.iosBtnGhost}>
+              <Text style={styles.iosBtnGhostText}>{t('dateTimeField.cancel')}</Text>
+            </Pressable>
+            <Pressable onPress={confirmIos} style={styles.iosBtnPrimary}>
+              <Text style={styles.iosBtnPrimaryText}>{t('dateTimeField.done')}</Text>
+            </Pressable>
+          </View>
         </View>
       ) : null}
     </View>
