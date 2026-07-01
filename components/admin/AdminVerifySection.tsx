@@ -54,17 +54,25 @@ export function AdminVerifySection({
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchAdminVerificationQueue();
-    if (!silent) setLoading(false);
-    if (err) {
-      setError(err.message);
+    try {
+      const { data, error: err } = await fetchAdminVerificationQueue();
+      if (err) {
+        setError(err.message);
+        setRows([]);
+        onQueueCountChange?.(0);
+        return;
+      }
+      const list = Array.isArray(data) ? data : [];
+      setRows(list);
+      onQueueCountChange?.(list.length);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.error'));
       setRows([]);
       onQueueCountChange?.(0);
-      return;
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setRows(data);
-    onQueueCountChange?.(data.length);
-  }, [onQueueCountChange]);
+  }, [onQueueCountChange, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -296,7 +304,12 @@ export function AdminVerifySection({
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>{preview?.title}</Text>
             {preview?.url ? (
-              <Image source={{ uri: preview.url }} style={styles.previewImage} resizeMode="contain" />
+              <Image
+                source={{ uri: preview.url }}
+                style={styles.previewImage}
+                resizeMode="contain"
+                onError={() => setPreview(null)}
+              />
             ) : null}
             <Pressable onPress={() => setPreview(null)} style={styles.previewClose}>
               <Text style={styles.previewCloseText}>{t('common.close')}</Text>

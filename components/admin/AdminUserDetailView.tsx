@@ -116,14 +116,20 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchAdminUserDetail(userId);
-    setLoading(false);
-    if (err || !data) {
-      setError(err?.message ?? t('adminPanel.userDetail.notFound'));
+    try {
+      const { data, error: err } = await fetchAdminUserDetail(userId);
+      if (err || !data) {
+        setError(err?.message ?? t('adminPanel.userDetail.notFound'));
+        setDetail(null);
+        return;
+      }
+      setDetail(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.error'));
       setDetail(null);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setDetail(data);
   }, [userId, t]);
 
   useFocusEffect(
@@ -186,7 +192,11 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator>
         <View style={styles.heroCard}>
           {u.avatar_url ? (
-            <Image source={{ uri: u.avatar_url }} style={styles.avatar} />
+            <Image
+              source={{ uri: u.avatar_url }}
+              style={styles.avatar}
+              onError={() => setDetail((prev) => (prev ? { ...prev, user: { ...prev.user, avatar_url: null } } : prev))}
+            />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
               <Text style={styles.avatarInitial}>{displayName.slice(0, 1).toUpperCase()}</Text>
@@ -257,7 +267,12 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
                   onPress={() => setPreview({ url: d.url, title: d.key })}
                   style={({ pressed }) => [styles.docThumb, pressed && { opacity: 0.9 }]}
                 >
-                  <Image source={{ uri: d.url }} style={styles.docImage} resizeMode="cover" />
+                  <Image
+                    source={{ uri: d.url }}
+                    style={styles.docImage}
+                    resizeMode="cover"
+                    onError={() => setPreview(null)}
+                  />
                   <Text style={styles.docLabel} numberOfLines={1}>
                     {d.key}
                   </Text>
@@ -294,7 +309,7 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
 
         {detail.vehicles.length > 0 ? (
           <Section title={t('adminPanel.userDetail.vehicles', { count: detail.vehicles.length })}>
-            {detail.vehicles.map((v) => (
+            {(detail.vehicles ?? []).map((v) => (
               <VehicleCard key={v.id} v={v} />
             ))}
           </Section>
@@ -302,7 +317,7 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
 
         {detail.fleetMembers.length > 0 ? (
           <Section title={t('adminPanel.userDetail.hiredDrivers', { count: detail.fleetMembers.length })}>
-            {detail.fleetMembers.map((m) => (
+            {(detail.fleetMembers ?? []).map((m) => (
               <View key={m.id} style={styles.fleetMember}>
                 <Pressable
                   onPress={() => onOpenUser?.(m.sub_driver_id)}
@@ -323,7 +338,7 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
 
         {detail.recentRatings.length > 0 ? (
           <Section title={t('adminPanel.userDetail.recentReviews')}>
-            {detail.recentRatings.map((r) => (
+            {(detail.recentRatings ?? []).map((r) => (
               <View key={r.id} style={styles.reviewRow}>
                 <Text style={styles.reviewStars}>⭐ {r.overall}</Text>
                 {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
@@ -353,7 +368,7 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
           {detail.recentBookings.length === 0 ? (
             <Text style={adminStyles.cardMeta}>{t('adminPanel.bookingsEmpty')}</Text>
           ) : (
-            detail.recentBookings.map((b) => <BookingLine key={b.id} b={b} />)
+            (detail.recentBookings ?? []).map((b) => <BookingLine key={b.id} b={b} />)
           )}
         </Section>
       </ScrollView>

@@ -100,9 +100,14 @@ export default function DriverProfileScreen() {
     }
     setPhotoLoading(true);
     setPhotoError(null);
-    const fromDb = await fetchUserAvatarUrl(user.id);
-    setPhotoUri(withCacheBust(fromDb) ?? fromDb);
-    setPhotoLoading(false);
+    try {
+      const fromDb = await fetchUserAvatarUrl(user.id);
+      setPhotoUri(withCacheBust(fromDb) ?? fromDb);
+    } catch {
+      setPhotoUri(null);
+    } finally {
+      setPhotoLoading(false);
+    }
   }, [authLoading, user?.id]);
 
   useEffect(() => {
@@ -125,6 +130,7 @@ export default function DriverProfileScreen() {
   const [ratingAverage, setRatingAverage] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -146,61 +152,75 @@ export default function DriverProfileScreen() {
     if (!user?.id) return;
     setProfileLoading(true);
     setSaveError(null);
-    const { data, error } = await supabase
-      .from('users')
-      .select(
-        'full_name, phone, city, bio, languages, experience_years, available_for_hire, bank_account',
-      )
-      .eq('id', user.id)
-      .maybeSingle();
-    setProfileLoading(false);
-    if (error || !data) return;
-    const row = data as {
-      full_name?: string | null;
-      phone?: string | null;
-      city?: string | null;
-      bio?: string | null;
-      languages?: string[] | null;
-      experience_years?: number | null;
-      available_for_hire?: boolean | null;
-      bank_account?: string | null;
-    };
-    if (typeof row.full_name === 'string' && row.full_name.trim()) {
-      setName(row.full_name.trim());
-    }
-    setPhone(row.phone?.trim() ?? profile?.phone?.trim() ?? '');
-    const iban = row.bank_account?.trim() || profile?.bank_account?.trim() || '';
-    setBankAccount(iban ? formatBankAccountForDisplay(iban) : '');
-    const cityVal = row.city?.trim();
-    setCity(cityVal && isValidGeorgianCity(cityVal) ? cityVal : null);
-    setBio(row.bio?.trim() ?? '');
-    setSpokenLanguages(
-      Array.isArray(row.languages)
-        ? row.languages.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
-        : [],
-    );
-    setExperienceYears(
-      row.experience_years != null && !Number.isNaN(Number(row.experience_years))
-        ? String(row.experience_years)
-        : '',
-    );
-    setAvailableForHire(row.available_for_hire !== false);
-    const { birthDate: bd, error: bdErr } = await fetchDriverBirthDate(user.id);
-    if (!bdErr) {
-      setBirthDateLoaded(bd);
-      setBirthDate(parseBirthDate(bd));
+    setProfileLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select(
+          'full_name, phone, city, bio, languages, experience_years, available_for_hire, bank_account',
+        )
+        .eq('id', user.id)
+        .maybeSingle();
+      if (error || !data) {
+        if (error) setProfileLoadError(mapSupabaseError(error));
+        return;
+      }
+      const row = data as {
+        full_name?: string | null;
+        phone?: string | null;
+        city?: string | null;
+        bio?: string | null;
+        languages?: string[] | null;
+        experience_years?: number | null;
+        available_for_hire?: boolean | null;
+        bank_account?: string | null;
+      };
+      if (typeof row.full_name === 'string' && row.full_name.trim()) {
+        setName(row.full_name.trim());
+      }
+      setPhone(row.phone?.trim() ?? profile?.phone?.trim() ?? '');
+      const iban = row.bank_account?.trim() || profile?.bank_account?.trim() || '';
+      setBankAccount(iban ? formatBankAccountForDisplay(iban) : '');
+      const cityVal = row.city?.trim();
+      setCity(cityVal && isValidGeorgianCity(cityVal) ? cityVal : null);
+      setBio(row.bio?.trim() ?? '');
+      setSpokenLanguages(
+        Array.isArray(row.languages)
+          ? row.languages.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+          : [],
+      );
+      setExperienceYears(
+        row.experience_years != null && !Number.isNaN(Number(row.experience_years))
+          ? String(row.experience_years)
+          : '',
+      );
+      setAvailableForHire(row.available_for_hire !== false);
+      const { birthDate: bd, error: bdErr } = await fetchDriverBirthDate(user.id);
+      if (!bdErr) {
+        setBirthDateLoaded(bd);
+        setBirthDate(parseBirthDate(bd));
+      }
+    } catch (e: unknown) {
+      setProfileLoadError(mapSupabaseError(e));
+    } finally {
+      setProfileLoading(false);
     }
   }, [user?.id, profile?.phone, profile?.bank_account]);
 
   const loadHiredStatus = useCallback(async () => {
     if (!user?.id || !isHired) return;
-    const { status, hostName, error } = await fetchHiredDriverStatus(user.id);
-    if (error && __DEV__) {
-      console.warn('[DriverProfile] fetchHiredDriverStatus', error.message);
+    try {
+      const { status, hostName, error } = await fetchHiredDriverStatus(user.id);
+      if (error && __DEV__) {
+        console.warn('[DriverProfile] fetchHiredDriverStatus', error.message);
+      }
+      setHiredStatus(status ?? 'looking');
+      setEmployerName(hostName ?? null);
+      setAvailableForHire((status ?? 'looking') === 'looking');
+    } catch {
+      setHiredStatus('looking');
+      setEmployerName(null);
     }
-    setHiredStatus(status);
-    setEmployerName(hostName);
-    setAvailableForHire(status === 'looking');
   }, [user?.id, isHired]);
 
   useEffect(() => {
@@ -213,17 +233,22 @@ export default function DriverProfileScreen() {
 
   const loadVehiclePreferences = useCallback(async () => {
     if (!user?.id) return;
-    const [{ data, error }, { data: vehicleRow }] = await Promise.all([
-      fetchDriverProfile(user.id),
-      fetchVehicleByDriver(user.id),
-    ]);
-    if (error && __DEV__) {
-      console.warn('[DriverProfile] fetchDriverProfile', error.message);
+    try {
+      const [{ data, error }, { data: vehicleRow }] = await Promise.all([
+        fetchDriverProfile(user.id),
+        fetchVehicleByDriver(user.id),
+      ]);
+      if (error && __DEV__) {
+        console.warn('[DriverProfile] fetchDriverProfile', error.message);
+      }
+      if (data?.vehicle_type) setVehicleType(data.vehicle_type);
+      if (data?.vehicle_class) setVehicleClass(data.vehicle_class);
+      setVehicleModel(vehicleRow?.model?.trim() ?? '');
+      setVehiclePlate(vehicleRow?.plate?.trim() ?? '');
+    } catch {
+      setVehicleModel('');
+      setVehiclePlate('');
     }
-    if (data?.vehicle_type) setVehicleType(data.vehicle_type);
-    if (data?.vehicle_class) setVehicleClass(data.vehicle_class);
-    setVehicleModel(vehicleRow?.model?.trim() ?? '');
-    setVehiclePlate(vehicleRow?.plate?.trim() ?? '');
   }, [user?.id]);
 
   useEffect(() => {
@@ -232,9 +257,14 @@ export default function DriverProfileScreen() {
 
   const loadRating = useCallback(async () => {
     if (!user?.id) return;
-    const { average, count } = await fetchDriverAverageRating(user.id);
-    setRatingAverage(average);
-    setRatingCount(count);
+    try {
+      const { average, count } = await fetchDriverAverageRating(user.id);
+      setRatingAverage(average ?? 0);
+      setRatingCount(count ?? 0);
+    } catch {
+      setRatingAverage(0);
+      setRatingCount(0);
+    }
   }, [user?.id]);
 
   useEffect(() => {
@@ -243,38 +273,44 @@ export default function DriverProfileScreen() {
 
   async function pickPhoto() {
     if (!user?.id) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        const permMsg = t('profilePage.photoPermissionDenied');
+        setPhotoError(permMsg);
+        showErrorAlert(permMsg, t('profilePage.permissionTitle'));
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.88,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      const mime = asset.mimeType ?? 'image/jpeg';
+      setPhotoError(null);
+      setPhotoUploading(true);
+      try {
+        const path = avatarObjectPath(user.id);
+        const publicUrl = await uploadMediaObject(path, asset.uri, { contentType: mime });
+        const { error } = await saveUserAvatarUrl(user.id, publicUrl);
+        if (error) {
+          throw new Error(error.message);
+        }
+        setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
+      } catch (e: unknown) {
+        const message = mapSupabaseError(e);
+        setPhotoError(message);
+        showErrorAlert(message);
+      } finally {
+        setPhotoUploading(false);
+      }
+    } catch {
       const permMsg = t('profilePage.photoPermissionDenied');
       setPhotoError(permMsg);
       showErrorAlert(permMsg, t('profilePage.permissionTitle'));
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.88,
-    });
-    if (res.canceled || !res.assets[0]) return;
-    const asset = res.assets[0];
-    const mime = asset.mimeType ?? 'image/jpeg';
-    setPhotoError(null);
-    setPhotoUploading(true);
-    try {
-      const path = avatarObjectPath(user.id);
-      const publicUrl = await uploadMediaObject(path, asset.uri, { contentType: mime });
-      const { error } = await saveUserAvatarUrl(user.id, publicUrl);
-      if (error) {
-        throw new Error(error.message);
-      }
-      setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
-    } catch (e: unknown) {
-      const message = mapSupabaseError(e);
-      setPhotoError(message);
-      showErrorAlert(message);
-    } finally {
-      setPhotoUploading(false);
     }
   }
 
@@ -448,7 +484,7 @@ export default function DriverProfileScreen() {
           {authLoading || photoLoading ? (
             <ActivityIndicator color={COLORS.gold} />
           ) : photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.photo} />
+            <Image source={{ uri: photoUri }} style={styles.photo} onError={() => setPhotoUri(null)} />
           ) : (
             <Ionicons name="person" size={48} color={COLORS.gray} />
           )}
@@ -583,6 +619,14 @@ export default function DriverProfileScreen() {
         />
         {profileLoading ? (
           <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.md }} />
+        ) : null}
+        {profileLoadError ? (
+          <View style={styles.loadErrorBox}>
+            <Text style={styles.saveError}>{profileLoadError}</Text>
+            <Pressable onPress={() => void loadProfileFields()} style={styles.loadRetry}>
+              <Text style={styles.loadRetryText}>{t('common.retry')}</Text>
+            </Pressable>
+          </View>
         ) : null}
         {isEditing ? (
           <>
@@ -1113,5 +1157,21 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontSize: 13,
     marginTop: SPACING.sm,
+  },
+  loadErrorBox: {
+    marginBottom: SPACING.sm,
+  },
+  loadRetry: {
+    alignSelf: 'flex-start',
+    marginTop: SPACING.xs,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+  },
+  loadRetryText: {
+    color: COLORS.gold,
+    fontWeight: '700',
+    fontSize: 13,
   },
 });

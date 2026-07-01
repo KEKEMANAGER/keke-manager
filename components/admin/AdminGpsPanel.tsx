@@ -96,13 +96,18 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
 
   const reload = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const { data, error } = await fetchAllActiveDriverLocations();
-    if (!silent) setLoading(false);
-    if (error) {
+    try {
+      const { data, error } = await fetchAllActiveDriverLocations();
+      if (error) {
+        setAllLocations([]);
+        return;
+      }
+      setAllLocations(Array.isArray(data) ? data : []);
+    } catch {
       setAllLocations([]);
-      return;
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setAllLocations(data);
   }, []);
 
   useEffect(() => {

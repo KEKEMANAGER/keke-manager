@@ -41,15 +41,21 @@ export function AdminSupportInbox() {
     }
     setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchSupportInbox(user.id);
-    setLoading(false);
-    if (err) {
-      setError(err.message);
+    try {
+      const { data, error: err } = await fetchSupportInbox(user.id);
+      if (err) {
+        setError(err.message);
+        setRows([]);
+        return;
+      }
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.error'));
       setRows([]);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setRows(data);
-  }, [user?.id]);
+  }, [user?.id, t]);
 
   useFocusEffect(
     useCallback(() => {

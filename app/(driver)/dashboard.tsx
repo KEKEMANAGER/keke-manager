@@ -140,75 +140,89 @@ export default function DriverDashboardScreen() {
     if (mode === 'initial') setLoading(true);
     if (mode === 'refresh') setRefreshing(true);
 
-    const fleetCtx = await fetchFleetContext(userId);
-    setFleetContext(fleetCtx);
-    const isSub = fleetCtx.kind === 'sub';
-    const skipOpenPool = isHiredDriver(profile) || isSub;
+    try {
+      const fleetCtx = await fetchFleetContext(userId);
+      setFleetContext(fleetCtx);
+      const isSub = fleetCtx.kind === 'sub';
+      const skipOpenPool = isHiredDriver(profile) || isSub;
 
-    const results = await Promise.all([
-      fetchBookingsForDriver(userId),
-      skipOpenPool
-        ? Promise.resolve({ data: [] as BookingRow[], error: null, hint: undefined })
-        : fetchOpenPendingBookingsForDriver(userId),
-      aggregateDriverStats(userId),
-      fetchDriverAverageRating(userId),
-      fetchActiveAds(),
-      fetchPendingFleetInvitesForSub(userId),
-      fetchAcceptedFleetMembersForHost(userId),
-    ]);
-    const mine = results[0]!;
-    const open = results[1]!;
-    const stats = results[2]!;
-    const ratingRes = results[3]!;
-    let driverEarnings = stats.earnings;
-    if (!stats.error && fleetCtx.kind === 'host') {
-      const hostFleet = await aggregateHostFleetStats(userId);
-      if (!hostFleet.error) {
-        driverEarnings += hostFleet.earnings;
+      const results = await Promise.all([
+        fetchBookingsForDriver(userId),
+        skipOpenPool
+          ? Promise.resolve({ data: [] as BookingRow[], error: null, hint: undefined })
+          : fetchOpenPendingBookingsForDriver(userId),
+        aggregateDriverStats(userId),
+        fetchDriverAverageRating(userId),
+        fetchActiveAds(),
+        fetchPendingFleetInvitesForSub(userId),
+        fetchAcceptedFleetMembersForHost(userId),
+      ]);
+      const mine = results[0]!;
+      const open = results[1]!;
+      const stats = results[2]!;
+      const ratingRes = results[3]!;
+      let driverEarnings = stats.earnings ?? 0;
+      if (!stats.error && fleetCtx.kind === 'host') {
+        const hostFleet = await aggregateHostFleetStats(userId);
+        if (!hostFleet.error) {
+          driverEarnings += hostFleet.earnings ?? 0;
+        }
       }
-    }
-    setAds(results[4]!);
-    const invitesRes = results[5]!;
-    if (invitesRes.error) {
-      setFleetInvitesError(invitesRes.error.message);
-      setFleetInvites([]);
-      if (__DEV__) console.warn('[dashboard] fleet invites', invitesRes.error.message);
-    } else {
-      setFleetInvitesError(null);
-      setFleetInvites(invitesRes.data ?? []);
-    }
-    const fleetMembersRes = results[6]!;
-    if (!fleetMembersRes.error) {
-      setAcceptedFleetMembers(fleetMembersRes.data);
-    }
-    if (mode === 'initial') setLoading(false);
-    if (mode === 'refresh') setRefreshing(false);
-    if (mine.error) {
-      setError(getSupabaseErrorMessage(mine.error));
+      setAds(Array.isArray(results[4]) ? results[4]! : []);
+      const invitesRes = results[5]!;
+      if (invitesRes.error) {
+        setFleetInvitesError(invitesRes.error.message);
+        setFleetInvites([]);
+        if (__DEV__) console.warn('[dashboard] fleet invites', invitesRes.error.message);
+      } else {
+        setFleetInvitesError(null);
+        setFleetInvites(Array.isArray(invitesRes.data) ? invitesRes.data : []);
+      }
+      const fleetMembersRes = results[6]!;
+      if (!fleetMembersRes.error) {
+        setAcceptedFleetMembers(Array.isArray(fleetMembersRes.data) ? fleetMembersRes.data : []);
+      }
+      if (mine.error) {
+        setError(getSupabaseErrorMessage(mine.error));
+        setAssigned([]);
+      } else {
+        setAssigned(Array.isArray(mine.data) ? mine.data : []);
+      }
+      if (open.error) {
+        setOpenCount(0);
+      } else {
+        setOpenCount(Array.isArray(open.data) ? open.data.length : 0);
+      }
+      if (stats.error) {
+        setCompletedTrips(0);
+        setEarnings(0);
+      } else {
+        setCompletedTrips(stats.completed ?? 0);
+        setEarnings(driverEarnings);
+      }
+      if (ratingRes.error) {
+        setRatingAvg(0);
+        setRatingCount(0);
+      } else {
+        setRatingAvg(ratingRes.average ?? 0);
+        setRatingCount(ratingRes.count ?? 0);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.error'));
       setAssigned([]);
-    } else {
-      setAssigned(mine.data);
-    }
-    if (open.error) {
       setOpenCount(0);
-    } else {
-      setOpenCount(open.data.length);
-    }
-    if (stats.error) {
       setCompletedTrips(0);
       setEarnings(0);
-    } else {
-      setCompletedTrips(stats.completed);
-      setEarnings(driverEarnings);
-    }
-    if (ratingRes.error) {
       setRatingAvg(0);
       setRatingCount(0);
-    } else {
-      setRatingAvg(ratingRes.average);
-      setRatingCount(ratingRes.count);
+      setAds([]);
+      setFleetInvites([]);
+      setAcceptedFleetMembers([]);
+    } finally {
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
     }
-  }, [userId, profile]);
+  }, [userId, profile, t]);
 
   useEffect(() => {
     void load('initial');

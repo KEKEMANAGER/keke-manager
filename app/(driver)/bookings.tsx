@@ -207,41 +207,50 @@ export default function DriverBookingsScreen() {
     if (mode === 'initial') setLoading(true);
     if (mode === 'refresh') setRefreshing(true);
 
-    const fleetCtx = await fetchFleetContext(userId);
-    const results = await Promise.all([
-      fetchOpenPendingBookingsForDriver(userId),
-      fetchBookingsForDriver(userId),
-      fleetCtx.kind === 'host' ? fetchBookingsForHost(userId) : Promise.resolve({ data: [], error: null }),
-    ]);
-    const openRes = results[0]!;
-    const mineRes = results[1]!;
-    const hostRes = results[2]!;
+    try {
+      const fleetCtx = await fetchFleetContext(userId);
+      const results = await Promise.all([
+        fetchOpenPendingBookingsForDriver(userId),
+        fetchBookingsForDriver(userId),
+        fleetCtx.kind === 'host' ? fetchBookingsForHost(userId) : Promise.resolve({ data: [], error: null }),
+      ]);
+      const openRes = results[0]!;
+      const mineRes = results[1]!;
+      const hostRes = results[2]!;
 
-    if (mode === 'initial') setLoading(false);
-    if (mode === 'refresh') setRefreshing(false);
-
-    if (openRes.error) {
-      setError(openRes.error.message);
-      setOpenJobs([]);
-      setOpenListHint(null);
-    } else {
-      setOpenJobs(openRes.data);
-      setOpenListHint(openRes.hint ?? null);
-    }
-    if (mineRes.error && hostRes.error) {
-      if (!openRes.error) setError(mineRes.error.message);
-      setAssigned([]);
-    } else {
-      const merged = [...mineRes.data];
-      for (const row of hostRes.data) {
-        if (!merged.some((b) => b.id === row.id)) merged.push(row);
+      if (openRes.error) {
+        setError(openRes.error.message);
+        setOpenJobs([]);
+        setOpenListHint(null);
+      } else {
+        setOpenJobs(Array.isArray(openRes.data) ? openRes.data : []);
+        setOpenListHint(openRes.hint ?? null);
       }
-      merged.sort(
-        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-      );
-      setAssigned(merged);
+      if (mineRes.error && hostRes.error) {
+        if (!openRes.error) setError(mineRes.error.message);
+        setAssigned([]);
+      } else {
+        const mineData = Array.isArray(mineRes.data) ? mineRes.data : [];
+        const hostData = Array.isArray(hostRes.data) ? hostRes.data : [];
+        const merged = [...mineData];
+        for (const row of hostData) {
+          if (row?.id && !merged.some((b) => b.id === row.id)) merged.push(row);
+        }
+        merged.sort(
+          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        );
+        setAssigned(merged);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.error'));
+      setOpenJobs([]);
+      setAssigned([]);
+      setOpenListHint(null);
+    } finally {
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
     }
-  }, [userId]);
+  }, [userId, t]);
 
   useEffect(() => {
     void load('initial');
@@ -416,10 +425,14 @@ export default function DriverBookingsScreen() {
       return;
     }
 
-    const { data: fleetMembers } = await fetchAcceptedFleetMembersForHost(user.id);
-    if (fleetMembers.length > 0) {
-      showFleetAssignPicker(item, fleetMembers);
-      return;
+    try {
+      const { data: fleetMembers } = await fetchAcceptedFleetMembersForHost(user.id);
+      if (Array.isArray(fleetMembers) && fleetMembers.length > 0) {
+        showFleetAssignPicker(item, fleetMembers);
+        return;
+      }
+    } catch {
+      /* fall through to self-accept */
     }
 
     await acceptAsSelf(item);

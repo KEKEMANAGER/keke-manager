@@ -45,12 +45,24 @@ export function AdminAdsSection() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase
-      .from('ads')
-      .select('*')
-      .order('created_at', { ascending: false });
-    setAds((data as Ad[]) ?? []);
-    setLoading(false);
+    setError(null);
+    try {
+      const { data, error: err } = await supabase
+        .from('ads')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (err) {
+        setError(err.message);
+        setAds([]);
+        return;
+      }
+      setAds(Array.isArray(data) ? (data as Ad[]) : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+      setAds([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { void load(); }, []);
