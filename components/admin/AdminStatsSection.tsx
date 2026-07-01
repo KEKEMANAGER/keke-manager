@@ -28,14 +28,20 @@ export function AdminStatsSection() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchAdminStats();
-    setLoading(false);
-    if (err) {
-      setError(err.message);
+    try {
+      const { data, error: err } = await fetchAdminStats();
+      if (err) {
+        setError(err.message);
+        setStats(null);
+        return;
+      }
+      setStats(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
       setStats(null);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setStats(data);
   }, []);
 
   useFocusEffect(

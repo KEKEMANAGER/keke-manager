@@ -13,6 +13,7 @@ import {
 import { driverProfileMatchesBooking } from '../lib/profiles';
 import { registerForPushNotificationsAsync } from '../lib/pushRegistration';
 import { getUserRole } from '../lib/role';
+import { voidSafe } from '../lib/voidSafe';
 
 configureNotificationHandler();
 void ensureAndroidNotificationChannel();
@@ -29,7 +30,10 @@ export function PushNotificationRegistration() {
   useEffect(() => {
     if (loading || !user?.id) return;
     if (!shouldRegisterPush(role)) return;
-    void registerForPushNotificationsAsync(user.id, { requestPermission: true });
+    voidSafe(
+      registerForPushNotificationsAsync(user.id, { requestPermission: true }),
+      '[push] register',
+    );
   }, [loading, user?.id, role, sessionFingerprint]);
 
   return null;
@@ -240,7 +244,9 @@ export function PushNotificationListeners() {
         }
 
         Alert.alert(title, body, buttons);
-      })();
+      })().catch((err) => {
+        if (__DEV__) console.warn('[push] notification received handler', err);
+      });
     });
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {

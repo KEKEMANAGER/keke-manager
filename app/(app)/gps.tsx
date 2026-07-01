@@ -111,21 +111,25 @@ export default function CompanyGpsScreen() {
 
   const mergeLocations = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
-    const { data: locs } = await fetchLocationsForDriverIds(ids);
-    const locMap = new Map(locs.map((l) => [l.driver_id, l]));
-    setPins((prev) =>
-      prev.map((pin) => {
-        const loc = locMap.get(pin.driver_id);
-        if (!loc) return pin;
-        return {
-          ...pin,
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-          updated_at: loc.updated_at,
-          full_name: loc.full_name ?? pin.full_name,
-        };
-      }),
-    );
+    try {
+      const { data: locs } = await fetchLocationsForDriverIds(ids);
+      const locMap = new Map((locs ?? []).map((l) => [l.driver_id, l]));
+      setPins((prev) =>
+        prev.map((pin) => {
+          const loc = locMap.get(pin.driver_id);
+          if (!loc) return pin;
+          return {
+            ...pin,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            updated_at: loc.updated_at,
+            full_name: loc.full_name ?? pin.full_name,
+          };
+        }),
+      );
+    } catch (e) {
+      if (__DEV__) console.warn('[company-gps] mergeLocations failed:', e);
+    }
   }, []);
 
   useFocusEffect(

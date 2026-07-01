@@ -25,36 +25,43 @@ export type CaptureOdometerResult =
 
 /** Open camera and return local image URI (gallery fallback on web if camera unavailable). */
 export async function captureOdometerPhoto(): Promise<CaptureOdometerResult> {
-  const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
-  if (cameraPerm.granted) {
-    const res = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: 0.85,
-    });
-    if (res.canceled || !res.assets[0]?.uri) {
-      return { ok: false, cancelled: true };
+  try {
+    const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
+    if (cameraPerm.granted) {
+      const res = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      if (res.canceled || !res.assets?.[0]?.uri) {
+        return { ok: false, cancelled: true };
+      }
+      return { ok: true, uri: res.assets[0].uri };
     }
-    return { ok: true, uri: res.assets[0].uri };
-  }
 
-  if (Platform.OS === 'web') {
-    const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!libPerm.granted) {
-      return { ok: false, error: new Error('camera_permission_denied') };
+    if (Platform.OS === 'web') {
+      const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!libPerm.granted) {
+        return { ok: false, error: new Error('camera_permission_denied') };
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      if (res.canceled || !res.assets?.[0]?.uri) {
+        return { ok: false, cancelled: true };
+      }
+      return { ok: true, uri: res.assets[0].uri };
     }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: 0.85,
-    });
-    if (res.canceled || !res.assets[0]?.uri) {
-      return { ok: false, cancelled: true };
-    }
-    return { ok: true, uri: res.assets[0].uri };
-  }
 
-  return { ok: false, error: new Error('camera_permission_denied') };
+    return { ok: false, error: new Error('camera_permission_denied') };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e : new Error('camera_permission_denied'),
+    };
+  }
 }
 
 export async function uploadBookingOdometerPhoto(

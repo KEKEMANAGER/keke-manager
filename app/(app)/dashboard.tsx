@@ -191,47 +191,51 @@ export default function CompanyDashboardScreen() {
       setRefreshing(true);
     }
 
-    const [bRes, sRes, activeAds] = await Promise.all([
-      fetchBookingsByCompanyId(userId),
-      aggregateCompanyStats(userId),
-      fetchActiveAds(),
-    ]);
-    setAds(activeAds);
+    try {
+      const [bRes, sRes, activeAds] = await Promise.all([
+        fetchBookingsByCompanyId(userId),
+        aggregateCompanyStats(userId),
+        fetchActiveAds(),
+      ]);
+      setAds(Array.isArray(activeAds) ? activeAds : []);
 
-    const completedBookingIds = (bRes.data ?? [])
-      .filter((b) => b.status === 'completed' && b.driver_id)
-      .map((b) => b.id);
-    const ratedRes = await fetchRatedBookingIdsForCompany(userId, completedBookingIds);
-    setRatedBookingIds(ratedRes.ids);
-
-    if (mode === 'initial') {
-      setLoading(false);
-    } else if (mode === 'refresh') {
-      setRefreshing(false);
-    }
-
-    if (bRes.error) {
-      setError(getSupabaseErrorMessage(bRes.error));
-      setBookings([]);
-      setConvoyByMaster({});
-    } else {
-      setBookings(bRes.data);
-      const masterIds = (bRes.data ?? [])
-        .filter((b) => b.is_group_master === true)
+      const completedBookingIds = (bRes.data ?? [])
+        .filter((b) => b.status === 'completed' && b.driver_id)
         .map((b) => b.id);
-      if (masterIds.length === 0) {
+      const ratedRes = await fetchRatedBookingIdsForCompany(userId, completedBookingIds);
+      setRatedBookingIds(ratedRes.ids);
+
+      if (bRes.error) {
+        setError(getSupabaseErrorMessage(bRes.error));
+        setBookings([]);
         setConvoyByMaster({});
       } else {
-        const convoyRes = await fetchConvoyDashboardByMasterIds(masterIds, userId);
-        setConvoyByMaster(convoyRes.error ? {} : convoyRes.data);
+        setBookings(bRes.data ?? []);
+        const masterIds = (bRes.data ?? [])
+          .filter((b) => b.is_group_master === true)
+          .map((b) => b.id);
+        if (masterIds.length === 0) {
+          setConvoyByMaster({});
+        } else {
+          const convoyRes = await fetchConvoyDashboardByMasterIds(masterIds, userId);
+          setConvoyByMaster(convoyRes.error ? {} : convoyRes.data);
+        }
       }
-    }
-    if (sRes.error) {
-      setTotalCount(0);
-      setSpent(0);
-    } else {
-      setTotalCount(sRes.total);
-      setSpent(sRes.spent);
+      if (sRes.error) {
+        setTotalCount(0);
+        setSpent(0);
+      } else {
+        setTotalCount(sRes.total);
+        setSpent(sRes.spent);
+      }
+    } catch (e) {
+      setError(getSupabaseErrorMessage(e));
+      setBookings([]);
+      setConvoyByMaster({});
+      setAds([]);
+    } finally {
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'refresh') setRefreshing(false);
     }
   }, [userId]);
 

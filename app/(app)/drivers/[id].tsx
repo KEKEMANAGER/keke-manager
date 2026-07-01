@@ -17,9 +17,11 @@ import { COLORS, RADIUS, SPACING } from '../../../constants/theme';
 import { fetchDriverProfile, type DriverProfile } from '../../../lib/drivers';
 import { formatSpokenLanguagesList } from '../../../lib/spokenLanguages';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../../lib/vehicleCatalog';
+import { useAndroidRouterBack } from '../../../hooks/useAndroidRouterBack';
 
 export default function CompanyDriverProfileScreen() {
   const { t } = useTranslation();
+  useAndroidRouterBack();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,14 +40,20 @@ export default function CompanyDriverProfileScreen() {
     }
     setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchDriverProfile(driverId);
-    setLoading(false);
-    if (err || !data) {
-      setError(err?.message ?? t('company.driverInfoNotFound'));
+    try {
+      const { data, error: err } = await fetchDriverProfile(driverId);
+      if (err || !data) {
+        setError(err?.message ?? t('company.driverInfoNotFound'));
+        setProfile(null);
+        return;
+      }
+      setProfile(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.error'));
       setProfile(null);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setProfile(data);
   }, [driverId, t]);
 
   useEffect(() => {

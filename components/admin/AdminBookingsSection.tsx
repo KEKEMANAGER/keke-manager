@@ -32,14 +32,20 @@ export function AdminBookingsSection() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchAdminBookings();
-    setLoading(false);
-    if (err) {
-      setError(err.message);
+    try {
+      const { data, error: err } = await fetchAdminBookings();
+      if (err) {
+        setError(err.message);
+        setRows([]);
+        return;
+      }
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
       setRows([]);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setRows(data);
   }, []);
 
   useFocusEffect(

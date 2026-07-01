@@ -23,14 +23,20 @@ export function AdminChatsSection() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchAdminMessages();
-    setLoading(false);
-    if (err) {
-      setError(err.message);
+    try {
+      const { data, error: err } = await fetchAdminMessages();
+      if (err) {
+        setError(err.message);
+        setRows([]);
+        return;
+      }
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
       setRows([]);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setRows(data);
   }, []);
 
   useFocusEffect(

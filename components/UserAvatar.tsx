@@ -1,4 +1,5 @@
 import { Image, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useState } from 'react';
 import { COLORS } from '../constants/theme';
 
 function nameInitials(name: string | null | undefined): string {
@@ -17,10 +18,11 @@ type Props = {
 
 /** Round avatar: shows `uri` if set, otherwise gold-filled initials. */
 export function UserAvatar({ name, uri, size = 48, style }: Props) {
+  const [imageFailed, setImageFailed] = useState(false);
   const radius = size / 2;
   const fontSize = Math.max(11, Math.round(size * 0.34));
   const trimmed = (uri ?? '').trim();
-  const hasImage = trimmed.length > 0 && trimmed.startsWith('http');
+  const hasImage = !imageFailed && trimmed.length > 0 && trimmed.startsWith('http');
 
   return (
     <View
@@ -32,7 +34,11 @@ export function UserAvatar({ name, uri, size = 48, style }: Props) {
       ]}
     >
       {hasImage ? (
-        <Image source={{ uri: trimmed }} style={{ width: size, height: size, borderRadius: radius }} />
+        <Image
+          source={{ uri: trimmed }}
+          style={{ width: size, height: size, borderRadius: radius }}
+          onError={() => setImageFailed(true)}
+        />
       ) : (
         <Text style={[styles.initialsText, { fontSize }]}>{nameInitials(name)}</Text>
       )}

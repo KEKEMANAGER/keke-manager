@@ -189,38 +189,44 @@ export default function CompanyProfileScreen() {
 
   async function pickLogo() {
     if (!user?.id || photoUploading) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        const permMsg = t('profilePage.photoPermissionDenied');
+        setPhotoError(permMsg);
+        showErrorAlert(permMsg, t('profilePage.permissionTitle'));
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.88,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      const mime = asset.mimeType ?? 'image/jpeg';
+      setPhotoError(null);
+      setPhotoUploading(true);
+      try {
+        const path = avatarObjectPath(user.id);
+        const publicUrl = await uploadMediaObject(path, asset.uri, { contentType: mime });
+        const { error } = await saveUserAvatarUrl(user.id, publicUrl);
+        if (error) {
+          throw new Error(error.message);
+        }
+        setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
+      } catch (e: unknown) {
+        const message = mapSupabaseError(e);
+        setPhotoError(message);
+        showErrorAlert(message);
+      } finally {
+        setPhotoUploading(false);
+      }
+    } catch {
       const permMsg = t('profilePage.photoPermissionDenied');
       setPhotoError(permMsg);
       showErrorAlert(permMsg, t('profilePage.permissionTitle'));
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.88,
-    });
-    if (res.canceled || !res.assets[0]) return;
-    const asset = res.assets[0];
-    const mime = asset.mimeType ?? 'image/jpeg';
-    setPhotoError(null);
-    setPhotoUploading(true);
-    try {
-      const path = avatarObjectPath(user.id);
-      const publicUrl = await uploadMediaObject(path, asset.uri, { contentType: mime });
-      const { error } = await saveUserAvatarUrl(user.id, publicUrl);
-      if (error) {
-        throw new Error(error.message);
-      }
-      setPhotoUri(withCacheBust(publicUrl) ?? publicUrl);
-    } catch (e: unknown) {
-      const message = mapSupabaseError(e);
-      setPhotoError(message);
-      showErrorAlert(message);
-    } finally {
-      setPhotoUploading(false);
     }
   }
 

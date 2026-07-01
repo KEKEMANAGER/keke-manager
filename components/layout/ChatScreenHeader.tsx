@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { useAndroidBackHandler } from '../../hooks/useAndroidBackHandler';
 import { NameWithVerifiedBadge } from '../NameWithVerifiedBadge';
 import { UserAvatar } from '../UserAvatar';
 import { APP_HEADER_BODY_HEIGHT, Z_INDEX } from '../../constants/layout';
@@ -20,6 +22,13 @@ export function ChatScreenHeader({ otherName, otherAvatarUrl, otherVerified }: P
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { openDrawer } = useAppMenu();
+
+  useAndroidBackHandler(
+    useCallback(() => {
+      router.back();
+      return true;
+    }, [router]),
+  );
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top, minHeight: insets.top + APP_HEADER_BODY_HEIGHT }]}>

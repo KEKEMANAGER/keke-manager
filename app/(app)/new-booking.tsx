@@ -94,6 +94,7 @@ import { useAuth, type Profile } from '../../contexts/AuthContext';
 import type { User } from '@supabase/supabase-js';
 import { safeLayoutAnimation } from '../../lib/safeLayoutAnimation';
 import { coerceValidDate } from '../../lib/dateTime';
+import { useAndroidBackHandler } from '../../hooks/useAndroidBackHandler';
 
 type BookingKindUi = 'transfer' | 'tour' | 'dayTour';
 type TransferTab = 'arrival' | 'departure';
@@ -735,6 +736,17 @@ export default function NewBookingScreen() {
   void i18n.resolvedLanguage;
 
   const [step, setStep] = useState(1);
+
+  useAndroidBackHandler(
+    useCallback(() => {
+      if (step > 1) {
+        setStep((s) => Math.max(1, s - 1));
+        return true;
+      }
+      return false;
+    }, [step]),
+  );
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [booking_kind, set_booking_kind] = useState<BookingKindUi>('transfer');

@@ -25,6 +25,7 @@ import {
 } from '../../lib/locations';
 import { supabase } from '../../lib/supabase';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
+import { useAndroidRouterBack } from '../../hooks/useAndroidRouterBack';
 
 const TBILISI: Region = {
   latitude: 41.6938,
@@ -75,6 +76,7 @@ function pinStale(iso: string): boolean {
 
 export default function CompanyTrackingScreen() {
   const { t } = useTranslation();
+  useAndroidRouterBack();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { bookingId, driverId: paramDriverId, driverName: paramDriverName } =

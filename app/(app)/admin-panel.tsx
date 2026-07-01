@@ -26,6 +26,7 @@ import { AdminVerifyPanel } from '../../components/admin/AdminVerifyPanel';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useChatUnreadCount } from '../../lib/useChatUnreadCount';
+import { useAndroidRouterBack } from '../../hooks/useAndroidRouterBack';
 
 function AdminSearchInput({
   value,
@@ -71,6 +72,8 @@ export default function AdminPanelScreen() {
 
   const [tab, setTab] = useState<AdminTabId>(() => parseTab(params.tab));
   const [searchQuery, setSearchQuery] = useState('');
+
+  useAndroidRouterBack(!authLoading);
 
   useEffect(() => {
     setTab(parseTab(params.tab));

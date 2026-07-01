@@ -20,6 +20,7 @@ import {
 } from '../../lib/ratings';
 import { trimUserId } from '../../lib/userId';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAndroidRouterBack } from '../../hooks/useAndroidRouterBack';
 
 function pickSearchParam(v: string | string[] | undefined): string {
   if (Array.isArray(v)) return String(v[0] ?? '').trim();
@@ -28,6 +29,7 @@ function pickSearchParam(v: string | string[] | undefined): string {
 
 export default function RateBookingScreen() {
   const { t } = useTranslation();
+  useAndroidRouterBack();
   const searchParams = useLocalSearchParams();
 
   const insets = useSafeAreaInsets();

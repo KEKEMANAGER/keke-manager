@@ -29,9 +29,11 @@ import {
   type LocationValue,
 } from '../../../lib/bookingLocations';
 import { showErrorAlert, showValidationAlert } from '../../../lib/validation';
+import { useAndroidRouterBack } from '../../../hooks/useAndroidRouterBack';
 
 export default function EditBookingScreen() {
   const { t } = useTranslation();
+  useAndroidRouterBack();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -53,22 +55,28 @@ export default function EditBookingScreen() {
   const load = useCallback(async () => {
     if (!user?.id || !id) return;
     setLoading(true);
-    const { data, error } = await fetchBookingForCompanyEdit(String(id), user.id);
-    setLoading(false);
-    if (error || !data) {
-      showErrorAlert(error?.message ?? t('editBooking.notFound'));
+    try {
+      const { data, error } = await fetchBookingForCompanyEdit(String(id), user.id);
+      if (error || !data) {
+        showErrorAlert(error?.message ?? t('editBooking.notFound'));
+        router.back();
+        return;
+      }
+      setBooking(data);
+      setFromLoc(locationValueFromStored(data.from_location, data.from_location_type));
+      setToLoc(locationValueFromStored(data.to_location, data.to_location_type));
+      setDateDisplay(data.date_display ?? '');
+      setPassengers(String(data.passengers ?? 1));
+      setPriceGel(String(data.price_gel ?? ''));
+      setSignText(data.sign_text ?? '');
+      setFlightNumber(data.flight_number ?? '');
+      setComment(data.comment ?? '');
+    } catch (e) {
+      showErrorAlert(e instanceof Error ? e.message : t('common.error'));
       router.back();
-      return;
+    } finally {
+      setLoading(false);
     }
-    setBooking(data);
-    setFromLoc(locationValueFromStored(data.from_location, data.from_location_type));
-    setToLoc(locationValueFromStored(data.to_location, data.to_location_type));
-    setDateDisplay(data.date_display ?? '');
-    setPassengers(String(data.passengers ?? 1));
-    setPriceGel(String(data.price_gel ?? ''));
-    setSignText(data.sign_text ?? '');
-    setFlightNumber(data.flight_number ?? '');
-    setComment(data.comment ?? '');
   }, [id, user?.id, router, t]);
 
   useEffect(() => {

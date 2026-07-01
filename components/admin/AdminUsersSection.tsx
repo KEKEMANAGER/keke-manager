@@ -38,15 +38,21 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
-    const { data, error: err } = await fetchAdminUsers();
-    if (!silent) setLoading(false);
-    if (err) {
-      setError(err.message);
+    try {
+      const { data, error: err } = await fetchAdminUsers();
+      if (err) {
+        setError(err.message);
+        setRows([]);
+        return;
+      }
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.error'));
       setRows([]);
-      return;
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setRows(data);
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {

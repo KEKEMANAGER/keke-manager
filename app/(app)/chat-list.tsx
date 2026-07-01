@@ -64,16 +64,27 @@ export default function CompanyChatListScreen() {
       }
       if (mode === 'initial') setLoading(true);
       if (mode === 'refresh') setRefreshing(true);
-      const { data, error: err } = await fetchConversations(user.id);
-      if (mode === 'initial') setLoading(false);
-      if (mode === 'refresh') setRefreshing(false);
-      if (err) {
+      try {
+        const { data, error: err } = await fetchConversations(user.id);
+        if (err) {
+          setError(t('chat.loadError'));
+          setConversations([]);
+        } else {
+          setError(null);
+          setConversations(Array.isArray(data) ? data : []);
+        }
+        try {
+          await reloadSupport();
+        } catch {
+          // support inbox optional
+        }
+      } catch {
         setError(t('chat.loadError'));
-        return;
+        setConversations([]);
+      } finally {
+        if (mode === 'initial') setLoading(false);
+        if (mode === 'refresh') setRefreshing(false);
       }
-      setError(null);
-      setConversations(data);
-      await reloadSupport();
     },
     [user?.id, t, reloadSupport],
   );

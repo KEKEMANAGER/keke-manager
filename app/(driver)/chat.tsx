@@ -70,6 +70,7 @@ export default function DriverChatScreen() {
 
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -82,14 +83,29 @@ export default function DriverChatScreen() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!user?.id || !otherUserId) return;
-    const { data } = await fetchMessages(user.id, otherUserId, threadOpts);
-    setMessages(data);
-    setLoading(false);
-    scrollToBottom(false);
-    await markMessagesRead(user.id, otherUserId, threadOpts);
-    notifyChatUnreadMayHaveChanged();
-  }, [user?.id, otherUserId, scrollToBottom, threadOpts]);
+    if (!user?.id || !otherUserId) {
+      setLoading(false);
+      return;
+    }
+    setLoadError(null);
+    try {
+      const { data, error } = await fetchMessages(user.id, otherUserId, threadOpts);
+      if (error) {
+        setLoadError(t('chat.loadError'));
+        setMessages([]);
+      } else {
+        setMessages(Array.isArray(data) ? data : []);
+      }
+      scrollToBottom(false);
+      await markMessagesRead(user.id, otherUserId, threadOpts);
+      notifyChatUnreadMayHaveChanged();
+    } catch {
+      setLoadError(t('chat.loadError'));
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, otherUserId, scrollToBottom, threadOpts, t]);
 
   useEffect(() => {
     void load();
@@ -108,15 +124,19 @@ export default function DriverChatScreen() {
       return;
     }
     void (async () => {
-      const { data } = await supabase
-        .from('users_directory')
-        .select('is_verified, avatar_url')
-        .eq('id', otherUserId)
-        .maybeSingle();
-      const row = data as { is_verified?: boolean | null; avatar_url?: string | null } | null;
-      setOtherVerified(!!row?.is_verified);
-      const url = row?.avatar_url?.trim() ?? '';
-      if (url) setOtherAvatarUrl(url);
+      try {
+        const { data } = await supabase
+          .from('users_directory')
+          .select('is_verified, avatar_url')
+          .eq('id', otherUserId)
+          .maybeSingle();
+        const row = data as { is_verified?: boolean | null; avatar_url?: string | null } | null;
+        setOtherVerified(!!row?.is_verified);
+        const url = row?.avatar_url?.trim() ?? '';
+        if (url) setOtherAvatarUrl(url);
+      } catch {
+        setOtherVerified(false);
+      }
     })();
   }, [otherUserId]);
 
@@ -128,9 +148,9 @@ export default function DriverChatScreen() {
       (msg) => {
         setMessages((prev) => [...prev, msg]);
         scrollToBottom(true);
-        void markMessagesRead(user.id!, otherUserId, threadOpts).then(() =>
-          notifyChatUnreadMayHaveChanged(),
-        );
+        void markMessagesRead(user.id!, otherUserId, threadOpts)
+          .then(() => notifyChatUnreadMayHaveChanged())
+          .catch(() => undefined);
       },
       threadOpts,
     );
@@ -179,6 +199,15 @@ export default function DriverChatScreen() {
         otherAvatarUrl={otherAvatarUrl}
         otherVerified={otherVerified}
       />
+
+      {loadError && !loading ? (
+        <View style={styles.loadErrorWrap}>
+          <Text style={styles.loadErrorText}>{loadError}</Text>
+          <Pressable onPress={() => void load()} style={styles.loadErrorRetry}>
+            <Text style={styles.loadErrorRetryText}>{t('common.retry')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}>
@@ -327,6 +356,26 @@ const styles = StyleSheet.create({
   timeTextTheirs: {
     color: COLORS.textMuted,
     textAlign: 'left',
+  },
+  loadErrorWrap: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  loadErrorText: {
+    color: COLORS.error,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  loadErrorRetry: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  loadErrorRetryText: {
+    color: COLORS.gold,
+    fontWeight: '700',
+    fontSize: 14,
   },
   sendErr: {
     color: COLORS.error,
