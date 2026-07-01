@@ -14,6 +14,7 @@ import {
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
+import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   fetchCompanyActiveGpsDrivers,
@@ -82,6 +83,7 @@ export default function CompanyGpsScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   const driverIds = useMemo(() => pins.map((p) => p.driver_id), [pins]);
 
@@ -92,13 +94,19 @@ export default function CompanyGpsScreen() {
       return;
     }
     setLoading(true);
-    const data = await fetchCompanyActiveGpsDrivers(user.id);
-    setPins(data);
-    setSelectedId((prev) => {
-      if (prev && data.some((p) => p.driver_id === prev)) return prev;
-      return data.find((p) => p.latitude != null)?.driver_id ?? data[0]?.driver_id ?? null;
-    });
-    setLoading(false);
+    try {
+      const data = await fetchCompanyActiveGpsDrivers(user.id);
+      setPins(data);
+      setSelectedId((prev) => {
+        if (prev && data.some((p) => p.driver_id === prev)) return prev;
+        return data.find((p) => p.latitude != null)?.driver_id ?? data[0]?.driver_id ?? null;
+      });
+    } catch (e) {
+      if (__DEV__) console.warn('[company-gps] loadDrivers failed:', e);
+      setPins([]);
+    } finally {
+      setLoading(false);
+    }
   }, [user?.id]);
 
   const mergeLocations = useCallback(async (ids: string[]) => {
@@ -160,15 +168,19 @@ export default function CompanyGpsScreen() {
 
   useEffect(() => {
     if (!selectedPin?.latitude || !selectedPin.longitude || Platform.OS === 'web') return;
-    mapRef.current?.animateToRegion(
-      {
-        latitude: selectedPin.latitude,
-        longitude: selectedPin.longitude,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      },
-      600,
-    );
+    try {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: selectedPin.latitude,
+          longitude: selectedPin.longitude,
+          latitudeDelta: 0.04,
+          longitudeDelta: 0.04,
+        },
+        600,
+      );
+    } catch (e) {
+      if (__DEV__) console.warn('[company-gps] animateToRegion failed:', e);
+    }
   }, [selectedPin?.driver_id, selectedPin?.latitude, selectedPin?.longitude]);
 
   const hasLocation =
@@ -404,45 +416,59 @@ export default function CompanyGpsScreen() {
 
   return (
     <View style={styles.screen}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        initialRegion={TBILISI}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        onPress={() => setSelectedId(null)}
+      <MapErrorBoundary
+        key={mapEpoch}
+        onRetry={() => setMapEpoch((n) => n + 1)}
+        fallback={
+          <View style={styles.mapFallback}>
+            <Ionicons name="map-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.mapFallbackTitle}>{t('tracking.mapLoadError')}</Text>
+            <Text style={styles.mapFallbackSub}>{t('tracking.mapUnavailable')}</Text>
+          </View>
+        }
       >
-        {mapPins.map((pin) => {
-          const stale = isCompanyGpsLocationStale(pin.updated_at);
-          return (
-            <Marker
-              key={pin.driver_id}
-              coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
-              title={driverDisplayName(pin, t)}
-              onPress={() => setSelectedId(pin.driver_id)}
-            >
-              <View style={styles.markerWrap}>
-                <View
-                  style={[
-                    styles.markerDot,
-                    pin.is_assigned_driver ? styles.markerDotHost : styles.markerDotSub,
-                    stale && styles.markerDotStale,
-                  ]}
-                >
-                  <Ionicons name="car" size={16} color={COLORS.white} />
+        <MapView
+          key={`company-gps-map-${mapEpoch}`}
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={TBILISI}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+          onPress={() => setSelectedId(null)}
+        >
+          {mapPins.map((pin) => {
+            const stale = isCompanyGpsLocationStale(pin.updated_at);
+            return (
+              <Marker
+                key={pin.driver_id}
+                coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
+                title={driverDisplayName(pin, t)}
+                onPress={() => setSelectedId(pin.driver_id)}
+                tracksViewChanges={false}
+              >
+                <View style={styles.markerWrap}>
+                  <View
+                    style={[
+                      styles.markerDot,
+                      pin.is_assigned_driver ? styles.markerDotHost : styles.markerDotSub,
+                      stale && styles.markerDotStale,
+                    ]}
+                  >
+                    <Ionicons name="car" size={16} color={COLORS.white} />
+                  </View>
+                  <View
+                    style={[
+                      styles.markerTail,
+                      pin.is_assigned_driver ? styles.markerTailHost : styles.markerTailSub,
+                      stale && styles.markerTailStale,
+                    ]}
+                  />
                 </View>
-                <View
-                  style={[
-                    styles.markerTail,
-                    pin.is_assigned_driver ? styles.markerTailHost : styles.markerTailSub,
-                    stale && styles.markerTailStale,
-                  ]}
-                />
-              </View>
-            </Marker>
-          );
-        })}
-      </MapView>
+              </Marker>
+            );
+          })}
+        </MapView>
+      </MapErrorBoundary>
 
       <View style={styles.badgeWrap}>
         {loading ? (
@@ -500,6 +526,16 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
   emptyHint: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
+  mapFallback: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+    backgroundColor: COLORS.background,
+    gap: SPACING.sm,
+  },
+  mapFallbackTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
+  mapFallbackSub: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
   headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   headerSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 1 },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, flexShrink: 0 },

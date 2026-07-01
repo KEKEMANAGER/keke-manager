@@ -79,6 +79,11 @@ const supabaseDefaults = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'lib', 'supabasePublicConfig.json'), 'utf8'),
 );
 
+const googleMapsApiKey =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ||
+  process.env.GOOGLE_MAPS_API_KEY?.trim() ||
+  '';
+
 const appJson = require('./app.json');
 
 /** @type {import('@expo/config').ExpoConfig} */
@@ -102,6 +107,14 @@ module.exports = {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#FFFFFF',
       },
+      ...(googleMapsApiKey
+        ? {
+            config: {
+              ...(appJson.expo.android?.config ?? {}),
+              googleMaps: { apiKey: googleMapsApiKey },
+            },
+          }
+        : {}),
     },
     plugins: [
       ...(appJson.expo.plugins ?? []).filter(

@@ -952,6 +952,9 @@
     "statusPending": "Ожидание",
     "webFallback": "GPS-отслеживание доступно только в приложении iOS и Android.",
     "driversOnMap": "Водители",
+    "mapLoadError": "Карта недоступна",
+    "mapUnavailable": "Не удалось загрузить карту. Список водителей ниже по-прежнему доступен.",
+    "locationPermissionDenied": "Для GPS-трекинга требуется разрешение на геолокацию.",
     "fleetTitle": "GPS флота",
     "fleetDrivers": "{{count}} водителей на карте"
   },

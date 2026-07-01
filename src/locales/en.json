@@ -1109,6 +1109,9 @@
     "statusPending": "Pending",
     "webFallback": "GPS tracking is only available in the iOS and Android app.",
     "driversOnMap": "Drivers",
+    "mapLoadError": "Map unavailable",
+    "mapUnavailable": "The map could not be loaded. You can still use the driver list below.",
+    "locationPermissionDenied": "Location permission is required for GPS tracking.",
     "fleetTitle": "Fleet GPS",
     "fleetDrivers": "{{count}} drivers on map"
   },

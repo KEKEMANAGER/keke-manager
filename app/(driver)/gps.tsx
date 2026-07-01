@@ -7,6 +7,7 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { DriverTripNavigationButtons } from '../../components/DriverTripNavigationButtons';
+import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -54,6 +55,8 @@ export default function DriverGpsScreen() {
     null,
   );
   const [tripBooking, setTripBooking] = useState<TripBookingState | null>(null);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   const bookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
 
@@ -97,23 +100,39 @@ export default function DriverGpsScreen() {
   const attachForegroundWatch = useCallback(async () => {
     if (Platform.OS === 'web') return;
     if (watchRef.current) return;
-    const sub = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 4000,
-        distanceInterval: 10,
-      },
-      (loc) => {
-        const { latitude, longitude } = loc.coords;
-        setCurrentLocation({ latitude, longitude });
-        if (user?.id) {
-          void upsertDriverLocation(user.id, latitude, longitude).then(({ error }) => {
-            if (error && __DEV__) console.warn('[gps] upsertDriverLocation:', error.message);
-          });
-        }
-      },
-    );
-    watchRef.current = sub;
+    try {
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+      if (permission.status !== 'granted') {
+        setLocationDenied(true);
+        return;
+      }
+      setLocationDenied(false);
+
+      const sub = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 4000,
+          distanceInterval: 10,
+        },
+        (loc) => {
+          const { latitude, longitude } = loc.coords;
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+          setCurrentLocation({ latitude, longitude });
+          if (user?.id) {
+            void upsertDriverLocation(user.id, latitude, longitude).then(({ error }) => {
+              if (error && __DEV__) console.warn('[gps] upsertDriverLocation:', error.message);
+            });
+          }
+        },
+      );
+      watchRef.current = sub;
+    } catch (e) {
+      if (__DEV__) console.warn('[gps] attachForegroundWatch failed:', e);
+      setLocationDenied(true);
+    }
   }, [user?.id]);
 
   const startTracking = useCallback(async () => {
@@ -129,7 +148,8 @@ export default function DriverGpsScreen() {
 
     if (!result.ok) {
       if (result.reason === 'foreground_denied') {
-        Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
+        setLocationDenied(true);
+        Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('tracking.locationPermissionDenied'));
       }
       return false;
     }
@@ -137,6 +157,8 @@ export default function DriverGpsScreen() {
     if (!result.backgroundGranted) {
       Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
     }
+
+    setLocationDenied(false);
 
     setIsTracking(true);
     await attachForegroundWatch();
@@ -148,11 +170,15 @@ export default function DriverGpsScreen() {
     if (Platform.OS === 'web') return;
     let cancelled = false;
     void (async () => {
-      const running = await isBackgroundLocationRunning();
-      if (cancelled) return;
-      if (running) {
-        setIsTracking(true);
-        await attachForegroundWatch();
+      try {
+        const running = await isBackgroundLocationRunning();
+        if (cancelled) return;
+        if (running) {
+          setIsTracking(true);
+          await attachForegroundWatch();
+        }
+      } catch (e) {
+        if (__DEV__) console.warn('[gps] restore background tracking failed:', e);
       }
     })();
     return () => {
@@ -182,12 +208,16 @@ export default function DriverGpsScreen() {
 
   useEffect(() => {
     if (!isTracking || !currentLocation || Platform.OS === 'web') return;
-    mapRef.current?.animateToRegion({
-      latitude: currentLocation.latitude,
-      longitude: currentLocation.longitude,
-      latitudeDelta: 0.012,
-      longitudeDelta: 0.012,
-    });
+    try {
+      mapRef.current?.animateToRegion({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.012,
+        longitudeDelta: 0.012,
+      });
+    } catch (e) {
+      if (__DEV__) console.warn('[gps] animateToRegion failed:', e);
+    }
   }, [isTracking, currentLocation]);
 
   /** Unmount cleanup: detach the foreground watch only. Leave the background task running. */
@@ -320,17 +350,35 @@ export default function DriverGpsScreen() {
 
   return (
     <View style={styles.screen}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        initialRegion={TBILISI}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
+      <MapErrorBoundary
+        key={mapEpoch}
+        onRetry={() => setMapEpoch((n) => n + 1)}
+        fallback={
+          <View style={styles.mapFallback}>
+            <Ionicons name="map-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.mapFallbackTitle}>{t('tracking.mapLoadError')}</Text>
+            <Text style={styles.mapFallbackSub}>{t('tracking.mapUnavailable')}</Text>
+          </View>
+        }
       >
-        {isTracking && currentLocation ? (
-          <Marker coordinate={currentLocation} pinColor="blue" title={t('gpsScreen.yourPosition')} />
-        ) : null}
-      </MapView>
+        <MapView
+          key={`driver-gps-map-${mapEpoch}`}
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={TBILISI}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+        >
+          {isTracking && currentLocation ? (
+            <Marker
+              coordinate={currentLocation}
+              pinColor="blue"
+              title={t('gpsScreen.yourPosition')}
+              tracksViewChanges={false}
+            />
+          ) : null}
+        </MapView>
+      </MapErrorBoundary>
 
       <View style={[styles.badgeWrap, { top: insets.top + SPACING.sm }]}>
         <View style={[styles.badge, isTracking ? styles.badgeOn : styles.badgeOff]}>
@@ -341,6 +389,12 @@ export default function DriverGpsScreen() {
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.md }]}>
+        {locationDenied ? (
+          <View style={styles.hintBanner}>
+            <Ionicons name="location-outline" size={18} color={COLORS.error} />
+            <Text style={styles.hintBannerText}>{t('tracking.locationPermissionDenied')}</Text>
+          </View>
+        ) : null}
         {needsStartTripFirst ? (
           <View style={styles.hintBanner}>
             <Ionicons name="information-circle-outline" size={18} color={COLORS.goldDark} />
@@ -396,6 +450,26 @@ const styles = StyleSheet.create({
     color: COLORS.grayLight,
     fontSize: 15,
     lineHeight: 22,
+  },
+  mapFallback: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: COLORS.background,
+    gap: SPACING.sm,
+  },
+  mapFallbackTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  mapFallbackSub: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   badgeWrap: {
     position: 'absolute',

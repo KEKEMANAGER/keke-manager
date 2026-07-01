@@ -1106,6 +1106,9 @@
     "statusPending": "მოლოდინში",
     "webFallback": "GPS თვალყურება ხელმისაწვდომია მხოლოდ iOS და Android აპში.",
     "driversOnMap": "მძღოლები",
+    "mapLoadError": "რუკა ვერ ჩაიტვირთა",
+    "mapUnavailable": "რუკის ჩვენება ვერ მოხერხდა. მძღოლების სია ქვემოთ კვლავ ხელმისაწვდომია.",
+    "locationPermissionDenied": "GPS თვალყურებისთვის საჭიროა ლოკაციის ნებართვა.",
     "fleetTitle": "ფლოტის GPS",
     "fleetDrivers": "{{count}} მძღოლი რუკაზე"
   },
