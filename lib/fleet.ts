@@ -312,7 +312,7 @@ export async function fetchFleetMemberProfile(
       phone: (row.phone as string | null) ?? null,
       avatar_url: (row.avatar_url as string | null) ?? null,
       bio: (row.bio as string | null) ?? null,
-      languages: sanitizeLanguageCodes(row.languages),
+      languages: sanitizeLanguageCodes(Array.isArray(row.languages) ? row.languages : []),
       experience_years:
         typeof row.experience_years === 'number' ? row.experience_years : null,
       is_verified: row.is_verified === true,

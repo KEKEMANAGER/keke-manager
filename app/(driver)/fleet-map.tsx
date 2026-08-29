@@ -13,6 +13,7 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
+import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, SPACING } from '../../constants/theme';
 import {
   fetchDriverLocation,
@@ -40,6 +41,7 @@ export default function FleetMapScreen() {
   const mapRef = useRef<MapView | null>(null);
   const [loc, setLoc] = useState<DriverLocationRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   const reload = useCallback(async () => {
     if (!driverId) {
@@ -110,12 +112,28 @@ export default function FleetMapScreen() {
       ) : Platform.OS === 'web' ? (
         <LeafletDriverMap pins={pins} style={styles.map} />
       ) : (
-        <MapView ref={mapRef} style={styles.map} initialRegion={TBILISI}>
-          <Marker
-            coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
-            title={driverName}
-          />
-        </MapView>
+        <MapErrorBoundary
+          key={mapEpoch}
+          onRetry={() => setMapEpoch((n) => n + 1)}
+          fallback={
+            <View style={[styles.map, styles.mapFallback]}>
+              <Ionicons name="map-outline" size={40} color={COLORS.textMuted} />
+              <Text style={styles.emptyText}>{t('tracking.mapLoadError')}</Text>
+            </View>
+          }
+        >
+          <MapView
+            key={`fleet-map-${mapEpoch}`}
+            ref={mapRef}
+            style={styles.map}
+            initialRegion={TBILISI}
+          >
+            <Marker
+              coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
+              title={driverName}
+            />
+          </MapView>
+        </MapErrorBoundary>
       )}
     </View>
   );
@@ -135,6 +153,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '700', color: COLORS.text },
   sub: { fontSize: 13, color: COLORS.textSecondary },
   map: { flex: 1 },
+  mapFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
   empty: {
     flex: 1,
     alignItems: 'center',

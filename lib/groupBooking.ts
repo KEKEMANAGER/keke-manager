@@ -429,7 +429,7 @@ export async function broadcastOpenLegs(
   return { count, error: null };
 }
 
-const ACTIVE_LEG_STATUSES: BookingStatus[] = ['pending', 'accepted', 'confirmed', 'in_progress'];
+const ACTIVE_LEG_STATUSES: BookingStatus[] = ['pending', 'accepted', 'in_progress'];
 
 /** Derive coordinator row status from convoy leg rows. */
 export function deriveConvoyMasterStatus(legs: BookingRow[]): BookingStatus {
@@ -438,7 +438,7 @@ export function deriveConvoyMasterStatus(legs: BookingRow[]): BookingStatus {
   if (statuses.every((s) => s === 'completed')) return 'completed';
   if (statuses.some((s) => s === 'in_progress')) return 'in_progress';
   if (statuses.every((s) => s === 'cancelled' || s === 'rejected')) return 'cancelled';
-  if (statuses.some((s) => s === 'accepted' || s === 'confirmed')) return 'accepted';
+  if (statuses.some((s) => s === 'accepted')) return 'accepted';
   return 'pending';
 }
 
@@ -533,7 +533,7 @@ export async function cancelConvoyByCompany(
     };
   }
 
-  const cancellable: BookingStatus[] = ['pending', 'accepted', 'confirmed'];
+  const cancellable: BookingStatus[] = ['pending', 'accepted'];
   const now = new Date().toISOString();
 
   for (const leg of legs) {

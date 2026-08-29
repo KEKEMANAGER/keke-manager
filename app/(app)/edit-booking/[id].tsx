@@ -159,7 +159,15 @@ export default function EditBookingScreen() {
     );
   }
 
-  const showLocationPickers = booking ? isTransferKind(booking.kind) : true;
+  if (!booking) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={COLORS.gold} />
+      </View>
+    );
+  }
+
+  const showLocationPickers = isTransferKind(booking.kind);
 
   return (
     <ScrollView

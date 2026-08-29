@@ -11,6 +11,7 @@ import {
 import MapView, { Callout, Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   fetchAllLocationsWithInfo,
@@ -63,6 +64,7 @@ export default function AdminTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DriverLocationWithInfo | null>(null);
   const [, setTick] = useState(0);
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   const reload = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -98,39 +100,52 @@ export default function AdminTrackingScreen() {
 
   return (
     <View style={styles.screen}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        initialRegion={TBILISI}
-        showsUserLocation={false}
-        onPress={() => setSelected(null)}
+      <MapErrorBoundary
+        key={mapEpoch}
+        onRetry={() => setMapEpoch((n) => n + 1)}
+        fallback={
+          <View style={styles.mapFallback}>
+            <Ionicons name="map-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.mapFallbackTitle}>{t('tracking.mapLoadError')}</Text>
+            <Text style={styles.mapFallbackSub}>{t('tracking.mapUnavailable')}</Text>
+          </View>
+        }
       >
-        {locations.map((loc) => {
-          const color = markerColor(loc);
-          return (
-            <Marker
-              key={loc.driver_id}
-              coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
-              onPress={() => setSelected(loc)}
-            >
-              <View style={styles.markerWrap}>
-                <View style={[styles.markerDot, { backgroundColor: color }]}>
-                  <Ionicons name="car" size={14} color={COLORS.white} />
+        <MapView
+          key={`admin-tracking-map-${mapEpoch}`}
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={TBILISI}
+          showsUserLocation={false}
+          onPress={() => setSelected(null)}
+        >
+          {locations.map((loc) => {
+            const color = markerColor(loc);
+            return (
+              <Marker
+                key={loc.driver_id}
+                coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
+                onPress={() => setSelected(loc)}
+              >
+                <View style={styles.markerWrap}>
+                  <View style={[styles.markerDot, { backgroundColor: color }]}>
+                    <Ionicons name="car" size={14} color={COLORS.white} />
+                  </View>
+                  <View style={[styles.markerTail, { borderTopColor: color }]} />
                 </View>
-                <View style={[styles.markerTail, { borderTopColor: color }]} />
-              </View>
-              <Callout tooltip>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutName} numberOfLines={1}>
-                    {loc.full_name ?? t('common.driver')}
-                  </Text>
-                  <Text style={styles.calloutMeta}>{statusLabel(loc.booking_status, t)}</Text>
-                </View>
-              </Callout>
-            </Marker>
-          );
-        })}
-      </MapView>
+                <Callout tooltip>
+                  <View style={styles.callout}>
+                    <Text style={styles.calloutName} numberOfLines={1}>
+                      {loc.full_name ?? t('common.driver')}
+                    </Text>
+                    <Text style={styles.calloutMeta}>{statusLabel(loc.booking_status, t)}</Text>
+                  </View>
+                </Callout>
+              </Marker>
+            );
+          })}
+        </MapView>
+      </MapErrorBoundary>
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
@@ -231,6 +246,24 @@ export default function AdminTrackingScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.background },
+  mapFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  mapFallbackTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  mapFallbackSub: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
   header: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',

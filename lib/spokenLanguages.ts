@@ -216,7 +216,8 @@ export function filterSpokenLanguageOptions(
 
 export function sanitizeLanguageCodes(raw: string[]): string[] {
   const set = new Set<SpokenLanguageCode>();
-  for (const item of raw) {
+  const items = Array.isArray(raw) ? raw : [];
+  for (const item of items) {
     const code = normalizeSpokenLanguageCode(item);
     if (code) set.add(code);
   }

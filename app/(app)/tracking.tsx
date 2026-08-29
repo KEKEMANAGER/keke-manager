@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
 import { BookingOdometerSection } from '../../components/BookingOdometerSection';
+import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { fetchBookingById, type BookingRow } from '../../lib/bookings';
 import { fetchFleetDriverIdsAround } from '../../lib/fleet';
@@ -92,6 +93,7 @@ export default function CompanyTrackingScreen() {
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   const driverId = booking?.driver_id ?? paramDriverId ?? '';
   const driverName =
@@ -361,46 +363,59 @@ export default function CompanyTrackingScreen() {
 
   return (
     <View style={styles.screen}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        initialRegion={TBILISI}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        onPress={() => setSelectedPinId(null)}
+      <MapErrorBoundary
+        key={mapEpoch}
+        onRetry={() => setMapEpoch((n) => n + 1)}
+        fallback={
+          <View style={styles.mapFallback}>
+            <Ionicons name="map-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.mapFallbackTitle}>{t('tracking.mapLoadError')}</Text>
+            <Text style={styles.mapFallbackSub}>{t('tracking.mapUnavailable')}</Text>
+          </View>
+        }
       >
-        {pins.map((pin) => {
-          const isHost = pin.driver_id === driverId;
-          const stale = pinStale(pin.updated_at);
-          return (
-            <Marker
-              key={pin.driver_id}
-              coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
-              title={pin.full_name ?? t('common.driver')}
-              onPress={() => setSelectedPinId(pin.driver_id)}
-            >
-              <View style={styles.markerWrap}>
-                <View
-                  style={[
-                    styles.markerDot,
-                    isHost ? styles.markerDotHost : styles.markerDotSub,
-                    stale && styles.markerDotStale,
-                  ]}
-                >
-                  <Ionicons name="car" size={16} color={COLORS.white} />
+        <MapView
+          key={`tracking-map-${mapEpoch}`}
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={TBILISI}
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+          onPress={() => setSelectedPinId(null)}
+        >
+          {pins.map((pin) => {
+            const isHost = pin.driver_id === driverId;
+            const stale = pinStale(pin.updated_at);
+            return (
+              <Marker
+                key={pin.driver_id}
+                coordinate={{ latitude: pin.latitude, longitude: pin.longitude }}
+                title={pin.full_name ?? t('common.driver')}
+                onPress={() => setSelectedPinId(pin.driver_id)}
+              >
+                <View style={styles.markerWrap}>
+                  <View
+                    style={[
+                      styles.markerDot,
+                      isHost ? styles.markerDotHost : styles.markerDotSub,
+                      stale && styles.markerDotStale,
+                    ]}
+                  >
+                    <Ionicons name="car" size={16} color={COLORS.white} />
+                  </View>
+                  <View
+                    style={[
+                      styles.markerTail,
+                      isHost ? styles.markerTailHost : styles.markerTailSub,
+                      stale && styles.markerTailStale,
+                    ]}
+                  />
                 </View>
-                <View
-                  style={[
-                    styles.markerTail,
-                    isHost ? styles.markerTailHost : styles.markerTailSub,
-                    stale && styles.markerTailStale,
-                  ]}
-                />
-              </View>
-            </Marker>
-          );
-        })}
-      </MapView>
+              </Marker>
+            );
+          })}
+        </MapView>
+      </MapErrorBoundary>
 
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
@@ -502,6 +517,24 @@ export default function CompanyTrackingScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.background },
+  mapFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  mapFallbackTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  mapFallbackSub: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
   header: {
     position: 'absolute',
     top: 0,

@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import MapView, { Callout, Marker, type Region } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
+import { MapErrorBoundary } from '../maps/MapErrorBoundary';
 import { COLORS, RADIUS, SHADOWS } from '../../constants/theme';
 import {
   adminGpsMarkerColor,
@@ -41,6 +42,7 @@ export function AdminGpsMap({
 }: AdminGpsMapProps) {
   const { t } = useTranslation();
   const mapRef = useRef<MapView | null>(null);
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   useEffect(() => {
     if (!selectedId || !mapRef.current) return;
@@ -59,39 +61,56 @@ export function AdminGpsMap({
 
   return (
     <View style={[styles.wrap, { height: mapHeight }]}>
-      <MapView ref={mapRef} style={styles.map} initialRegion={TBILISI} showsUserLocation={false}>
-        {locations.map((loc) => {
-          const color = adminGpsMarkerColor(loc);
-          const selected = loc.driver_id === selectedId;
-          return (
-            <Marker
-              key={loc.driver_id}
-              coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
-              onPress={() => onSelectDriver(loc.driver_id)}
-            >
-              <View style={styles.markerWrap}>
-                <View
-                  style={[
-                    styles.markerDot,
-                    { backgroundColor: color },
-                    selected ? styles.markerSelected : undefined,
-                  ]}
-                >
-                  <Ionicons name="car" size={selected ? 14 : 12} color={COLORS.white} />
+      <MapErrorBoundary
+        key={mapEpoch}
+        onRetry={() => setMapEpoch((n) => n + 1)}
+        fallback={
+          <View style={[styles.map, styles.mapFallback]}>
+            <Ionicons name="map-outline" size={32} color={COLORS.textMuted} />
+            <Text style={styles.calloutMeta}>{t('tracking.mapLoadError')}</Text>
+          </View>
+        }
+      >
+        <MapView
+          key={`admin-gps-map-${mapEpoch}`}
+          ref={mapRef}
+          style={styles.map}
+          initialRegion={TBILISI}
+          showsUserLocation={false}
+        >
+          {locations.map((loc) => {
+            const color = adminGpsMarkerColor(loc);
+            const selected = loc.driver_id === selectedId;
+            return (
+              <Marker
+                key={loc.driver_id}
+                coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
+                onPress={() => onSelectDriver(loc.driver_id)}
+              >
+                <View style={styles.markerWrap}>
+                  <View
+                    style={[
+                      styles.markerDot,
+                      { backgroundColor: color },
+                      selected ? styles.markerSelected : undefined,
+                    ]}
+                  >
+                    <Ionicons name="car" size={selected ? 14 : 12} color={COLORS.white} />
+                  </View>
                 </View>
-              </View>
-              <Callout tooltip>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutName} numberOfLines={1}>
-                    {loc.full_name ?? t('common.driver')}
-                  </Text>
-                  <Text style={styles.calloutMeta}>{statusLabel(loc.booking_status, t)}</Text>
-                </View>
-              </Callout>
-            </Marker>
-          );
-        })}
-      </MapView>
+                <Callout tooltip>
+                  <View style={styles.callout}>
+                    <Text style={styles.calloutName} numberOfLines={1}>
+                      {loc.full_name ?? t('common.driver')}
+                    </Text>
+                    <Text style={styles.calloutMeta}>{statusLabel(loc.booking_status, t)}</Text>
+                  </View>
+                </Callout>
+              </Marker>
+            );
+          })}
+        </MapView>
+      </MapErrorBoundary>
     </View>
   );
 }
@@ -105,6 +124,11 @@ const styles = StyleSheet.create({
     ...SHADOWS.card,
   },
   map: { flex: 1 },
+  mapFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
   markerWrap: { alignItems: 'center' },
   markerDot: {
     width: 30,

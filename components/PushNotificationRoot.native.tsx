@@ -67,7 +67,9 @@ function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | unde
   );
 }
 
-function isChatTapPayload(data: BookingPushTapPayload | undefined): boolean {
+function isChatTapPayload(
+  data: BookingPushTapPayload | undefined,
+): data is BookingPushTapPayload & { sender_id: string } {
   return data?.type === 'chat_message' && !!data?.sender_id;
 }
 
