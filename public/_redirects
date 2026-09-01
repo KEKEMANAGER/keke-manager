@@ -8,7 +8,6 @@
 /og-image.jpg     /og-image.jpg     200
 /favicon.ico      /favicon.ico      200
 /blog/rss.xml     /blog/rss.xml     200
-/blog/            /blog             301
 /blog/*           /blog/:splat      200
 /services/*       /services/:splat  200
 /locations/*      /locations/:splat 200
