@@ -205,6 +205,16 @@ function markdownToHtml(md) {
       continue;
     }
 
+    const imageMatch = t.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (imageMatch) {
+      flushUl();
+      flushOl();
+      const [, alt, src] = imageMatch;
+      const safeAlt = alt.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      parts.push(`<figure><img src="${src}" alt="${safeAlt}" loading="lazy"/></figure>`);
+      continue;
+    }
+
     flushUl();
     flushOl();
     parts.push(`<p>${inline(t)}</p>`);

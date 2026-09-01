@@ -5,7 +5,7 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Tue, 01 Sep 2026 15:27:22 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 01 Sep 2026 15:56:46 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
     <item>
       <title><![CDATA[რა არის KEKE Manager? სრული გზამკვლევი 2026]]></title>
@@ -13,6 +13,13 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/what-is-keke-manager</guid>
       <pubDate>Tue, 01 Sep 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[KEKE Manager — B2B პლატფორმა, რომელიც ტურ-ოპერატორებს, ტრანსპორტ კომპანიებს და ვერიფიცირებულ მძღოლებს აკავშირებს საქართველოში. გაარკვიეთ როგორ მუშაობს.]]></description>
+    </item>
+    <item>
+      <title><![CDATA[კეკე მენეჯერის დამფუძნებელი — აკაკი ქაჩიბაია]]></title>
+      <link>https://kekemanager.com/blog/akaki-kachibaia-keke-manager-founder-story</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/akaki-kachibaia-keke-manager-founder-story</guid>
+      <pubDate>Tue, 01 Sep 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[აკაკი ქაჩიბაიას ისტორია — მძღოლიდან ტრანსპორტის მენეჯერამდე და კეკე მენეჯერის დაფუძნებამდე. რატომ და როგორ დაიბადა პლატფორმა, რომელიც საქართველოს ტურისტულ ტრანსპორტს ცვლის.]]></description>
     </item>
     <item>
       <title><![CDATA[ტურ-ოპერატორი vs მძღოლი: რა პრობლემებს წყვეტს KEKE Manager]]></title>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/guide-driver-vs-regular-driver</guid>
       <pubDate>Sat, 09 May 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[როლების განსხვავება, ტარიფი და მოლოდინები ტურისტისგან.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[როგორ გავხდეთ ტურისტული მძღოლი საქართველოში]]></title>
-      <link>https://kekemanager.com/blog/how-to-become-tour-driver-georgia</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/how-to-become-tour-driver-georgia</guid>
-      <pubDate>Thu, 07 May 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[დოკუმენტები, უნარები, B2B პლატფორმა და შემოსავალი.]]></description>
     </item>
   </channel>
 </rss>
