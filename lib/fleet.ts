@@ -478,11 +478,15 @@ export async function sendFleetInvite(
     return { data: null, error: new Error('მძღოლი უნდა იყოს verified') };
   }
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from('driver_fleet')
     .select('id, host_driver_id, status')
     .eq('sub_driver_id', subDriverId)
     .maybeSingle();
+
+  // Never fall through to INSERT on a failed lookup: that would bypass the
+  // one-fleet-per-driver guard below and could place the driver in two fleets.
+  if (existingErr) return { data: null, error: new Error(existingErr.message) };
 
   if (existing) {
     const ex = existing as { id: string; host_driver_id: string; status?: string };
@@ -543,16 +547,28 @@ export async function respondToFleetInvite(
   }
 
   if (!accept) {
-    const { error } = await supabase.from('driver_fleet').delete().eq('id', fleetId);
+    const { error } = await supabase
+      .from('driver_fleet')
+      .delete()
+      .eq('id', fleetId)
+      .eq('sub_driver_id', subDriverId);
     return { error: error ? new Error(error.message) : null };
   }
 
-  const { error } = await supabase
+  // Re-assert `pending` in the write itself: the check above was a separate
+  // read, so without this a double-tap (or a host acting in between) could
+  // accept an invite that is no longer pending.
+  const { data: accepted, error } = await supabase
     .from('driver_fleet')
     .update({ status: 'accepted' })
-    .eq('id', fleetId);
+    .eq('id', fleetId)
+    .eq('sub_driver_id', subDriverId)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
 
   if (error) return { error: new Error(error.message) };
+  if (!accepted) return { error: new Error('მოწვევა უკვე განხილულია') };
 
   await supabase.from('users').update({ available_for_hire: false }).eq('id', subDriverId);
   return { error: null };
