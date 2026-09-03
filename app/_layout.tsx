@@ -1,6 +1,6 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   type DimensionValue,
@@ -95,9 +95,13 @@ function I18nBootstrap({ children }: { children: ReactNode }) {
 
 export default function RootLayout() {
   const [showSplash, setShowSplash] = useState(Platform.OS !== 'web');
+  // Stable identity: AnimatedSplash depends on this in its animation effect,
+  // so an inline arrow would restart the animation on every re-render and the
+  // splash could never finish.
+  const handleSplashFinish = useCallback(() => setShowSplash(false), []);
 
   if (showSplash) {
-    return <AnimatedSplash onFinish={() => setShowSplash(false)} />;
+    return <AnimatedSplash onFinish={handleSplashFinish} />;
   }
 
   return (

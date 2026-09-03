@@ -64,7 +64,14 @@ export function completedDriverEarningsGel(
   booking: Pick<BookingRow, 'price_gel' | 'driver_payout_gel' | 'host_driver_id' | 'driver_id'>,
   driverUserId: string,
 ): number {
-  if (isFleetSubDriverBooking(booking, driverUserId) && hasDriverPayoutSnapshot(booking)) {
+  // A payout snapshot always wins for the assigned driver: it is what the
+  // booking screen shows them, so stats must agree. Today snapshots are only
+  // written on fleet delegation, but keying off the snapshot (rather than the
+  // fleet relationship) keeps stats correct if a non-fleet payout path is
+  // added later.
+  const viewer = trimUserId(driverUserId);
+  const assigned = trimUserId(booking.driver_id ?? '');
+  if (viewer && assigned === viewer && hasDriverPayoutSnapshot(booking)) {
     return driverPayableGel(booking);
   }
   return Number(booking.price_gel || 0);

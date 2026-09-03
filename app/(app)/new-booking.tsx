@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -462,13 +462,28 @@ function MatchingDriversSection({
   const normType = normalizeVehicleType(vehicleType);
   const normClass = normalizeVehicleClass(vehicleClass);
 
+  // Callbacks and the current selection are read through refs so they never
+  // retrigger the fetch below. onDriversLoaded sets parent state with a fresh
+  // array on every load, so depending on these directly meant each fetch
+  // caused a re-render that started another fetch.
+  const onDriversLoadedRef = useRef(onDriversLoaded);
+  const onSelectDriverRef = useRef(onSelectDriver);
+  const onDriverTargetModeChangeRef = useRef(onDriverTargetModeChange);
+  const selectedDriverIdRef = useRef(selectedDriverId);
+  useEffect(() => {
+    onDriversLoadedRef.current = onDriversLoaded;
+    onSelectDriverRef.current = onSelectDriver;
+    onDriverTargetModeChangeRef.current = onDriverTargetModeChange;
+    selectedDriverIdRef.current = selectedDriverId;
+  });
+
   useEffect(() => {
     if (!active || !normType || !normClass) {
       if (!active) {
         setDrivers([]);
         setLoadError(null);
         setLoading(false);
-        onDriversLoaded?.([]);
+        onDriversLoadedRef.current?.([]);
       }
       return;
     }
@@ -492,17 +507,18 @@ function MatchingDriversSection({
         if (error) {
           setLoadError(error.message);
           setDrivers([]);
-          onDriversLoaded?.([]);
+          onDriversLoadedRef.current?.([]);
           return;
         }
         const list = Array.isArray(data) ? data : [];
         setDrivers(list);
-        onDriversLoaded?.(list);
+        onDriversLoadedRef.current?.(list);
+        const currentSelectedId = selectedDriverIdRef.current;
         if (list.length === 0) {
-          onDriverTargetModeChange('all');
-          onSelectDriver(null, null);
-        } else if (selectedDriverId && !list.some((d) => d?.id === selectedDriverId)) {
-          onSelectDriver(null, null);
+          onDriverTargetModeChangeRef.current('all');
+          onSelectDriverRef.current(null, null);
+        } else if (currentSelectedId && !list.some((d) => d?.id === currentSelectedId)) {
+          onSelectDriverRef.current(null, null);
         }
       })
       .catch((err: unknown) => {
@@ -511,7 +527,7 @@ function MatchingDriversSection({
         const message = err instanceof Error ? err.message : t('common.error');
         setLoadError(message);
         setDrivers([]);
-        onDriversLoaded?.([]);
+        onDriversLoadedRef.current?.([]);
       });
 
     return () => {
@@ -529,10 +545,6 @@ function MatchingDriversSection({
     minPassengerCapacity,
     filterByMinSeats,
     driverTargetMode,
-    onDriversLoaded,
-    onSelectDriver,
-    onDriverTargetModeChange,
-    selectedDriverId,
     t,
   ]);
 
@@ -781,15 +793,15 @@ export default function NewBookingScreen() {
   const [requiredLanguages, setRequiredLanguages] = useState<string[]>([]);
   const [driverCategory, setDriverCategory] = useState<RequestedDriverCategory>('all');
 
+  const selectDriver = useCallback((driverId: string | null, vehicleId: string | null) => {
+    setSelectedDriverId(driverId);
+    setSelectedDriverVehicleId(vehicleId);
+  }, []);
+
   useEffect(() => {
     selectDriver(null, null);
     setDriverTargetMode('all');
-  }, [selectedVehicleType, vehicleClass, requiredLanguages, driverCategory]);
-
-  function selectDriver(driverId: string | null, vehicleId: string | null) {
-    setSelectedDriverId(driverId);
-    setSelectedDriverVehicleId(vehicleId);
-  }
+  }, [selectedVehicleType, vehicleClass, requiredLanguages, driverCategory, selectDriver]);
 
   const [meetGreet, setMeetGreet] = useState(false);
   const [signText, setSignText] = useState('');
@@ -985,7 +997,7 @@ export default function NewBookingScreen() {
     }
     setMultiVehicle(false);
     setTransportLegs([]);
-  }, []);
+  }, [selectDriver]);
 
   const pax = multiVehicle
     ? Math.max(1, sumLegPassengers(transportLegs))
