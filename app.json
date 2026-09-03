@@ -44,7 +44,7 @@
     },
     "android": {
       "package": "com.keke.manager",
-      "versionCode": 18,
+      "versionCode": 20,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
