@@ -69,23 +69,6 @@ export function verificationStepsForHired(_isHired: boolean): VerificationDocSlo
   return DRIVER_KYC_DOC_SLOTS;
 }
 
-const KYC_MIRROR_PAIRS: [VerificationDocSlot, VerificationDocSlot][] = [
-  ['license_front', 'license_back'],
-  ['id_front', 'id_back'],
-];
-
-/** Copy front URL to back when only one side was persisted (legacy / partial saves). */
-export function normalizeVerificationPhotos(photos: VerificationPhotos): VerificationPhotos {
-  const p = { ...photos };
-  for (const [front, back] of KYC_MIRROR_PAIRS) {
-    const frontUrl = p[front]?.trim();
-    if (frontUrl && !p[back]?.trim()) {
-      p[back] = frontUrl;
-    }
-  }
-  return p;
-}
-
 export function photosFromUserRow(row: Record<string, unknown> | null): VerificationPhotos {
   const p = emptyVerificationPhotos();
   if (!row) return p;
@@ -93,7 +76,7 @@ export function photosFromUserRow(row: Record<string, unknown> | null): Verifica
     const v = row[key];
     p[key] = typeof v === 'string' && v.trim() ? v.trim() : null;
   }
-  return normalizeVerificationPhotos(p);
+  return p;
 }
 
 /** True when all four KYC front/back slots are filled. */
