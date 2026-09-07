@@ -7,6 +7,21 @@ export const OG_TITLE = 'KEKE Manager — B2B Tourism Transport Platform';
 export const OG_DESCRIPTION =
   "Georgia's first B2B platform connecting tour operators and drivers. GPS tracking, bookings and digital vouchers — all in one app.";
 
+// Google Analytics 4 (kekemanager.com property, "KEKE Manager Website" web
+// stream). Injected directly by patch-web-html.mjs (into dist/index.html —
+// the sign-up/sign-in SPA routes in prerender-seo-routes.mjs copy that file
+// as their base, so they inherit it automatically) and by
+// buildStaticHtmlPage below (blog posts + static SEO landing pages).
+// Deliberately NOT part of buildHeadMeta: that function is called a second
+// time on top of an already-patched dist/index.html for the SPA routes
+// above, so anything in it would end up duplicated there.
+export const GA_MEASUREMENT_ID = 'G-N6Q1P3XCJH';
+
+export function buildGaScript() {
+  return `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+    <script id="keke-ga4">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_MEASUREMENT_ID}');</script>`;
+}
+
 export const HOME_SEO = {
   lang: 'ka',
   title: 'KEKE Manager — ტურ ოპერატორებისა და მძღოლების მართვის პლათფორმა | საქართველო',
@@ -306,6 +321,7 @@ export function buildStaticHtmlPage({
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)}</title>
   ${headMeta}
+  ${buildGaScript()}
   <link rel="icon" href="/favicon.ico" />
   <style>${PRERENDER_CSS}</style>
 </head>

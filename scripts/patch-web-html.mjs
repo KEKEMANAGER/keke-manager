@@ -11,6 +11,7 @@ import {
   HOME_SEO,
   SCHEMA_WEBSITE,
   buildFaqSchema,
+  buildGaScript,
   buildHeadMeta,
   buildHomeNoscript,
   escapeHtml,
@@ -106,6 +107,7 @@ const CRITICAL_LANDING_SHELL = `
 const HEAD_INJECT = [
   RUNTIME_ENV_SCRIPT,
   SEO_HEAD,
+  buildGaScript(),
   `<link rel="preload" href="/logo.webp" as="image" type="image/webp" fetchpriority="high" />`,
   `<style id="keke-critical-css">${CRITICAL_LANDING_CSS}</style>`,
 ]
@@ -127,6 +129,8 @@ function stripHeadInjections(html) {
   html = html.replace(/<link rel="preload" href="\/logo\.webp"[^>]*>\s*/g, '');
   html = html.replace(/<style id="keke-critical-css">[\s\S]*?<\/style>\s*/g, '');
   html = html.replace(/<script id="keke-runtime-env">[\s\S]*?<\/script>\s*/g, '');
+  html = html.replace(/<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js[^"]*"><\/script>\s*/g, '');
+  html = html.replace(/<script id="keke-ga4">[\s\S]*?<\/script>\s*/g, '');
   return html;
 }
 
