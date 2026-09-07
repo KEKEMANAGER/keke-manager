@@ -74,7 +74,7 @@ function relatedBlogHtml(slugs, postsBySlug) {
   const items = slugs
     .map((slug) => postsBySlug.get(slug))
     .filter(Boolean)
-    .map((p) => `<li><a href="/blog/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></li>`)
+    .map((p) => `<li><a href="/blog/${escapeHtml(p.slug)}/">${escapeHtml(p.title)}</a></li>`)
     .join('');
   if (!items) return '';
   return `<h2>სასარგებლო სტატიები</h2><ul>${items}</ul>`;
@@ -101,7 +101,7 @@ function main() {
       ? `<ul class="keke-post-list">${[...postsBySlug.values()]
           .map(
             (post) =>
-              `<li><a href="/blog/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a><br /><span style="color:#666;font-size:14px">${escapeHtml(post.description || post.excerpt || '')}</span></li>`,
+              `<li><a href="/blog/${escapeHtml(post.slug)}/">${escapeHtml(post.title)}</a><br /><span style="color:#666;font-size:14px">${escapeHtml(post.description || post.excerpt || '')}</span></li>`,
           )
           .join('')}</ul>`
       : '';
@@ -114,7 +114,7 @@ function main() {
       description:
         'სტატიები ტურ ოპერატორებისთვის, მძღოლებისთვის და ფლოტის მფლობელებისთვის საქართველოში — ტრანსფერი, ფასები, B2B პლატფორმები.',
       keywords: 'ტურისტული ტრანსპორტი, tour transport Georgia, B2B platform',
-      canonical: `${SITE_URL}/blog`,
+      canonical: `${SITE_URL}/blog/`,
       bodyHtml: `
         <h1>KEKE Manager ბლოგი</h1>
         <p>გზამკვლევები ტურ ოპერატორებისთვის, მძღოლებისთვის და ფლოტის მფლობელებისთვის საქართველოში.</p>
@@ -128,7 +128,7 @@ function main() {
     const title = `${post.title} | KEKE Manager Blog`;
     const description = post.description || post.excerpt || '';
     const articleHtml = post.html || `<p>${escapeHtml(description)}</p>`;
-    const canonical = `${SITE_URL}/blog/${post.slug}`;
+    const canonical = `${SITE_URL}/blog/${post.slug}/`;
     const ogImage = post.featuredImage?.startsWith('http')
       ? post.featuredImage
       : `${SITE_URL}${post.featuredImage || '/og-image.jpg'}`;
@@ -177,7 +177,7 @@ function main() {
           lang: 'ka',
           title: page.title.ka,
           description: page.description.ka,
-          canonical: `${SITE_URL}/locations/${page.slug}`,
+          canonical: `${SITE_URL}/locations/${page.slug}/`,
           bodyHtml: `
             <h1>${escapeHtml(page.h1.ka)}</h1>
             <p>${escapeHtml(page.intro.ka)}</p>
@@ -194,7 +194,7 @@ function main() {
           lang: 'ka',
           title: page.title.ka,
           description: page.description.ka,
-          canonical: `${SITE_URL}/services/${page.slug}`,
+          canonical: `${SITE_URL}/services/${page.slug}/`,
           bodyHtml: `
             <h1>${escapeHtml(page.h1.ka)}</h1>
             <p>${escapeHtml(page.intro.ka)}</p>
@@ -213,7 +213,7 @@ function main() {
       description:
         'დარეგისტრირდით KEKE Manager-ზე — B2B პლატფორმა ტურ ოპერატორებისა და მძღოლებისთვის საქართველოში. ტურ კომპანიებისთვის უფასო.',
       keywords: 'KEKE Manager რეგისტრაცია, tour operator sign up Georgia',
-      canonical: `${SITE_URL}/sign-up`,
+      canonical: `${SITE_URL}/sign-up/`,
       extraJsonLd: [SCHEMA_ORGANIZATION],
     })
   ) {
@@ -226,7 +226,7 @@ function main() {
       title: 'შესვლა | KEKE Manager',
       description: 'შედით თქვენს KEKE Manager ანგარიშში — ჯავშნები, GPS, ვაუჩერი, ფლოტი.',
       keywords: 'KEKE Manager შესვლა, tour operator login',
-      canonical: `${SITE_URL}/sign-in`,
+      canonical: `${SITE_URL}/sign-in/`,
     })
   ) {
     count += 1;

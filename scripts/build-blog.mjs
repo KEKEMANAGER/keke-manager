@@ -367,7 +367,7 @@ function buildSeoLandingSitemapUrls(today) {
   const urls = [];
   for (const p of seo.locations ?? []) {
     urls.push({
-      loc: `${SITE_URL}/locations/${p.slug}`,
+      loc: `${SITE_URL}/locations/${p.slug}/`,
       lastmod: today,
       changefreq: 'monthly',
       priority: '0.75',
@@ -375,7 +375,7 @@ function buildSeoLandingSitemapUrls(today) {
   }
   for (const p of seo.services ?? []) {
     urls.push({
-      loc: `${SITE_URL}/services/${p.slug}`,
+      loc: `${SITE_URL}/services/${p.slug}/`,
       lastmod: today,
       changefreq: 'monthly',
       priority: '0.75',
@@ -387,18 +387,26 @@ function buildSeoLandingSitemapUrls(today) {
 function buildSitemap(posts) {
   const today = new Date().toISOString().slice(0, 10);
   const sitemapPath = path.join(ROOT, 'public', 'sitemap.xml');
+  // NOTE on trailing slashes: locations/services/blog/sign-up/sign-in are all
+  // prerendered as directory index files (e.g. dist/services/x/index.html —
+  // see prerender-seo-routes.mjs), so Cloudflare Pages serves them at the
+  // trailing-slash URL and 301-redirects the no-slash form to it. Listing the
+  // no-slash form here made Search Console flag 66 pages as "Page with
+  // redirect" (sitemap URL → redirects → canonical tag disagreed with both).
+  // llms.txt/llms-full.txt and /legal/* are flat files / SPA-fallback routes
+  // that serve directly with no redirect, so they keep no trailing slash.
   const staticUrls = [
     { loc: `${SITE_URL}/`, lastmod: today, changefreq: 'weekly', priority: '1.0' },
-    { loc: `${SITE_URL}/sign-up`, lastmod: today, changefreq: 'monthly', priority: '0.9' },
-    { loc: `${SITE_URL}/sign-in`, lastmod: today, changefreq: 'monthly', priority: '0.8' },
+    { loc: `${SITE_URL}/sign-up/`, lastmod: today, changefreq: 'monthly', priority: '0.9' },
+    { loc: `${SITE_URL}/sign-in/`, lastmod: today, changefreq: 'monthly', priority: '0.8' },
     { loc: `${SITE_URL}/llms.txt`, lastmod: today, changefreq: 'monthly', priority: '0.6' },
     { loc: `${SITE_URL}/llms-full.txt`, lastmod: today, changefreq: 'weekly', priority: '0.6' },
     { loc: `${SITE_URL}/legal/privacy-policy`, lastmod: today, changefreq: 'yearly', priority: '0.3' },
     { loc: `${SITE_URL}/legal/terms-of-service`, lastmod: today, changefreq: 'yearly', priority: '0.3' },
-    { loc: `${SITE_URL}/blog`, lastmod: today, changefreq: 'weekly', priority: '0.8' },
+    { loc: `${SITE_URL}/blog/`, lastmod: today, changefreq: 'weekly', priority: '0.8' },
   ];
   const blogUrls = posts.map((p) => ({
-    loc: `${SITE_URL}/blog/${p.slug}`,
+    loc: `${SITE_URL}/blog/${p.slug}/`,
     lastmod: p.date || today,
     changefreq: 'monthly',
     priority: '0.7',

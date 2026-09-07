@@ -111,7 +111,7 @@ export function buildFaqSchema(faqItems) {
 }
 
 export function buildBlogPostingSchema(post) {
-  const canonical = `${SITE_URL}/blog/${post.slug}`;
+  const canonical = `${SITE_URL}/blog/${post.slug}/`;
   const ogImage = post.featuredImage?.startsWith('http')
     ? post.featuredImage
     : `${SITE_URL}${post.featuredImage || '/og-image.jpg'}`;
@@ -141,8 +141,8 @@ export function buildBlogBreadcrumbSchema(post) {
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'მთავარი', item: SITE_URL },
-      { '@type': 'ListItem', position: 2, name: 'ბლოგი', item: `${SITE_URL}/blog` },
-      { '@type': 'ListItem', position: 3, name: post.title, item: `${SITE_URL}/blog/${post.slug}` },
+      { '@type': 'ListItem', position: 2, name: 'ბლოგი', item: `${SITE_URL}/blog/` },
+      { '@type': 'ListItem', position: 3, name: post.title, item: `${SITE_URL}/blog/${post.slug}/` },
     ],
   };
 }
@@ -241,9 +241,9 @@ const MARKETING_NAV = {
 /** Shared marketing site header (landing + blog static pages). */
 export function buildMarketingHeaderHtml(lang = 'ka', options = {}) {
   const n = MARKETING_NAV[lang] ?? MARKETING_NAV.ka;
-  const blogHref = lang === 'ka' ? '/blog' : `/blog?lang=${lang}`;
-  const langKaHref = options.langKaHref ?? '/blog';
-  const langEnHref = options.langEnHref ?? '/blog?lang=en';
+  const blogHref = lang === 'ka' ? '/blog/' : `/blog/?lang=${lang}`;
+  const langKaHref = options.langKaHref ?? '/blog/';
+  const langEnHref = options.langEnHref ?? '/blog/?lang=en';
   return `<header class="keke-header">
     <a class="keke-logo" href="/">KEKE MANAGER</a>
     <nav class="keke-nav" aria-label="Main">
@@ -253,8 +253,8 @@ export function buildMarketingHeaderHtml(lang = 'ka', options = {}) {
       <a href="/#contact">${n.contact}</a>
       <a href="${blogHref}">${n.blog}</a>
       <span class="keke-lang">🌐 <a href="${langKaHref}">KA</a> · <a href="${langEnHref}">EN</a></span>
-      <a href="/sign-in">${n.signIn}</a>
-      <a class="keke-signup" href="/sign-up">${n.signUp}</a>
+      <a href="/sign-in/">${n.signIn}</a>
+      <a class="keke-signup" href="/sign-up/">${n.signUp}</a>
     </nav>
   </header>`;
 }
@@ -332,7 +332,7 @@ export function buildStaticHtmlPage({
     <div class="keke-cta">
       <strong>სცადეთ KEKE Manager უფასოდ</strong>
       <p style="margin:8px 0 0">ტურ კომპანიებისთვის — ჯავშნები, GPS, ვერიფიცირებული მძღოლები, ციფრული ვაუჩერი.</p>
-      <a href="/sign-up">დაწყება →</a>
+      <a href="/sign-up/">დაწყება →</a>
     </div>
   </main>
   <footer class="keke-footer">© KEKE Manager · B2B ტურისტული ტრანსპორტი · საქართველო</footer>
@@ -374,10 +374,10 @@ export function buildHomeStaticBodyHtml() {
     <h2>ხშირი კითხვები</h2>
     <dl class="keke-faq">${faqHtml}</dl>
     <p>
-      <a href="/sign-up">უფასო რეგისტრაცია</a> ·
-      <a href="/blog">ბლოგი</a> ·
-      <a href="/services/airport-transfer">აეროპორტის ტრანსფერი</a> ·
-      <a href="/locations/tbilisi">მძღოლები თბილისში</a>
+      <a href="/sign-up/">უფასო რეგისტრაცია</a> ·
+      <a href="/blog/">ბლოგი</a> ·
+      <a href="/services/airport-transfer/">აეროპორტის ტრანსფერი</a> ·
+      <a href="/locations/tbilisi/">მძღოლები თბილისში</a>
     </p>`;
 }
 
