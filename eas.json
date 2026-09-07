@@ -32,6 +32,6 @@
     }
   },
   "submit": {
-          "production": {"ios": {"ascAppId": "6809557226"}}
+                "production": {"ios": {"ascAppId": "6809557226", "appleId": "akachibaia1410@gmail.com", "appleTeamId": "KD845B2852"}}
   }
 }
