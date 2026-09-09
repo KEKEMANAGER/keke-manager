@@ -36,6 +36,7 @@ import {
   type CompanyMember,
 } from '../../lib/companyMembers';
 import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
+import { ensureMediaPermission } from '../../lib/mediaPermissions';
 import { supabase } from '../../lib/supabase';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
@@ -190,11 +191,13 @@ export default function CompanyProfileScreen() {
   async function pickLogo() {
     if (!user?.id || photoUploading) return;
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        const permMsg = t('profilePage.photoPermissionDenied');
-        setPhotoError(permMsg);
-        showErrorAlert(permMsg, t('profilePage.permissionTitle'));
+      const permOutcome = await ensureMediaPermission('library', t('profilePage.permissionTitle'));
+      if (permOutcome !== 'granted') {
+        if (permOutcome === 'denied') {
+          const permMsg = t('profilePage.photoPermissionDenied');
+          setPhotoError(permMsg);
+          showErrorAlert(permMsg, t('profilePage.permissionTitle'));
+        }
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
