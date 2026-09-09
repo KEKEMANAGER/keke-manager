@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { isHiredDriver } from '../../lib/role';
+import { ensureMediaPermission } from '../../lib/mediaPermissions';
 import {
   storagePublicUrlBase,
   uploadMediaObject,
@@ -146,9 +147,11 @@ export default function DriverVerificationScreen() {
     setSubmitError(null);
     setUploadingSlot(slot);
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        setSubmitError(t('profilePage.photoPermissionDenied'));
+      const permOutcome = await ensureMediaPermission('library', t('profilePage.permissionTitle'));
+      if (permOutcome !== 'granted') {
+        if (permOutcome === 'denied') {
+          setSubmitError(t('profilePage.photoPermissionDenied'));
+        }
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
