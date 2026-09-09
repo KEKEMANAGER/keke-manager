@@ -959,7 +959,7 @@ export async function insertBooking(row: InsertBookingInput) {
       vehicleClass: vehicleClass ?? undefined,
       driverId: assignedDriverId || undefined,
       bookingId,
-      showAlertIfEmpty: true,
+      showAlertIfEmpty: false,
       requiredLanguages: row.required_languages ?? undefined,
       requestedDriverCategory: normalizeRequestedDriverCategory(
         row.requested_driver_category ?? 'all',
