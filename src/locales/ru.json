@@ -903,7 +903,8 @@
     "noPhoto": "Фото не выбрано",
     "pickFirst": "Сначала выберите фото",
     "allPhotosRequired": "Загрузите все обязательные фото",
-    "photoMissing": "Нет фото"
+    "photoMissing": "Нет фото",
+    "duplicateFrontBack": "Фото лицевой и обратной стороны не должны совпадать — загрузите другое фото"
   },
   "calendarScreen": {
     "title": "Календарь",
@@ -1340,7 +1341,8 @@
     "noAssignedVehicle": "Автомобиль пока не назначен",
     "hostOnlyTitle": "Только для хоста автопарка",
     "hostOnlyBody": "Добавьте второй автомобиль — появится пункт «Мои водители»",
-    "hostFleetHint": "Автопарк → автомобили"
+    "hostFleetHint": "Автопарк → автомобили",
+    "language": "Сменить язык"
   },
   "settings": {
     "deleteAccount": "Удалить аккаунт",
