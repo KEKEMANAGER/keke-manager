@@ -1,6 +1,8 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
+import i18n from '../src/lib/i18n';
 import { routeSummary, type BookingRow } from './bookings';
+import { ensureMediaPermission } from './mediaPermissions';
 import { uploadMediaObject } from './mediaUpload';
 import { notifyCompanyOdometerPhoto } from './notifications';
 import { supabase } from './supabase';
@@ -26,8 +28,8 @@ export type CaptureOdometerResult =
 /** Open camera and return local image URI (gallery fallback on web if camera unavailable). */
 export async function captureOdometerPhoto(): Promise<CaptureOdometerResult> {
   try {
-    const cameraPerm = await ImagePicker.requestCameraPermissionsAsync();
-    if (cameraPerm.granted) {
+    const cameraOutcome = await ensureMediaPermission('camera', i18n.t('vehicleScreen.permissionTitle'));
+    if (cameraOutcome === 'granted') {
       const res = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
@@ -36,12 +38,20 @@ export async function captureOdometerPhoto(): Promise<CaptureOdometerResult> {
       if (res.canceled || !res.assets?.[0]?.uri) {
         return { ok: false, cancelled: true };
       }
+    // Camera permanently denied: the Settings alert already fired inside
+    // ensureMediaPermission — stop quietly instead of layering another error.
+    if (cameraOutcome === 'denied_permanently') {
+      return { ok: false, cancelled: true };
+    }
       return { ok: true, uri: res.assets[0].uri };
     }
 
     if (Platform.OS === 'web') {
-      const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!libPerm.granted) {
+      const libOutcome = await ensureMediaPermission('library', i18n.t('vehicleScreen.permissionTitle'));
+      if (libOutcome !== 'granted') {
+        if (libOutcome === 'denied_permanently') {
+          return { ok: false, cancelled: true };
+        }
         return { ok: false, error: new Error('camera_permission_denied') };
       }
       const res = await ImagePicker.launchImageLibraryAsync({
