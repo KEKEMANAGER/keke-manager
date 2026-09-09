@@ -368,6 +368,10 @@ export type BookingRow = {
   flight_direction: FlightDirection | string | null;
   pickup_time: string | null;
   client_price: number | null;
+  /** Whether the price above already includes fuel (tours/day tours only; null = not set/n-a). */
+  price_includes_fuel?: boolean | null;
+  /** Who arranges/pays the driver's overnight stay on a multi-day tour (null = not set/n-a). */
+  driver_overnight_by?: 'keke' | 'company' | null;
   commission: number | null;
   tour_days: TourDayPersisted[] | null;
   itinerary: ItineraryDay[] | null;
@@ -451,6 +455,8 @@ export type InsertBookingInput = {
   flight_direction: FlightDirection | null;
   pickup_time: string | null;
   client_price: number | null;
+  price_includes_fuel?: boolean | null;
+  driver_overnight_by?: 'keke' | 'company' | null;
   commission: number | null;
   tour_days: TourDayPersisted[] | null;
   itinerary: ItineraryDay[] | null;
@@ -821,6 +827,8 @@ export async function insertBooking(row: InsertBookingInput) {
       flight_direction: row.flight_direction,
       pickup_time: row.pickup_time,
       client_price: row.client_price,
+      price_includes_fuel: row.price_includes_fuel ?? null,
+      driver_overnight_by: row.driver_overnight_by ?? null,
       commission: row.commission,
       comment: row.comment,
       payment_method: row.payment_method,
