@@ -402,7 +402,9 @@ export default function DriverGpsScreen() {
       : t('gpsScreen.stopTracking')
     : t('gpsScreen.enableGps');
 
-  const showTripNav = Boolean(tripBooking && hasTripNavigationTargets(tripBooking));
+  const tripIsActive =
+    tripStatus === 'accepted' || tripStatus === 'confirmed' || tripStatus === 'in_progress';
+  const showTripNav = Boolean(tripBooking && tripIsActive && hasTripNavigationTargets(tripBooking));
 
   if (Platform.OS === 'web') {
     return (
