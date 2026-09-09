@@ -229,7 +229,7 @@ export async function acknowledgeBookingUpdate(
     .from('bookings')
     .update({ driver_update_pending: false })
     .eq('id', bookingId.trim())
-    .or(\`driver_id.eq.\${driverUserId},host_driver_id.eq.\${driverUserId}\`);
+    .or(`driver_id.eq.${driverUserId},host_driver_id.eq.${driverUserId}`);
   return { error: error ? new Error(error.message) : null };
 }
 
