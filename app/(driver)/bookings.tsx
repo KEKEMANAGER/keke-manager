@@ -46,6 +46,7 @@ import {
   hostAcceptBookingForSub,
   isNewOpenPendingBookingInsert,
   isTourBookingKind,
+  isTransferKind,
   rejectBooking,
   routeSummary,
   startBookingTrip,
@@ -115,6 +116,22 @@ function driverPlateFromMeta(user: User | null) {
   if (!m || typeof m !== 'object') return '';
   const p = (m as Record<string, unknown>).vehiclePlate;
   return typeof p === 'string' ? p : '';
+}
+
+/** "Start"/"Complete" button text calls a transfer a transfer and a tour a tour, never the other. */
+function tripActionLabel(
+  t: (key: string) => string,
+  kind: string,
+  action: 'start' | 'complete',
+): string {
+  const key = isTransferKind(kind)
+    ? action === 'start'
+      ? 'bookings.startTransfer'
+      : 'bookings.completeTransfer'
+    : action === 'start'
+      ? 'bookings.startTour'
+      : 'bookings.completeTour';
+  return t(key);
 }
 
 function statusPillWrap(status: BookingStatus) {
@@ -717,7 +734,7 @@ export default function DriverBookingsScreen() {
                   {actingId === item.id ? (
                     <ActivityIndicator color={COLORS.white} size="small" />
                   ) : (
-                    <Text style={styles.btnGoldText}>{t('bookings.complete')}</Text>
+                    <Text style={styles.btnGoldText}>{tripActionLabel(t, item.kind, 'complete')}</Text>
                   )}
                 </Pressable>
               ) : null}
@@ -813,7 +830,7 @@ export default function DriverBookingsScreen() {
                       {actingId === item.id ? (
                         <ActivityIndicator color={COLORS.white} size="small" />
                       ) : (
-                        <Text style={styles.btnGoldText}>{t('bookings.startTrip')}</Text>
+                        <Text style={styles.btnGoldText}>{tripActionLabel(t, item.kind, 'start')}</Text>
                       )}
                     </Pressable>
                   </View>
@@ -885,7 +902,9 @@ export default function DriverBookingsScreen() {
             {actingId === activeInProgressTrip.id ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
-              <Text style={styles.stickyCompleteText}>{t('bookings.complete')}</Text>
+              <Text style={styles.stickyCompleteText}>
+                {tripActionLabel(t, activeInProgressTrip.kind, 'complete')}
+              </Text>
             )}
           </Pressable>
         </View>
