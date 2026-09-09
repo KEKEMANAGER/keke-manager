@@ -1058,7 +1058,8 @@
     "noPhoto": "ფოტო არ არის არჩეული",
     "pickFirst": "ჯერ აირჩიეთ ფოტო",
     "allPhotosRequired": "ყველა სავალდებულო ფოტო უნდა იყოს ატვირთული",
-    "photoMissing": "ფოტო აკლია"
+    "photoMissing": "ფოტო აკლია",
+    "duplicateFrontBack": "წინა და უკანა მხარის ფოტო არ უნდა ემთხვეოდეს — ატვირთეთ განსხვავებული ფოტო"
   },
   "calendarScreen": {
     "title": "კალენდარი",
@@ -1495,7 +1496,8 @@
     "noAssignedVehicle": "მანქანა ჯერ არ არის მინიჭებული",
     "hostOnlyTitle": "მხოლოდ ფლოტის ჰოსტისთვის",
     "hostOnlyBody": "დაამატეთ მეორე მანქანა — ავტომატურად გამოჩნდება „ჩემი მძღოლები“",
-    "hostFleetHint": "ფლოტი → მანქანები → /vehicles"
+    "hostFleetHint": "ფლოტი → მანქანები → /vehicles",
+    "language": "ენის შეცვლა"
   },
   "settings": {
     "deleteAccount": "ანგარიშის წაშლა",
