@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { VehicleTechPassportSection } from '../../components/driver/VehicleTechPassportSection';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { ensureMediaPermission } from '../../lib/mediaPermissions';
 import { uploadMediaObject, vehiclePhotoObjectPath, withCacheBust } from '../../lib/mediaUpload';
 import type { VehiclePhotoKey, VehicleRow } from '../../lib/vehicles';
 import {
@@ -804,8 +805,13 @@ export default function DriverVehiclePhotosScreen() {
 
   async function pickNativeAndUpload(slot: PhotoSlotDef) {
     if (!userIdRef.current || !selectedIdRef.current) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody')); return; }
+    const permOutcome = await ensureMediaPermission('library', t('vehicleScreen.permissionTitle'));
+    if (permOutcome !== 'granted') {
+      if (permOutcome === 'denied') {
+        Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody'));
+      }
+      return;
+    }
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality: 0.88 });
     if (res.canceled || !res.assets[0]) return;
     const asset = res.assets[0];
