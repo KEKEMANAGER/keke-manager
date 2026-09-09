@@ -38,12 +38,12 @@ export async function captureOdometerPhoto(): Promise<CaptureOdometerResult> {
       if (res.canceled || !res.assets?.[0]?.uri) {
         return { ok: false, cancelled: true };
       }
+      return { ok: true, uri: res.assets[0].uri };
+    }
     // Camera permanently denied: the Settings alert already fired inside
     // ensureMediaPermission — stop quietly instead of layering another error.
     if (cameraOutcome === 'denied_permanently') {
       return { ok: false, cancelled: true };
-    }
-      return { ok: true, uri: res.assets[0].uri };
     }
 
     if (Platform.OS === 'web') {
