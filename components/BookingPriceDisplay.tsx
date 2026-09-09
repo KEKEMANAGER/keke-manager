@@ -17,7 +17,7 @@ type Props = {
 };
 
 function formatGel(n: number) {
-  return \`\${n.toLocaleString('ka-GE')} ₾\`;
+  return `${n.toLocaleString('ka-GE')} ₾`;
 }
 
 /** Small note under the price telling the driver what it does/doesn't cover. */
