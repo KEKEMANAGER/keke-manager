@@ -16,11 +16,11 @@ import {
 } from 'react-native';
 import { useAppLayoutInsets } from '../../contexts/AppMenuContext';
 import { useTranslation } from 'react-i18next';
-import { AppLogo } from '../../components/AppLogo';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
 import { ListEmptyState } from '../../components/ListEmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { UserAvatar } from '../../components/UserAvatar';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import type { BookingRealtimeRecord, BookingRow } from '../../lib/bookings';
@@ -409,7 +409,12 @@ export default function DriverDashboardScreen() {
       }
     >
       <View style={styles.headerRow}>
-        <AppLogo size="header" />
+        <UserAvatar
+          name={profile?.full_name}
+          uri={profile?.avatar_url}
+          size={48}
+          style={styles.headerAvatar}
+        />
         <View style={styles.headerText}>
           <Text style={styles.greeting}>{t('driver.greeting')}</Text>
           <NameWithVerifiedBadge
@@ -638,6 +643,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  headerAvatar: {
+    marginRight: 12,
   },
   headerText: {
     flex: 1,
