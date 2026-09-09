@@ -32,6 +32,11 @@ import { vehicleClassLabel, vehicleTypeLabel } from '../lib/vehicleCatalog';
 import { formatStoredDateForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
+import {
+  driverPayableGel,
+  hasDriverPayoutSnapshot,
+  isFleetSubDriverBooking,
+} from '../lib/bookingPayout';
 import { formatLocationRoute, formatLocationDisplay } from '../lib/bookingLocations';
 import { formatVoucherPriceGel, stripVoucherEmojis } from '../lib/bookingVoucherDisplay';
 import { formatBankAccountForDisplay } from '../lib/bankAccount';
@@ -232,7 +237,22 @@ export function CompanyBookingVoucherContent({
   // Driver/host viewer sees the company card instead of their own driver card.
   const isCompanyViewer = !viewerId || viewerId === String(booking.company_id ?? '').trim();
   const isHostViewer = !!viewerId && viewerId === String(booking.host_driver_id ?? '').trim();
-  const offeredGel = bookingOfferedPriceGel(booking);
+  const isSubDriverViewer = !isConvoy && !!viewerId && isFleetSubDriverBooking(booking, viewerId);
+  const offeredGel =
+    isSubDriverViewer && hasDriverPayoutSnapshot(booking)
+      ? driverPayableGel(booking)
+      : bookingOfferedPriceGel(booking);
+  const priceNotes: string[] = [];
+  if (!isConvoy) {
+    if (booking.price_includes_fuel === false) {
+      priceNotes.push(t('bookingPrice.fuelNotIncluded'));
+    }
+    if (booking.driver_overnight_by === 'company') {
+      priceNotes.push(t('bookingPrice.overnightByCompany'));
+    } else if (booking.driver_overnight_by === 'keke') {
+      priceNotes.push(t('bookingPrice.overnightByKeke'));
+    }
+  }
   const voucherCode = isConvoy
     ? convoyVoucherCode(booking)
     : booking.group_code?.trim() ||
@@ -324,8 +344,15 @@ export function CompanyBookingVoucherContent({
       >
         <View style={[styles.voucherBox, SHADOWS.gold]}>
           <Text style={styles.priceOfferLine}>
-            {stripVoucherEmojis(`${t('companyVoucher.price')}: ${formatVoucherPriceGel(offeredGel)}`)}
+            {stripVoucherEmojis(
+              `${isSubDriverViewer ? t('fleet.yourPayLabel') : t('companyVoucher.price')}: ${formatVoucherPriceGel(offeredGel)}`,
+            )}
           </Text>
+          {priceNotes.map((note) => (
+            <Text key={note} style={styles.priceNoteLine}>
+              {stripVoucherEmojis(note)}
+            </Text>
+          ))}
 
           {booking.driver_update_pending ? (
             <View style={styles.voucherTopRow}>
@@ -847,7 +874,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: COLORS.success,
-    marginBottom: SPACING.sm,
+    marginBottom: 2,
+  },
+  priceNoteLine: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: 2,
   },
   voucherCode: {
     fontSize: 22,
