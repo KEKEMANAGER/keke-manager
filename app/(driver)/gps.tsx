@@ -23,6 +23,7 @@ import {
 } from '../../lib/bookings';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
+import { sendMessage } from '../../lib/messages';
 import { hasTripNavigationTargets, openExternalNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
 import { completeTourTripWithOdometer, odometerErrorMessageKey } from '../../lib/tourTripLifecycle';
@@ -35,13 +36,13 @@ const TBILISI: Region = {
 };
 
 const TRIP_BOOKING_SELECT =
-  'id, kind, status, from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days';
+  'id, kind, status, company_id, from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days';
 
-type TripBookingState = TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status'>;
+type TripBookingState = TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status' | 'company_id'>;
 
 export default function DriverGpsScreen() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ autoStart?: string; bookingId?: string }>();
@@ -60,6 +61,8 @@ export default function DriverGpsScreen() {
   const [tripBooking, setTripBooking] = useState<TripBookingState | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const [mapEpoch, setMapEpoch] = useState(0);
+  const [sendingPickup, setSendingPickup] = useState(false);
+  const [pickupSent, setPickupSent] = useState(false);
 
   const bookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
 
@@ -85,6 +88,10 @@ export default function DriverGpsScreen() {
   useEffect(() => {
     void refreshTripBooking();
   }, [refreshTripBooking]);
+
+  useEffect(() => {
+    setPickupSent(false);
+  }, [bookingId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -335,6 +342,30 @@ export default function DriverGpsScreen() {
     }
   }
 
+  /** Lets the driver notify the company they've picked up the passengers, for any booking kind
+   *  (transfer, day tour, multi-day tour) — sent as a normal booking-scoped chat message so it
+   *  shows up in the same thread as everything else. */
+  async function sendPickupConfirmation() {
+    if (!user?.id || !tripBooking?.company_id || sendingPickup) return;
+    setSendingPickup(true);
+    const { error } = await sendMessage({
+      senderId: user.id,
+      receiverId: tripBooking.company_id,
+      text: t('gpsScreen.pickedUpMessage'),
+      bookingId: tripBooking.id,
+      threadType: 'company_driver',
+      senderRole: 'driver',
+      receiverRole: 'company',
+      senderName: profile?.full_name?.trim() || '',
+    });
+    setSendingPickup(false);
+    if (error) {
+      Alert.alert(t('common.error'), t('chat.sendError'));
+      return;
+    }
+    setPickupSent(true);
+  }
+
   const tripStatus = String(tripBooking?.status ?? '').toLowerCase();
   const linkedInProgress = Boolean(bookingId && tripStatus === 'in_progress');
   const needsStartTripFirst = Boolean(
@@ -359,15 +390,17 @@ export default function DriverGpsScreen() {
 
     Alert.alert(t('bookings.completeTitle'), t('bookings.completeMessage'), [
       { text: t('common.cancel'), style: 'cancel' },
-      { text: t('bookings.complete'), onPress: () => void finishTripAndStopTracking() },
+      { text: t('bookings.completeTransfer'), onPress: () => void finishTripAndStopTracking() },
     ]);
   }
 
   const endButtonLabel = isTracking
     ? linkedInProgress
-      ? t('gpsScreen.endTrip')
+      ? isTourBookingKind(tripBooking!.kind)
+        ? t('gpsScreen.endTour')
+        : t('gpsScreen.endTransfer')
       : t('gpsScreen.stopTracking')
-    : t('gpsScreen.startTour');
+    : t('gpsScreen.enableGps');
 
   const showTripNav = Boolean(tripBooking && hasTripNavigationTargets(tripBooking));
 
@@ -446,6 +479,32 @@ export default function DriverGpsScreen() {
             </View>
             <DriverTripNavigationButtons booking={tripBooking} variant="panel" />
           </View>
+        ) : null}
+        {linkedInProgress && tripBooking?.company_id ? (
+          <Pressable
+            onPress={() => void sendPickupConfirmation()}
+            disabled={sendingPickup || pickupSent}
+            style={({ pressed }) => [
+              styles.pickupBtn,
+              pickupSent && styles.pickupBtnSent,
+              (pressed || sendingPickup) && styles.togglePressed,
+            ]}
+          >
+            {sendingPickup ? (
+              <ActivityIndicator color={COLORS.goldDark} size="small" />
+            ) : (
+              <>
+                <Ionicons
+                  name={pickupSent ? 'checkmark-circle' : 'people-outline'}
+                  size={18}
+                  color={pickupSent ? COLORS.text : COLORS.goldDark}
+                />
+                <Text style={[styles.pickupBtnText, pickupSent && styles.pickupBtnTextSent]}>
+                  {pickupSent ? t('gpsScreen.pickedUpSentConfirm') : t('gpsScreen.pickedUpButton')}
+                </Text>
+              </>
+            )}
+          </Pressable>
         ) : null}
         <Pressable
           onPress={handleTrackingToggle}
@@ -608,6 +667,30 @@ const styles = StyleSheet.create({
     color: '#0f0f0f',
   },
   toggleTextOnRed: {
+    color: COLORS.text,
+  },
+  pickupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    paddingVertical: 13,
+    marginBottom: SPACING.sm,
+  },
+  pickupBtnSent: {
+    backgroundColor: 'rgba(46, 204, 113, 0.18)',
+    borderColor: 'rgba(46, 204, 113, 0.55)',
+  },
+  pickupBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.goldDark,
+  },
+  pickupBtnTextSent: {
     color: COLORS.text,
   },
 });
