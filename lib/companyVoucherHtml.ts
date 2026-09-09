@@ -1,5 +1,11 @@
 import { formatLocationDisplay } from './bookingLocations';
 import { bookingOfferedPriceGel } from './bookingPrice';
+import {
+  driverPayableGel,
+  hasDriverPayoutSnapshot,
+  isFleetSubDriverBooking,
+} from './bookingPayout';
+import type { BookingRow } from './bookings';
 import { formatVoucherPriceGel, stripVoucherEmojis } from './bookingVoucherDisplay';
 import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from './companyVoucherData';
 import { convoyVoucherCode, vehicleMakeModelYearLine } from './companyVoucherData';
@@ -28,6 +34,36 @@ function sectionTitle(title: string): string {
   return `<div class="section-title">${escapeHtml(stripVoucherEmojis(title))}</div>`;
 }
 
+/** A fleet sub-driver's voucher shows their own payout, not the company's full price. */
+function viewerAwarePriceGel(booking: BookingRow, viewerUserId?: string | null): number {
+  if (
+    viewerUserId &&
+    isFleetSubDriverBooking(booking, viewerUserId) &&
+    hasDriverPayoutSnapshot(booking)
+  ) {
+    return driverPayableGel(booking);
+  }
+  return bookingOfferedPriceGel(booking);
+}
+
+/** Mirrors components/BookingPriceDisplay.tsx's PriceNotes so the printable voucher never
+ *  disagrees with what the app shows in-app about what the price does/doesn't cover. */
+function priceNotesHtml(booking: BookingRow): string {
+  const notes: string[] = [];
+  if (booking.price_includes_fuel === false) {
+    notes.push('ფასში საწვავი არ შედის — ცალკე ანაზღაურდება');
+  }
+  if (booking.driver_overnight_by === 'company') {
+    notes.push('ღამისთევას აწყობს კომპანია');
+  } else if (booking.driver_overnight_by === 'keke') {
+    notes.push('ღამისთევას აწყობს KEKE Manager');
+  }
+  if (notes.length === 0) return '';
+  return notes
+    .map((n) => `<div class="price-note">${escapeHtml(stripVoucherEmojis(n))}</div>`)
+    .join('\n');
+}
+
 const VOUCHER_STYLES = `
   body { font-family: Arial, sans-serif; padding: 32px; background: #fff; color: #111; }
   .header { text-align: center; margin-bottom: 24px; }
@@ -36,7 +72,8 @@ const VOUCHER_STYLES = `
   .voucher-box { border: 3px dashed #F5A623; border-radius: 16px; padding: 24px; }
   .voucher-id { font-size: 22px; font-weight: 900; color: #F5A623; margin: 8px 0 16px; }
   .booking-number { font-size: 15px; font-weight: 800; color: #111; margin: 12px 0 6px; }
-  .price-offer { font-size: 20px; font-weight: 900; color: #16a34a; margin: 0 0 14px; }
+  .price-offer { font-size: 20px; font-weight: 900; color: #16a34a; margin: 0 0 4px; }
+  .price-note { font-size: 11px; color: #888; margin: 0 0 4px; }
   .status { display: inline-block; background: #F5A623; color: #000;
     padding: 4px 14px; border-radius: 20px; font-weight: 700; font-size: 12px; }
   .updated-badge { display: inline-block; background: #FEE2E2; color: #B91C1C;
@@ -133,8 +170,13 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ? `<span class="updated-badge">განახლდა ${escapeHtml(formatStoredDateForDisplay(booking.updated_at.slice(0, 10)))}</span>`
       : '';
 
-  const offeredGel = bookingOfferedPriceGel(booking);
+  const isSubDriverViewer = !isConvoy && !!data.viewerUserId && isFleetSubDriverBooking(booking, data.viewerUserId);
+  const offeredGel = isConvoy
+    ? bookingOfferedPriceGel(booking)
+    : viewerAwarePriceGel(booking, data.viewerUserId);
   const priceLine = formatVoucherPriceGel(offeredGel);
+  const priceLabel = isSubDriverViewer ? 'შენი ხელფასი' : 'ფასი';
+  const priceNotes = isConvoy ? '' : priceNotesHtml(booking);
 
   const bookingSection = [
     row('ტიპი', bookingKindLabel(booking.kind, booking.flight_direction)),
@@ -241,8 +283,9 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
   </${tag}>
   <${tag} class="voucher-box">
     ${updatedBadge}
-    <${tag} class="price-offer">${escapeHtml(stripVoucherEmojis(`ფასი: ${priceLine}`))}</${tag}>
-    <${tag} class="voucher-id">${escapeHtml(voucherCode)}</${tag}>
+    <${tag} class="price-offer">${escapeHtml(stripVoucherEmojis(`${priceLabel}: ${priceLine}`))}</${tag}>
+    ${priceNotes}
+    <${tag} class="voucher-id" style="margin-top:${priceNotes ? '10px' : '0'}">${escapeHtml(voucherCode)}</${tag}>
     <${tag} class="divider"></${tag}>
     ${sectionTitle('ჯავშანი')}
     ${bookingSection}
