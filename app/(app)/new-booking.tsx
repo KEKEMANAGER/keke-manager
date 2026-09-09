@@ -157,7 +157,7 @@ function calcMockPrice(params: {
   let base = params.type === 'transfer' ? 120 : params.type === 'tour' ? 450 : 280;
   base += Math.max(0, params.passengers - 1) * 25;
   const mult =
-    params.vehicleClass === 'premium' ? 1.45 : params.vehicleClass === 'comfort' ? 1.2 : 1;
+    params.vehicleClass === 'vip' ? 1.45 : params.vehicleClass === 'comfort' ? 1.2 : 1;
   return Math.round(base * mult);
 }
 
