@@ -5,9 +5,10 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { DRAWER_WIDTH, Z_INDEX } from '../../constants/layout';
-import { COLORS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppMenu } from '../../contexts/AppMenuContext';
+import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 function nameInitials(name: string | null | undefined): string {
   if (!name?.trim()) return '?';
   return name.trim().split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
@@ -48,7 +49,8 @@ function DrawerItem({
 }
 
 export function AppDrawer() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = (i18n.language?.split('-')[0] ?? 'ka') as AppLanguage;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, profile, menuRole, isHost, signOut } = useAuth();
@@ -178,6 +180,27 @@ export function AppDrawer() {
           </View>
         </View>
 
+        <View style={styles.langRow}>
+          {LANGUAGES.map((lang) => {
+            const active = currentLang === lang.code;
+            return (
+              <Pressable
+                key={lang.code}
+                onPress={() => void persistLanguage(lang.code as AppLanguage)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={lang.label}
+                accessibilityState={{ selected: active }}
+                style={[styles.langPill, active && styles.langPillActive]}
+              >
+                <Text style={[styles.langPillText, active && styles.langPillTextActive]}>
+                  {lang.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <View style={styles.divider} />
 
         <View style={styles.drawerItems}>
@@ -265,6 +288,31 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.border,
     marginVertical: SPACING.md,
+  },
+  langRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  langPill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: RADIUS.button,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  langPillActive: {
+    backgroundColor: COLORS.goldTint,
+    borderColor: COLORS.gold,
+  },
+  langPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  langPillTextActive: {
+    color: COLORS.goldDark,
   },
   drawerItems: {
     gap: SPACING.xs,
