@@ -25,6 +25,8 @@ const BOOKING_UPDATE_FIELDS = [
   'passenger_phone',
   'comment',
   'client_price',
+  'price_includes_fuel',
+  'driver_overnight_by',
   'commission',
   'price_gel',
   'tour_days',
@@ -73,7 +75,9 @@ function labelForField(key: string): string {
     passenger_name: 'მგზავრი',
     passenger_phone: 'ტელეფონი',
     comment: 'კომენტარი',
-    client_price: 'კლიენტის ფასი',
+    client_price: 'ფასი',
+    price_includes_fuel: 'ფასში შედის საწვავი',
+    driver_overnight_by: 'მძღოლის ღამისთევა',
     commission: 'კომისია',
     price_gel: 'ფასი',
     tour_days: 'ტურის დღეები',
@@ -225,7 +229,7 @@ export async function acknowledgeBookingUpdate(
     .from('bookings')
     .update({ driver_update_pending: false })
     .eq('id', bookingId.trim())
-    .or(`driver_id.eq.${driverUserId},host_driver_id.eq.${driverUserId}`);
+    .or(\`driver_id.eq.\${driverUserId},host_driver_id.eq.\${driverUserId}\`);
   return { error: error ? new Error(error.message) : null };
 }
 
