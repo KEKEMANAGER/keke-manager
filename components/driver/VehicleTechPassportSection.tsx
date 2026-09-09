@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
+import { ensureMediaPermission } from '../../lib/mediaPermissions';
 import {
   uploadMediaObject,
   vehicleTechPassportObjectPath,
@@ -56,9 +57,11 @@ export function VehicleTechPassportSection({
       if (!vehicle || !driverId || uploadingSlot || disabled) return;
       setUploadingSlot(slot);
       try {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) {
-          Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody'));
+        const permOutcome = await ensureMediaPermission('library', t('vehicleScreen.permissionTitle'));
+        if (permOutcome !== 'granted') {
+          if (permOutcome === 'denied') {
+            Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody'));
+          }
           return;
         }
         const res = await ImagePicker.launchImageLibraryAsync({
