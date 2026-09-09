@@ -10,7 +10,7 @@ import i18n from '../src/lib/i18n';
 export const VEHICLE_TYPES = ['sedan', 'minivan', 'suv', 'microbus', 'bus', 'special'] as const;
 export type VehicleTypeCode = (typeof VEHICLE_TYPES)[number];
 
-export const VEHICLE_CLASSES = ['economy', 'comfort', 'business', 'premium', 'vip'] as const;
+export const VEHICLE_CLASSES = ['economy', 'comfort', 'vip'] as const;
 export type VehicleClassCode = (typeof VEHICLE_CLASSES)[number];
 
 type VehicleLocales = typeof ka;
@@ -38,8 +38,6 @@ const TYPE_LABELS_EN: Record<VehicleTypeCode, string> = {
 const CLASS_LABELS_EN: Record<VehicleClassCode, string> = {
   economy: 'Economy',
   comfort: 'Comfort',
-  business: 'Business',
-  premium: 'Premium',
   vip: 'VIP',
 };
 
@@ -63,23 +61,25 @@ const TYPE_ALIASES: Record<string, VehicleTypeCode> = {
 };
 
 /** Maps any known label (Geo/EN/legacy DB) → canonical class. */
+/** 'business' and 'premium' were merged into 'vip' (Sept 2026) — kept here as aliases so
+ *  legacy DB rows and old client builds still normalize correctly to the merged class. */
 const CLASS_ALIASES: Record<string, VehicleClassCode> = {
   economy: 'economy',
   comfort: 'comfort',
-  business: 'business',
-  premium: 'premium',
   vip: 'vip',
+  business: 'vip',
+  premium: 'vip',
   eco: 'economy',
-  lux: 'premium',
+  lux: 'vip',
   ეკონომი: 'economy',
   ეკო: 'economy',
   კომფორტი: 'comfort',
-  ბიზნესი: 'business',
-  ბიზნეს: 'business',
-  პრემიუმი: 'premium',
-  პრემიუმ: 'premium',
-  ლუქსი: 'premium',
-  ლუქს: 'premium',
+  ბიზნესი: 'vip',
+  ბიზნეს: 'vip',
+  პრემიუმი: 'vip',
+  პრემიუმ: 'vip',
+  ლუქსი: 'vip',
+  ლუქს: 'vip',
 };
 
 function lookupAlias<T extends string>(raw: string, aliases: Record<string, T>, canonical: readonly string[]): T | null {
