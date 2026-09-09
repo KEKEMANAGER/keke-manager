@@ -800,7 +800,7 @@ export default function DriverBookingsScreen() {
                           t('bookings.acceptTitle'),
                           t('bookings.acceptMessage'),
                           () => void onAccept(item),
-                          t('bookings.accept'),
+                          tripActionLabel(t, item.kind, 'start'),
                         )
                       }
                       disabled={actingId === item.id}
@@ -809,7 +809,7 @@ export default function DriverBookingsScreen() {
                       {actingId === item.id ? (
                         <ActivityIndicator color={COLORS.white} size="small" />
                       ) : (
-                        <Text style={styles.btnGoldText}>{t('bookings.accept')}</Text>
+                        <Text style={styles.btnGoldText}>{tripActionLabel(t, item.kind, 'start')}</Text>
                       )}
                     </Pressable>
                   </View>
