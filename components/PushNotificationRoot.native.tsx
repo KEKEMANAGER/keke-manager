@@ -95,12 +95,14 @@ export function PushNotificationListeners() {
       const senderId = String(data?.sender_id ?? '').trim();
       if (!senderId) return;
       const threadType = typeof data?.thread_type === 'string' ? data.thread_type.trim() : '';
+      const bookingId = typeof data?.booking_id === 'string' ? data.booking_id.trim() : '';
       router.push({
         pathname: chatPathForRole(role),
         params: {
           uid: senderId,
           name: '',
           ...(threadType ? { threadType } : {}),
+          ...(bookingId ? { bookingId } : {}),
         },
       });
     },
