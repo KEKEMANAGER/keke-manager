@@ -273,6 +273,40 @@ function TransferSegmented({
   );
 }
 
+/** Generic two-way choice, styled like TransferSegmented (used for price/overnight options). */
+function BinaryChoiceSegmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (next: T) => void;
+  options: readonly { id: T; label: string }[];
+}) {
+  return (
+    <View style={styles.segmentTrack}>
+      {options.map((item) => {
+        const active = value === item.id;
+        return (
+          <Pressable
+            key={item.id}
+            onPress={() => {
+              safeLayoutAnimation();
+              onChange(item.id);
+            }}
+            style={[styles.segmentItem, active && styles.segmentItemActive]}
+          >
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+              {item.label}
+            </Text>
+            {active ? <View style={styles.segmentUnderline} /> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function ServiceKindSelector({
   value,
   onChange,
@@ -809,6 +843,8 @@ export default function NewBookingScreen() {
   const [passengerName, setPassengerName] = useState('');
   const [passengerPhone, setPassengerPhone] = useState('');
   const [clientPriceStr, setClientPriceStr] = useState('');
+  const [priceIncludesFuel, setPriceIncludesFuel] = useState(true);
+  const [driverOvernightBy, setDriverOvernightBy] = useState<'keke' | 'company'>('keke');
   const [comment, setComment] = useState('');
   const [tourRouteDescription, setTourRouteDescription] = useState('');
 
@@ -1357,6 +1393,9 @@ export default function NewBookingScreen() {
       flight_direction: booking_kind === 'transfer' ? transferTab : null,
       pickup_time: null,
       client_price: offeredGel,
+      price_includes_fuel:
+        booking_kind === 'tour' || booking_kind === 'dayTour' ? priceIncludesFuel : null,
+      driver_overnight_by: booking_kind === 'tour' ? driverOvernightBy : null,
       commission: null,
       tour_days: tourDaysDb,
       itinerary: itineraryDb,
@@ -1633,7 +1672,7 @@ export default function NewBookingScreen() {
               <>
                 <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
                 <AuthInput
-                  label={t('newBooking.form.clientPrice')}
+                  label={t('newBooking.form.price')}
                   value={clientPriceStr}
                   onChangeText={setClientPriceStr}
                   keyboardType="decimal-pad"
@@ -1714,7 +1753,7 @@ export default function NewBookingScreen() {
               <>
                 <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
                 <AuthInput
-                  label={t('newBooking.form.clientPrice')}
+                  label={t('newBooking.form.price')}
                   value={clientPriceStr}
                   onChangeText={setClientPriceStr}
                   keyboardType="decimal-pad"
@@ -1723,6 +1762,15 @@ export default function NewBookingScreen() {
                 <Text style={styles.driverPayNote}>
                   {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
                 </Text>
+                <Text style={styles.fieldHint}>{t('newBooking.form.priceIncludesFuelLabel')}</Text>
+                <BinaryChoiceSegmented
+                  value={priceIncludesFuel ? 'yes' : 'no'}
+                  onChange={(v) => setPriceIncludesFuel(v === 'yes')}
+                  options={[
+                    { id: 'yes', label: t('newBooking.form.priceIncludesFuelYes') },
+                    { id: 'no', label: t('newBooking.form.priceIncludesFuelNo') },
+                  ]}
+                />
               </>
             ) : null}
 
@@ -1893,7 +1941,7 @@ export default function NewBookingScreen() {
               <>
                 <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
                 <AuthInput
-                  label={t('newBooking.form.clientPrice')}
+                  label={t('newBooking.form.price')}
                   value={clientPriceStr}
                   onChangeText={setClientPriceStr}
                   keyboardType="decimal-pad"
@@ -1902,6 +1950,30 @@ export default function NewBookingScreen() {
                 <Text style={styles.driverPayNote}>
                   {t('newBooking.form.driverOfferNote', { amount: formatGel(driverOfferGel) })}
                 </Text>
+                <Text style={styles.fieldHint}>{t('newBooking.form.priceIncludesFuelLabel')}</Text>
+                <BinaryChoiceSegmented
+                  value={priceIncludesFuel ? 'yes' : 'no'}
+                  onChange={(v) => setPriceIncludesFuel(v === 'yes')}
+                  options={[
+                    { id: 'yes', label: t('newBooking.form.priceIncludesFuelYes') },
+                    { id: 'no', label: t('newBooking.form.priceIncludesFuelNo') },
+                  ]}
+                />
+                {tourOvernightCount > 0 ? (
+                  <>
+                    <Text style={styles.fieldHint}>
+                      {t('newBooking.form.driverOvernightByLabel')}
+                    </Text>
+                    <BinaryChoiceSegmented
+                      value={driverOvernightBy}
+                      onChange={setDriverOvernightBy}
+                      options={[
+                        { id: 'keke', label: t('newBooking.form.driverOvernightByKeke') },
+                        { id: 'company', label: t('newBooking.form.driverOvernightByCompany') },
+                      ]}
+                    />
+                  </>
+                ) : null}
               </>
             ) : null}
 
