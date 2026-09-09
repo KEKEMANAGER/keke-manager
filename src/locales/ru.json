@@ -356,6 +356,14 @@
       "signText": "Текст таблички",
       "prices": "Цены",
       "clientPrice": "Цена клиента (₾)",
+      "price": "Цена (₾)",
+      "driverOfferNote": "Водитель увидит: {{amount}}",
+      "priceIncludesFuelLabel": "Цена включает топливо?",
+      "priceIncludesFuelYes": "Да, включая топливо",
+      "priceIncludesFuelNo": "Нет, топливо отдельно",
+      "driverOvernightByLabel": "Кто организует ночлег водителя?",
+      "driverOvernightByKeke": "KEKE Manager",
+      "driverOvernightByCompany": "Компания",
       "commission": "Комиссия (₾ или %)",
       "commissionGel": "Комиссия (₾)",
       "commissionPct": "Комиссия (%)",
@@ -1690,5 +1698,10 @@
     "masterPassengersHint": "Распределение по машинам меняется на экране «Машины».",
     "masterPrice": "Общая цена (₾)",
     "masterPriceHint": "Цена каждой машины меняется на экране «Машины»."
+  },
+  "bookingPrice": {
+    "fuelNotIncluded": "Топливо не включено — оплачивается отдельно",
+    "overnightByCompany": "Ночлег организует компания",
+    "overnightByKeke": "Ночлег организует KEKE Manager"
   }
 }
