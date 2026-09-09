@@ -357,6 +357,14 @@
       "signText": "Sign text",
       "prices": "Prices",
       "clientPrice": "Client price (₾)",
+      "price": "Price (₾)",
+      "driverOfferNote": "The driver will see: {{amount}}",
+      "priceIncludesFuelLabel": "Does the price include fuel?",
+      "priceIncludesFuelYes": "Yes, fuel included",
+      "priceIncludesFuelNo": "No, fuel separate",
+      "driverOvernightByLabel": "Who arranges the driver's overnight stay?",
+      "driverOvernightByKeke": "KEKE Manager",
+      "driverOvernightByCompany": "Company",
       "commission": "Commission (₾ or %)",
       "commissionGel": "Commission (₾)",
       "commissionPct": "Commission (%)",
@@ -1690,5 +1698,10 @@
     "step4": "4. Open Expo Go → Scan QR code.",
     "backHint": "You can return to Sign in after connecting.",
     "openScreen": "Dev: Expo Go QR code"
+  },
+  "bookingPrice": {
+    "fuelNotIncluded": "Fuel not included — paid separately",
+    "overnightByCompany": "Overnight stay arranged by the company",
+    "overnightByKeke": "Overnight stay arranged by KEKE Manager"
   }
 }
