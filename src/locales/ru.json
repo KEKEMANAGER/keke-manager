@@ -46,7 +46,9 @@
     "rate": "Оценить",
     "confirm": "Подтвердить",
     "success": "Успех",
-    "error": "Ошибка"
+    "error": "Ошибка",
+    "openSettings": "Открыть настройки",
+    "permissionDeniedSettingsBody": "Доступ был запрещён навсегда. Откройте настройки, чтобы разрешить доступ для KEKE Manager."
   },
   "bookings": {
     "title": "Заказы",
