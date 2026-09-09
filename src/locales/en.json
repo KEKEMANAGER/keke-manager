@@ -46,7 +46,9 @@
     "rate": "Rate",
     "confirm": "Confirm",
     "success": "Success",
-    "error": "Error"
+    "error": "Error",
+    "openSettings": "Open Settings",
+    "permissionDeniedSettingsBody": "Access was permanently denied. Open Settings to enable it for KEKE Manager."
   },
   "bookings": {
     "title": "Bookings",
@@ -848,7 +850,7 @@
     "emailInvalid": "Invalid email format.",
     "passwordRequired": "Enter password.",
     "passwordConfirmRequired": "Repeat your password",
-    "passwordMismatch": "Passwords do not match",
+    "passwordMismatch": "Passwords do not match.",
     "cityRequired": "Select a city",
     "passwordMin": "Password must be at least {{count}} characters",
     "phoneInvalid": "Invalid phone number.",
@@ -870,7 +872,6 @@
     "alertTitle": "Incomplete form",
     "networkTitle": "Connection",
     "networkError": "No internet — check your connection and try again.",
-    "passwordMismatch": "Passwords do not match.",
     "fields": {
       "companyName": "company name",
       "name": "full name and surname"
@@ -1273,13 +1274,12 @@
     "changeRole": "Change role",
     "delete": "Delete",
     "deleteTitle": "Delete user?",
-    "deleteMessage": "This removes the profile from the database. This cannot be undone.",
+    "deleteMessage": "Delete message",
     "deleteConfirm": "Delete",
     "chatsEmpty": "No messages",
     "allMessagesTitle": "All messages (audit)",
     "deleteMessageTitle": "Delete message?",
     "deleteMessageBody": "Remove this message permanently?",
-    "deleteMessage": "Delete message",
     "bookingsEmpty": "No bookings",
     "bookingUntitled": "Booking",
     "bookingKind": "Type",
