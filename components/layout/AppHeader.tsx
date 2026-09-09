@@ -9,9 +9,10 @@ import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppMenu } from '../../contexts/AppMenuContext';
 import { getAppHomeRoute, isAppHomeSegment } from '../../lib/appHome';
+import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n';
 
 export function AppHeader() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
@@ -22,11 +23,20 @@ export function AppHeader() {
   const homeRoute = menuRole ? getAppHomeRoute(menuRole) : null;
   const onHome = homeRoute && !isAppHomeSegment(menuRole, lastSegment);
 
+  const currentLang = (i18n.language?.split('-')[0] ?? 'ka') as AppLanguage;
+  const currentLangIdx = LANGUAGES.findIndex((l) => l.code === currentLang);
+  const nextLang = LANGUAGES[(currentLangIdx + 1 + LANGUAGES.length) % LANGUAGES.length];
+  const currentLangLabel = LANGUAGES[currentLangIdx]?.label ?? LANGUAGES[0].label;
+
   if (!headerVisible) return null;
 
   function goHome() {
     if (!homeRoute) return;
     router.replace(homeRoute as never);
+  }
+
+  function cycleLanguage() {
+    void persistLanguage(nextLang.code as AppLanguage);
   }
 
   return (
@@ -45,6 +55,15 @@ export function AppHeader() {
         <Text style={styles.title} numberOfLines={1}>
           {t('menu.appTitle')}
         </Text>
+        <Pressable
+          onPress={cycleLanguage}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t('menu.language')}
+          style={({ pressed }) => [styles.iconBtn, styles.langBtn, pressed && styles.iconBtnPressed]}
+        >
+          <Text style={styles.langBtnText}>{currentLangLabel}</Text>
+        </Pressable>
         {onHome ? (
           <Pressable
             onPress={goHome}
@@ -115,5 +134,15 @@ const styles = StyleSheet.create({
   iconBtnPressed: {
     opacity: 0.85,
     backgroundColor: COLORS.surfaceAlt,
+  },
+  langBtn: {
+    width: 40,
+    paddingHorizontal: 0,
+  },
+  langBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.text,
+    letterSpacing: 0.3,
   },
 });
