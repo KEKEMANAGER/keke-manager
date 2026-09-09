@@ -46,7 +46,9 @@
     "rate": "შეფასება",
     "confirm": "დადასტურება",
     "success": "წარმატება",
-    "error": "შეცდომა"
+    "error": "შეცდომა",
+    "openSettings": "პარამეტრების გახსნა",
+    "permissionDeniedSettingsBody": "წვდომა სამუდამოდ უარყოფილია. გახსენით პარამეტრები და ჩართეთ წვდომა KEKE Manager-ისთვის."
   },
   "bookings": {
     "title": "ჯავშნები",
@@ -848,7 +850,7 @@
     "emailInvalid": "ელფოსტის ფორმატი არასწორია.",
     "passwordRequired": "შეიყვანეთ პაროლი.",
     "passwordConfirmRequired": "გაიმეორეთ პაროლი",
-    "passwordMismatch": "პაროლები არ ემთხვევა",
+    "passwordMismatch": "პაროლები არ ემთხვევა.",
     "cityRequired": "აირჩიეთ ქალაქი",
     "passwordMin": "პაროლი მინიმუმ {{count}} სიმბოლო",
     "phoneInvalid": "ტელეფონის ნომერი არასწორია.",
@@ -870,7 +872,6 @@
     "alertTitle": "შევსება არ არის სრული",
     "networkTitle": "კავშირი",
     "networkError": "ინტერნეტი არ არის — შეამოწმეთ კავშირი და სცადეთ თავიდან.",
-    "passwordMismatch": "პაროლები არ ემთხვევა.",
     "fields": {
       "companyName": "კომპანიის სახელი",
       "name": "სრული სახელი და გვარი"
@@ -1273,13 +1274,12 @@
     "changeRole": "როლის შეცვლა",
     "delete": "წაშლა",
     "deleteTitle": "წავშალოთ მომხმარებელი?",
-    "deleteMessage": "პროფილი სამუდამოდ წაიშლება. ეს უკან ვერ დაიბრუნება.",
+    "deleteMessage": "შეტყობინების წაშლა",
     "deleteConfirm": "წაშლა",
     "chatsEmpty": "შეტყობინებები არ არის",
     "allMessagesTitle": "ყველა შეტყობინება (აუდიტი)",
     "deleteMessageTitle": "წავშალოთ შეტყობინება?",
     "deleteMessageBody": "შეტყობინება სამუდამოდ წაიშლება.",
-    "deleteMessage": "შეტყობინების წაშლა",
     "bookingsEmpty": "ჯავშნები არ არის",
     "bookingUntitled": "ჯავშანი",
     "bookingKind": "ტიპი",
