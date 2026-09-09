@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -45,6 +45,32 @@ function isRemoteUrl(s: string | null): boolean {
   return !!s && (s.startsWith('http://') || s.startsWith('https://'));
 }
 
+/** Cheap content fingerprint (not cryptographic) — used only to catch the same photo being
+ *  picked for both the front and back slot of a document. Samples a bounded number of
+ *  characters across the whole base64 string so it stays fast regardless of image size. */
+function quickImageHash(base64: string): string {
+  const len = base64.length;
+  if (!len) return '0';
+  let h = 5381;
+  const step = Math.max(1, Math.floor(len / 2000));
+  for (let i = 0; i < len; i += step) {
+    h = (h * 33 + base64.charCodeAt(i)) | 0;
+  }
+  return `${len}:${h}`;
+}
+
+/** The other slot in the same front/back document group, if any. */
+function pairedSlot(
+  groups: VerificationDocGroup[],
+  slot: VerificationDocSlot,
+): VerificationDocSlot | null {
+  for (const g of groups) {
+    if (g.front === slot) return g.back;
+    if (g.back === slot) return g.front;
+  }
+  return null;
+}
+
 function bustUri(u: string | null | undefined): string | null {
   const trimmed = u?.trim() || null;
   return trimmed && isRemoteUrl(trimmed) ? withCacheBust(trimmed) ?? trimmed : trimmed;
@@ -73,6 +99,9 @@ export default function DriverVerificationScreen() {
   const [uploadingSlot, setUploadingSlot] = useState<VerificationDocSlot | null>(null);
   const [docsDirty, setDocsDirty] = useState(false);
   const [isHiredDriverUser, setIsHiredDriverUser] = useState(() => isHiredDriver(profile));
+  /** Fingerprints of photos picked in this session, keyed by slot — lets us catch the same
+   *  photo being uploaded for both the front and back of a document (see quickImageHash). */
+  const photoHashesRef = useRef<Partial<Record<VerificationDocSlot, string>>>({});
 
   const docGroups = useMemo(
     () => verificationDocGroupsForHired(isHiredDriverUser),
@@ -158,16 +187,28 @@ export default function DriverVerificationScreen() {
         mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.85,
+        base64: true,
       });
       if (res.canceled || !res.assets[0]) return;
 
-      const localUri = res.assets[0]!.uri;
+      const asset = res.assets[0]!;
+      const pairSlot = pairedSlot(docGroups, slot);
+      const newHash = asset.base64 ? quickImageHash(asset.base64) : null;
+      if (pairSlot && newHash && photoHashesRef.current[pairSlot] === newHash) {
+        setSubmitError(t('verificationScreen.duplicateFrontBack'));
+        return;
+      }
+
+      const localUri = asset.uri;
       const path = verificationPhotoObjectPath(userId, slot);
       const publicUrl = await uploadMediaObject(path, localUri, { contentType: 'image/jpeg' });
       const { error } = await saveSingleVerificationDocument(userId, slot, publicUrl);
       if (error) {
         setSubmitError(error.message);
         return;
+      }
+      if (newHash) {
+        photoHashesRef.current[slot] = newHash;
       }
       const cleanUrl = storagePublicUrlBase(publicUrl);
       const bustedUrl = bustUri(cleanUrl) ?? cleanUrl;
