@@ -46,7 +46,9 @@
     "rate": "Rate",
     "confirm": "Confirm",
     "success": "Հաջող",
-    "error": "Սխալ"
+    "error": "Սխալ",
+    "openSettings": "Open Settings",
+    "permissionDeniedSettingsBody": "Access was permanently denied. Open Settings to enable it for KEKE Manager."
   },
   "bookings": {
     "title": "Bookings",
