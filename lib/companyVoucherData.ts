@@ -79,6 +79,9 @@ export type CompanyVoucherData = {
   /** Convoy leg on master id — driver-safe peer list (no other drivers' prices). */
   convoyPeerLegs?: ConvoyPeerLeg[];
   convoyMasterId?: string | null;
+  /** Who is looking at this voucher — lets the price line show a fleet sub-driver's
+   *  actual payout instead of the company's full price (see lib/bookingPayout.ts). */
+  viewerUserId?: string | null;
 };
 
 type VehicleJoinRow = VehicleRow & {
@@ -445,6 +448,7 @@ export async function fetchCompanyVoucherData(
         company,
         convoyPeerLegs: convoyPeerLegs.length > 0 ? convoyPeerLegs : undefined,
         convoyMasterId: parentMasterId,
+        viewerUserId: viewerId,
       },
       error: null,
     };
@@ -460,6 +464,7 @@ export async function fetchCompanyVoucherData(
         host: null,
         company,
         convoyLegs,
+        viewerUserId: viewerId,
       },
       error: null,
     };
@@ -493,7 +498,7 @@ export async function fetchCompanyVoucherData(
   }
 
   return {
-    data: { booking, driver, vehicle, host, company },
+    data: { booking, driver, vehicle, host, company, viewerUserId: viewerId },
     error: null,
   };
 }
@@ -514,7 +519,14 @@ export async function enrichCompanyVoucherFromBooking(
   const res = await fetchCompanyVoucherData(booking.id, undefined, viewerUserId);
   if (res.data) return { data: res.data, error: null };
   return {
-    data: { booking, driver: null, vehicle: null, host: null, company: null },
+    data: {
+      booking,
+      driver: null,
+      vehicle: null,
+      host: null,
+      company: null,
+      viewerUserId: viewerUserId ?? null,
+    },
     error: res.error,
   };
 }
