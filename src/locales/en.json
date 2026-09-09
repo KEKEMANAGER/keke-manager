@@ -1058,7 +1058,8 @@
     "noPhoto": "No photo selected",
     "pickFirst": "Choose a photo first",
     "allPhotosRequired": "All required photos must be uploaded",
-    "photoMissing": "Photo missing"
+    "photoMissing": "Photo missing",
+    "duplicateFrontBack": "Front and back photos must be different — please upload a different photo"
   },
   "calendarScreen": {
     "title": "Calendar",
@@ -1495,7 +1496,8 @@
     "noAssignedVehicle": "No vehicle assigned yet",
     "hostOnlyTitle": "Fleet hosts only",
     "hostOnlyBody": "Add a second vehicle to unlock “My drivers”",
-    "hostFleetHint": "Fleet → vehicles → /vehicles"
+    "hostFleetHint": "Fleet → vehicles → /vehicles",
+    "language": "Change language"
   },
   "settings": {
     "deleteAccount": "Delete account",
