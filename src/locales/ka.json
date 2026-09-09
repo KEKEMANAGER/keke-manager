@@ -357,6 +357,14 @@
       "signText": "პლაკატის ტექსტი",
       "prices": "ფასები",
       "clientPrice": "კლიენტის ფასი (₾)",
+      "price": "ფასი (₾)",
+      "driverOfferNote": "მძღოლი დაინახავს: {{amount}}",
+      "priceIncludesFuelLabel": "ფასში შედის საწვავი?",
+      "priceIncludesFuelYes": "დიახ, საწვავის ჩათვლით",
+      "priceIncludesFuelNo": "არა, საწვავი ცალკეა",
+      "driverOvernightByLabel": "მძღოლის ღამისთევას ვინ აწყობს?",
+      "driverOvernightByKeke": "KEKE Manager",
+      "driverOvernightByCompany": "კომპანია",
       "commission": "კომისია (₾ ან %)",
       "commissionGel": "კომისია (₾)",
       "commissionPct": "კომისია (%)",
@@ -1690,5 +1698,10 @@
     "step4": "4. Expo Go → QR სკანირება.",
     "backHint": "დაკავშირების შემდეგ შეგიძლია შესვლაზე დაბრუნება.",
     "openScreen": "Dev: Expo Go QR"
+  },
+  "bookingPrice": {
+    "fuelNotIncluded": "ფასში საწვავი არ შედის — ცალკე ანაზღაურდება",
+    "overnightByCompany": "ღამისთევას აწყობს კომპანია",
+    "overnightByKeke": "ღამისთევას აწყობს KEKE Manager"
   }
 }
