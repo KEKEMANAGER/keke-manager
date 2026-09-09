@@ -9,6 +9,7 @@ import {
   completeBooking,
   formatBookingDate,
   isTourBookingKind,
+  isTransferKind,
   routeSummary,
   startBookingTrip,
 } from '../lib/bookings';
@@ -141,7 +142,9 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
             {busy ? (
               <ActivityIndicator color="#000" />
             ) : (
-              <Text style={styles.primaryBtnText}>{t('hiredDriver.startTour')}</Text>
+              <Text style={styles.primaryBtnText}>
+                {t(isTransferKind(activeBooking.kind) ? 'hiredDriver.startTransfer' : 'hiredDriver.startTour')}
+              </Text>
             )}
           </Pressable>
         ) : null}
@@ -151,7 +154,9 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
             onPress={() => void runTripAction('complete')}
             style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
           >
-            <Text style={styles.secondaryBtnText}>{t('hiredDriver.endTour')}</Text>
+            <Text style={styles.secondaryBtnText}>
+              {t(isTransferKind(activeBooking.kind) ? 'hiredDriver.endTransfer' : 'hiredDriver.endTour')}
+            </Text>
           </Pressable>
         ) : null}
         {showTripNav ? (
