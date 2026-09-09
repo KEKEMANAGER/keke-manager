@@ -224,6 +224,62 @@ async function mergeChatPartnersFromBookings(
   return null;
 }
 
+/**
+ * Finds the most recently-updated currently-active booking directly connecting a company and a
+ * driver (as company_id/driver_id — not a fleet host/sub-driver pairing). Used as a fallback chat
+ * gate when the screen wasn't handed a bookingId directly (e.g. opened from a push notification
+ * tap, or an older conversation row) — sending should still be allowed whenever an active tour
+ * genuinely connects the two people, and blocked whenever it doesn't.
+ */
+export async function findActiveBookingWithPeer(
+  userId: string,
+  otherUserId: string,
+): Promise<string | null> {
+  const id = trimUserId(userId);
+  const otherId = trimUserId(otherUserId);
+  if (!id || !otherId) return null;
+  const { data } = await supabase
+    .from('bookings')
+    .select('id')
+    .or(
+      `and(company_id.eq.${id},driver_id.eq.${otherId}),and(company_id.eq.${otherId},driver_id.eq.${id})`,
+    )
+    .in('status', [...ACTIVE_CHAT_BOOKING_STATUSES])
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = data as { id: string } | null;
+  return (row?.id && trimUserId(row.id)) || null;
+}
+
+/** Fleet statuses that authorize host<->sub-driver chat (mirrors the DB's may_message_user RLS check). */
+const FLEET_CHAT_STATUSES = ['pending', 'accepted'] as const;
+
+/**
+ * True when a host driver and a sub-driver currently have a pending/accepted fleet relationship
+ * (public.driver_fleet) — this pairing has no booking to attach to, so unlike company<->driver
+ * chat it's authorized purely by the relationship existing, matching the server-side RLS check
+ * (may_message_user) which already allows this independent of any booking_id.
+ */
+export async function hasActiveFleetRelationship(
+  userId: string,
+  otherUserId: string,
+): Promise<boolean> {
+  const id = trimUserId(userId);
+  const otherId = trimUserId(otherUserId);
+  if (!id || !otherId) return false;
+  const { data } = await supabase
+    .from('driver_fleet')
+    .select('id')
+    .in('status', [...FLEET_CHAT_STATUSES])
+    .or(
+      `and(host_driver_id.eq.${id},sub_driver_id.eq.${otherId}),and(sub_driver_id.eq.${id},host_driver_id.eq.${otherId})`,
+    )
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
 async function loadActiveBookingIds(bookingIds: string[]): Promise<Set<string>> {
   const ids = bookingIds.map((x) => trimUserId(x)).filter(Boolean);
   if (ids.length === 0) return new Set();
