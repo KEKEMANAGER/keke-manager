@@ -17,7 +17,31 @@ type Props = {
 };
 
 function formatGel(n: number) {
-  return `${n.toLocaleString('ka-GE')} ₾`;
+  return \`\${n.toLocaleString('ka-GE')} ₾\`;
+}
+
+/** Small note under the price telling the driver what it does/doesn't cover. */
+function PriceNotes({ booking }: { booking: BookingRow }) {
+  const { t } = useTranslation();
+  const notes: string[] = [];
+  if (booking.price_includes_fuel === false) {
+    notes.push(t('bookingPrice.fuelNotIncluded'));
+  }
+  if (booking.driver_overnight_by === 'company') {
+    notes.push(t('bookingPrice.overnightByCompany'));
+  } else if (booking.driver_overnight_by === 'keke') {
+    notes.push(t('bookingPrice.overnightByKeke'));
+  }
+  if (notes.length === 0) return null;
+  return (
+    <>
+      {notes.map((note) => (
+        <Text key={note} style={styles.subLineMuted}>
+          {note}
+        </Text>
+      ))}
+    </>
+  );
 }
 
 export function BookingPriceDisplay({ booking, viewerUserId, size = 'md' }: Props) {
@@ -31,6 +55,7 @@ export function BookingPriceDisplay({ booking, viewerUserId, size = 'md' }: Prop
       <View style={styles.wrap}>
         <Text style={styles.label}>{t('fleet.yourPayLabel')}</Text>
         <Text style={mainStyle}>{formatGel(driverPayableGel(booking))}</Text>
+        <PriceNotes booking={booking} />
       </View>
     );
   }
@@ -45,11 +70,17 @@ export function BookingPriceDisplay({ booking, viewerUserId, size = 'md' }: Prop
         <Text style={styles.subLineMuted}>
           {t('fleet.hostNetLine', { amount: formatGel(hostNetGel(booking)) })}
         </Text>
+        <PriceNotes booking={booking} />
       </View>
     );
   }
 
-  return <Text style={mainStyle}>{formatGel(Number(booking.price_gel))}</Text>;
+  return (
+    <View style={styles.wrap}>
+      <Text style={mainStyle}>{formatGel(Number(booking.price_gel))}</Text>
+      <PriceNotes booking={booking} />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
