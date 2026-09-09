@@ -39,6 +39,7 @@ import { StarRow } from '../../components/StarRow';
 import { fetchDriverAverageRating } from '../../lib/ratings';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { avatarObjectPath, uploadMediaObject, withCacheBust } from '../../lib/mediaUpload';
+import { ensureMediaPermission } from '../../lib/mediaPermissions';
 import { formatStoredBirthDateForDisplay, parseBirthDate, toBirthDateIso } from '../../lib/dateTime';
 import {
   fetchDriverBirthDate,
@@ -274,11 +275,13 @@ export default function DriverProfileScreen() {
   async function pickPhoto() {
     if (!user?.id) return;
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        const permMsg = t('profilePage.photoPermissionDenied');
-        setPhotoError(permMsg);
-        showErrorAlert(permMsg, t('profilePage.permissionTitle'));
+      const permOutcome = await ensureMediaPermission('library', t('profilePage.permissionTitle'));
+      if (permOutcome !== 'granted') {
+        if (permOutcome === 'denied') {
+          const permMsg = t('profilePage.photoPermissionDenied');
+          setPhotoError(permMsg);
+          showErrorAlert(permMsg, t('profilePage.permissionTitle'));
+        }
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
