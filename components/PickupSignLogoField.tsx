@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
+import { ensureMediaPermission } from '../lib/mediaPermissions';
 import {
   isPickupSignLogoPdf,
   type PickupSignLogoFile,
@@ -56,8 +57,8 @@ export function PickupSignLogoField({ value, onChange, disabled }: Props) {
 
   async function pickImageFallback() {
     if (disabled) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
+    const permOutcome = await ensureMediaPermission('library', t('profilePage.permissionTitle'));
+    if (permOutcome !== 'granted') return;
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
