@@ -21,6 +21,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { ChatThreadType, ParticipantRole } from '../../lib/bookingChat';
 import {
   fetchMessages,
+  findActiveBookingWithPeer,
   markMessagesRead,
   sendMessage,
   subscribeToMessages,
@@ -64,11 +65,12 @@ export default function CompanyChatScreen() {
   );
 
   const otherUserId = uid ?? '';
+  const [resolvedName, setResolvedName] = useState<string | null>(null);
   const otherName = isSupport
     ? profile?.role === 'admin'
       ? name?.trim() || t('supportChat.userFallback')
       : t('supportChat.title')
-    : name?.trim() || t('common.driver');
+    : name?.trim() || resolvedName || t('common.driver');
 
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +80,10 @@ export default function CompanyChatScreen() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [otherVerified, setOtherVerified] = useState(false);
   const [otherAvatarUrl, setOtherAvatarUrl] = useState<string | null>(avatar?.trim() || null);
+  /** Fallback booking id when the screen wasn't handed one directly (push-notification tap, older
+   *  conversation row) — resolved by looking up whether an active tour currently connects the two
+   *  people, so sending is gated on real state rather than on how the screen was opened. */
+  const [resolvedBookingId, setResolvedBookingId] = useState<string | null>(null);
   const listRef = useRef<FlatList<MessageRow>>(null);
 
   const scrollToBottom = useCallback((animated: boolean) => {
@@ -129,18 +135,39 @@ export default function CompanyChatScreen() {
       try {
         const { data } = await supabase
           .from('users_directory')
-          .select('is_verified, avatar_url')
+          .select('full_name, is_verified, avatar_url')
           .eq('id', otherUserId)
           .maybeSingle();
-        const row = data as { is_verified?: boolean | null; avatar_url?: string | null } | null;
+        const row = data as {
+          full_name?: string | null;
+          is_verified?: boolean | null;
+          avatar_url?: string | null;
+        } | null;
         setOtherVerified(!!row?.is_verified);
         const url = row?.avatar_url?.trim() ?? '';
         if (url) setOtherAvatarUrl(url);
+        const fullName = row?.full_name?.trim() ?? '';
+        if (fullName) setResolvedName(fullName);
       } catch {
         setOtherVerified(false);
       }
     })();
   }, [otherUserId]);
+
+  useEffect(() => {
+    if (isSupport || (threadOpts && 'bookingId' in threadOpts)) {
+      setResolvedBookingId(null);
+      return;
+    }
+    if (!user?.id || !otherUserId) return;
+    let cancelled = false;
+    void findActiveBookingWithPeer(user.id, otherUserId).then((id) => {
+      if (!cancelled) setResolvedBookingId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupport, threadOpts, user?.id, otherUserId]);
 
   useEffect(() => {
     if (!user?.id || !otherUserId) return;
@@ -163,11 +190,9 @@ export default function CompanyChatScreen() {
 
   async function onSend() {
     if (!user?.id || !text.trim() || sending) return;
-    if (
-      !isSupport &&
-      profile?.role !== 'admin' &&
-      !(threadOpts && 'bookingId' in threadOpts)
-    ) {
+    const effectiveBookingId =
+      threadOpts && 'bookingId' in threadOpts ? threadOpts.bookingId : resolvedBookingId;
+    if (!isSupport && profile?.role !== 'admin' && !effectiveBookingId) {
       setSendError(t('chat.activeBookingRequired'));
       return;
     }
@@ -179,8 +204,8 @@ export default function CompanyChatScreen() {
       senderId: user.id,
       receiverId: otherUserId,
       text: draft,
-      bookingId: threadOpts && 'bookingId' in threadOpts ? threadOpts.bookingId : null,
-      threadType: threadOpts?.threadType ?? null,
+      bookingId: isSupport ? null : effectiveBookingId,
+      threadType: isSupport ? SUPPORT_THREAD_TYPE : (threadOpts?.threadType ?? 'company_driver'),
       senderRole: senderRole ?? null,
       receiverRole: receiverRole ?? null,
       senderName: profile?.full_name?.trim() || '',
