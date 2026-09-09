@@ -775,7 +775,7 @@ export default function DriverBookingsScreen() {
                   </Text>
                 )}
                 {item.status === 'pending' ? (
-                  <View style={styles.actions}>
+                  <View style={styles.actionsFullRow}>
                     <Pressable
                       onPress={() =>
                         crossAlert(
@@ -814,7 +814,7 @@ export default function DriverBookingsScreen() {
                     </Pressable>
                   </View>
                 ) : item.status === 'accepted' ? (
-                  <View style={styles.actions}>
+                  <View style={styles.actionsFullRow}>
                     <Pressable
                       onPress={() => confirmCancel(item)}
                       disabled={actingId === item.id}
@@ -1121,8 +1121,10 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
+    rowGap: SPACING.sm,
   },
   footerInProgress: {
     marginTop: SPACING.sm,
@@ -1132,9 +1134,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
   },
-  actions: {
+  actionsFullRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
+    flexBasis: '100%',
+    justifyContent: 'flex-end',
   },
   completeBtnFull: {
     marginTop: SPACING.sm,
