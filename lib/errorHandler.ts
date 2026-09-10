@@ -51,7 +51,7 @@ export function getSupabaseErrorMessage(error: unknown): string {
     return 'ელფოსტა ან პაროლი არასწორია.';
   }
   if (lower.includes('account_blocked')) {
-    return 'ანგარიში დაბლოკილია. დაუკავშირდით მხარდაჭერას: akachibaia1410@gmail.com';
+    return 'ანგარიში დაბლოკილია. დაუკავშირდით მხარდაჭერას: info@kekemanager.com';
   }
   if (lower.includes('email not confirmed')) {
     return 'ელფოსტა არ არის დადასტურებული.';
