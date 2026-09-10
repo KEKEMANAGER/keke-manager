@@ -51,7 +51,16 @@ export function AppHeader() {
       ]}
     >
       <View style={styles.row}>
-        <AppLogo size="header" style={styles.logoImage} />
+        <Pressable
+          onPress={goHome}
+          disabled={!homeRoute}
+          hitSlop={8}
+          accessibilityRole={homeRoute ? 'button' : undefined}
+          accessibilityLabel={t('menu.home')}
+          style={({ pressed }) => [styles.logoBtn, pressed && homeRoute && styles.logoBtnPressed]}
+        >
+          <AppLogo size="header" style={styles.logoImage} />
+        </Pressable>
         <Text style={styles.title} numberOfLines={1}>
           {t('menu.appTitle')}
         </Text>
@@ -108,6 +117,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     gap: SPACING.sm,
     minHeight: APP_HEADER_BODY_HEIGHT,
+  },
+  logoBtn: {
+    borderRadius: 10,
+  },
+  logoBtnPressed: {
+    opacity: 0.7,
   },
   logoImage: {
     width: 40,
