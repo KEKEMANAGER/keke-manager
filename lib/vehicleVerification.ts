@@ -8,11 +8,65 @@ function strField(v: unknown): string {
   return String(v).trim();
 }
 
-export function vehicleCanActivate(vehicle: VehicleRow): boolean {
-  return vehicleIsApproved(vehicle) && !vehiclePhotosOverdue(vehicle);
+export type VehicleVerificationStatus = 'pending' | 'submitted' | 'approved' | 'rejected';
+
+/** One vehicle photo angle's freshness record, stored in `vehicles.photo_meta`. */
+export type VehiclePhotoMetaEntry = { hash: string; updatedAt: string };
+export type VehiclePhotoMeta = Partial<Record<VehiclePhotoKey, VehiclePhotoMetaEntry>>;
+
+const VEHICLE_PHOTO_KEYS: VehiclePhotoKey[] = [
+  'photo_front',
+  'photo_left',
+  'photo_right',
+  'photo_interior',
+  'photo_rear',
+];
+
+/** Vehicle photos must be re-taken at least this often, or the vehicle can't receive new bookings. */
+export const VEHICLE_PHOTO_REFRESH_DAYS = 60;
+
+type VehiclePhotoFreshnessInput = Pick<VehicleRow, VehiclePhotoKey> & {
+  photo_meta?: VehiclePhotoMeta | null;
+};
+
+/**
+ * True when at least one currently-uploaded vehicle photo is missing freshness
+ * metadata, or was last refreshed more than `VEHICLE_PHOTO_REFRESH_DAYS` ago.
+ * A vehicle only counts as "up to date" once every uploaded angle has been
+ * refreshed within the window — refreshing one photo does not reset the
+ * clock for the others, so a driver can't keep an old set "current" by
+ * re-taking just one photo every so often.
+ */
+export function vehiclePhotosOverdue(vehicle: VehiclePhotoFreshnessInput): boolean {
+  const meta = vehicle.photo_meta ?? {};
+  const cutoffMs = Date.now() - VEHICLE_PHOTO_REFRESH_DAYS * 24 * 60 * 60 * 1000;
+  for (const key of VEHICLE_PHOTO_KEYS) {
+    if (!vehicle[key]) continue; // no photo uploaded yet — that's a completeness gap, not staleness
+    const updatedAt = meta[key]?.updatedAt;
+    const ts = updatedAt ? Date.parse(updatedAt) : NaN;
+    if (!Number.isFinite(ts) || ts < cutoffMs) return true;
+  }
+  return false;
 }
 
-export async function saveVehicleTechPassportUrl(
+/** Date the vehicle's photos will next become overdue, or null if already overdue / no photos yet. */
+export function vehiclePhotosDueDate(vehicle: VehiclePhotoFreshnessInput): Date | null {
+  const meta = vehicle.photo_meta ?? {};
+  let earliestMs: number | null = null;
+  for (const key of VEHICLE_PHOTO_KEYS) {
+    if (!vehicle[key]) continue;
+    const updatedAt = meta[key]?.updatedAt;
+    const ts = updatedAt ? Date.parse(updatedAt) : NaN;
+    if (!Number.isFinite(ts)) return null; // missing metadata — already overdue, no future due date
+    if (earliestMs === null || ts < earliestMs) earliestMs = ts;
+  }
+  if (earliestMs === null) return null;
+  return new Date(earliestMs + VEHICLE_PHOTO_REFRESH_DAYS * 24 * 60 * 60 * 1000);
+}
+
+export type VehicleTechPassportSlot = 'tech_passport_front' | 'tech_passport_back';
+
+export const VEHICLE_TECH_PASSPORT_COLUMNS =
   'tech_passport_front, tech_passport_back, verification_status, rejection_reason';
 
 export function vehicleTechPassportSlotUploaded(
@@ -57,7 +111,7 @@ export function vehicleIsApproved(vehicle: Pick<VehicleRow, 'is_verified' | 'ver
 }
 
 export function vehicleCanActivate(vehicle: VehicleRow): boolean {
-  return vehicleIsApproved(vehicle);
+  return vehicleIsApproved(vehicle) && !vehiclePhotosOverdue(vehicle);
 }
 
 export async function saveVehicleTechPassportUrl(
