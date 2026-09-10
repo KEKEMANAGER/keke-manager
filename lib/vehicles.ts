@@ -4,6 +4,8 @@ import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 import {
   vehicleCanActivate,
   vehicleIsApproved,
+  vehiclePhotosOverdue,
+  type VehiclePhotoMeta,
   type VehicleVerificationStatus,
 } from './vehicleVerification';
 
@@ -40,10 +42,11 @@ export type VehicleRow = {
   passenger_capacity: number | null;
   is_verified: boolean | null;
   updated_at: string;
+  photo_meta: VehiclePhotoMeta | null;
 };
 
 const VEHICLE_SELECT =
-  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,tech_passport_front,tech_passport_back,verification_status,rejection_reason,type,class,model,color,year,plate,make_id,model_id,passenger_capacity,is_verified,updated_at';
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,photo_meta,tech_passport_front,tech_passport_back,verification_status,rejection_reason,type,class,model,color,year,plate,make_id,model_id,passenger_capacity,is_verified,updated_at';
 
 function normalizeVehicleRow(raw: Record<string, unknown>): VehicleRow {
   const isVerified = raw.is_verified === true;
@@ -64,6 +67,7 @@ function normalizeVehicleRow(raw: Record<string, unknown>): VehicleRow {
     tech_passport_back: (raw.tech_passport_back as string | null) ?? null,
     rejection_reason: (raw.rejection_reason as string | null) ?? null,
     verification_status,
+    photo_meta: (raw.photo_meta as VehiclePhotoMeta | null) ?? {},
   };
 }
 
@@ -255,7 +259,9 @@ export async function toggleVehicleActive(
 ): Promise<{ is_active: boolean; error: Error | null }> {
   const { data: current, error: fetchErr } = await supabase
     .from('vehicles')
-    .select('is_active, type, class, is_verified, verification_status')
+    .select(
+      'is_active, type, class, is_verified, verification_status, photo_front, photo_left, photo_right, photo_interior, photo_rear, photo_meta',
+    )
     .eq('id', vehicleId)
     .eq('driver_id', driverId)
     .maybeSingle();
@@ -270,12 +276,15 @@ export async function toggleVehicleActive(
   const nextActive = !current.is_active;
 
   if (nextActive && !vehicleCanActivate(current as Parameters<typeof vehicleCanActivate>[0])) {
+    const approved = vehicleIsApproved(current as Parameters<typeof vehicleIsApproved>[0]);
     return {
       is_active: false,
       error: new Error(
-        vehicleIsApproved(current as Parameters<typeof vehicleIsApproved>[0])
-          ? 'მანქანის გააქტიურება ვერ მოხერხდა'
-          : 'მანქანა ჯერ ადმინმა უნდა დაადასტუროს (ტექპასპორტი)',
+        !approved
+          ? 'მანქანა ჯერ ადმინმა უნდა დაადასტუროს (ტექპასპორტი)'
+          : vehiclePhotosOverdue(current as Parameters<typeof vehiclePhotosOverdue>[0])
+            ? 'მანქანის ფოტოები მოძველებულია — გთხოვთ ატვირთოთ ახალი ფოტოები (2 თვეში ერთხელ სავალდებულოა)'
+            : 'მანქანის გააქტიურება ვერ მოხერხდა',
       ),
     };
   }
@@ -400,28 +409,58 @@ export async function saveVehicleDetails(
   return { error: error ? new Error(error.message) : null };
 }
 
-/** Persist one photo URL for a specific vehicle (updates by vehicleId). */
+/**
+ * Persist one photo URL for a specific vehicle (updates by vehicleId).
+ * `photoHash` (when provided) is the content hash of the freshly-captured
+ * photo — recorded in `photo_meta` alongside the current timestamp so we can
+ * later tell whether this angle is due for its periodic refresh, and detect
+ * a future re-submission of this exact same file.
+ */
 export async function saveVehiclePhotoUrl(
   vehicleId: string,
   column: VehiclePhotoKey,
   publicUrl: string,
+  photoHash?: string,
 ): Promise<{ error: Error | null }> {
   const cleanUrl = storagePublicUrlBase(publicUrl);
-  const { error } = await supabase
-    .from('vehicles')
-    .update({ [column]: cleanUrl, updated_at: new Date().toISOString() })
-    .eq('id', vehicleId);
+  const payload: Record<string, unknown> = {
+    [column]: cleanUrl,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (photoHash) {
+    const { data: current } = await supabase
+      .from('vehicles')
+      .select('photo_meta')
+      .eq('id', vehicleId)
+      .maybeSingle();
+    const meta = ((current?.photo_meta as VehiclePhotoMeta | null) ?? {}) as VehiclePhotoMeta;
+    payload.photo_meta = {
+      ...meta,
+      [column]: { hash: photoHash, updatedAt: new Date().toISOString() },
+    };
+  }
+
+  const { error } = await supabase.from('vehicles').update(payload).eq('id', vehicleId);
   return { error: error ? new Error(error.message) : null };
 }
 
-/** Remove one photo URL from a vehicle row. */
+/** Remove one photo URL (and its freshness metadata) from a vehicle row. */
 export async function clearVehiclePhotoUrl(
   vehicleId: string,
   column: VehiclePhotoKey,
 ): Promise<{ error: Error | null }> {
+  const { data: current } = await supabase
+    .from('vehicles')
+    .select('photo_meta')
+    .eq('id', vehicleId)
+    .maybeSingle();
+  const meta = { ...(((current?.photo_meta as VehiclePhotoMeta | null) ?? {}) as VehiclePhotoMeta) };
+  delete meta[column];
+
   const { error } = await supabase
     .from('vehicles')
-    .update({ [column]: null, updated_at: new Date().toISOString() })
+    .update({ [column]: null, photo_meta: meta, updated_at: new Date().toISOString() })
     .eq('id', vehicleId);
   return { error: error ? new Error(error.message) : null };
 }
