@@ -517,7 +517,7 @@ export default function DriverVehiclePhotosScreen() {
     });
   }, [userId, authLoading, refreshVehicles]);
 
-  useEffect(() => { void loadVehicles(); }, [loadVehicles]);
+  useEffect(() => { void loadVehicles('initial'); }, [loadVehicles]);
 
   // ── Form helpers ──────────────────────────────────────────────────────────
   function populateFormFrom(v: VehicleRow) {
