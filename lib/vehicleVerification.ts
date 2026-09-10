@@ -1,6 +1,6 @@
 import { storagePublicUrlBase, withCacheBust } from './mediaUpload';
 import { supabase } from './supabase';
-import type { VehicleRow } from './vehicles';
+import type { VehiclePhotoKey, VehicleRow } from './vehicles';
 
 function strField(v: unknown): string {
   if (typeof v === 'string') return v.trim();
@@ -8,11 +8,11 @@ function strField(v: unknown): string {
   return String(v).trim();
 }
 
-export type VehicleVerificationStatus = 'pending' | 'submitted' | 'approved' | 'rejected';
+export function vehicleCanActivate(vehicle: VehicleRow): boolean {
+  return vehicleIsApproved(vehicle) && !vehiclePhotosOverdue(vehicle);
+}
 
-export type VehicleTechPassportSlot = 'tech_passport_front' | 'tech_passport_back';
-
-export const VEHICLE_TECH_PASSPORT_COLUMNS =
+export async function saveVehicleTechPassportUrl(
   'tech_passport_front, tech_passport_back, verification_status, rejection_reason';
 
 export function vehicleTechPassportSlotUploaded(
@@ -141,7 +141,7 @@ export type AdminVehicleVerificationRow = VehicleRow & {
   driver_email: string | null;
 };
 
-const ADMIN_VEHICLE_SELECT = `id, driver_id, is_active, photo_front, photo_left, photo_right, photo_interior, photo_rear, type, class, model, color, year, plate, make_id, model_id, passenger_capacity, is_verified, verification_status, rejection_reason, tech_passport_front, tech_passport_back, updated_at`;
+const ADMIN_VEHICLE_SELECT = `id, driver_id, is_active, photo_front, photo_left, photo_right, photo_interior, photo_rear, photo_meta, type, class, model, color, year, plate, make_id, model_id, passenger_capacity, is_verified, verification_status, rejection_reason, tech_passport_front, tech_passport_back, updated_at`;
 
 function bustUrl(url: string | null | undefined): string | null {
   if (!url?.trim()) return null;
