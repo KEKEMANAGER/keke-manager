@@ -16,6 +16,7 @@ import {
   Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -42,10 +43,13 @@ import {
 } from '../../lib/vehicles';
 import {
   normalizeVehicleClass as normalizeStoredVehicleClass,
+  normalizeVehicleColor,
   normalizeVehicleType as normalizeStoredVehicleType,
   VEHICLE_CLASSES,
+  VEHICLE_COLORS,
   VEHICLE_TYPES,
   vehicleClassLabel,
+  vehicleColorLabel,
   vehicleTypeLabel,
   type VehicleClassCode,
   type VehicleTypeCode,
@@ -464,6 +468,7 @@ export default function DriverVehiclePhotosScreen() {
   const [vehicles, setVehicles]     = useState<VehicleRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [listError, setListError]   = useState<string | null>(null);
 
   // ── Photo state ───────────────────────────────────────────────────────────
@@ -501,13 +506,15 @@ export default function DriverVehiclePhotosScreen() {
   }, [selectedId, vehicles]);
 
   // ── Load vehicles ─────────────────────────────────────────────────────────
-  const loadVehicles = useCallback(async () => {
+  const loadVehicles = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (authLoading) return;
-    if (!userId) { setListLoading(false); return; }
+    if (!userId) { setListLoading(false); setRefreshing(false); return; }
     setListError(null);
-    setListLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+    else setListLoading(true);
     const { data, error } = await fetchVehiclesByDriver(userId);
     setListLoading(false);
+    setRefreshing(false);
     if (error) { setListError(error.message); return; }
     setVehicles(data);
     void refreshVehicles();
@@ -878,6 +885,14 @@ export default function DriverVehiclePhotosScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + SPACING.md, paddingBottom: bottomPad }]}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void loadVehicles('refresh')}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <Text style={styles.title}>{t('vehicleScreen.title')}</Text>
 
@@ -1046,7 +1061,31 @@ export default function DriverVehiclePhotosScreen() {
                 error={validatePassengerCapacity(editPassengerCapacity)}
                 disabled={saveBusy}
               />
-              <VehicleField label={t('vehicleScreen.color')} value={editColor} onChangeText={setEditColor} />
+              <Text style={styles.sectionLabel}>{t('vehicleScreen.color')}</Text>
+              <View style={styles.chipRow}>
+                {VEHICLE_COLORS.map((c) => {
+                  const active = normalizeVehicleColor(editColor) === c;
+                  return (
+                    <Pressable
+                      key={c}
+                      onPress={() => setEditColor(c === 'other' ? (active ? editColor : '') : c)}
+                      style={[styles.typeChip, active && styles.typeChipActive]}
+                    >
+                      <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
+                        {vehicleColorLabel(c)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {normalizeVehicleColor(editColor) === 'other' ? (
+                <VehicleField
+                  label={t('vehicleScreen.colorCustom')}
+                  value={editColor}
+                  onChangeText={setEditColor}
+                  placeholder={t('vehicleScreen.colorCustomPlaceholder')}
+                />
+              ) : null}
               <VehicleField label={t('vehicleScreen.plateLabel')} value={editPlate} onChangeText={setEditPlate} />
 
               {formMode === 'add' ? (
