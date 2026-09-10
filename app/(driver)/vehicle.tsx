@@ -76,7 +76,8 @@ import {
   validateVehicleSave,
 } from '../../lib/validation';
 import { useAuth } from '../../contexts/AuthContext';
-import { vehicleIsApproved } from '../../lib/vehicleVerification';
+import { vehicleIsApproved, vehiclePhotosOverdue } from '../../lib/vehicleVerification';
+import { hashPhotoContent, readFileAsBase64 } from '../../lib/vehiclePhotoHash';
 
 const SLOTS: {
   angle: 'front' | 'left' | 'right' | 'interior' | 'rear';
@@ -223,6 +224,7 @@ function VehiclePhotosAccordion({
                         }}
                         type="file"
                         accept="image/*"
+                        capture="environment"
                         disabled={busy || disabled || !vehicleId}
                         onChange={onWebFileChange(slot)}
                         style={{
@@ -309,6 +311,12 @@ function VehicleRegistrationMediaBlock({
         {vehicleRegistrationLabel(vehicle, t('vehicleScreen.vehicleN', { n: 1 }))}
       </Text>
       <Text style={styles.registrationMediaHint}>{t('vehicleScreen.registrationMediaHint')}</Text>
+
+      {vehiclePhotosOverdue(vehicle) ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{t('vehicleScreen.photosOverdueBanner')}</Text>
+        </View>
+      ) : null}
 
       <VehiclePhotosAccordion
         vehicleId={vehicleId}
@@ -498,6 +506,7 @@ export default function DriverVehiclePhotosScreen() {
   const webFileInputRefs = useRef<Record<VehiclePhotoKey, HTMLInputElement | null>>(emptyWebFileRefs());
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedId) ?? null;
+  const selectedVehicleRef = useRef(selectedVehicle); selectedVehicleRef.current = selectedVehicle;
 
   // ── Sync photo URLs when selection changes ────────────────────────────────
   useEffect(() => {
@@ -761,7 +770,12 @@ export default function DriverVehiclePhotosScreen() {
       label: string,
       localUri: string,
       mime: string,
-      opts?: { skipApplyLocalPreview?: boolean; revokeObjectUrl?: string; webUploadFile?: File },
+      opts?: {
+        skipApplyLocalPreview?: boolean;
+        revokeObjectUrl?: string;
+        webUploadFile?: File;
+        photoHash?: string;
+      },
     ) => {
       const uid = userIdRef.current;
       const vid = selectedIdRef.current;
@@ -772,7 +786,7 @@ export default function DriverVehiclePhotosScreen() {
       try {
         const path = vehiclePhotoObjectPath(vid, angle);
         const publicUrl = await uploadMediaObject(path, opts?.webUploadFile ?? localUri, { contentType: mime });
-        const { error } = await saveVehiclePhotoUrl(vid, column, publicUrl);
+        const { error } = await saveVehiclePhotoUrl(vid, column, publicUrl, opts?.photoHash);
         if (error) throw error;
         const busted = withCacheBust(publicUrl) ?? publicUrl;
         setLocalUrls((prev) => ({ ...prev, [column]: busted }));
@@ -793,11 +807,28 @@ export default function DriverVehiclePhotosScreen() {
 
   const handleWebFileInputChange = useCallback(
     (column: VehiclePhotoKey, angle: string, label: string) =>
-      (event: ChangeEvent<HTMLInputElement>) => {
+      async (event: ChangeEvent<HTMLInputElement>) => {
         const el = event.currentTarget;
         const file = el.files?.[0];
         el.value = '';
         if (!file || !userIdRef.current) return;
+
+        // Anti-fraud: reject re-submission of the exact same photo file for
+        // this angle — a driver must take a genuinely new photo when the
+        // periodic (2-month) refresh is due.
+        const previousHash = selectedVehicleRef.current?.photo_meta?.[column]?.hash;
+        let hash: string | undefined;
+        try {
+          const base64 = await readFileAsBase64(file);
+          hash = hashPhotoContent(base64);
+        } catch {
+          hash = undefined; // hashing failed — fall through, don't block the upload on it
+        }
+        if (hash && previousHash && hash === previousHash) {
+          Alert.alert(t('vehicleScreen.duplicatePhotoTitle'), t('vehicleScreen.duplicatePhotoBody'));
+          return;
+        }
+
         const mime = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
         const objectUrl = URL.createObjectURL(file);
         setLocalUrls((prev) => ({ ...prev, [column]: objectUrl }));
@@ -805,25 +836,42 @@ export default function DriverVehiclePhotosScreen() {
           skipApplyLocalPreview: true,
           revokeObjectUrl: objectUrl,
           webUploadFile: file,
+          photoHash: hash,
         });
       },
-    [runUploadPipeline],
+    [runUploadPipeline, t],
   );
 
   async function pickNativeAndUpload(slot: PhotoSlotDef) {
     if (!userIdRef.current || !selectedIdRef.current) return;
-    const permOutcome = await ensureMediaPermission('library', t('vehicleScreen.permissionTitle'));
+    const permOutcome = await ensureMediaPermission('camera', t('vehicleScreen.permissionTitle'));
     if (permOutcome !== 'granted') {
       if (permOutcome === 'denied') {
-        Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.permissionBody'));
+        Alert.alert(t('vehicleScreen.permissionTitle'), t('vehicleScreen.cameraPermissionBody'));
       }
       return;
     }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality: 0.88 });
+    // Camera-only (no gallery) so the periodic refresh requirement can't be
+    // satisfied by re-picking an old photo from the library.
+    const res = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      quality: 0.88,
+      base64: true,
+    });
     if (res.canceled || !res.assets[0]) return;
     const asset = res.assets[0];
     const label = t(`vehicleScreen.${slot.labelKey}`);
-    await runUploadPipeline(slot.column, slot.angle, label, asset.uri, asset.mimeType ?? 'image/jpeg');
+
+    const previousHash = selectedVehicleRef.current?.photo_meta?.[slot.column]?.hash;
+    const hash = asset.base64 ? hashPhotoContent(asset.base64) : undefined;
+    if (hash && previousHash && hash === previousHash) {
+      Alert.alert(t('vehicleScreen.duplicatePhotoTitle'), t('vehicleScreen.duplicatePhotoBody'));
+      return;
+    }
+
+    await runUploadPipeline(slot.column, slot.angle, label, asset.uri, asset.mimeType ?? 'image/jpeg', {
+      photoHash: hash,
+    });
   }
 
   function togglePhotoSlot(column: VehiclePhotoKey) {
