@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -15,27 +15,30 @@ export default function MyHostScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [ctx, setCtx] = useState<FleetSubContext | null>(null);
 
-  useEffect(() => {
-    if (!user?.id || !isHiredDriver(profile)) {
-      setLoading(false);
-      setCtx(null);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      const fleet = await fetchFleetContext(user.id);
-      if (!cancelled) {
-        setCtx(fleet.kind === 'sub' ? fleet : null);
+  const load = useCallback(
+    async (mode: 'initial' | 'refresh' = 'initial') => {
+      if (!user?.id || !isHiredDriver(profile)) {
         setLoading(false);
+        setRefreshing(false);
+        setCtx(null);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, profile]);
+      if (mode === 'refresh') setRefreshing(true);
+      else setLoading(true);
+      const fleet = await fetchFleetContext(user.id);
+      setCtx(fleet.kind === 'sub' ? fleet : null);
+      setLoading(false);
+      setRefreshing(false);
+    },
+    [user?.id, profile],
+  );
+
+  useEffect(() => {
+    void load('initial');
+  }, [load]);
 
   return (
     <ScrollView
@@ -43,6 +46,14 @@ export default function MyHostScreen() {
         styles.scroll,
         { paddingTop: insets.top + APP_HEADER_BODY_HEIGHT + SPACING.md, paddingBottom: insets.bottom + SPACING.xl },
       ]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load('refresh')}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <Text style={styles.title}>{t('menu.myHost')}</Text>
       {loading ? (
