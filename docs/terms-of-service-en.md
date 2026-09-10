@@ -9,7 +9,7 @@ These Terms of Service (“**Terms**”) govern your use of **KEKE Manager**. Pl
 
 ## 1. Agreement to terms
 
-These Terms are a binding agreement between you (“**User**”, “**you**”) and **KEKE Manager**, operated from **Tbilisi, Georgia**, by founders **Akaki Kachibaia** and **Ani Kekelia** (“**we**”, “**us**”).
+These Terms are a binding agreement between you (“**User**”, “**you**”) and **KEKE Manager** (**LLC KEKE Manager** / შპს კეკე მენეჯერი, registration code **B26375020**), operated from **Tbilisi, Georgia**, by founders **Akaki Kachibaia** and **Ani Kekelia** (“**we**”, “**us**”).
 
 By downloading, installing, registering for, or using the **KEKE Manager** mobile application, website, and related services (the “**Service**”), you agree to these Terms and our Privacy Policy. If you do not agree, do not use the Service.
 
@@ -89,7 +89,7 @@ If you pay fees to KEKE Manager for platform use (where applicable):
 
 | Situation | Refund |
 |-----------|--------|
-| Within **3 calendar days** of payment | **Full refund** upon valid written request to [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com) |
+| Within **3 calendar days** of payment | **Full refund** upon valid written request to [info@kekemanager.com](mailto:info@kekemanager.com) |
 | **After 3 days** | **No refund**, except where **mandatory consumer or platform law** requires otherwise |
 
 Trip payments between companies and drivers are governed by your separate commercial agreements.
@@ -181,7 +181,7 @@ You may delete your account at any time **directly in the app**:
 
 When you confirm deletion (by typing the confirmation word shown in the app), your account and associated personal data in the Service are removed **immediately**. You are signed out right away. **No administrator approval** or **30-day waiting period** applies.
 
-Deletion is **irreversible**. Resolve active bookings where reasonably possible before deleting. If you cannot access the app, email [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com) for assistance.
+Deletion is **irreversible**. Resolve active bookings where reasonably possible before deleting. If you cannot access the app, email [info@kekemanager.com](mailto:info@kekemanager.com) for assistance.
 
 We may retain only data we are **legally required** to keep (e.g. tax or accounting records), as described in our Privacy Policy.
 
@@ -237,7 +237,7 @@ We may suspend or terminate access where we reasonably believe such use would vi
 
 These Terms are governed by the laws of **Georgia** (საქართველო), without regard to conflict-of-law rules.
 
-Disputes shall first be addressed by contacting [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com). If unresolved within **30 days**, competent courts in **Tbilisi, Georgia** shall have jurisdiction, unless **mandatory consumer protections** in your country of residence require otherwise.
+Disputes shall first be addressed by contacting [info@kekemanager.com](mailto:info@kekemanager.com). If unresolved within **30 days**, competent courts in **Tbilisi, Georgia** shall have jurisdiction, unless **mandatory consumer protections** in your country of residence require otherwise.
 
 ---
 
@@ -252,8 +252,9 @@ We may update these Terms. The “Last updated” date will change. Material cha
 | | |
 |---|---|
 | **Service** | KEKE Manager |
+| **Legal entity** | LLC KEKE Manager (შპს კეკე მენეჯერი), registration code B26375020 |
 | **Address** | Tbilisi, Georgia |
-| **Email** | [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com) |
+| **Email** | [info@kekemanager.com](mailto:info@kekemanager.com) |
 | **Founders** | Akaki Kachibaia, Ani Kekelia |
 
 ---
