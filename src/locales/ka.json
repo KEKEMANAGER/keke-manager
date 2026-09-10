@@ -240,6 +240,10 @@
     "uploadSuccessBody": "„{{label}}“ — ფოტო ატვირთულია Supabase Storage-ში და URL შენახულია.",
     "permissionTitle": "წვდომა",
     "permissionBody": "ფოტოების წვდომა საჭიროა ატვირთვისთვის.",
+    "cameraPermissionBody": "მანქანის ფოტოებისთვის კამერაზე წვდომაა საჭირო.",
+    "duplicatePhotoTitle": "იგივე ფოტოა",
+    "duplicatePhotoBody": "ეს ფოტო იდენტურია წინას — გთხოვთ გადაიღოთ ახალი ფოტო კამერით.",
+    "photosOverdueBanner": "მანქანის ფოტოები მოძველებულია — 2 თვეში ერთხელ სავალდებულოა განახლება. ახალი ჯავშნების მისაღებად გადაიღეთ ახალი ფოტოები.",
     "notUploadedYet": "ჯერ არ არის ატვირთული: {{labels}}.",
     "completeMessage": "ფოტო(ები) Supabase-შია (vehicles + bucket media).{{extra}}",
     "completeTitle": "დასრულებულია",
@@ -287,7 +291,13 @@
     "plate": "ნომერი",
     "vehicleType": "ტიპი",
     "approveSuccess": "მანქანა დადასტურდა",
-    "rejectSuccess": "მანქანის რეგისტრაცია უარყოფილია"
+    "rejectSuccess": "მანქანის რეგისტრაცია უარყოფილია",
+    "photoAuditTitle": "ავტომობილების ფოტოების კონტროლი",
+    "photoAuditSubtitle": "ყველა დამტკიცებული მანქანის ფოტო და შემდეგი განახლების ვადა — 2 თვეში ერთხელ სავალდებულოა ხელახლა ატვირთვა.",
+    "photoAuditEmpty": "ჯერ არცერთ მანქანას არ აქვს ატვირთული ფოტო.",
+    "photoOverdueBadge": "ვადაგადაცილებული",
+    "photoDueBadge": "ვადა: {{date}}",
+    "photoNoMetaBadge": "საჭიროებს განახლებას"
   },
   "newBooking": {
     "title": "ახალი ჯავშანი",
@@ -1291,6 +1301,7 @@
     "tabVerify": "ვერიფიკაცია",
     "verifySubTabDrivers": "მძღოლები",
     "verifySubTabVehicles": "მანქანები",
+    "verifySubTabPhotos": "ფოტოები",
     "tabChats": "ჩათები",
     "tabBookings": "ჯავშნები",
     "tabGps": "GPS რუკა",
