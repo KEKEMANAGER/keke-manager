@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { APP_HEADER_BODY_HEIGHT } from '../../constants/layout';
@@ -18,27 +18,36 @@ export default function AssignedVehicleScreen() {
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [ctx, setCtx] = useState<FleetSubContext | null>(null);
 
-  useEffect(() => {
-    if (!user?.id || !isHiredDriver(profile)) {
+  const load = useCallback(
+    async (mode: 'initial' | 'refresh' = 'initial') => {
+      if (!user?.id || !isHiredDriver(profile)) {
+        setLoading(false);
+        setRefreshing(false);
+        setCtx(null);
+        return;
+      }
+      if (mode === 'refresh') setRefreshing(true);
+      else setLoading(true);
+      const fleet = await fetchFleetContext(user.id);
+      setCtx(fleet.kind === 'sub' ? fleet : null);
       setLoading(false);
-      setCtx(null);
-      return;
-    }
+      setRefreshing(false);
+    },
+    [user?.id, profile],
+  );
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
-      setLoading(true);
-      const fleet = await fetchFleetContext(user.id);
-      if (!cancelled) {
-        setCtx(fleet.kind === 'sub' ? fleet : null);
-        setLoading(false);
-      }
+      if (!cancelled) await load('initial');
     })();
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profile]);
+  }, [load]);
 
   const v = ctx?.vehicle;
   const photo = v?.photo_front ? withCacheBust(v.photo_front) : null;
@@ -49,6 +58,14 @@ export default function AssignedVehicleScreen() {
         styles.scroll,
         { paddingTop: insets.top + APP_HEADER_BODY_HEIGHT + SPACING.md, paddingBottom: insets.bottom + SPACING.xl },
       ]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load('refresh')}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <Text style={styles.title}>{t('menu.assignedVehicle')}</Text>
       {loading ? (
