@@ -240,6 +240,10 @@
     "uploadSuccessBody": "\"{{label}}\" — photo uploaded to Supabase Storage and URL saved.",
     "permissionTitle": "Permission",
     "permissionBody": "Photo library access is required to upload.",
+    "cameraPermissionBody": "Camera access is required for vehicle photos.",
+    "duplicatePhotoTitle": "Same photo",
+    "duplicatePhotoBody": "This photo is identical to the previous one — please take a genuinely new photo with the camera.",
+    "photosOverdueBanner": "Vehicle photos are out of date — they must be refreshed every 2 months. Retake them to receive new bookings.",
     "notUploadedYet": "Not uploaded yet: {{labels}}.",
     "completeMessage": "Photo(s) are in Supabase (vehicles + media bucket).{{extra}}",
     "completeTitle": "Complete",
@@ -287,7 +291,13 @@
     "plate": "Plate",
     "vehicleType": "Type",
     "approveSuccess": "Vehicle approved",
-    "rejectSuccess": "Vehicle registration rejected"
+    "rejectSuccess": "Vehicle registration rejected",
+    "photoAuditTitle": "Vehicle photo audit",
+    "photoAuditSubtitle": "All approved vehicles' photos and their next refresh date — a re-upload is required every 2 months.",
+    "photoAuditEmpty": "No vehicle has uploaded photos yet.",
+    "photoOverdueBadge": "Overdue",
+    "photoDueBadge": "Due: {{date}}",
+    "photoNoMetaBadge": "Needs refresh"
   },
   "newBooking": {
     "title": "New booking",
@@ -1291,6 +1301,7 @@
     "tabVerify": "Verification",
     "verifySubTabDrivers": "Drivers",
     "verifySubTabVehicles": "Vehicles",
+    "verifySubTabPhotos": "Photos",
     "tabChats": "Chats",
     "tabBookings": "Bookings",
     "tabGps": "GPS map",
