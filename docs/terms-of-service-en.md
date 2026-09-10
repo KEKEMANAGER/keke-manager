@@ -68,8 +68,9 @@ Passwords are processed through **Supabase Auth** and stored as **secure one-way
 Drivers must submit verification documents (license, ID, vehicle registration, photos) as required in the app.
 
 - Documents must be **refreshed every 3 months**  
+- **Vehicle photos** must be **refreshed every 2 months**, taken directly with the in-app camera; a vehicle with overdue photos cannot receive new bookings until updated  
 - We may suspend or reject verification if documents expire, are unclear, or appear fraudulent  
-- **Photo library access** is used **only** for uploading verification and profile media; **camera access is not requested** in the current app build  
+- **Camera and photo library access** are used **only** for uploading verification, profile, and vehicle media (including periodic vehicle photo refreshes)  
 
 Verification status may be visible to companies and administrators; document handling is described in our Privacy Policy.
 
