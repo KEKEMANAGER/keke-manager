@@ -3,6 +3,7 @@ import { computeRatingAveragesFromRows, sortMatchingDrivers } from './driverRati
 import { fetchDriverAverageRating } from './ratings';
 import { firstVehiclePhotoUrl } from './vehiclePhotos';
 import { fetchVehiclesByDriver } from './vehicles';
+import { vehiclePhotosOverdue, type VehiclePhotoMeta } from './vehicleVerification';
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
@@ -179,7 +180,7 @@ export async function fetchMatchingDrivers(
   const vehiclesRes = await supabase
     .from('vehicles')
     .select(
-      'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, is_active, is_verified, verification_status',
+      'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, photo_meta, is_active, is_verified, verification_status',
     )
     .in('type', typeVariants)
     .in('class', classVariants)
@@ -231,6 +232,7 @@ export async function fetchMatchingDrivers(
     photo_right?: string | null;
     photo_interior?: string | null;
     photo_rear?: string | null;
+    photo_meta?: VehiclePhotoMeta | null;
     is_active?: boolean | null;
   };
 
@@ -247,6 +249,17 @@ export async function fetchMatchingDrivers(
           normType,
           normClass,
         },
+      });
+      continue;
+    }
+    // Vehicle photos must be refreshed periodically (anti-fraud requirement) —
+    // a vehicle whose photos are overdue can't be offered for new bookings
+    // until the driver re-takes them, even if it's otherwise approved/active.
+    if (vehiclePhotosOverdue(v as Parameters<typeof vehiclePhotosOverdue>[0])) {
+      logDriverExclusion(exclusions, {
+        driverId: String(v.driver_id),
+        step: '2b. vehicle photos overdue',
+        detail: { vehicleId: v.id },
       });
       continue;
     }
