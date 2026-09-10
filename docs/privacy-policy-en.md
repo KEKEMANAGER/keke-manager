@@ -18,9 +18,10 @@ This Policy is designed to meet transparency expectations under **Apple App Stor
 | | |
 |---|---|
 | **Legal name / brand** | KEKE Manager |
+| **Legal entity** | LLC KEKE Manager (შპს კეკე მენეჯერი), registration code B26375020 |
 | **Location** | Tbilisi, Georgia |
 | **Founders** | Akaki Kachibaia, Ani Kekelia |
-| **Privacy contact** | [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com) |
+| **Privacy contact** | [info@kekemanager.com](mailto:info@kekemanager.com) |
 
 We **do not sell** your personal data. We **do not** use third-party advertising or analytics SDKs in the current application build. We **do not send marketing emails** for promotional purposes.
 
@@ -182,7 +183,7 @@ No method of transmission or storage is 100% secure.
 
 **Personal data breach notification:** If we become aware of a personal data breach that is likely to result in a risk to your rights and freedoms, we will notify the relevant supervisory authority where required by law (including within **72 hours** under GDPR where applicable) and notify **affected users without undue delay** when required by law, describing the nature of the incident, likely consequences, and measures taken or proposed.
 
-Report suspected security issues to **[akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com)**.
+Report suspected security issues to **[info@kekemanager.com](mailto:info@kekemanager.com)**.
 
 ---
 
@@ -233,7 +234,7 @@ Subject to applicable law (GDPR, Georgian personal data law, and other mandatory
 
 **EU/EEA users** may contact your local data protection authority. **Georgian users** may contact the Personal Data Protection Service of Georgia. **UK users** (if applicable) may contact the ICO.
 
-To exercise rights, email **[akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com)** with your account email and request. We respond within **one month**, extendable by two months for complex requests as permitted by law. We may need to verify your identity.
+To exercise rights, email **[info@kekemanager.com](mailto:info@kekemanager.com)** with your account email and request. We respond within **one month**, extendable by two months for complex requests as permitted by law. We may need to verify your identity.
 
 ---
 
@@ -273,10 +274,10 @@ We may update this Privacy Policy. The “Last updated” date will change. Mate
 
 ## 16. Contact
 
-**KEKE Manager**  
+**KEKE Manager** (LLC KEKE Manager / შპს კეკე მენეჯერი, registration code B26375020)  
 Tbilisi, Georgia  
 
-**Privacy & data requests:** [akachibaia1410@gmail.com](mailto:akachibaia1410@gmail.com)  
+**Privacy & data requests:** [info@kekemanager.com](mailto:info@kekemanager.com)  
 
 **Founders:** Akaki Kachibaia, Ani Kekelia  
 
