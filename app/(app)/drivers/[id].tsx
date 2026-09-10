@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,16 +30,19 @@ export default function CompanyDriverProfileScreen() {
 
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (!driverId) {
       setError(t('company.driverInfoNotFound'));
       setProfile(null);
       setLoading(false);
+      setRefreshing(false);
       return;
     }
-    setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+    else setLoading(true);
     setError(null);
     try {
       const { data, error: err } = await fetchDriverProfile(driverId);
@@ -53,11 +57,12 @@ export default function CompanyDriverProfileScreen() {
       setProfile(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [driverId, t]);
 
   useEffect(() => {
-    void load();
+    void load('initial');
   }, [load]);
 
   return (
@@ -83,6 +88,14 @@ export default function CompanyDriverProfileScreen() {
             paddingBottom: insets.bottom + SPACING.xl,
           },
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void load('refresh')}
+            tintColor={COLORS.gold}
+            colors={[COLORS.gold]}
+          />
+        }
       >
         {loading ? (
           <ActivityIndicator color={COLORS.gold} style={{ marginTop: SPACING.xl }} />
