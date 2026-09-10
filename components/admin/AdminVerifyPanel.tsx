@@ -8,8 +8,9 @@ import { fetchAdminVerificationQueueCount } from '../../lib/adminVerification';
 import { fetchAdminVehicleVerificationQueueCount } from '../../lib/vehicleVerification';
 import { AdminVerifySection } from './AdminVerifySection';
 import { AdminVehicleVerifySection } from './AdminVehicleVerifySection';
+import { AdminVehiclePhotoAuditSection } from './AdminVehiclePhotoAuditSection';
 
-type VerifySubTab = 'drivers' | 'vehicles';
+type VerifySubTab = 'drivers' | 'vehicles' | 'photos';
 
 function AdminSearchInput({
   value,
@@ -65,6 +66,7 @@ export function AdminVerifyPanel() {
   const subTabs: { id: VerifySubTab; label: string; count: number }[] = [
     { id: 'drivers', label: t('adminPanel.verifySubTabDrivers'), count: driverCount },
     { id: 'vehicles', label: t('adminPanel.verifySubTabVehicles'), count: vehicleCount },
+    { id: 'photos', label: t('adminPanel.verifySubTabPhotos'), count: 0 },
   ];
 
   return (
@@ -103,8 +105,10 @@ export function AdminVerifyPanel() {
 
       {subTab === 'drivers' ? (
         <AdminVerifySection searchQuery={searchQuery} onQueueCountChange={setDriverCount} />
-      ) : (
+      ) : subTab === 'vehicles' ? (
         <AdminVehicleVerifySection searchQuery={searchQuery} onQueueCountChange={setVehicleCount} />
+      ) : (
+        <AdminVehiclePhotoAuditSection searchQuery={searchQuery} />
       )}
     </>
   );
