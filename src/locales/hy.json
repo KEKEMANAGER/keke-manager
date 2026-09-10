@@ -219,6 +219,8 @@
     "pickYear": "Select year",
     "catalogSection": "Make / model / year",
     "color": "Color",
+    "colorCustom": "Other color",
+    "colorCustomPlaceholder": "Enter color",
     "year": "Year",
     "plate": "Plate",
     "upload": "Upload",
@@ -854,6 +856,20 @@
       "economy": "Economy",
       "comfort": "Comfort",
       "vip": "VIP"
+    },
+    "color": {
+      "white": "White",
+      "black": "Black",
+      "silver": "Silver",
+      "gray": "Gray",
+      "blue": "Blue",
+      "red": "Red",
+      "green": "Green",
+      "yellow": "Yellow",
+      "brown": "Brown",
+      "beige": "Beige",
+      "orange": "Orange",
+      "other": "Other"
     }
   },
   "validation": {
