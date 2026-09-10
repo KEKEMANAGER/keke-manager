@@ -22,7 +22,7 @@ Use this checklist before `eas submit` to App Store Connect.
 `https://kekemanager.com`
 
 **Support email:**  
-`akachibaia1410@gmail.com`
+`info@kekemanager.com`
 
 ---
 
@@ -104,7 +104,7 @@ Location stops when the trip is completed.
 
 Account deletion: Settings → Delete account (type confirmation word).
 
-Support: akachibaia1410@gmail.com
+Support: info@kekemanager.com
 ```
 
 Replace `[EMAIL]` / `[PASSWORD]` with real demo accounts before submit. (Already configured — see credentials above.)
