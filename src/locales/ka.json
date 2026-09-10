@@ -219,6 +219,8 @@
     "pickYear": "აირჩიეთ წელი",
     "catalogSection": "მარკა / მოდელი / წელი",
     "color": "ფერი",
+    "colorCustom": "სხვა ფერი",
+    "colorCustomPlaceholder": "მიუთითეთ ფერი",
     "year": "წელი",
     "plate": "ნომერი",
     "upload": "ატვირთვა",
@@ -854,6 +856,20 @@
       "economy": "ეკონომი",
       "comfort": "კომფორტი",
       "vip": "VIP"
+    },
+    "color": {
+      "white": "თეთრი",
+      "black": "შავი",
+      "silver": "ვერცხლისფერი",
+      "gray": "ნაცრისფერი",
+      "blue": "ლურჯი",
+      "red": "წითელი",
+      "green": "მწვანე",
+      "yellow": "ყვითელი",
+      "brown": "ყავისფერი",
+      "beige": "ბეჟი",
+      "orange": "ნარინჯისფერი",
+      "other": "სხვა"
     }
   },
   "validation": {
