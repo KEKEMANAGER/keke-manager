@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -30,6 +31,7 @@ export default function DriverCalendarScreen() {
 
   const [blocks, setBlocks] = useState<DriverScheduleRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busyStart, setBusyStart] = useState<Date | null>(null);
   const [busyEnd, setBusyEnd] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
@@ -39,19 +41,22 @@ export default function DriverCalendarScreen() {
     return t('calendarScreen.busyLabel');
   }
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (!userId) {
       setBlocks([]);
       setLoading(false);
+      setRefreshing(false);
       return;
     }
-    setLoading(true);
+    if (mode === 'refresh') setRefreshing(true);
+    else setLoading(true);
     const from = new Date();
     from.setHours(0, 0, 0, 0);
     const to = new Date(from);
     to.setDate(to.getDate() + 60);
     const { data, error } = await fetchDriverSchedules(userId, from, to);
     setLoading(false);
+    setRefreshing(false);
     if (error) {
       Alert.alert(t('system.errorTitle'), error.message);
       setBlocks([]);
@@ -120,6 +125,14 @@ export default function DriverCalendarScreen() {
         { paddingTop: insets.top + SPACING.md, paddingBottom: insets.bottom + 100 },
       ]}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load('refresh')}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <Text style={styles.title}>{t('calendarScreen.title')}</Text>
       <Text style={styles.subtitle}>{t('calendarScreen.subtitle')}</Text>
