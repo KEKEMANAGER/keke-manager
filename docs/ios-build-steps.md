@@ -27,7 +27,7 @@ npx eas-cli credentials:configure-build --platform ios --profile production
 Choose:
 
 - **Let EAS manage credentials** (recommended)
-- Sign in with Apple ID (`akachibaia1410@gmail.com` or team owner)
+- Sign in with Apple ID (`info@kekemanager.com` or team owner)
 - Select your **Team** and **Distribution Certificate**
 
 ## 3. Production build
@@ -58,7 +58,7 @@ Wait ~15–25 min. Download IPA from the Expo dashboard or install via TestFligh
 |-------|--------|
 | Privacy Policy URL | `https://kekemanager.com/legal/privacy-policy` |
 | Support URL | `https://kekemanager.com` |
-| Support email | `akachibaia1410@gmail.com` |
+| Support email | `info@kekemanager.com` |
 | Review Notes | Copy from `docs/apple-review-notes.txt` |
 | Privacy labels | See `docs/app-store-ios-checklist.md` §2 |
 
@@ -80,7 +80,7 @@ Optional `eas.json` (fill after creating the app in ASC):
 "submit": {
   "production": {
     "ios": {
-      "appleId": "akachibaia1410@gmail.com",
+      "appleId": "info@kekemanager.com",
       "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
       "appleTeamId": "YOUR_TEAM_ID"
     }
