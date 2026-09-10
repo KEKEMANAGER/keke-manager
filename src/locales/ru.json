@@ -234,6 +234,10 @@
     "uploadSuccessBody": "«{{label}}» — фото загружено в Supabase Storage, URL сохранён.",
     "permissionTitle": "Доступ",
     "permissionBody": "Нужен доступ к фото для загрузки.",
+    "cameraPermissionBody": "Для фото автомобиля нужен доступ к камере.",
+    "duplicatePhotoTitle": "То же самое фото",
+    "duplicatePhotoBody": "Это фото идентично предыдущему — пожалуйста, сделайте новое фото камерой.",
+    "photosOverdueBanner": "Фото автомобиля устарели — их нужно обновлять раз в 2 месяца. Сделайте новые фото, чтобы получать новые заказы.",
     "notUploadedYet": "Ещё не загружено: {{labels}}.",
     "completeMessage": "Фото в Supabase (vehicles + bucket media).{{extra}}",
     "completeTitle": "Готово",
@@ -287,7 +291,13 @@
     "plate": "Номер",
     "vehicleType": "Тип",
     "approveSuccess": "Авто подтверждено",
-    "rejectSuccess": "Регистрация авто отклонена"
+    "rejectSuccess": "Регистрация авто отклонена",
+    "photoAuditTitle": "Аудит фото автомобилей",
+    "photoAuditSubtitle": "Фото всех одобренных автомобилей и дата следующего обновления — повторная загрузка обязательна раз в 2 месяца.",
+    "photoAuditEmpty": "Пока ни у одного автомобиля нет загруженных фото.",
+    "photoOverdueBadge": "Просрочено",
+    "photoDueBadge": "Срок: {{date}}",
+    "photoNoMetaBadge": "Требуется обновление"
   },
   "newBooking": {
     "title": "Новый заказ",
@@ -1136,6 +1146,7 @@
     "tabVerify": "Верификация",
     "verifySubTabDrivers": "Водители",
     "verifySubTabVehicles": "Автомобили",
+    "verifySubTabPhotos": "Фото",
     "tabChats": "Чаты",
     "tabBookings": "Бронирования",
     "tabGps": "GPS карта",
