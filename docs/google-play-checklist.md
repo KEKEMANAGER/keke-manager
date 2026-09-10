@@ -18,7 +18,7 @@ Use this checklist before `eas build --platform android` and Play Console releas
 `https://kekemanager.com/legal/privacy-policy`
 
 **Support email:**  
-`akachibaia1410@gmail.com`
+`info@kekemanager.com`
 
 **Target audience:** Business users 18+ — **not designed for children**
 
