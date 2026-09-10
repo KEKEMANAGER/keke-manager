@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { StarRow } from '../../components/StarRow';
@@ -13,25 +13,31 @@ export default function DriverRatingsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [average, setAverage] = useState(0);
   const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      const res = await fetchDriverAverageRating(user.id);
-      if (!cancelled) {
-        setAverage(res.average);
-        setCount(res.count);
+  const load = useCallback(
+    async (mode: 'initial' | 'refresh' = 'initial') => {
+      if (!user?.id) {
         setLoading(false);
+        setRefreshing(false);
+        return;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+      if (mode === 'refresh') setRefreshing(true);
+      else setLoading(true);
+      const res = await fetchDriverAverageRating(user.id);
+      setAverage(res.average);
+      setCount(res.count);
+      setLoading(false);
+      setRefreshing(false);
+    },
+    [user?.id],
+  );
+
+  useEffect(() => {
+    void load('initial');
+  }, [load]);
 
   return (
     <ScrollView
@@ -39,6 +45,14 @@ export default function DriverRatingsScreen() {
         styles.scroll,
         { paddingTop: insets.top + APP_HEADER_BODY_HEIGHT + SPACING.md, paddingBottom: insets.bottom + SPACING.xl },
       ]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void load('refresh')}
+          tintColor={COLORS.gold}
+          colors={[COLORS.gold]}
+        />
+      }
     >
       <Text style={styles.title}>{t('menu.ratings')}</Text>
       {loading ? (
