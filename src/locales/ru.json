@@ -213,6 +213,8 @@
     "class": "Класс",
     "model": "Модель",
     "color": "Цвет",
+    "colorCustom": "Другой цвет",
+    "colorCustomPlaceholder": "Укажите цвет",
     "year": "Год",
     "plate": "Номер",
     "upload": "Загрузить",
@@ -699,6 +701,20 @@
       "economy": "Эконом",
       "comfort": "Комфорт",
       "vip": "VIP"
+    },
+    "color": {
+      "white": "Белый",
+      "black": "Чёрный",
+      "silver": "Серебристый",
+      "gray": "Серый",
+      "blue": "Синий",
+      "red": "Красный",
+      "green": "Зелёный",
+      "yellow": "Жёлтый",
+      "brown": "Коричневый",
+      "beige": "Бежевый",
+      "orange": "Оранжевый",
+      "other": "Другой"
     }
   },
   "validation": {
