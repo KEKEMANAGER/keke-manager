@@ -17,7 +17,7 @@ Use `[ ]` / `[x]` as you complete each item. Detailed store guides: [`app-store-
 | Production web | `https://kekemanager.com` |
 | Privacy URL | `https://kekemanager.com/legal/privacy-policy` |
 | Terms URL | `https://kekemanager.com/legal/terms` |
-| Support email | `akachibaia1410@gmail.com` |
+| Support email | `info@kekemanager.com` |
 
 - [ ] Apple Developer account ($99/yr)
 - [ ] Google Play Developer account ($25 one-time)
