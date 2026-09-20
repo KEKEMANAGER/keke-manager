@@ -37,6 +37,7 @@ import {
 } from './LandingIllustrations';
 import { LandingHeader } from './LandingHeader';
 import { LandingPageScroll } from './LandingPageScroll';
+import { PromoPhone } from './PromoPhone';
 import { LANDING, landingFont, sx } from './landingTheme';
 import { LANDING_BP, useLandingBreakpoint } from './useLandingBreakpoint';
 
@@ -320,30 +321,28 @@ export function LandingPage() {
                     isMobile ? styles.heroBrandBlockMobile : undefined,
                   )}
                 >
-                  <View
-                    style={[
-                      styles.heroLogoWrap,
-                      {
-                        width: heroLogoSize * 1.55,
-                        height: heroLogoSize * 1.4,
-                        marginBottom: 8,
-                      },
-                    ]}
-                  >
-                    <View style={styles.heroLogoGlow} />
-                    <Image
-                      source={BRAND_LOGO}
-                      style={{ width: heroLogoSize, height: heroLogoSize }}
-                      resizeMode="contain"
-                      accessibilityLabel="KEKE MANAGER"
-                      {...(Platform.OS === 'web'
-                        ? ({
-                            fetchPriority: 'high',
-                            loading: 'eager',
-                          } as { fetchPriority?: 'high' | 'low' | 'auto'; loading?: 'eager' | 'lazy' })
-                        : {})}
-                    />
-                  </View>
+                  {Platform.OS === 'web' ? (
+                    <PromoPhone lang={lang} />
+                  ) : (
+                    <View
+                      style={[
+                        styles.heroLogoWrap,
+                        {
+                          width: heroLogoSize * 1.55,
+                          height: heroLogoSize * 1.4,
+                          marginBottom: 8,
+                        },
+                      ]}
+                    >
+                      <View style={styles.heroLogoGlow} />
+                      <Image
+                        source={BRAND_LOGO}
+                        style={{ width: heroLogoSize, height: heroLogoSize }}
+                        resizeMode="contain"
+                        accessibilityLabel="KEKE MANAGER"
+                      />
+                    </View>
+                  )}
                 </View>
               </View>
 
