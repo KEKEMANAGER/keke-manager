@@ -151,6 +151,15 @@ export function IconStar() {
   );
 }
 
+export function IconGooglePlay() {
+  return (
+    <Svg width="20" height="20" viewBox="0 0 20 20">
+      <Path d="M3 1.5 L3 18.5 L17 10 Z" fill={LANDING.accent} />
+      <Path d="M3 1.5 L12 10 L3 18.5 Z" fill={LANDING.white} opacity="0.22" />
+    </Svg>
+  );
+}
+
 export function IconGlobe() {
   return (
     <Svg width="28" height="28" viewBox="0 0 28 28">
@@ -207,7 +216,7 @@ export function ServiceOneDayIllustration() {
       <Circle cx="48" cy="58" r="2.5" fill={LANDING.text} />
     </Svg>
   );
-} 
+}
 
 /** Multi-day tour — calendar sheets, moon, hotel */
 export function ServiceMultiDayIllustration() {
