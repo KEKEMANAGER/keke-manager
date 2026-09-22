@@ -602,8 +602,35 @@ export default function DriverVehiclePhotosScreen() {
     setSelectedModel(null);
     setSubDriverRef('');
     setSaveError(null);
-    setSaveBusy(true);
 
+    // Reuse an already-untouched draft row instead of inserting a fresh one
+    // every tap. Without this, backing out of "Add vehicle" any way other
+    // than the explicit Cancel button (closing the app, navigating away,
+    // switching tabs) orphans a blank \`vehicles\` row, since only cancelAdd()
+    // ever deletes one. A driver who taps "Add vehicle" repeatedly while
+    // getting through the flow ends up with several empty rows.
+    const existingDraft = vehicles.find(
+      (v) =>
+        !v.is_active &&
+        !v.model &&
+        !v.plate &&
+        !v.photo_front &&
+        !v.photo_left &&
+        !v.photo_right &&
+        !v.photo_interior &&
+        !v.photo_rear,
+    );
+
+    if (existingDraft) {
+      addDraftIdRef.current = existingDraft.id;
+      setSelectedId(existingDraft.id);
+      setLocalUrls(rowToUrlsWithCacheBust(existingDraft));
+      setExpandedPhotoSlots({});
+      setFormMode('add');
+      return;
+    }
+
+    setSaveBusy(true);
     const { data: draft, error } = await insertVehicle(userId, {
       type: VEHICLE_TYPES[0],
       class: VEHICLE_CLASSES[0],
