@@ -207,7 +207,7 @@ export function ServiceOneDayIllustration() {
       <Circle cx="48" cy="58" r="2.5" fill={LANDING.text} />
     </Svg>
   );
-}
+} 
 
 /** Multi-day tour — calendar sheets, moon, hotel */
 export function ServiceMultiDayIllustration() {
