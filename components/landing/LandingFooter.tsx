@@ -2,7 +2,10 @@ import { Link } from 'expo-router';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LandingCopy } from '../../lib/landingCopy';
 import { LANDING, landingFont, sx } from './landingTheme';
+import { IconGooglePlay } from './LandingIllustrations';
 import type { ViewStyle } from 'react-native';
+
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.keke.manager';
 
 type Props = {
   copy: LandingCopy;
@@ -36,11 +39,22 @@ export function LandingFooter({
             {copy.ctaTitle1} <Text style={styles.ctaTitleAccent}>{copy.ctaTitle2}</Text>
           </Text>
           <Text style={sx(styles.ctaSubtitle, landingFont({ fontWeight: '400' }))}>{copy.ctaSubtitle}</Text>
-          <Link href="/sign-up" asChild>
-            <Pressable style={styles.ctaBtn}>
-              <Text style={sx(styles.ctaBtnText, landingFont({ fontWeight: '700' }))}>{copy.ctaButton}</Text>
+          <View style={styles.ctaBtnRow}>
+            <Link href="/sign-up" asChild>
+              <Pressable style={styles.ctaBtn}>
+                <Text style={sx(styles.ctaBtnText, landingFont({ fontWeight: '700' }))}>{copy.ctaButton}</Text>
+              </Pressable>
+            </Link>
+            <Pressable style={styles.ctaStoreBtn} onPress={() => void Linking.openURL(PLAY_STORE_URL)}>
+              <IconGooglePlay />
+              <View style={styles.ctaStoreBtnTextWrap}>
+                <Text style={sx(styles.ctaStoreBtnSmall, landingFont({ fontWeight: '400' }))}>
+                  {copy.ctaAppButton}
+                </Text>
+                <Text style={sx(styles.ctaStoreBtnBig, landingFont({ fontWeight: '700' }))}>Google Play</Text>
+              </View>
             </Pressable>
-          </Link>
+          </View>
         </View>
       ) : null}
 
@@ -113,14 +127,34 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     lineHeight: 24,
   },
-  ctaBtn: {
+  ctaBtnRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 24,
+    gap: 14,
+  },
+  ctaBtn: {
     backgroundColor: LANDING.accent,
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,
   },
   ctaBtnText: { fontSize: 16, color: LANDING.text },
+  ctaStoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  ctaStoreBtnTextWrap: { flexDirection: 'column' },
+  ctaStoreBtnSmall: { fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 13 },
+  ctaStoreBtnBig: { fontSize: 17, color: LANDING.white, lineHeight: 20, marginTop: 1 },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
   footerRowMobile: { flexDirection: 'column' },
   footerLeft: { flex: 1 },
