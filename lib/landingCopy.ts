@@ -64,6 +64,7 @@ export type LandingCopy = {
   ctaTitle2: string;
   ctaSubtitle: string;
   ctaButton: string;
+  ctaAppButton: string;
   footerTagline: string;
   footerCeo: string;
   footerCofounder: string;
@@ -143,6 +144,7 @@ const EN: LandingCopy = {
   ctaTitle2: 'get started?',
   ctaSubtitle: 'Register, pass verification and receive or launch your first booking',
   ctaButton: 'Register now →',
+  ctaAppButton: 'Download on',
   footerTagline: 'B2B ecosystem in tourism',
   footerCeo: 'Akaki Kachibaia — CEO & FOUNDER',
   footerCofounder: 'Ani Kekelia — CO-FOUNDER',
@@ -223,6 +225,7 @@ const KA: LandingCopy = {
   ctaTitle2: 'დაიწყო?',
   ctaSubtitle: 'დარეგისტრირდი, გაიარე ვერიფიკაცია და მიიღე ან გაუშვი პირველი ჯავშანი',
   ctaButton: 'დარეგისტრირდი ახლავე →',
+  ctaAppButton: 'ჩამოტვირთე',
   footerTagline: 'B2B ეკოსისტემა ტურიზმში',
   footerCeo: 'Akaki Kachibaia — CEO & FOUNDER',
   footerCofounder: 'Ani Kekelia — CO-FOUNDER',
@@ -303,6 +306,7 @@ const RU: LandingCopy = {
   ctaTitle2: 'начать?',
   ctaSubtitle: 'Зарегистрируйтесь, пройдите верификацию и получите или создайте первое бронирование',
   ctaButton: 'Зарегистрироваться →',
+  ctaAppButton: 'Скачать в',
   footerTagline: 'B2B экосистема в туризме',
   footerContact: 'Свяжитесь с нами',
   footerSupportChat: 'Чат поддержки в приложении',
@@ -381,6 +385,7 @@ const HY: LandingCopy = {
   ctaTitle2: 'սկսելու',
   ctaSubtitle: 'Գրանցվեք, անցեք վերահսկում և ստացեք կամ ստեղծեք առաջին ամրագրումը',
   ctaButton: 'Գրանցվել հիմա →',
+  ctaAppButton: 'Ներբեռնեք',
   footerTagline: 'B2B էկոհամակարգ տուրիզմում',
   footerContact: 'Կապվեք մեզ հետ',
   footerSupportChat: 'Աջակցության չատ հավելվածում',
