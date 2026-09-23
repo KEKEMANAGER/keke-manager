@@ -56,6 +56,8 @@ import { fetchDriverProfile } from '../../lib/drivers';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { fetchActiveAds, type AdCard } from '../../lib/ads';
 import { PartnersAdsSection } from '../../components/PartnersAdsSection';
+import { useDailyMotivation } from '../../lib/dailyMotivation';
+import { DailyMotivationModal } from '../../components/DailyMotivationModal';
 import {
   CompanyBookingVoucherModal,
   openCompanyVoucher,
@@ -153,6 +155,7 @@ export default function CompanyDashboardScreen() {
   const role = getUserRole(profile);
   const name = companyDisplayName(profile, user, t('common.company'));
   const userId = user?.id;
+  const dailyMotivation = useDailyMotivation(userId);
 
   const newBookingLinkRef = useRef<View>(null);
   const emergencyBtnRef = useRef<View>(null);
@@ -983,6 +986,12 @@ export default function CompanyDashboardScreen() {
       targets={onboardingTargets}
       onComplete={() => void finishOnboarding()}
       onSkip={() => void finishOnboarding()}
+    />
+
+    <DailyMotivationModal
+      visible={dailyMotivation.visible}
+      message={dailyMotivation.message}
+      onClose={dailyMotivation.dismiss}
     />
     </>
   );
