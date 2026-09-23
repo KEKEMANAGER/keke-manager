@@ -28,6 +28,7 @@ import { fetchDriverProfile } from './profiles';
 import { supabase } from './supabase';
 import { trimUserId, userIdsMatch } from './userId';
 import {
+  normalizeCapacityTier,
   normalizeVehicleClass,
   normalizeVehicleType,
   type VehicleClassCode,
@@ -40,6 +41,7 @@ export type BookingRealtimeRecord = {
   driver_id?: string | null;
   vehicle_type?: string | null;
   vehicle_class?: string | null;
+  requested_capacity_tier?: string | null;
   kind?: string | null;
   booking_type?: string | null;
 };
@@ -359,6 +361,8 @@ export type BookingRow = {
   vehicle_type: string | null;
   /** Null = any class (matches all drivers for that `vehicle_type`). */
   vehicle_class: string | null;
+  /** Optional exact capacity sub-category requested (minivan/microbus only). Null = no preference. */
+  requested_capacity_tier?: string | null;
   flight_number: string | null;
   meet_greet: boolean | null;
   sign_text: string | null;
@@ -447,6 +451,13 @@ export type InsertBookingInput = {
    * with this `vehicle_type` (any class).
    */
   vehicle_class?: string | null;
+  /**
+   * Optional exact capacity sub-category (minivan/microbus only, e.g. 'minivan_3_5').
+   * When set, dispatch matches only drivers whose vehicle has this exact tier — see
+   * fetchMatchingDriverPushRecipients / driverProfileMatchesBooking. Null/omitted =
+   * no preference, matches any vehicle of the given type+class (same as before this existed).
+   */
+  requested_capacity_tier?: string | null;
   flight_number: string | null;
   meet_greet: boolean;
   sign_text: string | null;
@@ -786,6 +797,7 @@ export async function insertBooking(row: InsertBookingInput) {
   if (!vehicleType) {
     return { id: undefined, error: new Error('vehicle_type სავალდებულოა') };
   }
+  const capacityTier = normalizeCapacityTier(row.requested_capacity_tier, vehicleType);
 
   const voucherCode =
     row.voucher_code?.trim() ||
@@ -819,6 +831,7 @@ export async function insertBooking(row: InsertBookingInput) {
       passengers: row.passengers,
       vehicle_type: vehicleType,
       vehicle_class: vehicleClass,
+      requested_capacity_tier: capacityTier,
       flight_number: row.flight_number,
       meet_greet: row.meet_greet,
       sign_text: row.sign_text,
@@ -957,6 +970,7 @@ export async function insertBooking(row: InsertBookingInput) {
       kind,
       vehicleType,
       vehicleClass: vehicleClass ?? undefined,
+      capacityTier: capacityTier ?? undefined,
       driverId: assignedDriverId || undefined,
       bookingId,
       showAlertIfEmpty: false,
