@@ -211,6 +211,8 @@
     "photos": "Vehicle photos",
     "type": "Type",
     "class": "Class",
+    "capacityTier": "Capacity tier",
+    "capacityTierHint": "Optional — pick this to specify your vehicle's exact size",
     "model": "Model",
     "modelCatalog": "Model",
     "make": "Make",
@@ -443,6 +445,7 @@
       "estimatedPriceNote": "Final price will be confirmed by a manager. Passengers: {{pax}}, class: {{class}}.",
       "vehicleType": "Type",
       "vehicleClass": "Class",
+      "capacityTier": "Capacity tier",
       "requiredLanguages": "Required driver languages",
       "requiredLanguagesHint": "Optional. Only drivers who speak at least one selected language will be shown and notified.",
       "removeDayA11y": "Remove day",
@@ -880,6 +883,16 @@
       "beige": "Beige",
       "orange": "Orange",
       "other": "Other"
+    },
+    "capacityTier": {
+      "minivan_3_5": "3-5 seats",
+      "minivan_6_8": "6-8 seats (large minivan)",
+      "microbus_10": "10 seats",
+      "microbus_13": "13 seats",
+      "microbus_16": "16 seats",
+      "microbus_17": "17 seats",
+      "microbus_18": "18 seats",
+      "microbus_20": "20 seats"
     }
   },
   "validation": {
