@@ -201,6 +201,7 @@ export function PushNotificationListeners() {
             user.id,
             (data as { vehicle_type?: string }).vehicle_type ?? '',
             (data as { vehicle_class?: string }).vehicle_class ?? '',
+            (data as { capacity_tier?: string }).capacity_tier ?? null,
           );
           if (!matches) return;
         }
