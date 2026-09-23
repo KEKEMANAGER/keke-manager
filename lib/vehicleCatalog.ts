@@ -13,6 +13,34 @@ export type VehicleTypeCode = (typeof VEHICLE_TYPES)[number];
 export const VEHICLE_CLASSES = ['economy', 'comfort', 'vip'] as const;
 export type VehicleClassCode = (typeof VEHICLE_CLASSES)[number];
 
+/**
+ * Optional capacity sub-category, only meaningful for 'minivan' and 'microbus'.
+ * Companies pick one when booking to request an exact seat-count tier; drivers
+ * pick one on their vehicle to be matched by it. Null/unset on either side means
+ * "no preference" — matching falls back to type+class only (never a hard block).
+ */
+export const CAPACITY_TIERS_BY_TYPE: Partial<Record<VehicleTypeCode, readonly string[]>> = {
+  minivan: ['minivan_3_5', 'minivan_6_8'],
+  microbus: ['microbus_10', 'microbus_13', 'microbus_16', 'microbus_17', 'microbus_18', 'microbus_20'],
+};
+
+export const CAPACITY_TIERS = [
+  ...CAPACITY_TIERS_BY_TYPE.minivan!,
+  ...CAPACITY_TIERS_BY_TYPE.microbus!,
+] as const;
+export type CapacityTierCode = (typeof CAPACITY_TIERS)[number];
+
+export const CAPACITY_TIER_SEATS: Record<CapacityTierCode, { min: number; max: number }> = {
+  minivan_3_5: { min: 3, max: 5 },
+  minivan_6_8: { min: 6, max: 8 },
+  microbus_10: { min: 10, max: 10 },
+  microbus_13: { min: 13, max: 13 },
+  microbus_16: { min: 16, max: 16 },
+  microbus_17: { min: 17, max: 17 },
+  microbus_18: { min: 18, max: 18 },
+  microbus_20: { min: 20, max: 20 },
+};
+
 /** 'other' always sorts last — it opens a free-text field for anything not in this list. */
 export const VEHICLE_COLORS = [
   'white', 'black', 'silver', 'gray', 'blue', 'red',
@@ -46,6 +74,17 @@ const CLASS_LABELS_EN: Record<VehicleClassCode, string> = {
   economy: 'Economy',
   comfort: 'Comfort',
   vip: 'VIP',
+};
+
+const CAPACITY_TIER_LABELS_EN: Record<CapacityTierCode, string> = {
+  minivan_3_5: '3–5 seats',
+  minivan_6_8: '6–8 seats (large minivan)',
+  microbus_10: '10 seats',
+  microbus_13: '13 seats',
+  microbus_16: '16 seats',
+  microbus_17: '17 seats',
+  microbus_18: '18 seats',
+  microbus_20: '20 seats',
 };
 
 const COLOR_LABELS_EN: Record<VehicleColorCode, string> = {
@@ -170,6 +209,66 @@ export function normalizeVehicleType(raw: string | null | undefined): VehicleTyp
 
 export function normalizeVehicleClass(raw: string | null | undefined): VehicleClassCode | null {
   return lookupAlias(String(raw ?? ''), CLASS_ALIASES, VEHICLE_CLASSES);
+}
+
+/** True for vehicle types that offer a capacity sub-category picker ('minivan', 'microbus'). */
+export function vehicleTypeHasCapacityTiers(type: VehicleTypeCode | string | null | undefined): boolean {
+  const c = normalizeVehicleType(type);
+  return !!c && !!CAPACITY_TIERS_BY_TYPE[c];
+}
+
+/** Ordered tier codes for a type, or [] when that type has no sub-categories. */
+export function capacityTiersForType(type: VehicleTypeCode | string | null | undefined): CapacityTierCode[] {
+  const c = normalizeVehicleType(type);
+  if (!c) return [];
+  return (CAPACITY_TIERS_BY_TYPE[c] as CapacityTierCode[] | undefined) ?? [];
+}
+
+export function isCapacityTierCode(value: string): value is CapacityTierCode {
+  return (CAPACITY_TIERS as readonly string[]).includes(value);
+}
+
+/**
+ * Validates a tier code against a specific vehicle type when one is given (a tier
+ * must belong to that type's own list — 'minivan_3_5' is never valid for 'microbus').
+ * Without a type, any known tier code normalizes. Unknown/empty → null (never blocks).
+ */
+export function normalizeCapacityTier(
+  raw: string | null | undefined,
+  type?: VehicleTypeCode | string | null,
+): CapacityTierCode | null {
+  const trimmed = String(raw ?? '').trim().toLowerCase();
+  if (!trimmed || !isCapacityTierCode(trimmed)) return null;
+  if (type != null) {
+    const allowed = capacityTiersForType(type);
+    if (!allowed.includes(trimmed)) return null;
+  }
+  return trimmed;
+}
+
+export function capacityTierSeats(code: CapacityTierCode): { min: number; max: number } {
+  return CAPACITY_TIER_SEATS[code];
+}
+
+export function capacityTierLabel(
+  code: CapacityTierCode | string | null | undefined,
+  lang?: string,
+): string {
+  const c = isCapacityTierCode(String(code ?? '')) ? (code as CapacityTierCode) : null;
+  if (!c) return '—';
+  const row = vehicleBundle(lang ?? currentLangCode()).capacityTier as
+    | Record<string, string>
+    | undefined;
+  const fromLocale = row?.[c]?.trim();
+  if (fromLocale) return fromLocale;
+  return CAPACITY_TIER_LABELS_EN[c] ?? c;
+}
+
+/** Picker options for one vehicle type's capacity tiers ([] when that type has none). */
+export function capacityTierUiOptions(
+  type: VehicleTypeCode | string | null | undefined,
+): { value: CapacityTierCode; label: string }[] {
+  return capacityTiersForType(type).map((value) => ({ value, label: capacityTierLabel(value) }));
 }
 
 export function vehicleColorLabel(
