@@ -14,10 +14,14 @@ import {
   type TransportLegDraft,
 } from '../lib/transportPlan';
 import {
+  capacityTierLabel,
+  capacityTiersForType,
+  vehicleTypeHasCapacityTiers,
   VEHICLE_CLASSES,
   VEHICLE_TYPES,
   vehicleClassLabel,
   vehicleTypeLabel,
+  type CapacityTierCode,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../lib/vehicleCatalog';
@@ -29,6 +33,8 @@ type SingleProps = {
   onVehicleTypeChange: (t: VehicleTypeCode) => void;
   vehicleClass: VehicleClassCode;
   onVehicleClassChange: (c: VehicleClassCode) => void;
+  capacityTier: CapacityTierCode | null;
+  onCapacityTierChange: (t: CapacityTierCode | null) => void;
 };
 
 type Props = SingleProps & {
@@ -104,6 +110,42 @@ function PassengerStepper({
   );
 }
 
+function CapacityTierChipRow({
+  vehicleType,
+  value,
+  onChange,
+  compact,
+}: {
+  vehicleType: VehicleTypeCode;
+  value: string | null;
+  onChange: (v: CapacityTierCode | null) => void;
+  compact?: boolean;
+}) {
+  const { t } = useTranslation();
+  if (!vehicleTypeHasCapacityTiers(vehicleType)) return null;
+  return (
+    <>
+      <Text style={styles.fieldLabel}>{t('newBooking.form.capacityTier')}</Text>
+      <View style={styles.chipRow}>
+        {capacityTiersForType(vehicleType).map((tier) => {
+          const active = value === tier;
+          return (
+            <Pressable
+              key={tier}
+              onPress={() => onChange(active ? null : tier)}
+              style={[compact ? styles.chipSmall : styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[compact ? styles.chipTextSmall : styles.chipText, active && styles.chipTextActive]}>
+                {capacityTierLabel(tier)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
 function AddVehicleLink({ onPress, label }: { onPress: () => void; label: string }) {
   return (
     <Pressable onPress={onPress} style={styles.addVehicleLink}>
@@ -125,6 +167,8 @@ export function TransportPlanSection({
   onVehicleTypeChange,
   vehicleClass,
   onVehicleClassChange,
+  capacityTier,
+  onCapacityTierChange,
   cityHint,
   requiredLanguages,
   driverCategory,
@@ -165,7 +209,10 @@ export function TransportPlanSection({
         <InlineChipRow
           options={VEHICLE_TYPES}
           value={selectedVehicleType}
-          onChange={onVehicleTypeChange}
+          onChange={(vt) => {
+            onVehicleTypeChange(vt);
+            onCapacityTierChange(null);
+          }}
           labelFor={vehicleTypeLabel}
         />
         <Text style={styles.fieldLabel}>{t('newBooking.form.vehicleClass')}</Text>
@@ -174,6 +221,11 @@ export function TransportPlanSection({
           value={vehicleClass}
           onChange={onVehicleClassChange}
           labelFor={vehicleClassLabel}
+        />
+        <CapacityTierChipRow
+          vehicleType={selectedVehicleType}
+          value={capacityTier}
+          onChange={onCapacityTierChange}
         />
         <AddVehicleLink onPress={onAddVehicle} label={t('transportPlan.addVehicle')} />
       </View>
@@ -213,7 +265,9 @@ export function TransportPlanSection({
           <InlineChipRow
             options={VEHICLE_TYPES}
             value={leg.vehicle_type}
-            onChange={(vt) => updateLeg(leg.id, { vehicle_type: vt, ...clearLegDriver })}
+            onChange={(vt) =>
+              updateLeg(leg.id, { vehicle_type: vt, capacity_tier: null, ...clearLegDriver })
+            }
             labelFor={vehicleTypeLabel}
             compact
           />
@@ -223,6 +277,12 @@ export function TransportPlanSection({
             value={leg.vehicle_class}
             onChange={(vc) => updateLeg(leg.id, { vehicle_class: vc, ...clearLegDriver })}
             labelFor={vehicleClassLabel}
+            compact
+          />
+          <CapacityTierChipRow
+            vehicleType={leg.vehicle_type}
+            value={leg.capacity_tier}
+            onChange={(tier) => updateLeg(leg.id, { capacity_tier: tier, ...clearLegDriver })}
             compact
           />
           <AuthInput
