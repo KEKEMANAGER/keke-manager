@@ -61,13 +61,16 @@ import {
 import { isPickupSignLogoPdf } from '../../lib/pickupSignLogo';
 import {
   capacityTierLabel,
+  modelGroupLabel,
   normalizeCapacityTier,
+  normalizeModelGroup,
   normalizeVehicleClass,
   normalizeVehicleType,
   VEHICLE_TYPES,
   vehicleClassLabel,
   vehicleTypeLabel,
   type CapacityTierCode,
+  type ModelGroupCode,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
@@ -466,6 +469,7 @@ function MatchingDriversSection({
   vehicleType,
   vehicleClass,
   capacityTier,
+  modelGroup,
   requiredLanguages,
   driverCategory,
   driverTargetMode,
@@ -482,6 +486,7 @@ function MatchingDriversSection({
   vehicleType: VehicleTypeCode;
   vehicleClass: VehicleClassCode;
   capacityTier: CapacityTierCode | null;
+  modelGroup: ModelGroupCode | null;
   requiredLanguages: string[];
   driverCategory: RequestedDriverCategory;
   driverTargetMode: DriverTargetMode;
@@ -542,6 +547,7 @@ function MatchingDriversSection({
       filterByMinSeats && minPassengerCapacity > 0 ? minPassengerCapacity : null,
       { sortMode: driverTargetMode === 'all' ? 'rating' : 'name' },
       capacityTier,
+      modelGroup,
     )
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -580,6 +586,7 @@ function MatchingDriversSection({
     vehicleType,
     vehicleClass,
     capacityTier,
+    modelGroup,
     normType,
     normClass,
     requiredLanguages,
@@ -829,6 +836,7 @@ export default function NewBookingScreen() {
   const [vehicleClass, setVehicleClass] = useState<VehicleClassCode>('comfort');
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
   const [capacityTier, setCapacityTier] = useState<CapacityTierCode | null>(null);
+  const [modelGroup, setModelGroup] = useState<ModelGroupCode | null>(null);
   const [driverTargetMode, setDriverTargetMode] = useState<DriverTargetMode>('all');
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [selectedDriverVehicleId, setSelectedDriverVehicleId] = useState<string | null>(null);
@@ -845,7 +853,15 @@ export default function NewBookingScreen() {
   useEffect(() => {
     selectDriver(null, null);
     setDriverTargetMode('all');
-  }, [selectedVehicleType, vehicleClass, capacityTier, requiredLanguages, driverCategory, selectDriver]);
+  }, [
+    selectedVehicleType,
+    vehicleClass,
+    capacityTier,
+    modelGroup,
+    requiredLanguages,
+    driverCategory,
+    selectDriver,
+  ]);
 
   const [meetGreet, setMeetGreet] = useState(false);
   const [signText, setSignText] = useState('');
@@ -1008,6 +1024,7 @@ export default function NewBookingScreen() {
         vehicle_type: selectedVehicleType,
         vehicle_class: vehicleClass,
         capacity_tier: capacityTier,
+        model_group: modelGroup,
         passengers,
         price_str: clientPriceStr,
         driver_target_mode: driverTargetMode,
@@ -1025,6 +1042,7 @@ export default function NewBookingScreen() {
     selectedVehicleType,
     vehicleClass,
     capacityTier,
+    modelGroup,
     passengers,
     clientPriceStr,
     driverTargetMode,
@@ -1035,6 +1053,7 @@ export default function NewBookingScreen() {
     setSelectedVehicleType(leg.vehicle_type);
     setVehicleClass(leg.vehicle_class);
     setCapacityTier(normalizeCapacityTier(leg.capacity_tier, leg.vehicle_type));
+    setModelGroup(normalizeModelGroup(leg.model_group, leg.vehicle_type));
     setClientPriceStr(leg.price_str);
     const mode = leg.driver_target_mode ?? (leg.driver_id ? 'specific' : 'all');
     setDriverTargetMode(mode);
@@ -1168,6 +1187,7 @@ export default function NewBookingScreen() {
     setVehicleClass('comfort');
     setSelectedVehicleType(VEHICLE_TYPES[0]);
     setCapacityTier(null);
+    setModelGroup(null);
     setDriverTargetMode('all');
     selectDriver(null, null);
     setRequiredLanguages([]);
@@ -1396,6 +1416,7 @@ export default function NewBookingScreen() {
       vehicle_type: selectedVehicleType,
       vehicle_class: vehicleClass,
       requested_capacity_tier: capacityTier,
+      requested_vehicle_model_group: modelGroup,
       flight_number:
         booking_kind === 'transfer'
           ? (transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() || null
@@ -1445,6 +1466,7 @@ export default function NewBookingScreen() {
           vehicle_type: row.vehicle_type,
           vehicle_class: row.vehicle_class,
           capacity_tier: row.capacity_tier,
+          model_group: row.model_group,
           driver_id: specific ? row.driver_id : null,
           vehicle_id: specific ? row.driver_vehicle_id : null,
           price_gel: legPrice,
@@ -1521,6 +1543,8 @@ export default function NewBookingScreen() {
       onVehicleClassChange={setVehicleClass}
       capacityTier={capacityTier}
       onCapacityTierChange={setCapacityTier}
+      modelGroup={modelGroup}
+      onModelGroupChange={setModelGroup}
       cityHint={bookingCityHint}
       requiredLanguages={requiredLanguages}
       driverCategory={driverCategory}
@@ -2086,6 +2110,11 @@ export default function NewBookingScreen() {
                       {t('newBooking.form.capacityTier')}: {capacityTierLabel(capacityTier)}
                     </Text>
                   ) : null}
+                  {modelGroup ? (
+                    <Text style={styles.vLine}>
+                      {t('newBooking.form.modelGroup')}: {modelGroupLabel(modelGroup)}
+                    </Text>
+                  ) : null}
                 </>
               )}
               {booking_kind === 'dayTour' && tourRouteDescription.trim() ? (
@@ -2281,6 +2310,7 @@ export default function NewBookingScreen() {
                   vehicleType={selectedVehicleType}
                   vehicleClass={vehicleClass}
                   capacityTier={capacityTier}
+                  modelGroup={modelGroup}
                   requiredLanguages={requiredLanguages}
                   driverCategory={driverCategory}
                   driverTargetMode={driverTargetMode}
