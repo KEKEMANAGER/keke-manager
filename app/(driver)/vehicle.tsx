@@ -42,15 +42,20 @@ import {
   toggleVehicleActive,
 } from '../../lib/vehicles';
 import {
+  capacityTierLabel,
+  capacityTiersForType,
+  normalizeCapacityTier,
   normalizeVehicleClass as normalizeStoredVehicleClass,
   normalizeVehicleColor,
   normalizeVehicleType as normalizeStoredVehicleType,
+  vehicleTypeHasCapacityTiers,
   VEHICLE_CLASSES,
   VEHICLE_COLORS,
   VEHICLE_TYPES,
   vehicleClassLabel,
   vehicleColorLabel,
   vehicleTypeLabel,
+  type CapacityTierCode,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
@@ -488,6 +493,7 @@ export default function DriverVehiclePhotosScreen() {
   const [formMode, setFormMode]   = useState<FormMode>('view');
   const [editType, setEditType]   = useState<VehicleTypeCode>(VEHICLE_TYPES[0]);
   const [editClass, setEditClass] = useState<VehicleClassCode>(VEHICLE_CLASSES[0]);
+  const [editCapacityTier, setEditCapacityTier] = useState<CapacityTierCode | null>(null);
   const [editColor, setEditColor] = useState('');
   const [editYearNum, setEditYearNum] = useState<number | null>(null);
   const [editPlate, setEditPlate] = useState('');
@@ -537,8 +543,10 @@ export default function DriverVehiclePhotosScreen() {
 
   // ── Form helpers ──────────────────────────────────────────────────────────
   function populateFormFrom(v: VehicleRow) {
-    setEditType(normalizeStoredVehicleType(v.type)   ?? VEHICLE_TYPES[0]);
+    const normalizedType = normalizeStoredVehicleType(v.type) ?? VEHICLE_TYPES[0];
+    setEditType(normalizedType);
     setEditClass(normalizeStoredVehicleClass(v.class) ?? VEHICLE_CLASSES[0]);
+    setEditCapacityTier(normalizeCapacityTier(v.capacity_tier, normalizedType));
     setEditColor(v.color?.trim()  ?? '');
     setEditYearNum(v.year != null ? v.year : null);
     setEditPlate(v.plate?.trim()  ?? '');
@@ -594,6 +602,7 @@ export default function DriverVehiclePhotosScreen() {
     if (!userId) return;
     setEditType(VEHICLE_TYPES[0]);
     setEditClass(VEHICLE_CLASSES[0]);
+    setEditCapacityTier(null);
     setEditColor('');
     setEditYearNum(null);
     setEditPlate('');
@@ -687,6 +696,7 @@ export default function DriverVehiclePhotosScreen() {
     const { error } = await saveVehicleDetails(selectedId, userId, {
       type: editType,
       class: editClass,
+      capacity_tier: editCapacityTier,
       color: editColor.trim() || null,
       plate: editPlate.trim() || null,
       passenger_capacity: capacity,
@@ -715,6 +725,7 @@ export default function DriverVehiclePhotosScreen() {
     const { error } = await saveVehicleDetails(selectedId, userId, {
       type: editType,
       class: editClass,
+      capacity_tier: editCapacityTier,
       color: editColor.trim() || null,
       plate: editPlate.trim() || null,
       passenger_capacity: capacity,
@@ -1082,6 +1093,7 @@ export default function DriverVehiclePhotosScreen() {
                     key={vt}
                     onPress={() => {
                       setEditType(vt);
+                      setEditCapacityTier(null);
                       setSelectedMake(null);
                       setSelectedModel(null);
                     }}
@@ -1108,6 +1120,31 @@ export default function DriverVehiclePhotosScreen() {
                   </Pressable>
                 ))}
               </View>
+
+              {vehicleTypeHasCapacityTiers(editType) ? (
+                <>
+                  <Text style={styles.sectionLabel}>{t('vehicleScreen.capacityTier')}</Text>
+                  <Text style={styles.helperText}>{t('vehicleScreen.capacityTierHint')}</Text>
+                  <View style={styles.chipRow}>
+                    {capacityTiersForType(editType).map((tier) => (
+                      <Pressable
+                        key={tier}
+                        onPress={() => setEditCapacityTier(editCapacityTier === tier ? null : tier)}
+                        style={[styles.typeChip, editCapacityTier === tier && styles.typeChipActive]}
+                      >
+                        <Text
+                          style={[
+                            styles.typeChipText,
+                            editCapacityTier === tier && styles.typeChipTextActive,
+                          ]}
+                        >
+                          {capacityTierLabel(tier)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : null}
 
               <Text style={styles.sectionLabel}>{t('vehicleScreen.catalogSection')}</Text>
               <VehicleMakeSelect
@@ -1384,6 +1421,9 @@ const styles = StyleSheet.create({
   sectionLabel: {
     color: COLORS.goldLight, fontSize: 13, fontWeight: '700',
     marginBottom: SPACING.sm, marginTop: SPACING.sm,
+  },
+  helperText: {
+    color: COLORS.textMuted, fontSize: 12, marginTop: -4, marginBottom: SPACING.sm,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.md },
   typeChip: {
