@@ -8,6 +8,8 @@ export type TransportLegDraft = {
   vehicle_class: VehicleClassCode;
   /** Optional exact capacity sub-category (minivan/microbus only). Null = no preference. */
   capacity_tier: string | null;
+  /** Optional preferred model (e.g. 'vito', 'sprinter'; minivan/microbus only). Null = no preference. */
+  model_group: string | null;
   passengers: string;
   /** Driver / client offer for this vehicle (GEL). */
   price_str: string;
@@ -34,6 +36,7 @@ export function newTransportLeg(overrides?: Partial<TransportLegDraft>): Transpo
     vehicle_type: 'bus',
     vehicle_class: 'comfort',
     capacity_tier: null,
+    model_group: null,
     passengers: '1',
     price_str: '',
     driver_target_mode: 'all',
