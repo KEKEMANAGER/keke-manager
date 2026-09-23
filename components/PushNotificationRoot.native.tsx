@@ -202,6 +202,7 @@ export function PushNotificationListeners() {
             (data as { vehicle_type?: string }).vehicle_type ?? '',
             (data as { vehicle_class?: string }).vehicle_class ?? '',
             (data as { capacity_tier?: string }).capacity_tier ?? null,
+            (data as { model_group?: string }).model_group ?? null,
           );
           if (!matches) return;
         }
