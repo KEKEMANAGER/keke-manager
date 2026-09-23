@@ -286,6 +286,7 @@ export default function DriverBookingsScreen() {
           row?.kind ?? row?.booking_type,
           row?.driver_id,
           row?.requested_capacity_tier,
+          row?.requested_vehicle_model_group,
         );
       }
     });
