@@ -15,9 +15,12 @@ import {
 } from './driverCategory';
 import {
   normalizeCapacityTier,
+  normalizeModelGroup,
   normalizeVehicleClass,
   normalizeVehicleType,
   vehicleClassRawValues,
+  vehicleMatchesModelGroup,
+  vehicleModelGroupFromText,
   vehicleTypeRawValues,
   type VehicleClassCode,
   type VehicleTypeCode,
@@ -107,6 +110,7 @@ export type MatchingDriver = {
     plate: string | null;
     passenger_capacity: number | null;
     capacity_tier: string | null;
+    model_group: string | null;
     photo_front: string | null;
   } | null;
 };
@@ -148,12 +152,15 @@ export async function fetchMatchingDrivers(
   options?: FetchMatchingDriversOptions,
   /** Exact capacity sub-category (minivan/microbus). Null/unset = no preference, same as before this existed. */
   capacityTier?: string | null,
+  /** Preferred model (minivan/microbus, e.g. 'vito'/'sprinter'). Null/unset = no preference. */
+  modelGroup?: string | null,
 ): Promise<{ data: MatchingDriver[]; error: Error | null }> {
   const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
   const cityNorm = cityFilter?.trim() || null;
   const normType = normalizeVehicleType(vehicleType);
   const normClass = normalizeVehicleClass(vehicleClass);
   const normTier = normalizeCapacityTier(capacityTier, normType);
+  const normModelGroup = normalizeModelGroup(modelGroup, normType);
 
   const exclusions: DriverMatchExclusion[] = [];
 
@@ -483,6 +490,17 @@ export async function fetchMatchingDrivers(
       }
     }
 
+    // Preferred model (Vito/Sprinter), only when the company explicitly picked one —
+    // same "exact match required" behavior as the capacity tier check above.
+    if (normModelGroup && !vehicleMatchesModelGroup(vehicle.model, normModelGroup)) {
+      logDriverExclusion(exclusions, {
+        driverId,
+        step: '12. model group mismatch',
+        detail: { requestedModelGroup: normModelGroup },
+      });
+      continue;
+    }
+
     const profileName =
       typeof row.full_name === 'string' && row.full_name.trim()
         ? row.full_name.trim()
@@ -522,6 +540,7 @@ export async function fetchMatchingDrivers(
             passenger_capacity:
               vehicle.passenger_capacity != null ? Number(vehicle.passenger_capacity) : null,
             capacity_tier: vehicle.capacity_tier ?? null,
+            model_group: vehicleModelGroupFromText(vehicle.model),
             photo_front: firstVehiclePhotoUrl(vehicle),
           }
         : null,
