@@ -27,6 +27,8 @@ export type GroupConvoyLegPlan = {
   vehicle_class: VehicleClassCode;
   /** Optional exact capacity sub-category for this leg (minivan/microbus only). */
   capacity_tier?: string | null;
+  /** Optional preferred model for this leg (minivan/microbus only, e.g. 'vito'/'sprinter'). */
+  model_group?: string | null;
   driver_id?: string | null;
   vehicle_id?: string | null;
   price_gel?: number;
@@ -217,6 +219,7 @@ function masterToLegInsert(
     vehicle_type: leg.vehicle_type,
     vehicle_class: leg.vehicle_class,
     requested_capacity_tier: leg.capacity_tier ?? null,
+    requested_vehicle_model_group: leg.model_group ?? null,
     driver_id: leg.driver_id ?? null,
     vehicle_id: leg.vehicle_id ?? null,
     price_gel: price,
@@ -257,6 +260,7 @@ export async function createGroupConvoy(
     vehicle_type: firstLeg.vehicle_type,
     vehicle_class: firstLeg.vehicle_class,
     requested_capacity_tier: firstLeg.capacity_tier ?? null,
+    requested_vehicle_model_group: firstLeg.model_group ?? null,
     comment: master.comment?.trim()
       ? `[${groupCode}] ${master.comment.trim()}`
       : `[${groupCode}] ${legs.length} vehicles`,
@@ -412,6 +416,7 @@ export async function broadcastOpenLegs(
       requiredLanguages,
       requestedDriverCategory,
       capacityTier: leg.requested_capacity_tier ?? undefined,
+      modelGroup: leg.requested_vehicle_model_group ?? undefined,
       detailBody:
         leg.kind === 'tour'
           ? formatTourBookingNotificationBody({
