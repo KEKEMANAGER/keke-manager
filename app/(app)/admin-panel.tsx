@@ -20,6 +20,7 @@ import { AdminChatsSection } from '../../components/admin/AdminChatsSection';
 import { AdminGpsSection } from '../../components/admin/AdminGpsSection';
 import { AdminStatsSection } from '../../components/admin/AdminStatsSection';
 import { AdminAdsSection } from '../../components/admin/AdminAdsSection';
+import { AdminMotivationSection } from '../../components/admin/AdminMotivationSection';
 import { AdminTabBar, type AdminTabId } from '../../components/admin/AdminTabBar';
 import { AdminUsersSection } from '../../components/admin/AdminUsersSection';
 import { AdminVerifyPanel } from '../../components/admin/AdminVerifyPanel';
@@ -53,7 +54,7 @@ function AdminSearchInput({
   );
 }
 
-const TAB_IDS: AdminTabId[] = ['users', 'verify', 'chats', 'bookings', 'gps', 'stats', 'ads'];
+const TAB_IDS: AdminTabId[] = ['users', 'verify', 'chats', 'bookings', 'gps', 'stats', 'ads', 'motivation'];
 
 function parseTab(raw: string | string[] | undefined): AdminTabId {
   const v = Array.isArray(raw) ? raw[0] : raw;
@@ -97,6 +98,7 @@ export default function AdminPanelScreen() {
       { id: 'gps' as const, label: t('adminPanel.tabGps') },
       { id: 'stats' as const, label: t('adminPanel.tabStats') },
       { id: 'ads' as const, label: '📢 რეკლამა' },
+      { id: 'motivation' as const, label: '☀️ მოტივაცია' },
     ],
     [t, chatTabBadge],
   );
@@ -155,6 +157,7 @@ export default function AdminPanelScreen() {
       {tab === 'gps' ? <AdminGpsSection /> : null}
       {tab === 'stats' ? <AdminStatsSection /> : null}
       {tab === 'ads' ? <AdminAdsSection /> : null}
+      {tab === 'motivation' ? <AdminMotivationSection /> : null}
     </ScrollView>
   );
 }
