@@ -1,6 +1,7 @@
 import { sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
 import {
+  normalizeCapacityTier,
   normalizeVehicleClass,
   normalizeVehicleType,
   type VehicleClassCode,
@@ -220,27 +221,36 @@ export async function saveDriverBirthDate(
   return { ok: true, error: null };
 }
 
-/** Whether this driver has an active vehicle matching the booking type and class. */
+/**
+ * Whether this driver has an active vehicle matching the booking type and class
+ * (and, when the booking requested one, the exact capacity sub-category too).
+ */
 export async function driverProfileMatchesBooking(
   userId: string,
   bookingVehicleType: string,
   bookingVehicleClass: string | null | undefined,
+  bookingCapacityTier?: string | null,
 ): Promise<boolean> {
   const bookingType = normalizeVehicleType(bookingVehicleType);
   const bookingClass = normalizeVehicleClass(bookingVehicleClass ?? '');
   if (!bookingType || !bookingClass) return false;
+  const bookingTier = normalizeCapacityTier(bookingCapacityTier, bookingType);
 
   const id = userId.trim();
   if (!id) return false;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('vehicles')
     .select('id')
     .eq('driver_id', id)
     .eq('is_active', true)
     .eq('type', bookingType)
-    .eq('class', bookingClass)
-    .limit(1);
+    .eq('class', bookingClass);
+  if (bookingTier) {
+    query = query.eq('capacity_tier', bookingTier);
+  }
+
+  const { data, error } = await query.limit(1);
 
   if (error) {
     if (__DEV__) console.warn('[driverProfileMatchesBooking]', error.message);
