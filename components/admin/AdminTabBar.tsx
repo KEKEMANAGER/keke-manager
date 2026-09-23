@@ -1,7 +1,15 @@
 import { ScrollView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
-export type AdminTabId = 'users' | 'verify' | 'chats' | 'bookings' | 'gps' | 'stats' | 'ads';
+export type AdminTabId =
+  | 'users'
+  | 'verify'
+  | 'chats'
+  | 'bookings'
+  | 'gps'
+  | 'stats'
+  | 'ads'
+  | 'motivation';
 
 type TabDef = { id: AdminTabId; label: string; badge?: string | number };
 
