@@ -65,6 +65,8 @@ import { fetchActiveAds, type AdCard } from '../../lib/ads';
 import { PartnersAdsSection } from '../../components/PartnersAdsSection';
 import { HiredDriverActivePanel } from '../../components/HiredDriverActivePanel';
 import { supabase } from '../../lib/supabase';
+import { useDailyMotivation } from '../../lib/dailyMotivation';
+import { DailyMotivationModal } from '../../components/DailyMotivationModal';
 
 function formatGel(n: number) {
   return `${n.toLocaleString('ka-GE')} ₾`;
@@ -96,6 +98,7 @@ export default function DriverDashboardScreen() {
     user?.email?.split('@')[0] ??
     t('driver.defaultName');
   const userId = user?.id;
+  const dailyMotivation = useDailyMotivation(userId);
 
   const pendingPulse = useRef(new Animated.Value(1)).current;
   const activeDotOpacity = useRef(new Animated.Value(1)).current;
@@ -316,6 +319,7 @@ export default function DriverDashboardScreen() {
           row?.kind ?? row?.booking_type,
           row?.driver_id,
           row?.requested_capacity_tier,
+          row?.requested_vehicle_model_group,
         );
       }
     });
@@ -393,6 +397,7 @@ export default function DriverDashboardScreen() {
   }, [hasActive, activeDotOpacity]);
 
   return (
+    <>
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[
@@ -625,6 +630,12 @@ export default function DriverDashboardScreen() {
         </View>
       </View>
     </ScrollView>
+    <DailyMotivationModal
+      visible={dailyMotivation.visible}
+      message={dailyMotivation.message}
+      onClose={dailyMotivation.dismiss}
+    />
+    </>
   );
 }
 
