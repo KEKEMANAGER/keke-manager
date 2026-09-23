@@ -14,6 +14,7 @@ import {
   type RequestedDriverCategory,
 } from './driverCategory';
 import {
+  normalizeCapacityTier,
   normalizeVehicleClass,
   normalizeVehicleType,
   vehicleClassRawValues,
@@ -105,6 +106,7 @@ export type MatchingDriver = {
     color: string | null;
     plate: string | null;
     passenger_capacity: number | null;
+    capacity_tier: string | null;
     photo_front: string | null;
   } | null;
 };
@@ -144,11 +146,14 @@ export async function fetchMatchingDrivers(
   driverCategory?: RequestedDriverCategory | null,
   minPassengerCapacity?: number | null,
   options?: FetchMatchingDriversOptions,
+  /** Exact capacity sub-category (minivan/microbus). Null/unset = no preference, same as before this existed. */
+  capacityTier?: string | null,
 ): Promise<{ data: MatchingDriver[]; error: Error | null }> {
   const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
   const cityNorm = cityFilter?.trim() || null;
   const normType = normalizeVehicleType(vehicleType);
   const normClass = normalizeVehicleClass(vehicleClass);
+  const normTier = normalizeCapacityTier(capacityTier, normType);
 
   const exclusions: DriverMatchExclusion[] = [];
 
@@ -180,7 +185,7 @@ export async function fetchMatchingDrivers(
   const vehiclesRes = await supabase
     .from('vehicles')
     .select(
-      'id, driver_id, type, class, model, year, color, plate, passenger_capacity, photo_front, photo_left, photo_right, photo_interior, photo_rear, photo_meta, is_active, is_verified, verification_status',
+      'id, driver_id, type, class, model, year, color, plate, passenger_capacity, capacity_tier, photo_front, photo_left, photo_right, photo_interior, photo_rear, photo_meta, is_active, is_verified, verification_status',
     )
     .in('type', typeVariants)
     .in('class', classVariants)
@@ -227,6 +232,7 @@ export async function fetchMatchingDrivers(
     color?: string | null;
     plate?: string | null;
     passenger_capacity?: number | null;
+    capacity_tier?: string | null;
     photo_front?: string | null;
     photo_left?: string | null;
     photo_right?: string | null;
@@ -462,6 +468,21 @@ export async function fetchMatchingDrivers(
       }
     }
 
+    // Exact capacity sub-category, only when the company explicitly picked one.
+    // Unlike the min-seats floor above, this is a real "exactly this category"
+    // request — a vehicle with no tier set (or a different tier) does not match.
+    if (normTier) {
+      const vehicleTier = normalizeCapacityTier(vehicle.capacity_tier, normType);
+      if (vehicleTier !== normTier) {
+        logDriverExclusion(exclusions, {
+          driverId,
+          step: '11. capacity tier mismatch',
+          detail: { vehicleTier, requestedTier: normTier },
+        });
+        continue;
+      }
+    }
+
     const profileName =
       typeof row.full_name === 'string' && row.full_name.trim()
         ? row.full_name.trim()
@@ -500,6 +521,7 @@ export async function fetchMatchingDrivers(
             plate: vehicle.plate ?? null,
             passenger_capacity:
               vehicle.passenger_capacity != null ? Number(vehicle.passenger_capacity) : null,
+            capacity_tier: vehicle.capacity_tier ?? null,
             photo_front: firstVehiclePhotoUrl(vehicle),
           }
         : null,
