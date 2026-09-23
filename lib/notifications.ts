@@ -21,6 +21,7 @@ import { formatTourBookingNotificationBody } from './tourDays';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
 import {
+  normalizeCapacityTier,
   normalizeVehicleClass,
   normalizeVehicleType,
   vehicleClassLabel,
@@ -203,6 +204,8 @@ export async function fetchMatchingDriverPushRecipients(
   availability?: BookingScheduleInput | null,
   requiredLanguages?: string[] | null,
   driverCategory?: RequestedDriverCategory | null,
+  /** Exact capacity sub-category (minivan/microbus). Null/unset = no preference — same as before this existed. */
+  bookingCapacityTier?: string | null,
 ): Promise<{
   recipients: DriverPushRecipient[];
   error: Error | null;
@@ -214,6 +217,7 @@ export async function fetchMatchingDriverPushRecipients(
     bookingVehicleClass ?? '',
   );
   const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
+  const capacityTier = normalizeCapacityTier(bookingCapacityTier, vehicleType);
 
   if (!vehicleType) {
     return {
@@ -233,7 +237,7 @@ export async function fetchMatchingDriverPushRecipients(
     };
   }
 
-  const { data: vehicleRows, error: vehiclesError } = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
     .select('id, driver_id')
     .eq('is_active', true)
@@ -241,6 +245,10 @@ export async function fetchMatchingDriverPushRecipients(
     .eq('verification_status', 'approved')
     .eq('type', vehicleType)
     .eq('class', vehicleClass);
+  if (capacityTier) {
+    vehiclesQuery = vehiclesQuery.eq('capacity_tier', capacityTier);
+  }
+  const { data: vehicleRows, error: vehiclesError } = await vehiclesQuery;
 
   if (vehiclesError) {
     if (__DEV__) console.warn('[notify] vehicles filter query failed:', vehiclesError.message);
@@ -430,6 +438,8 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   kind: string;
   vehicleType: string;
   vehicleClass?: string | null;
+  /** Exact capacity sub-category (minivan/microbus). Null/unset = no preference. */
+  capacityTier?: string | null;
   /** When set, notify only this driver (not all matching). */
   driverId?: string | null;
   bookingId?: string;
@@ -447,6 +457,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     params.vehicleType,
     params.vehicleClass ?? '',
   );
+  const capacityTier = normalizeCapacityTier(params.capacityTier, vehicleType);
 
   const emptyResult = (message: string): NotifyMatchingDriversResult => ({
     tokenCount: 0,
@@ -483,6 +494,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
         params.availability,
         params.requiredLanguages,
         params.requestedDriverCategory,
+        params.capacityTier,
       );
 
   if (error) {
@@ -519,6 +531,9 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   };
   if (vehicleClass) {
     data.vehicle_class = vehicleClass;
+  }
+  if (capacityTier) {
+    data.capacity_tier = capacityTier;
   }
   if (params.bookingId) {
     data.booking_id = params.bookingId;
