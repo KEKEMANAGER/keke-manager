@@ -41,6 +41,32 @@ export const CAPACITY_TIER_SEATS: Record<CapacityTierCode, { min: number; max: n
   microbus_20: { min: 20, max: 20 },
 };
 
+/**
+ * Optional preferred-model filter, only meaningful for 'minivan' and 'microbus'.
+ * Most companies specifically want a Mercedes-Benz Vito (minivan) or a Mercedes-Benz
+ * Sprinter (microbus) over any other model in that capacity class — other models
+ * don't matter much to them. This is derived from the vehicle's own free-text
+ * `model` field (e.g. "Mercedes-Benz Vans Vito Tourer", "Mercedes-Benz Sprinter
+ * Sprinter Passenger") via simple keyword matching, so no new column on `vehicles`
+ * is needed — drivers already pick their real make/model on registration.
+ * Null/unset on the booking side means "no preference" (never a hard block).
+ */
+export const MODEL_GROUPS_BY_TYPE: Partial<Record<VehicleTypeCode, readonly string[]>> = {
+  minivan: ['vito'],
+  microbus: ['sprinter'],
+};
+
+export const MODEL_GROUPS = [
+  ...MODEL_GROUPS_BY_TYPE.minivan!,
+  ...MODEL_GROUPS_BY_TYPE.microbus!,
+] as const;
+export type ModelGroupCode = (typeof MODEL_GROUPS)[number];
+
+const MODEL_GROUP_KEYWORDS: Record<ModelGroupCode, string> = {
+  vito: 'vito',
+  sprinter: 'sprinter',
+};
+
 /** 'other' always sorts last — it opens a free-text field for anything not in this list. */
 export const VEHICLE_COLORS = [
   'white', 'black', 'silver', 'gray', 'blue', 'red',
@@ -85,6 +111,11 @@ const CAPACITY_TIER_LABELS_EN: Record<CapacityTierCode, string> = {
   microbus_17: '17 seats',
   microbus_18: '18 seats',
   microbus_20: '20 seats',
+};
+
+const MODEL_GROUP_LABELS_EN: Record<ModelGroupCode, string> = {
+  vito: 'Vito',
+  sprinter: 'Sprinter',
 };
 
 const COLOR_LABELS_EN: Record<VehicleColorCode, string> = {
@@ -269,6 +300,81 @@ export function capacityTierUiOptions(
   type: VehicleTypeCode | string | null | undefined,
 ): { value: CapacityTierCode; label: string }[] {
   return capacityTiersForType(type).map((value) => ({ value, label: capacityTierLabel(value) }));
+}
+
+/** True for vehicle types that offer a preferred-model picker ('minivan', 'microbus'). */
+export function vehicleTypeHasModelGroups(type: VehicleTypeCode | string | null | undefined): boolean {
+  const c = normalizeVehicleType(type);
+  return !!c && !!MODEL_GROUPS_BY_TYPE[c];
+}
+
+/** Ordered model-group codes for a type, or [] when that type has none. */
+export function modelGroupsForType(type: VehicleTypeCode | string | null | undefined): ModelGroupCode[] {
+  const c = normalizeVehicleType(type);
+  if (!c) return [];
+  return (MODEL_GROUPS_BY_TYPE[c] as ModelGroupCode[] | undefined) ?? [];
+}
+
+export function isModelGroupCode(value: string): value is ModelGroupCode {
+  return (MODEL_GROUPS as readonly string[]).includes(value);
+}
+
+/**
+ * Validates a model-group code against a specific vehicle type when one is given.
+ * Without a type, any known code normalizes. Unknown/empty → null (never blocks).
+ */
+export function normalizeModelGroup(
+  raw: string | null | undefined,
+  type?: VehicleTypeCode | string | null,
+): ModelGroupCode | null {
+  const trimmed = String(raw ?? '').trim().toLowerCase();
+  if (!trimmed || !isModelGroupCode(trimmed)) return null;
+  if (type != null) {
+    const allowed = modelGroupsForType(type);
+    if (!allowed.includes(trimmed)) return null;
+  }
+  return trimmed;
+}
+
+export function modelGroupLabel(
+  code: ModelGroupCode | string | null | undefined,
+  lang?: string,
+): string {
+  const c = isModelGroupCode(String(code ?? '')) ? (code as ModelGroupCode) : null;
+  if (!c) return '—';
+  const row = vehicleBundle(lang ?? currentLangCode()).modelGroup as
+    | Record<string, string>
+    | undefined;
+  const fromLocale = row?.[c]?.trim();
+  if (fromLocale) return fromLocale;
+  return MODEL_GROUP_LABELS_EN[c] ?? c;
+}
+
+/** Picker options for one vehicle type's model groups ([] when that type has none). */
+export function modelGroupUiOptions(
+  type: VehicleTypeCode | string | null | undefined,
+): { value: ModelGroupCode; label: string }[] {
+  return modelGroupsForType(type).map((value) => ({ value, label: modelGroupLabel(value) }));
+}
+
+/** Derives a vehicle's model group (if any) from its free-text `model` field via keyword match. */
+export function vehicleModelGroupFromText(modelText: string | null | undefined): ModelGroupCode | null {
+  const lower = String(modelText ?? '').trim().toLowerCase();
+  if (!lower) return null;
+  for (const group of MODEL_GROUPS) {
+    if (lower.includes(MODEL_GROUP_KEYWORDS[group])) return group;
+  }
+  return null;
+}
+
+/** True when a vehicle's model text satisfies a requested model group — always true
+ *  when no group was requested (this filter never hard-blocks). */
+export function vehicleMatchesModelGroup(
+  modelText: string | null | undefined,
+  requestedGroup: ModelGroupCode | null,
+): boolean {
+  if (!requestedGroup) return true;
+  return vehicleModelGroupFromText(modelText) === requestedGroup;
 }
 
 export function vehicleColorLabel(
