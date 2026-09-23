@@ -2,8 +2,10 @@ import { sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
 import {
   normalizeCapacityTier,
+  normalizeModelGroup,
   normalizeVehicleClass,
   normalizeVehicleType,
+  vehicleMatchesModelGroup,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from './vehicleCatalog';
@@ -223,25 +225,28 @@ export async function saveDriverBirthDate(
 
 /**
  * Whether this driver has an active vehicle matching the booking type and class
- * (and, when the booking requested one, the exact capacity sub-category too).
+ * (and, when the booking requested one, the exact capacity sub-category and/or
+ * preferred model too).
  */
 export async function driverProfileMatchesBooking(
   userId: string,
   bookingVehicleType: string,
   bookingVehicleClass: string | null | undefined,
   bookingCapacityTier?: string | null,
+  bookingModelGroup?: string | null,
 ): Promise<boolean> {
   const bookingType = normalizeVehicleType(bookingVehicleType);
   const bookingClass = normalizeVehicleClass(bookingVehicleClass ?? '');
   if (!bookingType || !bookingClass) return false;
   const bookingTier = normalizeCapacityTier(bookingCapacityTier, bookingType);
+  const bookingModelGroupNorm = normalizeModelGroup(bookingModelGroup, bookingType);
 
   const id = userId.trim();
   if (!id) return false;
 
   let query = supabase
     .from('vehicles')
-    .select('id')
+    .select('id, model')
     .eq('driver_id', id)
     .eq('is_active', true)
     .eq('type', bookingType)
@@ -250,12 +255,14 @@ export async function driverProfileMatchesBooking(
     query = query.eq('capacity_tier', bookingTier);
   }
 
-  const { data, error } = await query.limit(1);
+  const { data, error } = await query;
 
   if (error) {
     if (__DEV__) console.warn('[driverProfileMatchesBooking]', error.message);
     return false;
   }
 
-  return (data?.length ?? 0) > 0;
+  const rows = (data ?? []) as { id: string; model: string | null }[];
+  if (!bookingModelGroupNorm) return rows.length > 0;
+  return rows.some((row) => vehicleMatchesModelGroup(row.model, bookingModelGroupNorm));
 }
