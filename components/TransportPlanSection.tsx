@@ -16,12 +16,16 @@ import {
 import {
   capacityTierLabel,
   capacityTiersForType,
+  modelGroupLabel,
+  modelGroupsForType,
   vehicleTypeHasCapacityTiers,
+  vehicleTypeHasModelGroups,
   VEHICLE_CLASSES,
   VEHICLE_TYPES,
   vehicleClassLabel,
   vehicleTypeLabel,
   type CapacityTierCode,
+  type ModelGroupCode,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../lib/vehicleCatalog';
@@ -35,6 +39,8 @@ type SingleProps = {
   onVehicleClassChange: (c: VehicleClassCode) => void;
   capacityTier: CapacityTierCode | null;
   onCapacityTierChange: (t: CapacityTierCode | null) => void;
+  modelGroup: ModelGroupCode | null;
+  onModelGroupChange: (m: ModelGroupCode | null) => void;
 };
 
 type Props = SingleProps & {
@@ -146,6 +152,42 @@ function CapacityTierChipRow({
   );
 }
 
+function ModelGroupChipRow({
+  vehicleType,
+  value,
+  onChange,
+  compact,
+}: {
+  vehicleType: VehicleTypeCode;
+  value: string | null;
+  onChange: (v: ModelGroupCode | null) => void;
+  compact?: boolean;
+}) {
+  const { t } = useTranslation();
+  if (!vehicleTypeHasModelGroups(vehicleType)) return null;
+  return (
+    <>
+      <Text style={styles.fieldLabel}>{t('newBooking.form.modelGroup')}</Text>
+      <View style={styles.chipRow}>
+        {modelGroupsForType(vehicleType).map((group) => {
+          const active = value === group;
+          return (
+            <Pressable
+              key={group}
+              onPress={() => onChange(active ? null : group)}
+              style={[compact ? styles.chipSmall : styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[compact ? styles.chipTextSmall : styles.chipText, active && styles.chipTextActive]}>
+                {modelGroupLabel(group)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </>
+  );
+}
+
 function AddVehicleLink({ onPress, label }: { onPress: () => void; label: string }) {
   return (
     <Pressable onPress={onPress} style={styles.addVehicleLink}>
@@ -169,6 +211,8 @@ export function TransportPlanSection({
   onVehicleClassChange,
   capacityTier,
   onCapacityTierChange,
+  modelGroup,
+  onModelGroupChange,
   cityHint,
   requiredLanguages,
   driverCategory,
@@ -212,6 +256,7 @@ export function TransportPlanSection({
           onChange={(vt) => {
             onVehicleTypeChange(vt);
             onCapacityTierChange(null);
+            onModelGroupChange(null);
           }}
           labelFor={vehicleTypeLabel}
         />
@@ -226,6 +271,11 @@ export function TransportPlanSection({
           vehicleType={selectedVehicleType}
           value={capacityTier}
           onChange={onCapacityTierChange}
+        />
+        <ModelGroupChipRow
+          vehicleType={selectedVehicleType}
+          value={modelGroup}
+          onChange={onModelGroupChange}
         />
         <AddVehicleLink onPress={onAddVehicle} label={t('transportPlan.addVehicle')} />
       </View>
@@ -266,7 +316,12 @@ export function TransportPlanSection({
             options={VEHICLE_TYPES}
             value={leg.vehicle_type}
             onChange={(vt) =>
-              updateLeg(leg.id, { vehicle_type: vt, capacity_tier: null, ...clearLegDriver })
+              updateLeg(leg.id, {
+                vehicle_type: vt,
+                capacity_tier: null,
+                model_group: null,
+                ...clearLegDriver,
+              })
             }
             labelFor={vehicleTypeLabel}
             compact
@@ -283,6 +338,12 @@ export function TransportPlanSection({
             vehicleType={leg.vehicle_type}
             value={leg.capacity_tier}
             onChange={(tier) => updateLeg(leg.id, { capacity_tier: tier, ...clearLegDriver })}
+            compact
+          />
+          <ModelGroupChipRow
+            vehicleType={leg.vehicle_type}
+            value={leg.model_group}
+            onChange={(group) => updateLeg(leg.id, { model_group: group, ...clearLegDriver })}
             compact
           />
           <AuthInput
