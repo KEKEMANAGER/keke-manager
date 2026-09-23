@@ -22,9 +22,11 @@ import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
 import {
   normalizeCapacityTier,
+  normalizeModelGroup,
   normalizeVehicleClass,
   normalizeVehicleType,
   vehicleClassLabel,
+  vehicleMatchesModelGroup,
   vehicleTypeLabel,
   type VehicleClassCode,
   type VehicleTypeCode,
@@ -206,6 +208,8 @@ export async function fetchMatchingDriverPushRecipients(
   driverCategory?: RequestedDriverCategory | null,
   /** Exact capacity sub-category (minivan/microbus). Null/unset = no preference — same as before this existed. */
   bookingCapacityTier?: string | null,
+  /** Preferred model (minivan/microbus, e.g. 'vito'/'sprinter'). Null/unset = no preference. */
+  bookingModelGroup?: string | null,
 ): Promise<{
   recipients: DriverPushRecipient[];
   error: Error | null;
@@ -218,6 +222,7 @@ export async function fetchMatchingDriverPushRecipients(
   );
   const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
   const capacityTier = normalizeCapacityTier(bookingCapacityTier, vehicleType);
+  const modelGroup = normalizeModelGroup(bookingModelGroup, vehicleType);
 
   if (!vehicleType) {
     return {
@@ -239,7 +244,7 @@ export async function fetchMatchingDriverPushRecipients(
 
   let vehiclesQuery = supabase
     .from('vehicles')
-    .select('id, driver_id')
+    .select('id, driver_id, model')
     .eq('is_active', true)
     .eq('is_verified', true)
     .eq('verification_status', 'approved')
@@ -248,12 +253,19 @@ export async function fetchMatchingDriverPushRecipients(
   if (capacityTier) {
     vehiclesQuery = vehiclesQuery.eq('capacity_tier', capacityTier);
   }
-  const { data: vehicleRows, error: vehiclesError } = await vehiclesQuery;
+  const { data: vehicleRowsRaw, error: vehiclesError } = await vehiclesQuery;
 
   if (vehiclesError) {
     if (__DEV__) console.warn('[notify] vehicles filter query failed:', vehiclesError.message);
     return { recipients: [], error: new Error(vehiclesError.message), vehicleType, vehicleClass };
   }
+
+  // Model group is a free-text keyword match (not a DB column), so it's filtered here.
+  const vehicleRows = modelGroup
+    ? (vehicleRowsRaw ?? []).filter((row) =>
+        vehicleMatchesModelGroup((row as { model?: string | null }).model, modelGroup),
+      )
+    : vehicleRowsRaw;
 
   const hostDriverIds = [
     ...new Set(
@@ -440,6 +452,8 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   vehicleClass?: string | null;
   /** Exact capacity sub-category (minivan/microbus). Null/unset = no preference. */
   capacityTier?: string | null;
+  /** Preferred model (minivan/microbus, e.g. 'vito'/'sprinter'). Null/unset = no preference. */
+  modelGroup?: string | null;
   /** When set, notify only this driver (not all matching). */
   driverId?: string | null;
   bookingId?: string;
@@ -458,6 +472,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     params.vehicleClass ?? '',
   );
   const capacityTier = normalizeCapacityTier(params.capacityTier, vehicleType);
+  const modelGroup = normalizeModelGroup(params.modelGroup, vehicleType);
 
   const emptyResult = (message: string): NotifyMatchingDriversResult => ({
     tokenCount: 0,
@@ -495,6 +510,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
         params.requiredLanguages,
         params.requestedDriverCategory,
         params.capacityTier,
+        params.modelGroup,
       );
 
   if (error) {
@@ -534,6 +550,9 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   }
   if (capacityTier) {
     data.capacity_tier = capacityTier;
+  }
+  if (modelGroup) {
+    data.model_group = modelGroup;
   }
   if (params.bookingId) {
     data.booking_id = params.bookingId;
