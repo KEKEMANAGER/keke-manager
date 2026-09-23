@@ -57,6 +57,7 @@ export async function notifyNewOpenBookingIfMatchesDriver(
   _bookingKind?: string | null,
   _bookingDriverId?: string | null,
   _bookingCapacityTier?: string | null,
+  _bookingModelGroup?: string | null,
 ): Promise<void> {
   return;
 }
