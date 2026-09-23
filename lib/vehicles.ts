@@ -1,6 +1,6 @@
 import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
-import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
+import { normalizeCapacityTier, normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 import {
   vehicleCanActivate,
   vehicleIsApproved,
@@ -40,13 +40,14 @@ export type VehicleRow = {
   make_id: number | null;
   model_id: number | null;
   passenger_capacity: number | null;
+  capacity_tier: string | null;
   is_verified: boolean | null;
   updated_at: string;
   photo_meta: VehiclePhotoMeta | null;
 };
 
 const VEHICLE_SELECT =
-  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,photo_meta,tech_passport_front,tech_passport_back,verification_status,rejection_reason,type,class,model,color,year,plate,make_id,model_id,passenger_capacity,is_verified,updated_at';
+  'id,driver_id,is_active,photo_front,photo_left,photo_right,photo_interior,photo_rear,photo_meta,tech_passport_front,tech_passport_back,verification_status,rejection_reason,type,class,model,color,year,plate,make_id,model_id,passenger_capacity,capacity_tier,is_verified,updated_at';
 
 function normalizeVehicleRow(raw: Record<string, unknown>): VehicleRow {
   const isVerified = raw.is_verified === true;
@@ -178,6 +179,7 @@ export async function insertVehicle(
     make_id?: number | null;
     model_id?: number | null;
     passenger_capacity?: number | null;
+    capacity_tier?: string | null;
   },
 ): Promise<{ data: VehicleRow | null; error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
@@ -340,6 +342,7 @@ function normalizeVehicleDbFields(fields: {
   make_id?: number | null;
   model_id?: number | null;
   passenger_capacity?: number | null;
+  capacity_tier?: string | null;
 }): { fields: typeof fields; error: Error | null } {
   const out = { ...fields };
   if (fields.passenger_capacity != null) {
@@ -359,6 +362,12 @@ function normalizeVehicleDbFields(fields: {
     if (!n) return { fields: out, error: new Error('აირჩიეთ კლასი') };
     out.class = n;
   }
+  // Optional — never required. Silently dropped (not rejected) when it doesn't match
+  // the vehicle's own type (e.g. type switched away from minivan/microbus in the same
+  // save) so a stale tier from the previous type can never persist against the new one.
+  if (fields.capacity_tier !== undefined) {
+    out.capacity_tier = normalizeCapacityTier(fields.capacity_tier, out.type ?? undefined);
+  }
   return { fields: out, error: null };
 }
 
@@ -376,6 +385,7 @@ export async function saveVehicleDetails(
     make_id?: number | null;
     model_id?: number | null;
     passenger_capacity?: number | null;
+    capacity_tier?: string | null;
   },
 ): Promise<{ error: Error | null }> {
   const { fields: normalizedFields, error: normErr } = normalizeVehicleDbFields(fields);
