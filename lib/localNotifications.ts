@@ -82,6 +82,7 @@ export async function notifyNewOpenBookingIfMatchesDriver(
   bookingKind?: string | null,
   bookingDriverId?: string | null,
   bookingCapacityTier?: string | null,
+  bookingModelGroup?: string | null,
 ): Promise<void> {
   if (isWeb || !driverUserId.trim()) return;
 
@@ -91,7 +92,13 @@ export async function notifyNewOpenBookingIfMatchesDriver(
   }
 
   const [ownVehicle, fleetVehicle] = await Promise.all([
-    driverProfileMatchesBooking(driverUserId, bookingVehicleType, bookingVehicleClass, bookingCapacityTier),
+    driverProfileMatchesBooking(
+      driverUserId,
+      bookingVehicleType,
+      bookingVehicleClass,
+      bookingCapacityTier,
+      bookingModelGroup,
+    ),
     fleetAssignedVehicleMatchesBooking(driverUserId, bookingVehicleType, bookingVehicleClass),
   ]);
   if (!ownVehicle && !fleetVehicle) {
