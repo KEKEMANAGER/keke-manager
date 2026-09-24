@@ -1,4 +1,7 @@
 {
+  "dailyMotivation": {
+    "title": "დღის შეტყობინება"
+  },
   "common": {
     "signIn": "შესვლა",
     "signUp": "რეგისტრაცია",
@@ -446,6 +449,7 @@
       "vehicleType": "ტიპი",
       "vehicleClass": "კლასი",
       "capacityTier": "კატეგორია (ტევადობა)",
+      "modelGroup": "სასურველი მოდელი",
       "requiredLanguages": "მძღოლის ენები",
       "requiredLanguagesHint": "არასავალდებულო. მხოლოდ ის მძღოლები გამოჩნდება და მიიღებენ შეტყობინებას, ვინც მაინც ერთ არჩეულ ენაზე საუბრობს.",
       "removeDayA11y": "დღის წაშლა",
@@ -893,6 +897,10 @@
       "microbus_17": "17 კაცი",
       "microbus_18": "18 კაცი",
       "microbus_20": "20 კაცი"
+    },
+    "modelGroup": {
+      "vito": "ვიტო",
+      "sprinter": "სპრინტერი"
     }
   },
   "validation": {
