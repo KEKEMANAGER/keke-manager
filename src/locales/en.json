@@ -1,4 +1,7 @@
 {
+  "dailyMotivation": {
+    "title": "Message of the day"
+  },
   "common": {
     "signIn": "Sign in",
     "signUp": "Register",
@@ -446,6 +449,7 @@
       "vehicleType": "Type",
       "vehicleClass": "Class",
       "capacityTier": "Capacity tier",
+      "modelGroup": "Preferred model",
       "requiredLanguages": "Required driver languages",
       "requiredLanguagesHint": "Optional. Only drivers who speak at least one selected language will be shown and notified.",
       "removeDayA11y": "Remove day",
@@ -893,6 +897,10 @@
       "microbus_17": "17 seats",
       "microbus_18": "18 seats",
       "microbus_20": "20 seats"
+    },
+    "modelGroup": {
+      "vito": "Vito",
+      "sprinter": "Sprinter"
     }
   },
   "validation": {
