@@ -1,4 +1,7 @@
 {
+  "dailyMotivation": {
+    "title": "Сообщение дня"
+  },
   "common": {
     "signIn": "Вход",
     "signUp": "Регистрация",
@@ -434,6 +437,7 @@
       "vehicleType": "Тип",
       "vehicleClass": "Класс",
       "capacityTier": "Категория вместимости",
+      "modelGroup": "Предпочтительная модель",
       "requiredLanguages": "Языки водителя",
       "requiredLanguagesHint": "Необязательно. Показываются и уведомляются только водители, говорящие хотя бы на одном выбранном языке.",
       "removeDayA11y": "Удалить день",
@@ -738,6 +742,10 @@
       "microbus_17": "17 мест",
       "microbus_18": "18 мест",
       "microbus_20": "20 мест"
+    },
+    "modelGroup": {
+      "vito": "Vito",
+      "sprinter": "Sprinter"
     }
   },
   "validation": {
