@@ -19,7 +19,7 @@ export type SeoMetaEntry = {
 
 export const SEO_META: Record<SeoLang, SeoMetaEntry> = {
   ka: {
-    title: 'KEKE Manager — ტურ ოპერატორებისა და მძღოლების მართვის პლათფორმა | საქართველო',
+    title: 'KEKE Manager — ტურ ოპერატორებისა და მძღოლების მართვის პლატფორმა | საქართველო',
     description:
       'საქართველოს პირველი B2B პლატფორმა ტურ ოპერატორებისა და მძღოლებისთვის. ჯავშნები, GPS ტრეკინგი, ციფრული ვაუჩერი, ფლოტის მართვა — ერთ აპში. ტურ კომპანიებისთვის უფასო.',
     keywords:
@@ -43,7 +43,7 @@ export const SEO_META: Record<SeoLang, SeoMetaEntry> = {
     ogLocale: 'ru_RU',
   },
   hy: {
-    title: 'KEKE Manager — B2B հարթակ տուրիստական տրանսպортի համար',
+    title: 'KEKE Manager — B2B հարթակ տուրիստական տրանսպորտի համար',
     description:
       'B2B էկոհամակարգ տուրիստական ընկերությունների, գիդ-վարորդների և ֆլոտի սեփականատերերի համար։ Ամրագրումներ, GPS, վարկանիշներ, 33 լեզու։',
     keywords:

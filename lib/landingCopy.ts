@@ -76,7 +76,7 @@ export type LandingCopy = {
 };
 
 const EN: LandingCopy = {
-  metaTitle: 'KEKE Manager — B2B tourism ecosystem',
+  metaTitle: 'KEKE Manager — B2B Platform for Tourist Transport in Georgia',
   metaDescription:
     'One platform for tourism companies, guide-drivers, hosts with own vehicles, and drivers seeking work. Bookings, GPS, vouchers, chat.',
   navHome: 'Home',
@@ -85,7 +85,7 @@ const EN: LandingCopy = {
   navContact: 'Contact',
   signIn: 'Sign in',
   signUp: 'Register',
-  heroBadge: 'B2B ecosystem in tourism',
+  heroBadge: 'B2B tourist transport platform',
   heroTitle1: 'One platform,',
   heroTitle2: 'unlimited possibilities',
   heroSubtitle:
@@ -157,7 +157,7 @@ const EN: LandingCopy = {
 
 const KA: LandingCopy = {
   ...EN,
-  metaTitle: 'KEKE Manager — B2B ეკოსისტემა ტურიზმში',
+  metaTitle: 'KEKE Manager — ტურ ოპერატორებისა და მძღოლების მართვის პლატფორმა | საქართველო',
   metaDescription:
     'ერთი პლატფორმა ტურისტული კომპანიებისთვის, გიდ-მძღოლებისთვის, ჰოსტებისთვის და მძღოლებისთვის. ჯავშნები, GPS, ვაუჩერი, ჩატი.',
   navHome: 'მთავარი',
@@ -166,7 +166,7 @@ const KA: LandingCopy = {
   navContact: 'კონტაქტი',
   signIn: 'შესვლა',
   signUp: 'დარეგისტრირდი',
-  heroBadge: 'B2B ეკოსისტემა ტურიზმში',
+  heroBadge: 'B2B ტურისტული სატრანსპორტო პლატფორმა',
   heroTitle1: 'ერთი პლატფორმა,',
   heroTitle2: 'უსაზღვრო შესაძლებლობები',
   heroSubtitle:
@@ -230,7 +230,7 @@ const KA: LandingCopy = {
   footerCeo: 'Akaki Kachibaia — CEO & FOUNDER',
   footerCofounder: 'Ani Kekelia — CO-FOUNDER',
   footerContact: 'დაგვიკავშირდით',
-  footerSupportChat: 'საფორტი ჩათი აპში',
+  footerSupportChat: 'სუპორტი ჩატში',
   footerRights: '© 2025 KEKE Manager',
   footerPrivacy: 'კონფიდენციალურობა',
   footerTerms: 'წესები',
@@ -238,7 +238,7 @@ const KA: LandingCopy = {
 
 const RU: LandingCopy = {
   ...EN,
-  metaTitle: 'KEKE Manager — B2B экосистема в туризме',
+  metaTitle: 'KEKE Manager — B2B платформа для туристического транспорта в Грузии',
   metaDescription:
     'Одна платформа для туристических компаний, гид-водителей, хостов и водителей в поиске работы. Бронирования, GPS, ваучеры, чат.',
   navHome: 'Главная',
@@ -247,7 +247,7 @@ const RU: LandingCopy = {
   navContact: 'Контакты',
   signIn: 'Войти',
   signUp: 'Регистрация',
-  heroBadge: 'B2B экосистема в туризме',
+  heroBadge: 'B2B платформа туристического транспорта',
   heroTitle1: 'Одна платформа,',
   heroTitle2: 'безграничные возможности',
   heroSubtitle:
@@ -317,7 +317,7 @@ const RU: LandingCopy = {
 
 const HY: LandingCopy = {
   ...EN,
-  metaTitle: 'KEKE Manager — B2B տուրիստական էկոհամակարգ',
+  metaTitle: 'KEKE Manager — B2B հարթակ տուրիստական տրանսպորտի համար',
   metaDescription:
     'Մեկ հարթակ տուրիստական ընկերությունների, գիդ-վարորդների, հոստերի և աշխատանք փնտրող վարորդների համար։ Ամրագրումներ, GPS, վաուչերներ, չատ։',
   navHome: 'Գլխավոր',
@@ -326,7 +326,7 @@ const HY: LandingCopy = {
   navContact: 'Կապ',
   signIn: 'Մուտք',
   signUp: 'Գրանցվել',
-  heroBadge: 'B2B էկոհամակարգ տուրիզմում',
+  heroBadge: 'B2B տուրիստական տրանսպորտի հարթակ',
   heroTitle1: 'Մեկ հարթակ,',
   heroTitle2: 'անսահմանափակ հնարավորություններ',
   heroSubtitle:
