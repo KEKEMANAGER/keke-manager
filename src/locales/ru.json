@@ -51,7 +51,8 @@
     "success": "Успех",
     "error": "Ошибка",
     "openSettings": "Открыть настройки",
-    "permissionDeniedSettingsBody": "Доступ был запрещён навсегда. Откройте настройки, чтобы разрешить доступ для KEKE Manager."
+    "permissionDeniedSettingsBody": "Доступ был запрещён навсегда. Откройте настройки, чтобы разрешить доступ для KEKE Manager.",
+    "ok": "ОК"
   },
   "bookings": {
     "title": "Заказы",
@@ -617,7 +618,8 @@
     "experienceYears": "{{years}} лет опыта",
     "driverInfoNotFound": "Информация о водителе не найдена",
     "hostLabel": "Хост",
-    "operatorsOnTrip": "В туре работают"
+    "operatorsOnTrip": "В туре работают",
+    "importBookingLink": "Из файла"
   },
   "companyOnboarding": {
     "skip": "Пропустить",
@@ -1761,5 +1763,84 @@
     "fuelNotIncluded": "Топливо не включено — оплачивается отдельно",
     "overnightByCompany": "Ночлег организует компания",
     "overnightByKeke": "Ночлег организует KEKE Manager"
+  },
+  "tourDays": {
+    "title": "Дни тура",
+    "day": "День {{n}}",
+    "stateClosed": "Закрыт",
+    "stateReady": "Можно закрыть",
+    "stateWaiting": "Ожидает",
+    "closeDay": "Закрыть день",
+    "edit": "Исправить",
+    "odometer": "Одометр",
+    "odometerHint": "напр. 125400",
+    "odometerInvalid": "Показание одометра неверное",
+    "takePhoto": "Фото одометра",
+    "photoTaken": "Фото сделано — переснять",
+    "overnight": "Ночёвка",
+    "overnightHint": "Где ночуете",
+    "plannedOvernight": "По плану",
+    "costs": "Дополнительные расходы",
+    "costsHint": "в лари, напр. 40",
+    "costsInvalid": "Сумма неверная",
+    "note": "Заметка",
+    "noteHint": "Что важно записать об этом дне",
+    "closeFailed": "Не удалось закрыть день",
+    "allClosedTitle": "Все дни закрыты",
+    "allClosedBody": "Теперь можно завершить тур.",
+    "finishTour": "Завершить тур",
+    "finishHint": "Закрыто {{closed}}/{{total}} дней — нужно закрыть все",
+    "finishedTitle": "Тур завершён",
+    "summaryDays": "{{count}} дней",
+    "summaryKm": "Пробег: {{km}} км",
+    "summaryCosts": "Доп. расходы: {{amount}} GEL",
+    "notFound": "Тур не найден"
+  },
+  "importBooking": {
+    "title": "Бронь из файла",
+    "subtitle": "Загрузите файл Word или Excel — система прочитает его и заполнит форму. Вы всё проверяете перед отправкой.",
+    "pick": "Загрузить файл",
+    "pickAnother": "Загрузить другой файл",
+    "formatsHint": "Работает с .docx, .xlsx, .txt и .csv. Шаблон даёт самый точный результат.",
+    "readFailed": "Не удалось прочитать файл",
+    "templateUsed": "По шаблону",
+    "aiUsed": "С помощью AI",
+    "aiGuessed": "Предположение AI",
+    "kind": "Услуга",
+    "kinds": {
+      "transfer": "Трансфер",
+      "day_tour": "Однодневный тур",
+      "tour": "Тур"
+    },
+    "date": "Дата и время",
+    "from": "Откуда",
+    "to": "Куда",
+    "passengers": "Пассажиры",
+    "vehicleType": "Транспорт",
+    "vehicleTypes": {
+      "sedan": "Седан",
+      "minivan": "Минивэн",
+      "microbus": "Микроавтобус",
+      "bus": "Автобус",
+      "suv": "Внедорожник"
+    },
+    "vehicleClass": "Класс",
+    "vehicleClasses": {
+      "economy": "Эконом",
+      "comfort": "Комфорт",
+      "vip": "VIP"
+    },
+    "flight": "Рейс",
+    "passengerName": "Пассажир",
+    "phone": "Телефон",
+    "price": "Цена (GEL)",
+    "meetGreet": "Встреча с табличкой",
+    "sign": "Текст таблички",
+    "comment": "Комментарий",
+    "missingTitle": "Эти поля обязательны",
+    "create": "Создать бронь",
+    "createFailed": "Не удалось создать бронь",
+    "created": "Бронь создана",
+    "reviewHint": "Бронь создаётся обычным путём — все проверки работают так же, как при ручном вводе."
   }
 }

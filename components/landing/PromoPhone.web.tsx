@@ -299,7 +299,9 @@ const MONTHS: Record<Lang, string[]> = {
   ru: ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'],
 };
 
-type Dict = Record<string, string> & { caps: string[][] };
+// `caps` is the odd one out: every other entry is a plain string, so the
+// intersection with Record<string, string> made the whole object unassignable.
+type Dict = Record<string, string | string[][]> & { caps: string[][] };
 
 const T: Record<Lang, Dict> = {
   ka: {

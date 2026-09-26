@@ -33,6 +33,8 @@ import {
   confirmDriverOneHourBooking,
   isDriverOneHourConfirmed,
 } from '../../lib/bookingReminders';
+import { formatConflictRange, isScheduleConflict } from '../../lib/bookingAssignment';
+import { isTourDaysOpenError, tourDaysOpenMessage } from '../../lib/tourDayLogs';
 import {
   acceptBooking,
   bookingStatusLabel,
@@ -422,7 +424,15 @@ export default function DriverBookingsScreen() {
     });
     setActingId(null);
     if (!res.ok) {
-      crossInfoAlert(t('common.error'), res.error?.message || t('bookings.acceptFailed'));
+      // A schedule clash is not the driver doing something wrong — name the
+      // dates that are already taken so they can see why.
+      const clash = res.conflict && isScheduleConflict(res.conflict) ? res.conflict : null;
+      crossInfoAlert(
+        clash ? 'ამ დროს დაკავებული ხარ' : t('common.error'),
+        clash
+          ? `${clash.message}${formatConflictRange(clash)}`
+          : res.error?.message || t('bookings.acceptFailed'),
+      );
       void load('silent');
       return;
     }
@@ -482,14 +492,21 @@ export default function DriverBookingsScreen() {
     setActingId(null);
     if (!res.ok) {
       if ('cancelled' in res && res.cancelled) return;
+      // Multi-day tour: every day has to be closed first, on its own screen.
+      if ('needsDays' in res && res.needsDays) {
+        router.push(`/(driver)/tour-days/${item.id}`);
+        return;
+      }
       const err = 'error' in res ? res.error : null;
       const errMessage = err instanceof Error ? err.message : null;
       crossInfoAlert(
         t('common.error'),
-        getSupabaseErrorMessage(err) ||
-          errMessage ||
-          t(odometerErrorMessageKey(err)) ||
-          t('bookings.completeFailed'),
+        isTourDaysOpenError(errMessage)
+          ? tourDaysOpenMessage(errMessage)
+          : getSupabaseErrorMessage(err) ||
+            errMessage ||
+            t(odometerErrorMessageKey(err)) ||
+            t('bookings.completeFailed'),
       );
       void load('silent');
       return;

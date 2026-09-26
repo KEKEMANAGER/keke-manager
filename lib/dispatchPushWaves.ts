@@ -2,7 +2,11 @@ import {
   DISPATCH_RATING_WAVE1_SIZE,
   DISPATCH_RATING_WAVE2_DELAY_MS,
 } from './dispatchConfig';
-import { sortPushRecipientsByRating, type PushRecipientLike } from './driverRatingSort';
+import {
+  buildRatingWaves,
+  markDriversDispatched,
+  type PushRecipientLike,
+} from './driverRatingSort';
 import { sendExpoPushToMany } from './expoPush';
 import { supabase } from './supabase';
 
@@ -73,14 +77,18 @@ export async function sendBroadcastPushInRatingWaves(
   data: Record<string, string>,
   bookingId?: string | null,
 ): Promise<RatingWavePushResult> {
-  const sorted = await sortPushRecipientsByRating(recipients);
-  const wave1Recipients = sorted.slice(0, DISPATCH_RATING_WAVE1_SIZE);
-  const wave2Recipients = sorted.slice(DISPATCH_RATING_WAVE1_SIZE);
+  const { wave1: wave1Recipients, wave2: wave2Recipients } = await buildRatingWaves(
+    recipients,
+    DISPATCH_RATING_WAVE1_SIZE,
+  );
 
   const wave1Tokens = uniqueTokens(wave1Recipients);
   const wave2Tokens = uniqueTokens(wave2Recipients);
 
   const batch1 = await sendExpoPushToMany(wave1Tokens, title, body, data);
+
+  // Round-robin fairness: equally-scored drivers take turns at the front.
+  void markDriversDispatched(wave1Recipients.map((r) => r.userId));
 
   if (wave2Tokens.length > 0) {
     scheduleRatingWave2Push({

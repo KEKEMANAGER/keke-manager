@@ -560,10 +560,15 @@ export default function CompanyDashboardScreen() {
       <View style={styles.sectionDivider} />
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t('company.activeBookings')}</Text>
-        <View ref={newBookingLinkRef} collapsable={false}>
-          <Pressable onPress={() => router.push('/(app)/new-booking')}>
-            <Text style={styles.link}>{t('company.newBookingLink')}</Text>
+        <View style={styles.sectionHeadActions}>
+          <Pressable onPress={() => router.push('/(app)/import-booking')}>
+            <Text style={styles.linkMuted}>{t('company.importBookingLink')}</Text>
           </Pressable>
+          <View ref={newBookingLinkRef} collapsable={false}>
+            <Pressable onPress={() => router.push('/(app)/new-booking')}>
+              <Text style={styles.link}>{t('company.newBookingLink')}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -1179,6 +1184,16 @@ const styles = StyleSheet.create({
     color: COLORS.gold,
     fontSize: 14,
     fontWeight: '700',
+  },
+  sectionHeadActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  linkMuted: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   historyLinkBtn: {
     alignSelf: 'center',

@@ -7,8 +7,11 @@ import {
 } from './driverCategory';
 import { formatDisplayDateTime, parseStoredDateTime } from './dateTime';
 import { notifyBookingConfirmed } from './localNotifications';
+import { acceptBookingAtomic, type AcceptBookingResult } from './bookingAssignment';
+import { isReviewDebtError, reviewDebtMessage } from './companyReviewGate';
 import {
-  createScheduleForAcceptedBooking,
+  estimateBookingBusyWindow,
+  filterDriverIdsAvailableForWindow,
   releaseDriverScheduleForBooking,
 } from './driverSchedules';
 import { notifyBookingAssignedByHost, notifyHostTourCompleted } from './fleetNotifications';
@@ -254,12 +257,6 @@ async function enrichBookingsWithHostInfo(rows: BookingRow[]): Promise<BookingRo
 
 export async function enrichBookingsForList(rows: BookingRow[]): Promise<BookingRow[]> {
   return enrichBookingsWithHostInfo(await enrichBookingsWithUserVerification(rows));
-}
-
-/** Legacy DBs still use `confirmed` in `bookings_status_check`; new migrations use `accepted`. */
-function isBookingsStatusConstraintError(err: { message?: string } | null): boolean {
-  const m = String(err?.message ?? '').toLowerCase();
-  return m.includes('bookings_status_check') || (m.includes('check constraint') && m.includes('bookings'));
 }
 
 /** PostgREST: wrong `route` / `route_description` column for this DB. */
@@ -824,6 +821,33 @@ export async function insertBooking(row: InsertBookingInput) {
     });
   }
 
+  // When the company picks the driver itself, say so up front instead of
+  // letting them find out at acceptance time that the driver is already out.
+  if (assignedDriverId) {
+    const window = estimateBookingBusyWindow({
+      kind,
+      date_display: row.date_display,
+      itinerary: row.itinerary,
+      tour_days: row.tour_days,
+      transfer_in: row.transfer_in,
+      transfer_out: row.transfer_out,
+    });
+    if (window) {
+      const { availableIds, error: availErr } = await filterDriverIdsAvailableForWindow(
+        [assignedDriverId],
+        window,
+      );
+      if (!availErr && !availableIds.includes(assignedDriverId)) {
+        return {
+          id: undefined,
+          error: new Error(
+            'ეს მძღოლი ამ თარიღებზე უკვე დაკავებულია — აირჩიე სხვა მძღოლი ან შეცვალე თარიღი',
+          ),
+        };
+      }
+    }
+  }
+
   function buildBookingInsertBody(
     routeCol: 'route' | 'route_description',
     canonicalKind: DbCanonicalKind,
@@ -971,6 +995,9 @@ export async function insertBooking(row: InsertBookingInput) {
   const { data, error } = result;
 
   if (error) {
+    if (isReviewDebtError(error.message)) {
+      return { id: undefined, error: new Error(reviewDebtMessage(error.message)) };
+    }
     return { id: undefined, error: new Error(error.message) };
   }
 
@@ -1081,6 +1108,11 @@ async function maybeAutoAcceptHiredAssignedBooking(
   });
 }
 
+/** `conflict` is set when the server refused because of an overlapping job. */
+export type AcceptBookingOutcome =
+  | { ok: true; error: null; conflict: null }
+  | { ok: false; error: Error; conflict: AcceptBookingResult | null };
+
 export async function acceptBooking(
   /** `bookings.id` (uuid) */
   bookingRowId: string,
@@ -1092,17 +1124,18 @@ export async function acceptBooking(
     /** Fleet-assigned vehicle or explicit pick. */
     vehicleId?: string | null;
   },
-) {
+): Promise<AcceptBookingOutcome> {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
     return {
-      ok: false as const,
+      ok: false,
       error: new Error('booking id უნდა იყოს ჯავშნის uuid'),
+      conflict: null,
     };
   }
   const driverUserId = trimUserId(driver.driverId);
   if (!driverUserId) {
-    return { ok: false as const, error: new Error('მძღოლის id არ არის') };
+    return { ok: false, error: new Error('მძღოლის id არ არის'), conflict: null };
   }
 
   const { data: pendingRow } = await supabase
@@ -1124,33 +1157,29 @@ export async function acceptBooking(
     preferredVehicleId: driver.vehicleId ?? pending?.vehicle_id ?? null,
   });
 
-  const runAccept = (assignStatus: 'accepted' | 'confirmed') =>
-    supabase
-      .from('bookings')
-      .update({
-        driver_id: driverUserId,
-        status: assignStatus,
-        driver_display_name: driver.displayName,
-        driver_phone: driver.phone || null,
-        driver_plate: driver.plate || null,
-        vehicle_id: acceptVehicleId,
-      })
-      .eq('id', rowId)
-      .eq('status', 'pending')
-      .or(`driver_id.is.null,driver_id.eq.${driverUserId}`)
-      .select('id')
-      .maybeSingle();
+  // One server transaction: re-checks the booking is still free, writes the
+  // busy-time block (the EXCLUDE constraint rejects any overlap) and marks the
+  // booking accepted. Nothing that races here can produce a double booking.
+  const { result, error } = await acceptBookingAtomic({
+    bookingId: rowId,
+    driverId: driverUserId,
+    vehicleId: acceptVehicleId,
+    displayName: driver.displayName,
+    phone: driver.phone,
+    plate: driver.plate,
+  });
 
-  let { data, error } = await runAccept('accepted');
-  if (error && isBookingsStatusConstraintError(error)) {
-    ({ data, error } = await runAccept('confirmed'));
+  if (error) return { ok: false, error, conflict: null };
+  if (!result) {
+    return {
+      ok: false,
+      error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია'),
+      conflict: null,
+    };
   }
-
-  if (error) return { ok: false as const, error };
-  if (!data) {
-    return { ok: false as const, error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია') };
+  if (!result.ok) {
+    return { ok: false, error: new Error(result.message), conflict: result };
   }
-  void createScheduleForAcceptedBooking(rowId, driverUserId);
   void notifyBookingConfirmed();
   const { data: companyRow } = await supabase
     .from('bookings')
@@ -1166,7 +1195,7 @@ export async function acceptBooking(
     driverPlate: driver.plate || undefined,
   });
   void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
-  return { ok: true as const, error: null };
+  return { ok: true, error: null, conflict: null };
 }
 
 /** Host accepts open booking and assigns to an accepted fleet sub-driver. */
@@ -1222,38 +1251,36 @@ export async function hostAcceptBookingForSub(
     };
   }
 
-  const runAccept = (assignStatus: 'accepted' | 'confirmed') =>
-    supabase
-      .from('bookings')
-      .update({
-        driver_id: subId,
-        host_driver_id: hostId,
-        status: assignStatus,
-        driver_display_name: subDriver.displayName,
-        driver_phone: subDriver.phone || null,
-        driver_plate: subDriver.plate || null,
-        driver_payout_gel: payout,
-      })
-      .eq('id', rowId)
-      .eq('status', 'pending')
-      .is('driver_id', null)
-      .select('id, voucher_code, route, from_location, to_location, kind, tour_days, transfer_in, transfer_out')
-      .maybeSingle();
-
-  let { data, error } = await runAccept('accepted');
-  if (error && isBookingsStatusConstraintError(error)) {
-    ({ data, error } = await runAccept('confirmed'));
-  }
-
-  if (error) return { ok: false as const, error };
-  if (!data) {
+  // Same atomic path as a driver accepting directly: the sub-driver's calendar
+  // is checked and blocked inside the transaction, so a host can never hand the
+  // same person two jobs that overlap.
+  const { result, error: acceptErr } = await acceptBookingAtomic({
+    bookingId: rowId,
+    driverId: subId,
+    displayName: subDriver.displayName,
+    phone: subDriver.phone,
+    plate: subDriver.plate,
+  });
+  if (acceptErr) return { ok: false as const, error: acceptErr };
+  if (!result) {
     return { ok: false as const, error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია') };
   }
+  if (!result.ok) {
+    return { ok: false as const, error: new Error(result.message) };
+  }
 
-  void createScheduleForAcceptedBooking(rowId, subId);
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({ host_driver_id: hostId, driver_payout_gel: payout })
+    .eq('id', rowId)
+    .select('id, voucher_code, route, from_location, to_location')
+    .maybeSingle();
+
+  if (error) return { ok: false as const, error: new Error(error.message) };
+
   void notifyBookingConfirmed();
 
-  const row = data as {
+  const row = (data ?? {}) as {
     voucher_code?: string | null;
     route?: string | null;
     from_location?: string | null;

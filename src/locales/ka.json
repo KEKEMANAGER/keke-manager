@@ -51,7 +51,8 @@
     "success": "წარმატება",
     "error": "შეცდომა",
     "openSettings": "პარამეტრების გახსნა",
-    "permissionDeniedSettingsBody": "წვდომა სამუდამოდ უარყოფილია. გახსენით პარამეტრები და ჩართეთ წვდომა KEKE Manager-ისთვის."
+    "permissionDeniedSettingsBody": "წვდომა სამუდამოდ უარყოფილია. გახსენით პარამეტრები და ჩართეთ წვდომა KEKE Manager-ისთვის.",
+    "ok": "კარგი"
   },
   "bookings": {
     "title": "ჯავშნები",
@@ -740,7 +741,8 @@
     "ratingFormat": "{{avg}} ({{count}} შეფასება)",
     "noRatings": "— (შეფასება არ არის)",
     "experienceYears": "{{years}} წლის გამოცდილება",
-    "driverInfoNotFound": "მძღოლის ინფო ვერ მოიძებნა"
+    "driverInfoNotFound": "მძღოლის ინფო ვერ მოიძებნა",
+    "importBookingLink": "ფაილიდან"
   },
   "companyOnboarding": {
     "skip": "გამოტოვება",
@@ -1761,5 +1763,84 @@
     "fuelNotIncluded": "ფასში საწვავი არ შედის — ცალკე ანაზღაურდება",
     "overnightByCompany": "ღამისთევას აწყობს კომპანია",
     "overnightByKeke": "ღამისთევას აწყობს KEKE Manager"
+  },
+  "tourDays": {
+    "title": "ტურის დღეები",
+    "day": "დღე {{n}}",
+    "stateClosed": "დახურული",
+    "stateReady": "დასახურად მზადაა",
+    "stateWaiting": "ელოდება",
+    "closeDay": "დღის დახურვა",
+    "edit": "შესწორება",
+    "odometer": "ოდომეტრი",
+    "odometerHint": "მაგ. 125400",
+    "odometerInvalid": "ოდომეტრის მაჩვენებელი არასწორია",
+    "takePhoto": "ოდომეტრის ფოტო",
+    "photoTaken": "ფოტო გადაღებულია — თავიდან გადაღება",
+    "overnight": "ღამის გასათევი",
+    "overnightHint": "სად გაათევ ღამეს",
+    "plannedOvernight": "დაგეგმილი",
+    "costs": "დამატებითი ხარჯი",
+    "costsHint": "ლარში, მაგ. 40",
+    "costsInvalid": "ხარჯის თანხა არასწორია",
+    "note": "შენიშვნა",
+    "noteHint": "რამე მნიშვნელოვანი ამ დღიდან",
+    "closeFailed": "დღის დახურვა ვერ მოხერხდა",
+    "allClosedTitle": "ყველა დღე დახურულია",
+    "allClosedBody": "ახლა უკვე შეგიძლია ტურის დასრულება.",
+    "finishTour": "ტურის დასრულება",
+    "finishHint": "დახურულია {{closed}}/{{total}} დღე — ყველა დღე უნდა დაიხუროს",
+    "finishedTitle": "ტური დასრულდა",
+    "summaryDays": "{{count}} დღე",
+    "summaryKm": "გარბენი: {{km}} კმ",
+    "summaryCosts": "დამატებითი ხარჯი: {{amount}} ₾",
+    "notFound": "ტური ვერ მოიძებნა"
+  },
+  "importBooking": {
+    "title": "ჯავშანი ფაილიდან",
+    "subtitle": "ატვირთე კომპანიის Word ან Excel ფაილი — სისტემა წაიკითხავს და ფორმას თვითონ შეავსებს. გაგზავნამდე ყველაფერს შენ ამოწმებ.",
+    "pick": "ფაილის ატვირთვა",
+    "pickAnother": "სხვა ფაილის ატვირთვა",
+    "formatsHint": "მუშაობს .docx, .xlsx, .txt და .csv ფაილებზე. ყველაზე ზუსტი შედეგი მზა შაბლონით მიიღება.",
+    "readFailed": "ფაილი ვერ წავიკითხე",
+    "templateUsed": "შაბლონით",
+    "aiUsed": "AI-ს დახმარებით",
+    "aiGuessed": "AI-ს ვარაუდი",
+    "kind": "სერვისი",
+    "kinds": {
+      "transfer": "ტრანსფერი",
+      "day_tour": "ერთდღიანი ტური",
+      "tour": "ტური"
+    },
+    "date": "თარიღი და დრო",
+    "from": "საიდან",
+    "to": "სად",
+    "passengers": "მგზავრები",
+    "vehicleType": "ტრანსპორტი",
+    "vehicleTypes": {
+      "sedan": "სედანი",
+      "minivan": "მინივენი",
+      "microbus": "მიკროავტობუსი",
+      "bus": "ავტობუსი",
+      "suv": "ჯიპი"
+    },
+    "vehicleClass": "კლასი",
+    "vehicleClasses": {
+      "economy": "ეკონომი",
+      "comfort": "კომფორტი",
+      "vip": "VIP"
+    },
+    "flight": "რეისი",
+    "passengerName": "მგზავრის სახელი",
+    "phone": "ტელეფონი",
+    "price": "ფასი (₾)",
+    "meetGreet": "შეხვედრა ტაბლოთი",
+    "sign": "ტაბლოს ტექსტი",
+    "comment": "კომენტარი",
+    "missingTitle": "ეს ველები აუცილებელია",
+    "create": "ჯავშნის შექმნა",
+    "createFailed": "ჯავშნის შექმნა ვერ მოხერხდა",
+    "created": "ჯავშანი შეიქმნა",
+    "reviewHint": "ჯავშანი ჩვეულებრივი გზით იქმნება — ყველა შემოწმება ისევე მუშაობს, როგორც ხელით შევსებისას."
   }
 }

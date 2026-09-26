@@ -17,6 +17,8 @@ const HOUR_MS = 60 * 60 * 1000;
 const TRANSFER_DURATION_MS = 2 * HOUR_MS;
 const DAY_TOUR_DURATION_MS = 8 * HOUR_MS;
 const TOUR_DAY_DURATION_MS = 8 * HOUR_MS;
+/** Offset from the last tour day's local midnight to when the driver is free. */
+const TOUR_LAST_DAY_END_MS = 20 * HOUR_MS;
 
 export type DriverScheduleRow = {
   id: string;
@@ -77,7 +79,7 @@ export function estimateBookingBusyWindow(input: BookingScheduleInput): BusyTime
     return { start, end: new Date(start.getTime() + DAY_TOUR_DURATION_MS) };
   }
 
-  // Multi-day tour: from transfer-in (or primary date) through last day + 8h
+  // Multi-day tour: from transfer-in (or primary date) through the last day.
   const start = transferInStart ?? primary ?? new Date();
   let end = new Date(start.getTime() + TOUR_DAY_DURATION_MS);
 
@@ -85,8 +87,12 @@ export function estimateBookingBusyWindow(input: BookingScheduleInput): BusyTime
     end = new Date(transferOutStart.getTime() + TOUR_DAY_DURATION_MS);
   } else if (input.tour_days?.length) {
     const last = input.tour_days[input.tour_days.length - 1];
-    const lastDate = parseDateOnly(last.date) ?? start;
-    end = new Date(lastDate.getTime() + TOUR_DAY_DURATION_MS);
+    const lastDate = parseDateOnly(last.date);
+    // `parseDateOnly` returns local midnight; a tour day finishes in the
+    // evening, so the block must run to ~20:00 and not to 08:00.
+    end = lastDate
+      ? new Date(lastDate.getTime() + TOUR_LAST_DAY_END_MS)
+      : new Date(start.getTime() + TOUR_DAY_DURATION_MS);
   } else if (input.itinerary?.length) {
     const days = Math.max(1, input.itinerary.length);
     end = new Date(start.getTime() + days * TOUR_DAY_DURATION_MS);
@@ -94,7 +100,18 @@ export function estimateBookingBusyWindow(input: BookingScheduleInput): BusyTime
     end = new Date(primary.getTime() + TOUR_DAY_DURATION_MS);
   }
 
-  return { start, end };
+  return clampMinimumWindow(kind, start, end);
+}
+
+/** Mirrors `public.booking_busy_window()` — both sides must agree. */
+function clampMinimumWindow(
+  kind: 'transfer' | 'tour' | 'day_tour',
+  start: Date,
+  end: Date,
+): BusyTimeWindow {
+  const minMs = kind === 'transfer' ? TRANSFER_DURATION_MS : DAY_TOUR_DURATION_MS;
+  const floor = start.getTime() + minMs;
+  return { start, end: end.getTime() < floor ? new Date(floor) : end };
 }
 
 export async function fetchDriverSchedules(
@@ -187,18 +204,40 @@ export async function createBookingScheduleBlock(
   return { ok: true, error: null };
 }
 
-/** Early release: shorten booking block to now when trip completes early. */
+/**
+ * Early release: shorten the booking block to now when the trip finishes early.
+ *
+ * Setting `end_time = now()` on a block that has not started yet used to leave
+ * `end_time` BEFORE `start_time`, which made the row an invalid range and broke
+ * every overlap check that touched it. `start_time` is the floor: an empty
+ * range is the correct shape for "released".
+ *
+ * The `bookings_after_status_change` trigger already does this server-side on
+ * completion; this stays for callers that release a block on their own.
+ */
 export async function releaseDriverScheduleForBooking(bookingId: string): Promise<void> {
   const bid = bookingId.trim();
   if (!bid) return;
 
-  const now = toIsoString(new Date());
-  await supabase
+  const now = new Date();
+  const nowIso = toIsoString(now);
+
+  const { data } = await supabase
     .from('driver_schedules')
-    .update({ end_time: now })
+    .select('id, start_time')
     .eq('booking_id', bid)
     .eq('source', 'booking')
-    .gt('end_time', now);
+    .gt('end_time', nowIso);
+
+  const rows = (data ?? []) as { id: string; start_time: string }[];
+  for (const r of rows) {
+    const startMs = new Date(r.start_time).getTime();
+    const endMs = Number.isFinite(startMs) ? Math.max(startMs, now.getTime()) : now.getTime();
+    await supabase
+      .from('driver_schedules')
+      .update({ end_time: toIsoString(new Date(endMs)) })
+      .eq('id', r.id);
+  }
 }
 
 export async function createManualDriverSchedule(

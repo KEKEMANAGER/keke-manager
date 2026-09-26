@@ -51,7 +51,8 @@
     "success": "Հաջող",
     "error": "Սխալ",
     "openSettings": "Open Settings",
-    "permissionDeniedSettingsBody": "Access was permanently denied. Open Settings to enable it for KEKE Manager."
+    "permissionDeniedSettingsBody": "Access was permanently denied. Open Settings to enable it for KEKE Manager.",
+    "ok": "OK"
   },
   "bookings": {
     "title": "Bookings",
@@ -740,7 +741,8 @@
     "ratingFormat": "{{avg}} ({{count}} reviews)",
     "noRatings": "— (no reviews)",
     "experienceYears": "{{years}} years of experience",
-    "driverInfoNotFound": "Driver info not found"
+    "driverInfoNotFound": "Driver info not found",
+    "importBookingLink": "From a file"
   },
   "companyOnboarding": {
     "skip": "Skip",
@@ -1761,5 +1763,84 @@
     "fuelNotIncluded": "Fuel not included — paid separately",
     "overnightByCompany": "Overnight stay arranged by the company",
     "overnightByKeke": "Overnight stay arranged by KEKE Manager"
+  },
+  "tourDays": {
+    "title": "Tour days",
+    "day": "Day {{n}}",
+    "stateClosed": "Closed",
+    "stateReady": "Ready to close",
+    "stateWaiting": "Waiting",
+    "closeDay": "Close the day",
+    "edit": "Correct",
+    "odometer": "Odometer",
+    "odometerHint": "e.g. 125400",
+    "odometerInvalid": "That odometer reading is not valid",
+    "takePhoto": "Odometer photo",
+    "photoTaken": "Photo taken — retake",
+    "overnight": "Overnight stay",
+    "overnightHint": "Where you sleep tonight",
+    "plannedOvernight": "Planned",
+    "costs": "Extra costs",
+    "costsHint": "In GEL, e.g. 40",
+    "costsInvalid": "That amount is not valid",
+    "note": "Note",
+    "noteHint": "Anything worth recording from this day",
+    "closeFailed": "Could not close the day",
+    "allClosedTitle": "Every day is closed",
+    "allClosedBody": "You can finish the tour now.",
+    "finishTour": "Finish the tour",
+    "finishHint": "{{closed}}/{{total}} days closed — every day has to be closed",
+    "finishedTitle": "Tour finished",
+    "summaryDays": "{{count}} days",
+    "summaryKm": "Distance: {{km}} km",
+    "summaryCosts": "Extra costs: {{amount}} GEL",
+    "notFound": "Tour not found"
+  },
+  "importBooking": {
+    "title": "Booking from a file",
+    "subtitle": "Upload the operator's Word or Excel file — it is read and the form is filled in for you. You check everything before it is sent.",
+    "pick": "Upload a file",
+    "pickAnother": "Upload another file",
+    "formatsHint": "Works with .docx, .xlsx, .txt and .csv. The template gives the most accurate result.",
+    "readFailed": "Could not read the file",
+    "templateUsed": "From template",
+    "aiUsed": "AI assisted",
+    "aiGuessed": "AI guess",
+    "kind": "Service",
+    "kinds": {
+      "transfer": "Transfer",
+      "day_tour": "Day tour",
+      "tour": "Tour"
+    },
+    "date": "Date and time",
+    "from": "From",
+    "to": "To",
+    "passengers": "Passengers",
+    "vehicleType": "Vehicle",
+    "vehicleTypes": {
+      "sedan": "Sedan",
+      "minivan": "Minivan",
+      "microbus": "Microbus",
+      "bus": "Bus",
+      "suv": "SUV"
+    },
+    "vehicleClass": "Class",
+    "vehicleClasses": {
+      "economy": "Economy",
+      "comfort": "Comfort",
+      "vip": "VIP"
+    },
+    "flight": "Flight",
+    "passengerName": "Passenger",
+    "phone": "Phone",
+    "price": "Price (GEL)",
+    "meetGreet": "Meet and greet",
+    "sign": "Sign text",
+    "comment": "Comment",
+    "missingTitle": "These fields are required",
+    "create": "Create the booking",
+    "createFailed": "Could not create the booking",
+    "created": "Booking created",
+    "reviewHint": "The booking is created through the normal path — every check works exactly as it does when you type it in."
   }
 }

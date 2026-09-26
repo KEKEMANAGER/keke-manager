@@ -1,6 +1,7 @@
 import { captureOdometerPhoto, odometerErrorMessageKey, submitBookingOdometerPhoto } from './bookingOdometer';
 import type { OdometerPhase } from './bookingOdometer';
 import { completeBooking, isTourBookingKind, startBookingTrip, type BookingRow } from './bookings';
+import { isMultiDayTour } from './tourDayLogs';
 
 export async function captureAndSaveTourOdometer(
   bookingId: string,
@@ -59,8 +60,16 @@ export async function completeTourTripWithOdometer(
 ): Promise<
   | { ok: true }
   | { ok: false; cancelled: true }
+  | { ok: false; needsDays: true }
   | { ok: false; error: Error }
 > {
+  // A multi-day tour is not finished with one tap. Every day has to be closed
+  // first, so send the driver to the day-by-day screen instead of failing with
+  // an error he cannot act on from here.
+  if (isMultiDayTour(booking)) {
+    return { ok: false, needsDays: true };
+  }
+
   if (isTourBookingKind(booking.kind)) {
     const odometer = await captureAndSaveTourOdometer(booking.id, driverUserId, 'end');
     if (!odometer.ok) {
