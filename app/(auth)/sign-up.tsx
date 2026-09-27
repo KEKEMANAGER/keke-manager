@@ -53,6 +53,23 @@ const ACCOUNT_OPTIONS: {
   },
 ];
 
+/**
+ * App Review rejected 1.0 under guideline 3.1.1 because this screen offered to
+ * register a business ("Company / Tourism Company", asking for an
+ * identification code and a director), which Apple treats as access to an
+ * external mechanism for purchases or subscriptions — whether or not anything
+ * is actually sold. Their instruction was to remove business registration from
+ * the app.
+ *
+ * So on iOS a company signs in with an account created on the website, and
+ * only drivers register here. Nothing else changes: the company side of the
+ * app works exactly as before once signed in, and Android and web keep the
+ * full choice, since neither store has this rule.
+ */
+const SIGN_UP_OPTIONS = ACCOUNT_OPTIONS.filter(
+  (o) => !(Platform.OS === 'ios' && o.type === 'company'),
+);
+
 function accountTypeToRole(type: SignUpAccountType): KekeRole {
   return type === 'company' ? 'company' : 'driver';
 }
@@ -213,7 +230,7 @@ export default function SignUpScreen() {
 
         <Text style={styles.sectionLabel}>{t('authScreen.selectRole')}</Text>
         <View style={styles.roleList}>
-          {ACCOUNT_OPTIONS.map((opt) => {
+          {SIGN_UP_OPTIONS.map((opt) => {
             const selected = accountType === opt.type;
             return (
               <Pressable

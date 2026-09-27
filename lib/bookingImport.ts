@@ -3,7 +3,7 @@ import type { DbCanonicalKind, InsertBookingInput, TourDayPersisted } from './bo
 import { supabase } from './supabase';
 
 /**
- * Word / Excel import.
+ * PDF / Word / Excel import.
  *
  * The file goes to the `booking-import` edge function, which reads it with a
  * deterministic template parser first and falls back to the model only for the
@@ -13,13 +13,14 @@ import { supabase } from './supabase';
  */
 
 export const IMPORT_MIME_TYPES = [
+  'application/pdf', // .pdf
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
   'text/plain',
   'text/csv',
 ] as const;
 
-export const IMPORT_EXTENSIONS = ['.docx', '.xlsx', '.txt', '.csv'] as const;
+export const IMPORT_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.txt', '.csv'] as const;
 
 export type ImportFieldSource = 'template' | 'ai' | 'none';
 
@@ -111,10 +112,27 @@ export async function pickBookingFile(): Promise<PickedFile | null> {
 
   const base64 = await readAsBase64(asset.uri);
   return {
-    name: asset.name || 'booking.docx',
+    // The server picks its reader from the extension, so a nameless pick must
+    // still carry the right one — guessing .docx for a PDF would fail the read.
+    name: asset.name || defaultNameForMime(asset.mimeType),
     base64,
     sizeBytes: size || Math.floor((base64.length * 3) / 4),
   };
+}
+
+function defaultNameForMime(mimeType?: string | null): string {
+  switch (mimeType) {
+    case 'application/pdf':
+      return 'booking.pdf';
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+      return 'booking.xlsx';
+    case 'text/csv':
+      return 'booking.csv';
+    case 'text/plain':
+      return 'booking.txt';
+    default:
+      return 'booking.docx';
+  }
 }
 
 export async function parseBookingFile(

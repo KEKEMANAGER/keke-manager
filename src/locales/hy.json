@@ -1798,10 +1798,10 @@
   },
   "importBooking": {
     "title": "Booking from a file",
-    "subtitle": "Upload the operator's Word or Excel file — it is read and the form is filled in for you. You check everything before it is sent.",
+    "subtitle": "Վերբեռնեք ընկերության PDF, Word կամ Excel ֆայլը — հավելվածը կկարդա այն և ինքը կլրացնի ձևը։ Ուղարկելուց առաջ ամեն ինչ դուք եք ստուգում։",
     "pick": "Upload a file",
     "pickAnother": "Upload another file",
-    "formatsHint": "Works with .docx, .xlsx, .txt and .csv. The template gives the most accurate result.",
+    "formatsHint": "Աշխատում է .pdf, .docx, .xlsx, .txt և .csv ֆայլերի հետ։ Սկանավորված կամ լուսանկարված PDF-ը չի կարդացվում — պետք է բնօրինակը։",
     "readFailed": "Could not read the file",
     "templateUsed": "From template",
     "aiUsed": "AI assisted",

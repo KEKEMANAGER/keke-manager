@@ -26,7 +26,7 @@ import {
 } from '../../lib/bookingImport';
 
 /**
- * Import a booking from the operator's own Word / Excel file.
+ * Import a booking from the operator's own PDF / Word / Excel file.
  *
  * The parse result is a DRAFT and nothing more: it is shown here for the
  * company to check and correct, and the booking is only created through the

@@ -516,11 +516,14 @@ export default function CompanyProfileScreen() {
         </View>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>{t('companyProfile.subscription')}</Text>
-        <Text style={styles.subTier}>{t('companyProfile.planFree')}</Text>
-        <Text style={styles.subMeta}>{t('companyProfile.planFreeSubtitle')}</Text>
-      </View>
+      {/*
+        The "Subscription / Plan: Free" card used to sit here. It sold nothing
+        and linked nowhere, but together with the business sign-up it was
+        enough for App Review to read the app as gating features behind a plan
+        bought outside the App Store (guideline 3.1.1). KEKE Manager is free
+        for tour companies, so the card only restated that — removing it costs
+        nothing and leaves no trace of a paid tier anywhere in the app.
+      */}
 
     </ScrollView>
   );
@@ -700,16 +703,6 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontSize: 13,
     marginTop: SPACING.sm,
-  },
-  subTier: {
-    color: COLORS.gold,
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  subMeta: {
-    color: COLORS.grayLight,
-    fontSize: 14,
-    marginTop: 6,
   },
   membersHint: {
     color: COLORS.grayLight,

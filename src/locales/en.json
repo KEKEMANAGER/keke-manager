@@ -1798,10 +1798,10 @@
   },
   "importBooking": {
     "title": "Booking from a file",
-    "subtitle": "Upload the operator's Word or Excel file — it is read and the form is filled in for you. You check everything before it is sent.",
+    "subtitle": "Upload the company’s PDF, Word or Excel file — the app reads it and fills the form for you. You check everything before it is sent.",
     "pick": "Upload a file",
     "pickAnother": "Upload another file",
-    "formatsHint": "Works with .docx, .xlsx, .txt and .csv. The template gives the most accurate result.",
+    "formatsHint": "Works with .pdf, .docx, .xlsx, .txt and .csv. A scanned or photographed PDF cannot be read — send the original.",
     "readFailed": "Could not read the file",
     "templateUsed": "From template",
     "aiUsed": "AI assisted",
