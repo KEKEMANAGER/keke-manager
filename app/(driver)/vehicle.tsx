@@ -963,6 +963,30 @@ export default function DriverVehiclePhotosScreen() {
   }
 
   const isFormOpen  = formMode === 'edit' || formMode === 'add';
+
+  /**
+   * A blank draft row is created the moment "Add vehicle" is tapped, and only
+   * the explicit Cancel button deletes it — back out any other way (close the
+   * app, switch tabs) and it stays behind. addVehicle() reuses such a row
+   * instead of piling up more, but the orphan is still in the list, where it
+   * renders as an empty card the driver cannot make sense of or get rid of.
+   * One real driver ended up looking at five of them.
+   *
+   * So the list shows a draft only while it is the row being filled in. The
+   * rows stay in `vehicles` for addVehicle() to find and reuse, and the
+   * moment the driver types or photographs anything the card appears.
+   */
+  const isBlankDraft = (v: VehicleRow) =>
+    !v.is_active &&
+    !v.model &&
+    !v.plate &&
+    !v.photo_front &&
+    !v.photo_left &&
+    !v.photo_right &&
+    !v.photo_interior &&
+    !v.photo_rear;
+
+  const visibleVehicles = vehicles.filter((v) => !isBlankDraft(v) || v.id === selectedId);
   const bottomPad   = insets.bottom + SPACING.xl + 96;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -999,13 +1023,13 @@ export default function DriverVehiclePhotosScreen() {
           {/* ── "My Vehicles" section ────────────────────────────────────── */}
           <Text style={styles.listSectionHeader}>{t('vehicleScreen.myVehicles')}</Text>
 
-          {vehicles.length === 0 && !isFormOpen ? (
+          {visibleVehicles.length === 0 && !isFormOpen ? (
             <View style={styles.emptyWrap}>
               <Ionicons name="car-outline" size={48} color={COLORS.textMuted} />
               <Text style={styles.emptyText}>{t('vehicleScreen.noVehicles')}</Text>
             </View>
           ) : (
-            vehicles.map((v, i) => (
+            visibleVehicles.map((v, i) => (
               <VehicleListCard
                 key={v.id}
                 vehicle={v}
