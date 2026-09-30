@@ -60,3 +60,7 @@ expo-start-log.txt
 expo-tunnel-log.txt
 export-err.txt
 wrangler-deploy-log.txt
+output/
+push-log.txt
+eas-submit-ios.log
+.tmp-deploy-out.txt

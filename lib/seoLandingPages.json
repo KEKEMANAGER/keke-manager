@@ -1,16 +1,21 @@
 {
-  "driverCountLabel": "500+",
+  "driverCountLabel": "",
   "locations": [
     {
       "slug": "tbilisi",
-      "geo": { "name": "Tbilisi", "nameKa": "თბილისი", "lat": 41.7151, "lng": 44.8271 },
+      "geo": {
+        "name": "Tbilisi",
+        "nameKa": "თბილისი",
+        "lat": 41.7151,
+        "lng": 44.8271
+      },
       "title": {
         "en": "Find Verified Tour Drivers in Tbilisi | KEKE Manager",
         "ka": "ვერიფიცირებული ტურმძღოლი თბილისში | KEKE Manager"
       },
       "description": {
-        "en": "KEKE Manager connects tour companies and travel agencies with 500+ verified guide-drivers in Tbilisi. Manage bookings, GPS, and fleet in one B2B platform — not a taxi service.",
-        "ka": "KEKE Manager აერთიანებს ტუროკომპანიებსა და სააგენტოებს 500+ ვერიფიცირებულ ტურმძღოლთან თბილისში. ჯავშნები, GPS და ფლოტი ერთ B2B პლატფორმაზე."
+        "en": "KEKE Manager connects tour companies and travel agencies with verified guide-drivers in Tbilisi. Manage bookings, GPS, and fleet in one B2B platform — not a taxi service.",
+        "ka": "KEKE Manager აერთიანებს ტუროკომპანიებსა და სააგენტოებს ვერიფიცირებულ ტურმძღოლებთან თბილისში. ჯავშნები, GPS და ფლოტი ერთ B2B პლატფორმაზე."
       },
       "h1": {
         "en": "Find verified tour drivers in Tbilisi on KEKE Manager",
@@ -40,13 +45,18 @@
     },
     {
       "slug": "batumi",
-      "geo": { "name": "Batumi", "nameKa": "ბათუმი", "lat": 41.6168, "lng": 41.6367 },
+      "geo": {
+        "name": "Batumi",
+        "nameKa": "ბათუმი",
+        "lat": 41.6168,
+        "lng": 41.6367
+      },
       "title": {
         "en": "Find Tour Drivers in Batumi | KEKE Manager B2B Platform",
         "ka": "ტურმძღოლების პოვნა ბათუმში | KEKE Manager B2B"
       },
       "description": {
-        "en": "Connect with verified tour and transfer drivers in Batumi through KEKE Manager. Tour companies manage fleet and bookings; drivers join free. 500+ drivers across Georgia.",
+        "en": "Connect with verified tour and transfer drivers in Batumi through KEKE Manager. Tour companies manage fleet and bookings; drivers join free. Verified drivers across Georgia.",
         "ka": "დაუკავშირდით ვერიფიცირებულ ტურმძღოლებთან ბათუმში KEKE Manager-ის მეშვეობით. ტუროკომპანიები მართავენ ფლოტსა და ჯავშნებს; მძღოლები უფასოდ უერთდებიან."
       },
       "h1": {
@@ -77,7 +87,12 @@
     },
     {
       "slug": "kazbegi",
-      "geo": { "name": "Kazbegi", "nameKa": "ყაზბეგი", "lat": 42.6629, "lng": 44.6448 },
+      "geo": {
+        "name": "Kazbegi",
+        "nameKa": "ყაზბეგი",
+        "lat": 42.6629,
+        "lng": 44.6448
+      },
       "title": {
         "en": "Mountain Tour Drivers Kazbegi | KEKE Manager",
         "ka": "მთის ტურმძღოლები ყაზბეგში | KEKE Manager"
@@ -114,7 +129,12 @@
     },
     {
       "slug": "kutaisi",
-      "geo": { "name": "Kutaisi", "nameKa": "ქუთაისი", "lat": 42.2679, "lng": 42.6946 },
+      "geo": {
+        "name": "Kutaisi",
+        "nameKa": "ქუთაისი",
+        "lat": 42.2679,
+        "lng": 42.6946
+      },
       "title": {
         "en": "Tour Drivers Kutaisi & Imereti | KEKE Manager",
         "ka": "ტურმძღოლები ქუთაისსა და იმერეთში | KEKE Manager"
@@ -151,7 +171,12 @@
     },
     {
       "slug": "borjomi",
-      "geo": { "name": "Borjomi", "nameKa": "ბორჯომი", "lat": 41.8461, "lng": 43.3798 },
+      "geo": {
+        "name": "Borjomi",
+        "nameKa": "ბორჯომი",
+        "lat": 41.8461,
+        "lng": 43.3798
+      },
       "title": {
         "en": "Tour Transport Partners Borjomi | KEKE Manager",
         "ka": "ტურისტული ტრანსპორტი ბორჯომში | KEKE Manager"
@@ -189,8 +214,83 @@
   ],
   "services": [
     {
+      "slug": "turistuli-satransporto-platforma",
+      "serviceName": {
+        "en": "Tourist transport platform",
+        "ka": "ტურისტული სატრანსპორტო პლატფორმა"
+      },
+      "title": {
+        "en": "Tourist Transport Platform in Georgia | KEKE Manager",
+        "ka": "ტურისტული სატრანსპორტო პლატფორმა საქართველოში | KEKE Manager"
+      },
+      "description": {
+        "en": "A tourist transport platform connects tour operators with verified drivers directly, with no middleman. KEKE Manager is that platform in Georgia: bookings, GPS, digital vouchers, fleet management. Free for tour companies.",
+        "ka": "ტურისტული სატრანსპორტო პლატფორმა პირდაპირ აკავშირებს ტუროპერატორსა და ვერიფიცირებულ მძღოლს, შუამავლის გარეშე. KEKE Manager სწორედ ასეთი პლატფორმაა საქართველოში: ჯავშნები, GPS, ციფრული ვაუჩერი, ფლოტის მართვა."
+      },
+      "h1": {
+        "en": "Tourist transport platform in Georgia",
+        "ka": "ტურისტული სატრანსპორტო პლატფორმა საქართველოში"
+      },
+      "intro": {
+        "en": "A tourist transport platform is not a transport company. A transport company owns a fleet and sells the trip to you. A platform owns no vehicles: the tour operator publishes the booking, a verified driver accepts it, and the two agree directly. KEKE Manager is that platform in Georgia — the operator keeps control of the trip, the driver keeps the whole fee, and the software handles bookings, GPS, vouchers, ratings and fleet management.",
+        "ka": "ტურისტული სატრანსპორტო პლატფორმა არ არის სატრანსპორტო კომპანია. კომპანიას საკუთარი ფლოტი ჰყავს და ტურს თავად გყიდით. პლატფორმას მანქანები არ აქვს: ტუროპერატორი ათავსებს ჯავშანს, ვერიფიცირებული მძღოლი იღებს, და ისინი პირდაპირ თანხმდებიან. KEKE Manager სწორედ ასეთი პლატფორმაა საქართველოში — ოპერატორთან რჩება ტურის კონტროლი, მძღოლთან რჩება მთელი საზღაური, ხოლო სისტემა უზრუნველყოფს ჯავშნებს, GPS-ს, ვაუჩერებს, რეიტინგსა და ფლოტის მართვას."
+      },
+      "bullets": {
+        "en": [
+          "No commission from the driver — the platform does not take a cut of the trip",
+          "Free for tour companies — registration and booking management cost nothing",
+          "Every driver is verified: licence, ID and vehicle documents checked before the first trip",
+          "One driver or vehicle cannot be booked twice for overlapping dates — the system blocks it",
+          "Confirmation required: the driver confirms the booking, with reminders 12h, 3h, 1h and 45min before departure",
+          "Live GPS during the trip, a digital PDF voucher, and three-way chat between company, driver and support",
+          "Multi-day tours close out day by day — odometer, overnight stay and extra costs recorded per day"
+        ],
+        "ka": [
+          "მძღოლს კომისია არ ეჭრება — პლატფორმა ტურის თანხიდან პროცენტს არ იღებს",
+          "ტურისტული კომპანიებისთვის უფასოა — რეგისტრაცია და ჯავშნების მართვა არაფერი ღირს",
+          "ყველა მძღოლი ვერიფიცირებულია: მართვის მოწმობა, პირადობა და ავტომობილის დოკუმენტები მოწმდება პირველ ტურამდე",
+          "ერთი მძღოლი ან მანქანა ერთსა და იმავე თარიღებზე ორ ჯავშანში ვერ მოხვდება — სისტემა ბლოკავს",
+          "დადასტურება სავალდებულოა: მძღოლი ადასტურებს ჯავშანს, შეხსენებებით 12სთ, 3სთ, 1სთ და 45წთ ადრე",
+          "პირდაპირი GPS ტურის მიმდინარეობისას, ციფრული PDF ვაუჩერი და სამმხრივი ჩატი კომპანიას, მძღოლსა და მხარდაჭერას შორის",
+          "მრავალდღიანი ტური იხურება დღე-დღე — კილომეტრაჟი, ღამისთევა და დამატებითი ხარჯები ყოველ დღეზე ცალკე"
+        ]
+      },
+      "faq": {
+        "ka": [
+          {
+            "question": "რა არის ტურისტული სატრანსპორტო პლატფორმა?",
+            "answer": "ტურისტული სატრანსპორტო პლატფორმა არის სისტემა, სადაც ტუროპერატორი ქმნის ჯავშანს და ვერიფიცირებული მძღოლი იღებს მას პირდაპირ. პლატფორმას საკუთარი ფლოტი არ ჰყავს და ტრანსპორტს არ ყიდის — ის უზრუნველყოფს პროგრამულ ნაწილს: ჯავშნებს, ვერიფიკაციას, GPS-ს, ვაუჩერსა და რეიტინგს."
+          },
+          {
+            "question": "რით განსხვავდება პლატფორმა სატრანსპორტო კომპანიისგან?",
+            "answer": "სატრანსპორტო კომპანია ფლობს მანქანებს და ტურს თავად ყიდის, ანუ თავად არის მიმწოდებელი. პლატფორმა მიმწოდებელი არ არის — ტუროპერატორი და მძღოლი პირდაპირ თანხმდებიან, ფასზე შეთანხმება მათ შორისაა, პლატფორმა კი კომისიას არ იჭერს."
+          },
+          {
+            "question": "რა ჯდება ტურისტული კომპანიისთვის?",
+            "answer": "KEKE Manager-ზე ტურისტული კომპანიებისთვის რეგისტრაცია და ჯავშნების მართვა უფასოა."
+          },
+          {
+            "question": "როგორ ხდება მძღოლის ვერიფიკაცია?",
+            "answer": "მძღოლი ატვირთავს მართვის მოწმობას, პირადობის დოკუმენტსა და ავტომობილის ტექპასპორტს, ასევე მანქანის ფოტოებს. ადმინისტრაცია ამოწმებს დოკუმენტებს და მხოლოდ შემდეგ იღებს მძღოლი ჯავშნებს."
+          },
+          {
+            "question": "შეიძლება თუ არა ერთი მძღოლი ორ ჯავშანში მოხვდეს ერთსა და იმავე დღეს?",
+            "answer": "არა. სისტემა ბაზის დონეზე ბლოკავს გადაკვეთას — თუ მძღოლი ან მანქანა იმ პერიოდში უკვე დაკავებულია, მეორე ჯავშანი არ შეიქმნება."
+          }
+        ]
+      },
+      "relatedBlog": [
+        "booking-management-software-tour-companies",
+        "how-to-find-reliable-tour-driver-georgia",
+        "fleet-owner-guide-managing-drivers-georgia"
+      ]
+    },
+    {
       "slug": "airport-transfer",
-      "serviceName": { "en": "Airport transfer driver matching", "ka": "აეროპორტის ტრანსფერის მძღოლების შერჩევა" },
+      "serviceName": {
+        "en": "Airport transfer driver matching",
+        "ka": "აეროპორტის ტრანსფერის მძღოლების შერჩევა"
+      },
       "title": {
         "en": "Airport Transfer Drivers Georgia | KEKE Manager Platform",
         "ka": "აეროპორტის ტრანსფერის მძღოლები | KEKE Manager"
@@ -227,7 +327,10 @@
     },
     {
       "slug": "multi-day-tour",
-      "serviceName": { "en": "Multi-day tour fleet management", "ka": "მრავალდღიანი ტურის ფლოტის მართვა" },
+      "serviceName": {
+        "en": "Multi-day tour fleet management",
+        "ka": "მრავალდღიანი ტურის ფლოტის მართვა"
+      },
       "title": {
         "en": "Multi-Day Tour Fleet Management | KEKE Manager",
         "ka": "მრავალდღიანი ტურის მართვა | KEKE Manager"
@@ -241,8 +344,8 @@
         "ka": "მართეთ მრავალდღიან ტურები თქვენს მძღოლთა ქსელით KEKE Manager-ზე"
       },
       "intro": {
-        "en": "Multi-day programs need the same drivers across several days, clear handoffs, and company oversight. KEKE Manager lets operators schedule legs, swap vehicles, and track every day on the platform — connecting companies with 500+ verified drivers.",
-        "ka": "მრავალდღიან პროგრამები მოითხოვს ერთსა და იმავე მძღოლებს, გასაგებ გადაცემებსა და კონტროლს. KEKE Manager-ზე ოპერატორები გეგმავენ ეტაპებს და ადევენათ — 500+ ვერიფიცირებულ მძღოლთან დაკავშირებით."
+        "en": "Multi-day programs need the same drivers across several days, clear handoffs, and company oversight. KEKE Manager lets operators schedule legs, swap vehicles, and track every day on the platform — connecting companies with verified drivers.",
+        "ka": "მრავალდღიან პროგრამები მოითხოვს ერთსა და იმავე მძღოლებს, გასაგებ გადაცემებსა და კონტროლს. KEKE Manager-ზე ოპერატორები გეგმავენ ეტაპებს და ადევენათ — ვერიფიცირებულ მძღოლებთან დაკავშირებით."
       },
       "bullets": {
         "en": [
@@ -264,7 +367,10 @@
     },
     {
       "slug": "wine-tour",
-      "serviceName": { "en": "Wine tour driver network", "ka": "ღვინის ტურის მძღოლთა ქსელი" },
+      "serviceName": {
+        "en": "Wine tour driver network",
+        "ka": "ღვინის ტურის მძღოლთა ქსელი"
+      },
       "title": {
         "en": "Wine Tour Drivers Kakheti | KEKE Manager B2B",
         "ka": "ღვინის ტურის მძღოლები კახეთში | KEKE Manager"
@@ -301,7 +407,10 @@
     },
     {
       "slug": "mountain-tour",
-      "serviceName": { "en": "Mountain & 4x4 driver matching", "ka": "მთის და 4x4 მძღოლების შერჩევა" },
+      "serviceName": {
+        "en": "Mountain & 4x4 driver matching",
+        "ka": "მთის და 4x4 მძღოლების შერჩევა"
+      },
       "title": {
         "en": "Mountain Tour Drivers Georgia | KEKE Manager",
         "ka": "მთის ტურმძღოლები საქართველოში | KEKE Manager"
@@ -338,7 +447,10 @@
     },
     {
       "slug": "corporate-transfer",
-      "serviceName": { "en": "Corporate group transport coordination", "ka": "კორპორატიული ტრანსპორტის კოორდინაცია" },
+      "serviceName": {
+        "en": "Corporate group transport coordination",
+        "ka": "კორპორატიული ტრანსპორტის კოორდინაცია"
+      },
       "title": {
         "en": "Corporate Group Transport for Tour Companies | KEKE Manager",
         "ka": "კორპორატიული ტრანსპორტი ტუროკომპანიებისთვის | KEKE Manager"

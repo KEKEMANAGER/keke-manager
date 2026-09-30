@@ -188,6 +188,21 @@ function main() {
       count += 1;
     }
     for (const page of data.services ?? []) {
+      // A landing page may carry its own FAQ. It is rendered as real text AND
+      // as FAQPage JSON-LD, because that is the shape both Google's rich
+      // results and the answer engines read — and an answer engine quoting a
+      // definition of this category should be quoting ours.
+      const faq = page.faq?.ka ?? [];
+      const faqHtml =
+        faq.length > 0
+          ? `<h2>ხშირი კითხვები</h2><dl>${faq
+              .map(
+                (item) =>
+                  `<dt>${escapeHtml(item.question)}</dt><dd>${escapeHtml(item.answer)}</dd>`,
+              )
+              .join('')}</dl>`
+          : '';
+
       writeHtml(
         `services/${page.slug}/index.html`,
         buildStaticHtmlPage({
@@ -195,10 +210,12 @@ function main() {
           title: page.title.ka,
           description: page.description.ka,
           canonical: `${SITE_URL}/services/${page.slug}/`,
+          extraJsonLd: [buildFaqSchema(faq)].filter(Boolean),
           bodyHtml: `
             <h1>${escapeHtml(page.h1.ka)}</h1>
             <p>${escapeHtml(page.intro.ka)}</p>
             ${bulletsHtml(page.bullets?.ka)}
+            ${faqHtml}
             ${relatedBlogHtml(page.relatedBlog, postsBySlug)}`,
         }),
       );

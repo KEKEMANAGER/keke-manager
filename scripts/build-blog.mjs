@@ -489,7 +489,7 @@ function buildLlmsFull(posts) {
 - **Sign up (free for companies):** ${SITE_URL}/sign-up
 - **Sign in:** ${SITE_URL}/sign-in
 - **Contact:** info@kekemanager.com | +995 551 003 411
-- **Verified drivers:** ${seo.driverCountLabel || '500+'} across Georgia
+- **Verified drivers:** ${seo.driverCountLabel ? `${seo.driverCountLabel} across Georgia` : 'verified across Georgia'}
 - **Languages (landing UI):** 33 (${langCodes})
 - **App UI (full):** Georgian, English, Russian
 - **Cities in platform directory:** ${cities.length || '33+'} — ${cityList}
@@ -525,7 +525,7 @@ Location fields support typed presets: airport (Tbilisi/Batumi/Kutaisi + custom)
 |--------|-------------|
 | Fleet management | Assign drivers to bookings; view company fleet and hired drivers |
 | GPS tracking | Live driver location on map for companies and admins |
-| Verified drivers | ${seo.driverCountLabel || '500+'} vetted guide-drivers and transport partners |
+| Verified drivers | ${seo.driverCountLabel ? `${seo.driverCountLabel} vetted` : 'Vetted'} guide-drivers and transport partners |
 | Bookings workflow | Create, edit, status updates, history, find-drivers matching |
 | PDF vouchers | Auto-generated company vouchers with route, client, vehicle details |
 | Three-way chat | Tour company, host, and driver in one thread per booking |

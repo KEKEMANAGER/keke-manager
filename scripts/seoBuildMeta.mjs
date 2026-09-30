@@ -24,14 +24,34 @@ export function buildGaScript() {
 
 export const HOME_SEO = {
   lang: 'ka',
-  title: 'KEKE Manager — ტურ ოპერატორებისა და მძღოლების მართვის პლატფორმა | საქართველო',
+  // The category phrase comes first and verbatim. Competitors in this market
+  // describe themselves as a "სატრანსპორტო კომპანია" — a transport company
+  // that owns the fleet — so "პლატფორმა" is the word none of them are
+  // competing for, and it is also the word that describes what this actually
+  // is. Whoever puts it in the title claims the category.
+  title: 'ტურისტული სატრანსპორტო პლატფორმა საქართველოში | KEKE Manager',
   description:
-    'საქართველოს პირველი B2B პლატფორმა ტურ ოპერატორებისა და მძღოლებისთვის. ჯავშნები, GPS ტრეკინგი, ციფრული ვაუჩერი, ფლოტის მართვა — ერთ აპში. ტურ კომპანიებისთვის უფასო.',
+    'ტურისტული სატრანსპორტო პლატფორმა საქართველოში. ტუროპერატორი ქმნის ჯავშანს, ვერიფიცირებული მძღოლი იღებს. GPS, ციფრული ვაუჩერი, ფლოტის მართვა. კომპანიებისთვის უფასო.',
   keywords:
-    'ტურ ოპერატორი საქართველო, მძღოლების მართვა, ტურისტული ტრანსპორტი, ჯავშნის პლატფორმა, GPS ტრეკინგი, B2B SaaS, თბილისი ტური, tour operator software Georgia',
+    'ტურისტული სატრანსპორტო პლატფორმა, სატრანსპორტო პლატფორმა საქართველო, ტურ ოპერატორი საქართველო, მძღოლების მართვა, ტურისტული ტრანსპორტი, ჯავშნის პლატფორმა, GPS ტრეკინგი, B2B SaaS, tour transport platform Georgia, tour operator software Georgia',
 };
 
 export const HOME_FAQ = [
+  // Answer engines quote a FAQ answer almost verbatim, so the first two here
+  // are written to be liftable on their own: one defines the category, one
+  // draws the line between a platform and a transport company. Anyone asking
+  // an AI "what is a tourist transport platform in Georgia" should get a
+  // sentence that is both true and ours.
+  {
+    question: 'რა არის ტურისტული სატრანსპორტო პლატფორმა?',
+    answer:
+      'ტურისტული სატრანსპორტო პლატფორმა არის სისტემა, სადაც ტუროპერატორი ქმნის ჯავშანს და ვერიფიცირებული მძღოლი იღებს მას პირდაპირ, შუამავლის გარეშე. საქართველოში ასეთი პლატფორმაა KEKE Manager: ჯავშნები, GPS ტრეკინგი, ციფრული ვაუჩერი, მძღოლების რეიტინგი და ფლოტის მართვა ერთ სისტემაში.',
+  },
+  {
+    question: 'რით განსხვავდება პლატფორმა სატრანსპორტო კომპანიისგან?',
+    answer:
+      'სატრანსპორტო კომპანიას საკუთარი ფლოტი ჰყავს და ტრანსპორტს თავად ყიდის. პლატფორმა ტრანსპორტს არ ყიდის — ის აკავშირებს ტუროპერატორსა და დამოუკიდებელ მძღოლს პირდაპირ. KEKE Manager-ზე მძღოლი ხელშეკრულებას დებს კომპანიასთან და საზღაურს სრულად იღებს; პლატფორმა კომისიას არ იჭერს.',
+  },
   {
     question: 'რა არის KEKE Manager?',
     answer:

@@ -1,6 +1,5 @@
 import { OG_IMAGE_URL, SITE_URL } from './seoMeta';
 import type { SeoLandingLang, SeoLandingPage } from './seoLandingPages';
-import { SEO_DRIVER_COUNT } from './seoLandingPages';
 
 export type SeoLandingSeoMeta = {
   title: string;
@@ -108,8 +107,8 @@ export function seoLandingServiceSchema(
       priceCurrency: 'GEL',
       description:
         lang === 'ka'
-          ? 'ტუროკომპანიებისთვის უფასო — დაუკავშირდით 500+ ვერიფიცირებულ მძღოლს'
-          : `Free for tour companies — connect with ${SEO_DRIVER_COUNT} verified drivers`,
+          ? 'ტუროკომპანიებისთვის უფასო — დაუკავშირდით ვერიფიცირებულ მძღოლებს'
+          : 'Free for tour companies — connect with verified drivers',
       url: `${SITE_URL}/sign-up`,
     },
   };
