@@ -88,6 +88,9 @@
     "cancelConfirmMessage": "Cancel this booking? The company will be notified.",
     "confirmUpcoming": "Confirm",
     "confirmedUpcoming": "Confirmed ✅",
+    "confirmBeforeStartHint": "Confirm first — the company is waiting for your answer",
+    "driverConfirmedBadge": "Driver confirmed",
+    "awaitingDriverConfirm": "Waiting for driver confirmation",
     "confirmUpcomingFailed": "Could not confirm",
     "voucherModalTitle": "Voucher",
     "voucherCompany": "Company",
@@ -866,7 +869,7 @@
     "type": {
       "sedan": "Sedan",
       "minivan": "Minivan",
-      "suv": "SUV",
+      "suv": "SUV 4x4",
       "microbus": "Microbus",
       "bus": "Bus",
       "special": "Special transport"
@@ -1165,6 +1168,8 @@
       "dataCollected": "GPS coordinates (latitude and longitude), updated periodically while trip tracking is turned on.",
       "usageLabel": "How it is used",
       "dataUsage": "Location data is sent securely to KEKE MANAGER and shown to the tour operator for the active booking only. It is used for live trip monitoring—not for advertising. Tracking stops when you end the trip or turn off GPS.",
+      "batteryLabel": "Battery",
+      "battery": "This app may use your location in the background, while the screen is off. Continued use of GPS running in the background can dramatically decrease battery life. Tracking stops as soon as you turn GPS off or finish the trip.",
       "accept": "Accept",
       "decline": "Decline"
     }
@@ -1841,6 +1846,11 @@
     "create": "Create the booking",
     "createFailed": "Could not create the booking",
     "created": "Booking created",
-    "reviewHint": "The booking is created through the normal path — every check works exactly as it does when you type it in."
+    "reviewHint": "The booking is created through the normal path — every check works exactly as it does when you type it in.",
+    "hotel": "Hotel",
+    "serviceLabel": "Service",
+    "createAll": "Create all ({{count}})",
+    "createdMany": "{{count}} bookings created",
+    "createdSome": "{{count}} bookings created, the rest failed"
   }
 }

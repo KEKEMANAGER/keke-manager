@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -22,19 +22,53 @@ function shouldRegisterPush(role: ReturnType<typeof getUserRole>): boolean {
   return role === 'driver' || role === 'company' || role === 'admin';
 }
 
+/** Re-registering more often than this on foreground would be pure noise. */
+const PUSH_REREGISTER_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
 export function PushNotificationRegistration() {
   const { user, profile, loading, session } = useAuth();
   const role = getUserRole(profile);
   const sessionFingerprint = session?.access_token ?? '';
+  const lastRegisteredAtRef = useRef(0);
+
+  const register = useCallback(
+    (userId: string) => {
+      lastRegisteredAtRef.current = Date.now();
+      voidSafe(
+        registerForPushNotificationsAsync(userId, { requestPermission: true }),
+        '[push] register',
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     if (loading || !user?.id) return;
     if (!shouldRegisterPush(role)) return;
-    voidSafe(
-      registerForPushNotificationsAsync(user.id, { requestPermission: true }),
-      '[push] register',
-    );
-  }, [loading, user?.id, role, sessionFingerprint]);
+    register(user.id);
+  }, [loading, user?.id, role, sessionFingerprint, register]);
+
+  /**
+   * Expo push tokens are not permanent — they rotate on reinstall, on some OS
+   * updates, and after a long idle period — and a driver who granted
+   * notifications in system settings *after* first launch never got one at all.
+   * Either way `profiles.push_token` goes stale and the driver silently stops
+   * being reachable: no error anywhere, they just stop getting jobs. Refreshing
+   * it whenever the app comes back to the foreground keeps the row honest.
+   */
+  useEffect(() => {
+    if (loading || !user?.id) return;
+    if (!shouldRegisterPush(role)) return;
+    const userId = user.id;
+
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state !== 'active') return;
+      if (Date.now() - lastRegisteredAtRef.current < PUSH_REREGISTER_MIN_INTERVAL_MS) return;
+      register(userId);
+    });
+
+    return () => sub.remove();
+  }, [loading, user?.id, role, register]);
 
   return null;
 }

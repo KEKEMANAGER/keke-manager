@@ -18,7 +18,10 @@ import { trimUserId } from './userId';
  */
 export const CONFIRM_STAGE_MINUTES = [180, 60, 45] as const;
 
-/** Driver may confirm from the 3h ask until departure. */
+/**
+ * How close to departure the reminder ladder starts nagging. Confirmation
+ * itself is *not* limited to this window — see `canDriverConfirmUpcomingBooking`.
+ */
 const CONFIRM_WINDOW_MS = 195 * 60 * 1000;
 
 export function bookingStartMs(row: Pick<BookingRow, 'date_display'>): number | null {
@@ -26,16 +29,24 @@ export function bookingStartMs(row: Pick<BookingRow, 'date_display'>): number | 
   return parsed ? parsed.getTime() : null;
 }
 
-/** Show „დაადასტურე" from the 3h mark until the trip starts. */
+/**
+ * Show „დაადასტურე" for any accepted booking that has not been confirmed yet.
+ *
+ * Accepting and confirming are two different promises: accepting says "I want
+ * this job", confirming says "I will be there". The company needs the second
+ * one the moment the driver takes the job, not three hours before departure —
+ * a tour booked a month out has to show as confirmed for a month, otherwise the
+ * company is holding an unanswered booking and does not know it.
+ *
+ * `confirm_booking_as_driver` has never had a time limit, so this only opens
+ * the button the server was already willing to honour.
+ */
 export function canDriverConfirmUpcomingBooking(
   row: Pick<BookingRow, 'status' | 'date_display' | 'driver_confirmed_1h'>,
-  nowMs = Date.now(),
+  _nowMs = Date.now(),
 ): boolean {
   if (row.status !== 'accepted') return false;
-  if (row.driver_confirmed_1h === true) return false;
-  const start = bookingStartMs(row);
-  if (start === null || start <= nowMs) return false;
-  return start - nowMs <= CONFIRM_WINDOW_MS;
+  return row.driver_confirmed_1h !== true;
 }
 
 export function isDriverConfirmed(row: Pick<BookingRow, 'driver_confirmed_1h'>): boolean {
@@ -59,7 +70,10 @@ export function confirmUrgency(
 ): 'final' | 'urgent' | 'due' | null {
   if (!canDriverConfirmUpcomingBooking(row, nowMs)) return null;
   const start = bookingStartMs(row);
-  if (start === null) return null;
+  if (start === null || start <= nowMs) return null;
+  // Urgency is still the reminder ladder's business: a booking a month out is
+  // unconfirmed, not late.
+  if (start - nowMs > CONFIRM_WINDOW_MS) return null;
   const minutes = (start - nowMs) / 60000;
   if (minutes <= 50) return 'final';
   if (minutes <= 75) return 'urgent';

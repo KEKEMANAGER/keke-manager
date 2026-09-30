@@ -54,6 +54,17 @@ export function BackgroundLocationDisclosureModal({ visible, onAccept, onDecline
 
             <Text style={styles.sectionLabel}>{t('gpsScreen.bgDisclosure.usageLabel')}</Text>
             <Text style={styles.body}>{t('gpsScreen.bgDisclosure.dataUsage')}</Text>
+
+            {/*
+              App Review rejected 1.0.0 (15) under guideline 2.5.4, which asks
+              every app using the location background mode to tell the user, in
+              the app, that location may be used in the background and that
+              leaving GPS running there can drain the battery. The rest of this
+              modal was written for Google Play's prominent-disclosure rule and
+              says nothing about battery, which is the part Apple looks for.
+            */}
+            <Text style={styles.sectionLabel}>{t('gpsScreen.bgDisclosure.batteryLabel')}</Text>
+            <Text style={styles.body}>{t('gpsScreen.bgDisclosure.battery')}</Text>
           </ScrollView>
 
           <View style={styles.actions}>

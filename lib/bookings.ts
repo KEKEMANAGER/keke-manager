@@ -368,6 +368,8 @@ export type BookingRow = {
   meet_greet: boolean | null;
   sign_text: string | null;
   pickup_sign_logo_url: string | null;
+  /** Hotel the group stays at / is collected from. Free text, as the operator wrote it. */
+  hotel?: string | null;
   passenger_name: string | null;
   passenger_phone: string | null;
   flight_direction: FlightDirection | string | null;
@@ -469,6 +471,7 @@ export type InsertBookingInput = {
   flight_number: string | null;
   meet_greet: boolean;
   sign_text: string | null;
+  hotel?: string | null;
   passenger_name: string | null;
   passenger_phone: string | null;
   flight_direction: FlightDirection | null;
@@ -872,6 +875,7 @@ export async function insertBooking(row: InsertBookingInput) {
       flight_number: row.flight_number,
       meet_greet: row.meet_greet,
       sign_text: row.sign_text,
+      hotel: row.hotel ?? null,
       passenger_name: row.passenger_name,
       passenger_phone: row.passenger_phone,
       flight_direction: row.flight_direction,

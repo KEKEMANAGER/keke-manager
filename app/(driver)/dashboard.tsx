@@ -589,7 +589,11 @@ export default function DriverDashboardScreen() {
           <Text style={styles.company}>{activeBooking.company_name || t('common.company')}</Text>
           <Text style={styles.route}>{routeSummary(activeBooking)}</Text>
           <View style={styles.activeMeta}>
-            <Text style={styles.meta}>{formatBookingDate(activeBooking)}</Text>
+            {/* Two lines, never an ellipsis: half a departure time is worse
+                than a date that wraps. */}
+            <Text style={styles.meta} numberOfLines={2}>
+              {formatBookingDate(activeBooking)}
+            </Text>
             {userId ? (
               <BookingPriceDisplay booking={activeBooking} viewerUserId={userId} />
             ) : (
@@ -856,11 +860,15 @@ const styles = StyleSheet.create({
   activeMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    // The note under the price wraps onto two or three lines, so the date sits
+    // at the top of the row rather than floating beside its last line.
+    alignItems: 'flex-start',
+    columnGap: SPACING.sm,
   },
   meta: {
     color: COLORS.textMuted,
     fontSize: 14,
+    flexShrink: 1,
   },
   price: {
     color: COLORS.gold,

@@ -54,7 +54,9 @@ export function BookingPriceDisplay({ booking, viewerUserId, size = 'md' }: Prop
     return (
       <View style={styles.wrap}>
         <Text style={styles.label}>{t('fleet.yourPayLabel')}</Text>
-        <Text style={mainStyle}>{formatGel(driverPayableGel(booking))}</Text>
+        <Text style={mainStyle} numberOfLines={1}>
+          {formatGel(driverPayableGel(booking))}
+        </Text>
         <PriceNotes booking={booking} />
       </View>
     );
@@ -63,7 +65,9 @@ export function BookingPriceDisplay({ booking, viewerUserId, size = 'md' }: Prop
   if (isHost && hasDriverPayoutSnapshot(booking)) {
     return (
       <View style={styles.wrap}>
-        <Text style={mainStyle}>{formatGel(Number(booking.price_gel))}</Text>
+        <Text style={mainStyle} numberOfLines={1}>
+          {formatGel(Number(booking.price_gel))}
+        </Text>
         <Text style={styles.subLine}>
           {t('fleet.driverPayoutLine', { amount: formatGel(driverPayableGel(booking)) })}
         </Text>
@@ -77,14 +81,24 @@ export function BookingPriceDisplay({ booking, viewerUserId, size = 'md' }: Prop
 
   return (
     <View style={styles.wrap}>
-      <Text style={mainStyle}>{formatGel(Number(booking.price_gel))}</Text>
+      <Text style={mainStyle} numberOfLines={1}>
+        {formatGel(Number(booking.price_gel))}
+      </Text>
       <PriceNotes booking={booking} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'flex-end' },
+  /**
+   * The notes under the price are full sentences ("ფასში საწვავი არ შედის —
+   * ცალკე ანაზღაურდება"), and a column is as wide as its widest child. Without
+   * `flexShrink` this block claimed that whole sentence's width inside a row,
+   * pushed itself past the card's edge and took the price with it — a four
+   * digit total rendered as "120". Shrinking lets the sentence wrap instead,
+   * and the price, held to one line, is never the thing that gives way.
+   */
+  wrap: { alignItems: 'flex-end', flexShrink: 1, minWidth: 0 },
   label: {
     color: COLORS.textMuted,
     fontSize: 11,
@@ -107,11 +121,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     textAlign: 'right',
+    flexShrink: 1,
   },
   subLineMuted: {
     color: COLORS.textMuted,
     fontSize: 11,
     marginTop: 2,
     textAlign: 'right',
+    flexShrink: 1,
   },
 });

@@ -22,7 +22,7 @@ import {
   importBookingFromFile,
   missingRequiredFields,
   type ImportedBookingDraft,
-  type ImportFieldSource,
+  type ImportedService,
 } from '../../lib/bookingImport';
 
 /**
@@ -43,6 +43,15 @@ function companyDisplayName(profile: Profile | null, user: User | null): string 
   return user?.email ?? null;
 }
 
+/** Short label for a service tab — the date is what tells two transfers apart. */
+function formatImportedDate(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso.slice(0, 10);
+  const d = new Date(t);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+}
+
 const VEHICLE_TYPES = ['sedan', 'minivan', 'microbus', 'bus', 'suv'] as const;
 const VEHICLE_CLASSES = ['economy', 'comfort', 'vip'] as const;
 const KINDS = ['transfer', 'day_tour', 'tour'] as const;
@@ -55,14 +64,31 @@ export default function ImportBookingScreen() {
 
   const [busy, setBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [draft, setDraft] = useState<ImportedBookingDraft | null>(null);
-  const [sources, setSources] = useState<Partial<Record<keyof ImportedBookingDraft, ImportFieldSource>>>({});
+  /**
+   * A tour operator's file is usually a whole programme, not one job. Everything
+   * below therefore edits one service out of a list — a single-booking document
+   * is simply a list of one, and looks exactly as it did before.
+   */
+  const [services, setServices] = useState<ImportedService[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  /** Services already sent, so a second tap cannot duplicate them. */
+  const [createdIndexes, setCreatedIndexes] = useState<number[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [usedAi, setUsedAi] = useState(false);
   const [fileName, setFileName] = useState('');
 
+  const active = services[activeIndex] ?? null;
+  const draft = active?.draft ?? null;
+  const sources = active?.sources ?? {};
+  const evidence = active?.evidence ?? null;
+  const pendingIndexes = services
+    .map((_, i) => i)
+    .filter((i) => !createdIndexes.includes(i));
+
   function patch<K extends keyof ImportedBookingDraft>(key: K, value: ImportedBookingDraft[K]) {
-    setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
+    setServices((prev) =>
+      prev.map((s, i) => (i === activeIndex ? { ...s, draft: { ...s.draft, [key]: value } } : s)),
+    );
   }
 
   async function onPickFile() {
@@ -77,49 +103,96 @@ export default function ImportBookingScreen() {
       return;
     }
 
-    setDraft(res.draft);
-    setSources(res.sources ?? {});
+    setServices(
+      res.services ?? [{ draft: res.draft, sources: res.sources ?? {}, warnings: [] }],
+    );
+    setActiveIndex(0);
+    setCreatedIndexes([]);
     setWarnings(res.warnings ?? []);
     setUsedAi(res.usedAi);
     setFileName(res.fileName);
   }
 
-  async function onCreate() {
-    if (!draft || !user?.id || submitting) return;
+  function serviceLabel(service: ImportedService, index: number): string {
+    const d = service.draft;
+    const date = d.date_display ? formatImportedDate(d.date_display) : '';
+    const route =
+      [d.from_location, d.to_location].filter(Boolean).join(' → ') || d.route || '';
+    const text = [date, route].filter(Boolean).join(' · ');
+    return text || `${t('importBooking.serviceLabel')} ${index + 1}`;
+  }
 
-    const missing = missingRequiredFields(draft);
-    if (missing.length > 0) {
-      Alert.alert(t('importBooking.missingTitle'), missing.join('\n'));
-      return;
+  /**
+   * Sends every service that has not been sent yet. That is the point of reading
+   * a programme: a company that still has to open five forms has been saved
+   * nothing. A service that is missing something required stops the run and the
+   * screen jumps to it, rather than sending a half-correct batch.
+   */
+  async function onCreate() {
+    if (!user?.id || submitting || pendingIndexes.length === 0) return;
+
+    for (const i of pendingIndexes) {
+      const missing = missingRequiredFields(services[i].draft);
+      if (missing.length > 0) {
+        setActiveIndex(i);
+        Alert.alert(
+          t('importBooking.missingTitle'),
+          services.length > 1
+            ? `${serviceLabel(services[i], i)}\n\n${missing.join('\n')}`
+            : missing.join('\n'),
+        );
+        return;
+      }
     }
 
     setSubmitting(true);
-    const base = draftToInsertInput(draft, {
-      companyUserId: user.id,
-      companyName: companyDisplayName(profile, user),
-      createdByName: profile?.full_name ?? null,
-    });
+    const done: number[] = [];
+    let failure: string | null = null;
 
-    const payload = {
-      ...base,
-      price_gel: draft.client_price ?? 0,
-      commission: null,
-      itinerary: null,
-      transfer_in: null,
-      transfer_out: null,
-    } as InsertBookingInput;
+    for (const i of pendingIndexes) {
+      const d = services[i].draft;
+      const base = draftToInsertInput(d, {
+        companyUserId: user.id,
+        companyName: companyDisplayName(profile, user),
+        createdByName: profile?.full_name ?? null,
+      });
 
-    const { id, error } = await insertBooking(payload);
+      const payload = {
+        ...base,
+        price_gel: d.client_price ?? 0,
+        commission: null,
+        itinerary: null,
+        transfer_in: null,
+        transfer_out: null,
+      } as InsertBookingInput;
+
+      const { id, error } = await insertBooking(payload);
+      if (error || !id) {
+        failure = error?.message ?? t('importBooking.createFailed');
+        break;
+      }
+      done.push(i);
+    }
+
+    setCreatedIndexes((prev) => [...prev, ...done]);
     setSubmitting(false);
 
-    if (error || !id) {
-      Alert.alert(t('common.error'), error?.message ?? t('importBooking.createFailed'));
+    if (failure) {
+      // Whatever went out stays out — say how much, so nobody re-sends it.
+      Alert.alert(
+        t('common.error'),
+        done.length > 0
+          ? `${t('importBooking.createdSome', { count: done.length })}\n\n${failure}`
+          : failure,
+      );
       return;
     }
 
-    Alert.alert(t('common.success'), t('importBooking.created'), [
-      { text: t('common.ok'), onPress: () => router.replace('/(app)/dashboard') },
-    ]);
+    Alert.alert(
+      t('common.success'),
+      done.length > 1 ? t('importBooking.createdMany', { count: done.length }) : t('importBooking.created'),
+      [{ text: t('common.ok'), onPress: () => router.replace('/(app)/dashboard') }],
+    );
   }
 
   function SourceTag({ field }: { field: keyof ImportedBookingDraft }) {
@@ -129,6 +202,22 @@ export default function ImportBookingScreen() {
       <View style={styles.aiTag}>
         <Text style={styles.aiTagText}>{t('importBooking.aiGuessed')}</Text>
       </View>
+    );
+  }
+
+  /**
+   * What the document actually said, under the field it produced. Checking a
+   * quoted line takes a second; reopening the PDF to check takes a minute, so
+   * without this nobody checks at all.
+   */
+  function Evidence({ field }: { field: keyof ImportedBookingDraft }) {
+    const key = field === 'date_display' ? 'date' : field === 'pickup_time' ? 'time' : field;
+    const quote = evidence?.[key];
+    if (!quote) return null;
+    return (
+      <Text style={styles.evidence} numberOfLines={2}>
+        «{quote}»
+      </Text>
     );
   }
 
@@ -161,6 +250,7 @@ export default function ImportBookingScreen() {
           placeholder={placeholder}
           placeholderTextColor={COLORS.textMuted}
         />
+        <Evidence field={field} />
       </View>
     );
   }
@@ -257,6 +347,34 @@ export default function ImportBookingScreen() {
                   • {w}
                 </Text>
               ))}
+            </View>
+          ) : null}
+
+          {services.length > 1 ? (
+            <View style={styles.serviceTabs}>
+              {services.map((s, i) => {
+                const isActive = i === activeIndex;
+                const isCreated = createdIndexes.includes(i);
+                return (
+                  <Pressable
+                    key={`service-${i}`}
+                    onPress={() => setActiveIndex(i)}
+                    style={[
+                      styles.serviceTab,
+                      isActive && styles.serviceTabActive,
+                      isCreated && styles.serviceTabDone,
+                    ]}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.serviceTabText, isActive && styles.serviceTabTextActive]}
+                    >
+                      {isCreated ? '✅ ' : ''}
+                      {i + 1}. {serviceLabel(s, i)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           ) : null}
 
@@ -358,6 +476,12 @@ export default function ImportBookingScreen() {
             </View>
 
             <Field
+              label={t('importBooking.hotel')}
+              field="hotel"
+              value={draft.hotel ?? ''}
+              onChange={(v) => patch('hotel', v || null)}
+            />
+            <Field
               label={t('importBooking.sign')}
               field="sign_text"
               value={draft.sign_text ?? ''}
@@ -372,14 +496,21 @@ export default function ImportBookingScreen() {
           </View>
 
           <Pressable
-            style={[styles.createBtn, submitting ? styles.btnDisabled : null]}
-            disabled={submitting}
+            style={[
+              styles.createBtn,
+              (submitting || pendingIndexes.length === 0) && styles.btnDisabled,
+            ]}
+            disabled={submitting || pendingIndexes.length === 0}
             onPress={() => void onCreate()}
           >
             {submitting ? (
               <ActivityIndicator color={COLORS.white} />
             ) : (
-              <Text style={styles.createBtnText}>{t('importBooking.create')}</Text>
+              <Text style={styles.createBtnText}>
+                {pendingIndexes.length > 1
+                  ? t('importBooking.createAll', { count: pendingIndexes.length })
+                  : t('importBooking.create')}
+              </Text>
             )}
           </Pressable>
           <Text style={styles.hint}>{t('importBooking.reviewHint')}</Text>
@@ -475,6 +606,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: SPACING.xs,
+  },
+  evidence: {
+    marginTop: 4,
+    fontSize: 12,
+    fontStyle: 'italic',
+    color: COLORS.textMuted,
+  },
+  serviceTabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  serviceTab: {
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    maxWidth: '100%',
+  },
+  serviceTabActive: {
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldLight,
+  },
+  serviceTabDone: {
+    opacity: 0.6,
+  },
+  serviceTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  serviceTabTextActive: {
+    color: COLORS.text,
+    fontWeight: '800',
   },
   createBtn: {
     backgroundColor: COLORS.gold,

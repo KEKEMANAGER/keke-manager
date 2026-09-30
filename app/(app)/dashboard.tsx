@@ -36,6 +36,7 @@ import {
 } from '../../lib/groupBooking';
 import { EmergencyReplacementModal } from '../../components/EmergencyReplacementModal';
 import { EmergencyReplacementBanner } from '../../components/EmergencyReplacementBanner';
+import { DriverConfirmationBadge } from '../../components/DriverConfirmationBadge';
 import {
   CompanyOnboardingOverlay,
   type OnboardingTargetRects,
@@ -618,6 +619,7 @@ export default function CompanyDashboardScreen() {
             </View>
             <Text style={styles.route}>{routeSummary(b)}</Text>
             <EmergencyReplacementBanner booking={b} compact />
+            <DriverConfirmationBadge booking={b} />
             <Text style={styles.date}>{formatBookingDate(b)}</Text>
             {b.is_group_master ? (
               <View style={styles.convoyBlock}>

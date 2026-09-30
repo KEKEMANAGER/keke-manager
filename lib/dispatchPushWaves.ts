@@ -35,6 +35,38 @@ async function isBookingStillOpenForDispatch(bookingId: string): Promise<boolean
   return row.status === 'pending';
 }
 
+/**
+ * Wave 2 used to be a `setTimeout` in this app. That meant the second half of
+ * the drivers only ever heard about a booking if the company kept the app open
+ * and unlocked for three more minutes — which is exactly what nobody does after
+ * tapping "create". The server-side queue (`enqueue_booking_push` →
+ * `flush_push_outbox`, run once a minute by cron) sends it whether or not this
+ * app is still alive. The in-app timer stays only for the case the queue cannot
+ * serve: a push with no booking row to attach it to.
+ */
+async function enqueueRatingWave2Push(params: {
+  bookingId: string;
+  tokens: string[];
+  title: string;
+  body: string;
+  data: Record<string, string>;
+}): Promise<boolean> {
+  const { error } = await supabase.rpc('enqueue_booking_push', {
+    p_booking_id: params.bookingId,
+    p_tokens: params.tokens,
+    p_title: params.title,
+    p_body: params.body,
+    p_data: params.data,
+    p_delay_seconds: Math.round(DISPATCH_RATING_WAVE2_DELAY_MS / 1000),
+  });
+
+  if (error) {
+    if (__DEV__) console.warn('[dispatchPushWaves] wave2 enqueue failed:', error.message);
+    return false;
+  }
+  return true;
+}
+
 function scheduleRatingWave2Push(params: {
   bookingId?: string;
   tokens: string[];
@@ -91,13 +123,20 @@ export async function sendBroadcastPushInRatingWaves(
   void markDriversDispatched(wave1Recipients.map((r) => r.userId));
 
   if (wave2Tokens.length > 0) {
-    scheduleRatingWave2Push({
-      bookingId: bookingId?.trim() || undefined,
-      tokens: wave2Tokens,
-      title,
-      body,
-      data,
-    });
+    const id = bookingId?.trim() || '';
+    const queued = id
+      ? await enqueueRatingWave2Push({ bookingId: id, tokens: wave2Tokens, title, body, data })
+      : false;
+
+    if (!queued) {
+      scheduleRatingWave2Push({
+        bookingId: id || undefined,
+        tokens: wave2Tokens,
+        title,
+        body,
+        data,
+      });
+    }
   }
 
   if (__DEV__) {

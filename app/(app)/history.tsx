@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { EmptyState } from '../../components/EmptyState';
 import { BookingOdometerSection, BookingOdometerBadge } from '../../components/BookingOdometerSection';
+import { DriverConfirmationBadge } from '../../components/DriverConfirmationBadge';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -313,6 +314,7 @@ export default function CompanyHistoryScreen() {
                 </View>
               </View>
               <Text style={styles.route}>{routeSummary(r)}</Text>
+              <DriverConfirmationBadge booking={r} />
               <View style={styles.cardBottom}>
                 <Text style={styles.date}>{formatBookingDate(r)}</Text>
                 <Text style={styles.price}>{formatGel(Number(r.price_gel))}</Text>

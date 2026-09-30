@@ -758,23 +758,17 @@ export default function DriverBookingsScreen() {
                 </Pressable>
               ) : null}
 
-              {item.status === 'accepted' &&
-              (isDriverOneHourConfirmed(item) || canDriverConfirmUpcomingBooking(item)) ? (
+              {/* Accepted → confirmed → started. The confirm step is what the
+                  company is waiting on, so it says so here and owns the main
+                  button below until it is done. */}
+              {item.status === 'accepted' ? (
                 <View style={styles.confirmRow}>
                   {isDriverOneHourConfirmed(item) ? (
                     <Text style={styles.confirmDoneText}>{t('bookings.confirmedUpcoming')}</Text>
                   ) : (
-                    <Pressable
-                      onPress={() => void onConfirmUpcoming(item)}
-                      disabled={actingId === item.id}
-                      style={({ pressed }) => [styles.confirmBtn, pressed && styles.pressed]}
-                    >
-                      {actingId === item.id ? (
-                        <ActivityIndicator color={COLORS.white} size="small" />
-                      ) : (
-                        <Text style={styles.confirmBtnText}>{t('bookings.confirmUpcoming')}</Text>
-                      )}
-                    </Pressable>
+                    <Text style={styles.confirmPendingText}>
+                      {t('bookings.confirmBeforeStartHint')}
+                    </Text>
                   )}
                 </View>
               ) : null}
@@ -819,7 +813,7 @@ export default function DriverBookingsScreen() {
                           t('bookings.acceptTitle'),
                           t('bookings.acceptMessage'),
                           () => void onAccept(item),
-                          tripActionLabel(t, item.kind, 'start'),
+                          t('bookings.accept'),
                         )
                       }
                       disabled={actingId === item.id}
@@ -828,7 +822,7 @@ export default function DriverBookingsScreen() {
                       {actingId === item.id ? (
                         <ActivityIndicator color={COLORS.white} size="small" />
                       ) : (
-                        <Text style={styles.btnGoldText}>{tripActionLabel(t, item.kind, 'start')}</Text>
+                        <Text style={styles.btnGoldText}>{t('bookings.accept')}</Text>
                       )}
                     </Pressable>
                   </View>
@@ -841,17 +835,33 @@ export default function DriverBookingsScreen() {
                     >
                       <Text style={styles.btnGhostText}>{t('bookings.cancel')}</Text>
                     </Pressable>
-                    <Pressable
-                      onPress={() => void onStartTrip(item)}
-                      disabled={actingId === item.id}
-                      style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
-                    >
-                      {actingId === item.id ? (
-                        <ActivityIndicator color={COLORS.white} size="small" />
-                      ) : (
-                        <Text style={styles.btnGoldText}>{tripActionLabel(t, item.kind, 'start')}</Text>
-                      )}
-                    </Pressable>
+                    {canDriverConfirmUpcomingBooking(item) ? (
+                      <Pressable
+                        onPress={() => void onConfirmUpcoming(item)}
+                        disabled={actingId === item.id}
+                        style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
+                      >
+                        {actingId === item.id ? (
+                          <ActivityIndicator color={COLORS.white} size="small" />
+                        ) : (
+                          <Text style={styles.btnGoldText}>{t('bookings.confirmUpcoming')}</Text>
+                        )}
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={() => void onStartTrip(item)}
+                        disabled={actingId === item.id}
+                        style={({ pressed }) => [styles.btnGold, pressed && styles.pressed]}
+                      >
+                        {actingId === item.id ? (
+                          <ActivityIndicator color={COLORS.white} size="small" />
+                        ) : (
+                          <Text style={styles.btnGoldText}>
+                            {tripActionLabel(t, item.kind, 'start')}
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
                   </View>
                 ) : item.status === 'completed' && user?.id ? (
                   <BookingPaymentConfirm
@@ -1106,20 +1116,13 @@ const styles = StyleSheet.create({
   confirmRow: {
     marginBottom: SPACING.sm,
   },
-  confirmBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#059669',
-    paddingVertical: 10,
-    paddingHorizontal: SPACING.lg,
-    borderRadius: RADIUS.button,
-  },
-  confirmBtnText: {
-    color: COLORS.white,
-    fontWeight: '800',
-    fontSize: 14,
-  },
   confirmDoneText: {
     color: '#047857',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  confirmPendingText: {
+    color: COLORS.goldDark,
     fontWeight: '700',
     fontSize: 14,
   },

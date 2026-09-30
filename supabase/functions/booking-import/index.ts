@@ -57,7 +57,16 @@ type BookingDraft = {
   client_price: number | null;
   payment_method: string | null;
   comment: string | null;
-  tour_days: { day: number; date: string | null; fromPlace: string | null; toPlace: string | null; stops: string | null }[] | null;
+  /** Where the group sleeps / is collected from. Drivers ask for this before anything else. */
+  hotel: string | null;
+  tour_days: {
+    day: number;
+    date: string | null;
+    fromPlace: string | null;
+    toPlace: string | null;
+    stops: string | null;
+    hotel: string | null;
+  }[] | null;
 };
 
 const EMPTY_DRAFT: BookingDraft = {
@@ -79,6 +88,7 @@ const EMPTY_DRAFT: BookingDraft = {
   client_price: null,
   payment_method: null,
   comment: null,
+  hotel: null,
   tour_days: null,
 };
 
@@ -501,6 +511,14 @@ const LABELS: Record<string, keyof BookingDraft | 'time' | 'vehicle'> = {
   'მარშრუტი': 'route', 'route': 'route', 'itinerary': 'route',
   'маршрут': 'route', 'güzergah': 'route', 'երթուղի': 'route', 'ruta': 'route',
 
+  'სასტუმრო': 'hotel', 'განთავსება': 'hotel', 'სასტუმროს დასახელება': 'hotel',
+  'ღამისთევა': 'hotel',
+  'hotel': 'hotel', 'hotel name': 'hotel', 'accommodation': 'hotel', 'stay': 'hotel',
+  'overnight': 'hotel', 'lodging': 'hotel',
+  'отель': 'hotel', 'гостиница': 'hotel', 'размещение': 'hotel', 'ночлег': 'hotel',
+  'otel': 'hotel', 'konaklama': 'hotel', 'հյուրանոց': 'hotel',
+  'unterkunft': 'hotel', 'hotelname': 'hotel', 'alojamiento': 'hotel',
+
   'მგზავრი': 'passengers', 'მგზავრები': 'passengers', 'მგზავრების რაოდენობა': 'passengers',
   'ადამიანი': 'passengers', 'რაოდენობა': 'passengers',
   'pax': 'passengers', 'passengers': 'passengers', 'number of passengers': 'passengers',
@@ -882,6 +900,10 @@ const EXTRACT_TOOL = {
       client_price: { type: ['number', 'null'] },
       payment_method: { type: ['string', 'null'] },
       comment: { type: ['string', 'null'] },
+      hotel: {
+        type: ['string', 'null'],
+        description: 'Hotel the group stays at or is collected from, if the document names one.',
+      },
       tour_days: {
         type: ['array', 'null'],
         description: 'One entry per day for a multi-day tour, in order.',
@@ -893,6 +915,7 @@ const EXTRACT_TOOL = {
             fromPlace: { type: ['string', 'null'] },
             toPlace: { type: ['string', 'null'] },
             stops: { type: ['string', 'null'] },
+            hotel: { type: ['string', 'null'], description: 'Where the group sleeps that night.' },
           },
           required: ['day'],
         },
@@ -901,6 +924,24 @@ const EXTRACT_TOOL = {
         type: 'array',
         items: { type: 'string' },
         description: 'Field names you guessed rather than read directly.',
+      },
+      evidence: {
+        type: ['object', 'null'],
+        description:
+          'For each field you filled, the exact text from the document you read it from, copied character for character. The company checks your reading against this, so a paraphrase is worse than nothing.',
+        properties: {
+          date: { type: ['string', 'null'] },
+          time: { type: ['string', 'null'] },
+          from_location: { type: ['string', 'null'] },
+          to_location: { type: ['string', 'null'] },
+          passengers: { type: ['string', 'null'] },
+          vehicle_type: { type: ['string', 'null'] },
+          client_price: { type: ['string', 'null'] },
+          flight_number: { type: ['string', 'null'] },
+          passenger_name: { type: ['string', 'null'] },
+          passenger_phone: { type: ['string', 'null'] },
+          hotel: { type: ['string', 'null'] },
+        },
       },
     },
     required: [],
@@ -918,7 +959,120 @@ Rules:
 - "ტრანსფერი"/transfer = transfer. A single day of sightseeing = day_tour. Several days = tour, and then fill tour_days.
 - Vehicle words: სედანი/sedan, მინივენი/Vito/Viano = minivan, მიკროავტობუსი/Sprinter = microbus, ავტობუსი = bus.
 - List in uncertain_fields any field you inferred rather than read.
+- Fill evidence with the exact wording you read each field from, copied from the document. A dispatcher checks your reading against it, so copy, never paraphrase.
 - Call the submit_booking tool exactly once.`;
+
+/**
+ * A tour operator rarely sends one service. The file that lands in a transport
+ * company's inbox is a whole programme: an arrival transfer, three days of
+ * sightseeing, a departure transfer — five jobs that go to different drivers on
+ * different days, arriving as one document. Reading only the first one is how a
+ * company ends up typing the other four by hand.
+ *
+ * Telling a programme from a single multi-day tour is the hard part, and it is
+ * a judgement about meaning, not layout — which is exactly what the model is
+ * for. The rule it is given: separate services are ones that would be
+ * dispatched separately. A day-by-day itinerary the same vehicle drives
+ * straight through is one service with `tour_days`.
+ */
+const PROGRAM_TOOL = {
+  name: 'submit_program',
+  description:
+    'Return every transport service the document asks for, in order. Use null for anything not stated. Never invent a value.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      services: {
+        type: 'array',
+        description: 'One entry per separately dispatched service.',
+        items: EXTRACT_TOOL.input_schema,
+      },
+    },
+    required: ['services'],
+  },
+} as const;
+
+const PROGRAM_PROMPT = `${SYSTEM_PROMPT}
+
+This document may contain MORE THAN ONE service. Return every one of them, in the order they appear.
+
+What counts as a separate service — the test is whether a dispatcher would send a different vehicle:
+- An arrival transfer, a departure transfer, and sightseeing days in between are SEPARATE services, even when they are listed in one table and paid for as one package.
+- Services on dates that are not consecutive are SEPARATE.
+- A day-by-day itinerary that one vehicle drives straight through — "Day 1 Tbilisi → Kazbegi, Day 2 Kazbegi → Tbilisi" — is ONE service of kind "tour", with the days in tour_days. Do not split it.
+- If the document really describes only one job, return exactly one service. One is a normal answer.
+
+Fill each service completely from the document: its own date, time, route, vehicle, passengers, price and hotel. Details stated once for the whole programme — the passenger's name and phone, the hotel the group stays at — belong on every service they apply to.
+
+Call the submit_program tool exactly once.`;
+
+/** Dates and service words, as a cheap signal that the file may hold a programme. */
+function looksLikeMultiService(text: string): boolean {
+  const body = text.replace(/[\u0000\u0001]/g, '');
+
+  const dates = new Set<string>();
+  const dmy = body.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) ?? [];
+  for (const d of dmy) dates.add(d.replace(/[.\-]/g, '/'));
+  const iso = body.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
+  for (const d of iso) dates.add(d);
+
+  const serviceWords =
+    body.match(
+      /(ტრანსფერ|ექსკურსი|ტური\b|трансфер|экскурс|тур\b|transfer|excursion|sightseeing|day tour|city tour)/gi,
+    ) ?? [];
+
+  // Deliberately generous. A false positive costs one model call and the model
+  // then answers "one service"; a false negative silently loses four bookings.
+  return dates.size >= 2 || serviceWords.length >= 2;
+}
+
+async function aiExtractProgram(
+  text: string,
+  apiKey: string,
+): Promise<{ services: any[]; warning: string | null }> {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 8192,
+        system: PROGRAM_PROMPT,
+        tools: [PROGRAM_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_program' },
+        messages: [
+          {
+            role: 'user',
+            content: `<document>\n${text.replace(/[\u0000\u0001]/g, '').slice(0, MAX_TEXT_CHARS)}\n</document>`,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      return {
+        services: [],
+        warning: `AI წაკითხვა ვერ მოხერხდა (${res.status}). შაბლონით წაკითხული ველები დარჩა. ${body.slice(0, 200)}`,
+      };
+    }
+
+    const json = await res.json();
+    const block = (json.content ?? []).find((c: any) => c.type === 'tool_use');
+    const services = block?.input?.services;
+    if (!Array.isArray(services) || services.length === 0) {
+      return { services: [], warning: 'AI-მ სტრუქტურირებული პასუხი არ დააბრუნა.' };
+    }
+    // A document that produced dozens of "services" was misread, not rich.
+    return { services: services.slice(0, 25), warning: null };
+  } catch (e) {
+    return { services: [], warning: `AI წაკითხვა ვერ მოხერხდა: ${String(e).slice(0, 200)}` };
+  }
+}
 
 async function aiExtract(
   text: string,
@@ -996,6 +1150,7 @@ function mergeAi(
   setIfEmpty('client_price', typeof ai.client_price === 'number' ? ai.client_price : null);
   setIfEmpty('payment_method', ai.payment_method ?? null);
   setIfEmpty('comment', ai.comment ?? null);
+  setIfEmpty('hotel', ai.hotel ?? null);
   setIfEmpty('pickup_time', typeof ai.time === 'string' ? ai.time : null);
 
   if (draft.date_display == null && typeof ai.date === 'string') {
@@ -1007,20 +1162,168 @@ function mergeAi(
   }
 
   if (draft.tour_days == null && Array.isArray(ai.tour_days) && ai.tour_days.length > 0) {
-    draft.tour_days = ai.tour_days
-      .filter((d: any) => d && typeof d.day === 'number')
-      .map((d: any) => ({
-        day: d.day,
-        date: typeof d.date === 'string' ? d.date : null,
-        fromPlace: d.fromPlace ?? null,
-        toPlace: d.toPlace ?? null,
-        stops: d.stops ?? null,
-      }));
+    draft.tour_days = normalizeAiTourDays(ai.tour_days);
     sources.tour_days = 'ai';
   }
 }
 
+function normalizeAiTourDays(raw: unknown): BookingDraft['tour_days'] {
+  if (!Array.isArray(raw)) return null;
+  const days = raw
+    .filter((d: any) => d && typeof d.day === 'number')
+    .map((d: any) => ({
+      day: d.day,
+      date: typeof d.date === 'string' ? d.date : null,
+      fromPlace: d.fromPlace ?? null,
+      toPlace: d.toPlace ?? null,
+      stops: d.stops ?? null,
+      hotel: typeof d.hotel === 'string' && d.hotel.trim() ? d.hotel.trim() : null,
+    }));
+  return days.length > 0 ? days : null;
+}
+
+/**
+ * A whole draft built from one entry of a programme. Unlike `mergeAi`, nothing
+ * was read from the template for these — the model is the only source, so every
+ * field is marked as such and the review screen can show that.
+ */
+function draftFromAi(ai: any): {
+  draft: BookingDraft;
+  sources: Partial<Record<keyof BookingDraft, FieldSource>>;
+  evidence: Record<string, string> | null;
+} {
+  const draft: BookingDraft = { ...EMPTY_DRAFT };
+  const sources: Partial<Record<keyof BookingDraft, FieldSource>> = {};
+  mergeAi(draft, sources, ai);
+  return { draft, sources, evidence: normalizeEvidence(ai?.evidence) };
+}
+
+/**
+ * The document's own words for each field, so the company can check the
+ * reading without opening the file. Anything the model paraphrased into
+ * nothing useful is dropped rather than shown as fake proof.
+ */
+function normalizeEvidence(raw: unknown): Record<string, string> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'string') continue;
+    const quote = value.trim().replace(/\s+/g, ' ').slice(0, 160);
+    if (quote) out[key] = quote;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 // ------------------------------------------------------------------ validate
+
+/**
+ * Physical seats, not comfortable ones — a sedan seats four passengers even if
+ * three is what you would sell. This only ever fires on the impossible, because
+ * a warning that cries wolf teaches the company to skip the ones that matter.
+ */
+const VEHICLE_CAPACITY: Record<string, number> = {
+  sedan: 4,
+  suv: 6,
+  minivan: 8,
+  microbus: 20,
+  bus: 55,
+  special: 20,
+};
+
+/**
+ * Two readers looked at this document: the template parser, which reads layout,
+ * and the model, which reads meaning. Where they agree, the value is almost
+ * certainly right. Where they DISAGREE, something is wrong — a day-first date
+ * read month-first, a price column read as a passenger count, two numbers on
+ * one line — and that disagreement is the cheapest mistake detector there is,
+ * because both readings already exist.
+ *
+ * Only the fields where being wrong actually costs something are compared.
+ * Place names are left alone: "TBS" and "Tbilisi International Airport" are not
+ * a disagreement, and crying wolf about them would train the company to skip
+ * the warnings that matter.
+ */
+function disagreementWarnings(
+  draft: BookingDraft,
+  sources: Partial<Record<keyof BookingDraft, FieldSource>>,
+  ai: any,
+): string[] {
+  const w: string[] = [];
+  if (!ai) return w;
+
+  const fromTemplate = (k: keyof BookingDraft) => sources[k] === 'template';
+
+  if (fromTemplate('date_display') && typeof ai.date === 'string' && draft.date_display) {
+    const template = draft.date_display.slice(0, 10);
+    const model = parseDateTime(ai.date, null)?.slice(0, 10) ?? null;
+    if (model && model !== template) {
+      w.push(
+        `თარიღი გადაამოწმე: ფაილის სტრუქტურამ ${template} აჩვენა, ტექსტის წაკითხვამ — ${model}`,
+      );
+    }
+  }
+
+  if (fromTemplate('passengers') && typeof ai.passengers === 'number' && draft.passengers != null) {
+    if (Math.round(ai.passengers) !== draft.passengers) {
+      w.push(
+        `მგზავრების რაოდენობა გადაამოწმე: ${draft.passengers} თუ ${Math.round(ai.passengers)}?`,
+      );
+    }
+  }
+
+  if (fromTemplate('client_price') && typeof ai.client_price === 'number' && draft.client_price != null) {
+    const a = Number(draft.client_price);
+    const b = Number(ai.client_price);
+    // Rounding and currency symbols are not a disagreement; a different number is.
+    if (a > 0 && b > 0 && Math.abs(a - b) / Math.max(a, b) > 0.02) {
+      w.push(`ფასი გადაამოწმე: ${a} თუ ${b}?`);
+    }
+  }
+
+  if (fromTemplate('vehicle_type') && typeof ai.vehicle_type === 'string' && draft.vehicle_type) {
+    if (ai.vehicle_type !== draft.vehicle_type) {
+      w.push(`ტრანსპორტის ტიპი გადაამოწმე: ${draft.vehicle_type} თუ ${ai.vehicle_type}?`);
+    }
+  }
+
+  return w;
+}
+
+/** Things that are simply impossible, whichever reader produced them. */
+function sanityWarnings(draft: BookingDraft): string[] {
+  const w: string[] = [];
+
+  const capacity = draft.vehicle_type ? VEHICLE_CAPACITY[draft.vehicle_type] : null;
+  if (capacity && draft.passengers != null && draft.passengers > capacity) {
+    w.push(
+      `${draft.passengers} მგზავრი ${draft.vehicle_type}-ში არ ჩაჯდება (მაქს. ${capacity}) — ტრანსპორტი ან რაოდენობა შეამოწმე`,
+    );
+  }
+
+  const from = draft.from_location?.trim().toLowerCase();
+  const to = draft.to_location?.trim().toLowerCase();
+  if (draft.kind === 'transfer' && from && to && from === to) {
+    w.push('ტრანსფერის საიდან და სად ერთი და იგივეა — შეამოწმე');
+  }
+
+  // A five-day itinerary whose dates span two days was read wrong somewhere.
+  const days = draft.tour_days ?? [];
+  if (days.length > 1) {
+    const stamps = days
+      .map((d) => (d.date ? Date.parse(d.date) : NaN))
+      .filter((n) => Number.isFinite(n));
+    if (stamps.length > 1) {
+      const span = (Math.max(...stamps) - Math.min(...stamps)) / 86_400_000 + 1;
+      if (Math.abs(span - days.length) > 1) {
+        w.push(
+          `ტურის დღეები ${days.length}-ია, თარიღები კი ${Math.round(span)} დღეს ფარავს — შეამოწმე`,
+        );
+      }
+    }
+  }
+
+  return w;
+}
 
 function buildWarnings(draft: BookingDraft): string[] {
   const w: string[] = [];
@@ -1046,6 +1349,7 @@ function buildWarnings(draft: BookingDraft): string[] {
   if (draft.client_price != null && draft.client_price <= 0) {
     w.push('ფასი უჩვეულოა — გადაამოწმე');
   }
+  w.push(...sanityWarnings(draft));
   return w;
 }
 
@@ -1140,36 +1444,87 @@ Deno.serve(async (req) => {
     !draft.date_display || !draft.vehicle_type || !draft.passengers ||
     (!draft.from_location && !draft.route);
 
+  const maybeProgram = looksLikeMultiService(text);
+
   let usedAi = false;
+  /** Services 2..n of a programme. The first one is `draft` itself. */
+  let extraServices: {
+    draft: BookingDraft;
+    sources: Partial<Record<keyof BookingDraft, FieldSource>>;
+    evidence: Record<string, string> | null;
+  }[] = [];
+  let evidence: Record<string, string> | null = null;
+  const crossWarnings: string[] = [];
+
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (missingCore) {
-    if (apiKey) {
-      const { data, warning } = await aiExtract(text, apiKey);
-      if (warning) warnings.push(warning);
-      if (data) {
-        mergeAi(draft, sources, data);
-        usedAi = true;
-        if (Array.isArray(data.uncertain_fields) && data.uncertain_fields.length > 0) {
-          warnings.push(
-            `ეს ველები AI-მ დაასკვნა, არ ეწერა პირდაპირ: ${data.uncertain_fields.join(', ')}`,
-          );
-        }
-      }
-    } else {
+
+  /**
+   * The model runs on every document now, not only when the template came up
+   * short. Two readers of the same page is what lets the importer catch itself:
+   * where they agree the value is almost certainly right, and where they differ
+   * the company is told to look. A silent misreading is the one failure this
+   * feature cannot afford, and it is worth a few tetri per file to prevent.
+   */
+  if (!apiKey) {
+    if (missingCore || maybeProgram) {
       warnings.push(
         'ფაილი შაბლონს არ ემთხვევა და AI წაკითხვა გამორთულია (ANTHROPIC_API_KEY არ არის დაყენებული).',
       );
     }
+  } else if (maybeProgram) {
+    // Looks like it holds more than one job. Ask for all of them — the model
+    // decides how many there really are, and one is a valid answer.
+    const { services: found, warning } = await aiExtractProgram(text, apiKey);
+    if (warning) warnings.push(warning);
+    if (found.length > 0) {
+      usedAi = true;
+      crossWarnings.push(...disagreementWarnings(draft, sources, found[0]));
+      // The template read the first service off the actual layout, so it wins.
+      mergeAi(draft, sources, found[0]);
+      evidence = normalizeEvidence(found[0]?.evidence);
+      extraServices = found.slice(1).map(draftFromAi);
+
+      const uncertain = found[0]?.uncertain_fields;
+      if (Array.isArray(uncertain) && uncertain.length > 0) {
+        warnings.push(`ეს ველები AI-მ დაასკვნა, არ ეწერა პირდაპირ: ${uncertain.join(', ')}`);
+      }
+    }
+  } else {
+    const { data, warning } = await aiExtract(text, apiKey);
+    if (warning) warnings.push(warning);
+    if (data) {
+      usedAi = true;
+      crossWarnings.push(...disagreementWarnings(draft, sources, data));
+      mergeAi(draft, sources, data);
+      evidence = normalizeEvidence(data.evidence);
+      if (Array.isArray(data.uncertain_fields) && data.uncertain_fields.length > 0) {
+        warnings.push(
+          `ეს ველები AI-მ დაასკვნა, არ ეწერა პირდაპირ: ${data.uncertain_fields.join(', ')}`,
+        );
+      }
+    }
   }
 
-  warnings.push(...buildWarnings(draft));
+  warnings.push(...crossWarnings, ...buildWarnings(draft));
+
+  const services = [
+    { draft, sources, evidence, warnings: [...crossWarnings, ...buildWarnings(draft)] },
+    ...extraServices.map((s) => ({ ...s, warnings: buildWarnings(s.draft) })),
+  ];
+
+  if (services.length > 1) {
+    warnings.unshift(`ფაილში ${services.length} სერვისი ვიპოვე — ყველა ქვემოთ ჩანს.`);
+  }
 
   return json({
     ok: true,
+    // `draft` stays the first service so older app builds keep working unchanged.
     draft,
     sources,
     warnings,
     usedAi,
+    /** Every service the document asks for. Always at least one. */
+    services,
     fileName,
     textPreview: text.replace(/[\u0000\u0001]/g, '').slice(0, 1500),
   });

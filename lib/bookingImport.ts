@@ -30,6 +30,8 @@ export type ImportedTourDay = {
   fromPlace: string | null;
   toPlace: string | null;
   stops: string | null;
+  /** Where the group sleeps that night, as the operator wrote it. */
+  hotel: string | null;
 };
 
 export type ImportedBookingDraft = {
@@ -51,7 +53,26 @@ export type ImportedBookingDraft = {
   client_price: number | null;
   payment_method: string | null;
   comment: string | null;
+  /** Hotel the group stays at / is collected from. */
+  hotel: string | null;
   tour_days: ImportedTourDay[] | null;
+};
+
+/**
+ * One service out of a document. A tour operator's file is usually a whole
+ * programme — an arrival transfer, sightseeing days, a departure transfer — so
+ * the importer returns a list, and a single-booking file is simply a list of one.
+ */
+export type ImportedService = {
+  draft: ImportedBookingDraft;
+  sources: Partial<Record<keyof ImportedBookingDraft, ImportFieldSource>>;
+  warnings: string[];
+  /**
+   * The document's own wording for each field the model read, so the company can
+   * check the reading without reopening the file. Keyed by the tool's field
+   * names, which mostly match the draft's — `date` and `time` are the exceptions.
+   */
+  evidence?: Record<string, string> | null;
 };
 
 export type BookingImportResult = {
@@ -60,6 +81,8 @@ export type BookingImportResult = {
   sources: Partial<Record<keyof ImportedBookingDraft, ImportFieldSource>>;
   warnings: string[];
   usedAi: boolean;
+  /** Every service found in the document, in order. Always at least one. */
+  services?: ImportedService[];
   fileName: string;
   textPreview: string;
 };
@@ -163,7 +186,20 @@ export async function parseBookingFile(
     };
   }
 
-  return data as BookingImportResult;
+  const result = data as BookingImportResult;
+  // An older deployment of the function answers without `services`. Treat that
+  // as a programme of one so every caller can use the same shape.
+  if (!Array.isArray(result.services) || result.services.length === 0) {
+    result.services = [
+      {
+        draft: result.draft,
+        sources: result.sources,
+        warnings: result.warnings ?? [],
+        evidence: null,
+      },
+    ];
+  }
+  return result;
 }
 
 /** Pick and parse in one step. Returns null when the user cancels. */
@@ -191,6 +227,8 @@ function toTourDaysPersisted(days: ImportedTourDay[] | null): TourDayPersisted[]
       fromPlace: d.fromPlace ?? '',
       toPlace: d.toPlace ?? '',
       stops: d.stops ?? '',
+      // The app has always had a place for this; only the importer never filled it.
+      touristHotel: d.hotel ?? '',
     })) as unknown as TourDayPersisted[];
 }
 
@@ -222,6 +260,7 @@ export function draftToInsertInput(
     passenger_phone: draft.passenger_phone,
     meet_greet: draft.meet_greet ?? false,
     sign_text: draft.sign_text,
+    hotel: draft.hotel,
     client_price: draft.client_price,
     payment_method: draft.payment_method,
     comment: draft.comment,
