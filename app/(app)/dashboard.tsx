@@ -562,6 +562,9 @@ export default function CompanyDashboardScreen() {
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t('company.activeBookings')}</Text>
         <View style={styles.sectionHeadActions}>
+          <Pressable onPress={() => router.push('/(app)/price-request')}>
+            <Text style={styles.linkMuted}>{t('priceRequest.title')}</Text>
+          </Pressable>
           <Pressable onPress={() => router.push('/(app)/import-booking')}>
             <Text style={styles.linkMuted}>{t('company.importBookingLink')}</Text>
           </Pressable>

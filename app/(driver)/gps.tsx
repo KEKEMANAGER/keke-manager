@@ -473,6 +473,18 @@ export default function DriverGpsScreen() {
             <Text style={styles.hintBannerText}>{t('gpsScreen.startTripFirstHint')}</Text>
           </View>
         ) : null}
+
+        {/* App Review 2.5.4 wants this said inside the app, and it has to be
+            said where it can actually be read. The disclosure sheet carries the
+            same sentence, but it is skipped once background permission has been
+            granted — so a reviewer who granted it on the first run, or any
+            driver on their second trip, would never see it again. This banner
+            is unconditional, and it sits directly above the GPS switch it is
+            about. */}
+        <View style={styles.batteryNotice}>
+          <Ionicons name="battery-half-outline" size={18} color={COLORS.textSecondary} />
+          <Text style={styles.batteryNoticeText}>{t('gpsScreen.batteryNotice')}</Text>
+        </View>
         {showTripNav && tripBooking ? (
           <View style={styles.navCard}>
             <View style={styles.navHeader}>
@@ -640,6 +652,24 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
+  },
+  batteryNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    marginBottom: SPACING.sm,
+  },
+  batteryNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 17,
   },
   hintBannerText: {
     flex: 1,

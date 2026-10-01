@@ -239,10 +239,14 @@ export function estimateBookingPrice(input: PricingInput): PriceEstimate {
   const fuel = includesFuel ? fuelCostGel(input.vehicleType, billedKm) : 0;
   const wear = (WEAR_GEL_PER_KM[input.vehicleType] ?? 0.15) * billedKm;
 
-  // A transfer buys the driver's blocked-out hours, not a whole day.
+  // A transfer buys the driver's blocked-out hours, not a whole day — but the
+  // class still has to count. A VIP car meeting a flight is not the same job as
+  // an economy one, and pricing them identically was the first thing that
+  // looked wrong when the model was laid out by vehicle type.
   const dayRate = driverDayRateGel(input.vehicleType, input.vehicleClass);
   const labourBase = isTransfer
-    ? (TRANSFER_BASE_GEL[input.vehicleType] ?? 40)
+    ? (TRANSFER_BASE_GEL[input.vehicleType] ?? 40) *
+      (DAY_RATE_BY_CLASS[input.vehicleClass] ?? 1)
     : dayRate * days;
 
   let surchargeMultiplier = 1;

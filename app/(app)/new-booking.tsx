@@ -104,8 +104,6 @@ import { useAndroidBackHandler } from '../../hooks/useAndroidBackHandler';
 
 type BookingKindUi = 'transfer' | 'tour' | 'dayTour';
 type TransferTab = 'arrival' | 'departure';
-type PaymentWhen = 'now' | 'later' | 'clientCard';
-const PAYMENT_OPTIONS: PaymentWhen[] = ['now', 'later', 'clientCard'];
 
 function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): string {
   const code =
@@ -153,18 +151,6 @@ function companyDisplayName(profile: Profile | null, user: User | null) {
   const fn = profile?.full_name?.trim();
   if (fn) return fn;
   return user?.email ?? null;
-}
-
-function calcMockPrice(params: {
-  type: BookingKindUi;
-  passengers: number;
-  vehicleClass: VehicleClassCode;
-}): number {
-  let base = params.type === 'transfer' ? 120 : params.type === 'tour' ? 450 : 280;
-  base += Math.max(0, params.passengers - 1) * 25;
-  const mult =
-    params.vehicleClass === 'vip' ? 1.45 : params.vehicleClass === 'comfort' ? 1.2 : 1;
-  return Math.round(base * mult);
 }
 
 function parseAmountGeorgian(raw: string): number {
@@ -928,7 +914,6 @@ export default function NewBookingScreen() {
     if (!tourTransferOutTransportRef) setTourTransferOutFlightNo('');
   }, [tourTransferOutTransportRef]);
 
-  const [paymentWhen, setPaymentWhen] = useState<PaymentWhen>('now');
   const [operators, setOperators] = useState<CompanyMember[]>([]);
   const [operatorsLoading, setOperatorsLoading] = useState(false);
   const [selectedOperatorName, setSelectedOperatorName] = useState<string | null>(null);
@@ -1070,11 +1055,6 @@ export default function NewBookingScreen() {
   const pax = multiVehicle
     ? Math.max(1, sumLegPassengers(transportLegs))
     : Math.max(1, parseInt(passengers, 10) || 1);
-  const estimateGel = useMemo(
-    () => calcMockPrice({ type: booking_kind, passengers: pax, vehicleClass }),
-    [booking_kind, pax, vehicleClass],
-  );
-
   const offeredGelParsed = useMemo(
     () => parseAmountGeorgian(clientPriceStr),
     [clientPriceStr],
@@ -1083,11 +1063,9 @@ export default function NewBookingScreen() {
     () => (multiVehicle ? sumLegPrices(transportLegs) : 0),
     [multiVehicle, transportLegs],
   );
-  const driverOfferGel = multiVehicle
-    ? multiTotalPriceGel
-    : offeredGelParsed > 0
-      ? offeredGelParsed
-      : estimateGel;
+  // No invented number when the field is empty: the price is the company's to
+  // set, and a guess shown in its place is the one they end up sending.
+  const driverOfferGel = multiVehicle ? multiTotalPriceGel : offeredGelParsed;
   const previewVoucherId = useMemo(
     () => `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`,
     [],
@@ -1103,11 +1081,6 @@ export default function NewBookingScreen() {
   const companyName = useMemo(
     () => companyDisplayName(profile, user) ?? t('common.companyDefault'),
     [profile, user, t],
-  );
-
-  const paymentLabel = useCallback(
-    (when: PaymentWhen) => t(`newBooking.payment.${when}`),
-    [t],
   );
 
   function patchDay(index: number, patch: Partial<ItineraryDay>) {
@@ -1213,7 +1186,6 @@ export default function NewBookingScreen() {
     setTransferOutHotelLoc(emptyLocationValue());
     setTourTransferInFlightNo('');
     setTourTransferOutFlightNo('');
-    setPaymentWhen('now');
     setSelectedOperatorName(operators[0]?.name ?? null);
     setSubmitError(null);
     setMultiVehicle(false);
@@ -1438,7 +1410,9 @@ export default function NewBookingScreen() {
       transfer_in: transferInDb,
       transfer_out: transferOutDb,
       comment: comment.trim() || null,
-      payment_method: paymentWhen,
+      // The company pays either way and the driver's IBAN is on the voucher,
+      // so asking when was a decision that changed nothing.
+      payment_method: null,
       price_gel: offeredGel,
       created_by_name: operatorName,
       driver_id:
@@ -2046,18 +2020,6 @@ export default function NewBookingScreen() {
                 <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceSameNote')}</Text>
               )}
             </View>
-            <Text style={styles.fieldLabel}>{t('newBooking.form.paymentMethod')}</Text>
-            {PAYMENT_OPTIONS.map((p) => (
-              <Pressable
-                key={p}
-                onPress={() => setPaymentWhen(p)}
-                style={[styles.payRow, paymentWhen === p && styles.payRowActive]}
-              >
-                <Text style={[styles.payText, paymentWhen === p && styles.payTextActive]}>
-                  {paymentLabel(p)}
-                </Text>
-              </Pressable>
-            ))}
             <View style={[styles.voucher, SHADOWS.gold, styles.voucherSpaced]}>
               <Text style={styles.voucherTitle}>{t('newBooking.form.voucherTitle')}</Text>
               <Text style={styles.voucherId}>{previewVoucherId}</Text>
@@ -2293,9 +2255,6 @@ export default function NewBookingScreen() {
               ) : null}
               <Text style={styles.vLine}>
                 {t('newBooking.form.voucherPassengers')}: {pax}
-              </Text>
-              <Text style={styles.vLine}>
-                {t('newBooking.form.voucherPayment')}: {paymentLabel(paymentWhen)}
               </Text>
               <Text style={styles.vPrice}>
                 {t('newBooking.form.voucherOfferedPrice')}: {formatGel(driverOfferGel)}
@@ -3023,27 +2982,6 @@ const styles = StyleSheet.create({
     color: COLORS.grayLight,
     fontSize: 13,
     lineHeight: 18,
-  },
-  payRow: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.sm,
-    backgroundColor: COLORS.surface,
-  },
-  payRowActive: {
-    borderColor: COLORS.gold,
-    backgroundColor: 'rgba(245,166,35,0.1)',
-  },
-  payText: {
-    color: COLORS.text,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  payTextActive: {
-    color: COLORS.goldLight,
   },
   voucher: {
     borderWidth: 2,

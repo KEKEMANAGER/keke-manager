@@ -1172,7 +1172,8 @@
       "battery": "This app may use your location in the background, while the screen is off. Continued use of GPS running in the background can dramatically decrease battery life. Tracking stops as soon as you turn GPS off or finish the trip.",
       "accept": "Accept",
       "decline": "Decline"
-    }
+    },
+    "batteryNotice": "This app uses your location in the background while a trip is active. Continued use of GPS running in the background can dramatically decrease battery life."
   },
   "tracking": {
     "title": "Driver Tracking",
@@ -1852,5 +1853,35 @@
     "createAll": "Create all ({{count}})",
     "createdMany": "{{count}} bookings created",
     "createdSome": "{{count}} bookings created, the rest failed"
+  },
+  "priceRequest": {
+    "title": "Get a price",
+    "subtitle": "Describe the job and get a price within minutes. No booking is created yet.",
+    "kind": "Service",
+    "kinds": {
+      "transfer": "Transfer",
+      "day_tour": "Day tour",
+      "tour": "Tour"
+    },
+    "from": "From",
+    "fromPlaceholder": "Tbilisi Airport",
+    "to": "To",
+    "toPlaceholder": "Kazbegi",
+    "when": "When",
+    "whenPlaceholder": "15–20 May, or 4 October 10:00",
+    "days": "Days",
+    "passengers": "Passengers",
+    "vehicle": "Vehicle",
+    "note": "Anything else",
+    "notePlaceholder": "What matters: language, luggage, guide, stops…",
+    "send": "Request a price",
+    "hint": "The answer arrives as a notification and appears here.",
+    "myRequests": "My requests",
+    "waiting": "Waiting for an answer",
+    "asked": "Sent",
+    "none": "You haven't asked for anything yet.",
+    "needRoute": "Add a route or a description.",
+    "sentTitle": "Sent",
+    "sentBody": "You'll have a price in a few minutes — we'll notify you."
   }
 }
