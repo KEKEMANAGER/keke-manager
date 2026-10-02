@@ -314,6 +314,10 @@
     "stepType": "Type",
     "stepDetails": "Details",
     "stepSummary": "Summary & payment",
+    "importCard": {
+      "title": "Fill from a file",
+      "subtitle": "Upload a PDF, Word or Excel file — the form fills itself."
+    },
     "pickService": "Choose a service type above, then continue.",
     "serviceKind": "Service type",
     "smartForm": {

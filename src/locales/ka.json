@@ -314,6 +314,10 @@
     "stepType": "ტიპი",
     "stepDetails": "დეტალები",
     "stepSummary": "შეჯამება და გადახდა",
+    "importCard": {
+      "title": "ფაილიდან შევსება",
+      "subtitle": "ატვირთე PDF, Word ან Excel — ფორმა თვითონ შეივსება."
+    },
     "pickService": "აირჩიეთ სერვისის ტიპი ზემოთ და გადადით შემდეგ ნაბიჯზე.",
     "serviceKind": "სერვისის ტიპი",
     "smartForm": {

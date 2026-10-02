@@ -1559,6 +1559,22 @@ export default function NewBookingScreen() {
           })}
         </Text>
 
+        {step === 1 ? (
+          <Pressable
+            style={styles.importCard}
+            onPress={() => router.push('/(app)/import-booking')}
+          >
+            <View style={styles.importIcon}>
+              <Ionicons name="document-attach-outline" size={22} color={COLORS.gold} />
+            </View>
+            <View style={styles.importTextWrap}>
+              <Text style={styles.importTitle}>{t('newBooking.importCard.title')}</Text>
+              <Text style={styles.importSub}>{t('newBooking.importCard.subtitle')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+          </Pressable>
+        ) : null}
+
         <ServiceKindSelector value={booking_kind} onChange={set_booking_kind} />
 
         {step === 1 ? <Text style={styles.hint}>{t('newBooking.pickService')}</Text> : null}
@@ -2727,6 +2743,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: SPACING.md,
     lineHeight: 20,
+  },
+  importCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.card,
+  },
+  importIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.goldTint,
+  },
+  importTextWrap: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  importTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  importSub: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
   },
   fieldLabel: {
     color: COLORS.grayLight,

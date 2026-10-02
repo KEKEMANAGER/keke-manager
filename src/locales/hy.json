@@ -314,6 +314,10 @@
     "stepType": "Type",
     "stepDetails": "Details",
     "stepSummary": "Summary & payment",
+    "importCard": {
+      "title": "Լրացնել ֆայլից",
+      "subtitle": "Վերբեռնեք PDF, Word կամ Excel — ձևը կլրացվի ինքնաբերաբար։"
+    },
     "pickService": "Choose a service type above, then continue.",
     "serviceKind": "Service type",
     "smartForm": {

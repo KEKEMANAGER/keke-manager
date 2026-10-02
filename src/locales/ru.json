@@ -314,6 +314,10 @@
     "stepType": "Тип",
     "stepDetails": "Детали",
     "stepSummary": "Итог и оплата",
+    "importCard": {
+      "title": "Заполнить из файла",
+      "subtitle": "Загрузите PDF, Word или Excel — форма заполнится сама."
+    },
     "pickService": "Выберите тип услуги выше и перейдите дальше.",
     "serviceKind": "Тип услуги",
     "smartForm": {

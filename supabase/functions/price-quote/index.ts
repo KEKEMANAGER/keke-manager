@@ -78,6 +78,84 @@ async function sendTelegram(
   }
 }
 
+/**
+ * Two of the three secrets this used to need were busywork: the chat id is
+ * simply whatever chat says /start to the bot, and the webhook secret is a
+ * random string whose only job is to prove a call came from Telegram. Both are
+ * worked out here and kept in `app_settings`, so the only thing a person has to
+ * supply is the bot token.
+ */
+const settingsCache = new Map<string, string>();
+
+async function getSetting(key: string): Promise<string | null> {
+  const cached = settingsCache.get(key);
+  if (cached) return cached;
+  const { data } = await admin().from('app_settings').select('value').eq('key', key).maybeSingle();
+  const value = (data as { value?: string } | null)?.value ?? null;
+  if (value) settingsCache.set(key, value);
+  return value;
+}
+
+async function setSetting(key: string, value: string): Promise<void> {
+  settingsCache.set(key, value);
+  await admin()
+    .from('app_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+}
+
+/** The env var wins when it is set, so an explicit choice still overrides. */
+async function hookSecret(): Promise<string> {
+  const fromEnv = Deno.env.get('TELEGRAM_HOOK_SECRET');
+  if (fromEnv) return fromEnv;
+
+  const stored = await getSetting('telegram_hook_secret');
+  if (stored) return stored;
+
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  const generated = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  await setSetting('telegram_hook_secret', generated);
+  return generated;
+}
+
+async function telegramChatId(): Promise<string | null> {
+  return Deno.env.get('TELEGRAM_CHAT_ID') ?? (await getSetting('telegram_chat_id'));
+}
+
+/**
+ * Telegram allows one webhook per bot and setting it is idempotent, so the
+ * function points Telegram at itself the first time it starts. That keeps the
+ * bot token in exactly one place — the project's secrets — instead of also
+ * having to be pasted into a browser to call setWebhook by hand.
+ */
+let webhookEnsured = false;
+
+async function ensureWebhook(selfUrl: string): Promise<void> {
+  if (webhookEnsured) return;
+  webhookEnsured = true;
+
+  const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  if (!token) {
+    webhookEnsured = false; // the token may arrive later; try again next time
+    return;
+  }
+
+  try {
+    const secret = await hookSecret();
+    await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        url: `${selfUrl}/hook`,
+        secret_token: secret,
+        allowed_updates: ['message', 'edited_message'],
+      }),
+    });
+  } catch {
+    webhookEnsured = false;
+  }
+}
+
 function admin() {
   return createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -159,7 +237,7 @@ async function createRequest(req: Request): Promise<Response> {
 
   const id = data.id as number;
   const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
-  const chatId = Deno.env.get('TELEGRAM_CHAT_ID');
+  const chatId = await telegramChatId();
 
   if (!token || !chatId) {
     // The request is saved either way — it is visible on the company's screen
@@ -188,7 +266,7 @@ async function createRequest(req: Request): Promise<Response> {
 // ─── the answer comes back ──────────────────────────────────────────────────
 
 async function handleHook(req: Request): Promise<Response> {
-  const expected = Deno.env.get('TELEGRAM_HOOK_SECRET');
+  const expected = await hookSecret();
   const got = req.headers.get('x-telegram-bot-api-secret-token');
   if (!expected || got !== expected) {
     // Anyone can find the URL; only Telegram knows the secret. Answer 200 so a
@@ -209,6 +287,19 @@ async function handleHook(req: Request): Promise<Response> {
   const token = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
 
   const reply = (t: string) => (chatId && token ? sendTelegram(token, String(chatId), t) : null);
+
+  // The first chat to talk to the bot becomes the chat requests are sent to.
+  // That is what /start is for, and it saves a person hunting for their own id.
+  if (chatId && !Deno.env.get('TELEGRAM_CHAT_ID')) {
+    const known = await getSetting('telegram_chat_id');
+    if (!known) {
+      await setSetting('telegram_chat_id', String(chatId));
+      await reply(
+        '✅ KEKE ფასები მიბმულია.\n\nფასის მოთხოვნები აქ მოვა. პასუხი: <code>/q 7 850</code>',
+      );
+      return new Response('ok');
+    }
+  }
 
   // /q <id> <price> [note]
   const m = /^\/q(?:@\w+)?\s+(\d+)\s+([\d.,]+)\s*(.*)$/s.exec(text);
@@ -271,10 +362,20 @@ async function handleHook(req: Request): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
+  const url = new URL(req.url);
+
+  // Any call at all — even one that is about to be refused — is enough to make
+  // sure Telegram knows where to deliver replies. That way the bot can be wired
+  // up by adding the secrets and poking the function once, with the token never
+  // leaving the project's settings.
+  if (!url.pathname.endsWith('/hook')) {
+    void ensureWebhook(`${url.origin}/functions/v1/price-quote`);
+  }
+
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
 
-  const path = new URL(req.url).pathname;
-  if (path.endsWith('/hook')) return handleHook(req);
+  if (url.pathname.endsWith('/hook')) return handleHook(req);
+
   return createRequest(req);
 });
