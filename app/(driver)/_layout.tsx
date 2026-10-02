@@ -18,6 +18,7 @@ import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { subscribeToConversationList } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
 import { ensureWebNotificationPermission } from '../../lib/webChatAlerts';
+import { enableWebPush } from '../../lib/webPush';
 
 function DriverTabsInner() {
   const { t } = useTranslation();
@@ -30,10 +31,15 @@ function DriverTabsInner() {
   const scenePadTop = onChat ? 0 : insets.top + APP_HEADER_BODY_HEIGHT + 8;
 
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      void ensureWebNotificationPermission();
-    }
-  }, []);
+    if (Platform.OS !== 'web' || !user?.id) return;
+    void (async () => {
+      await ensureWebNotificationPermission();
+      // Drivers who work from the browser got no notification at all
+      // until now; a new booking has to reach them whether the tab is
+      // open or not.
+      await enableWebPush();
+    })();
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;

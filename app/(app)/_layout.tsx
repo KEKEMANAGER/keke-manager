@@ -17,6 +17,7 @@ import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { subscribeToConversationList } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
 import { ensureWebNotificationPermission } from '../../lib/webChatAlerts';
+import { enableWebPush } from '../../lib/webPush';
 
 function CompanyTabsInner() {
   const { t } = useTranslation();
@@ -29,10 +30,16 @@ function CompanyTabsInner() {
   const scenePadTop = onChat ? 0 : insets.top + APP_HEADER_BODY_HEIGHT + 8;
 
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      void ensureWebNotificationPermission();
-    }
-  }, []);
+    if (Platform.OS !== 'web' || !user?.id) return;
+    void (async () => {
+      await ensureWebNotificationPermission();
+      // Subscribes this browser so bookings, confirmations and price answers
+      // arrive even with the site closed. Companies work from the browser, so
+      // without this they are told nothing at all unless they happen to be
+      // looking at the tab.
+      await enableWebPush();
+    })();
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;

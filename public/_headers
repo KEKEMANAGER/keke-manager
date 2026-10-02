@@ -14,3 +14,9 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
   X-Content-Type-Options: nosniff
+
+# The service worker must always be revalidated, or a browser keeps an old
+# copy and new notifications stop arriving with nothing to show why.
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate, max-age=0
+  Service-Worker-Allowed: /

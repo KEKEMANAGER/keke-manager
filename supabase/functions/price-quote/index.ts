@@ -142,7 +142,7 @@ async function ensureWebhook(selfUrl: string): Promise<void> {
 
   try {
     const secret = await hookSecret();
-    await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -151,8 +151,24 @@ async function ensureWebhook(selfUrl: string): Promise<void> {
         allowed_updates: ['message', 'edited_message'],
       }),
     });
-  } catch {
+
+    // What Telegram said, written where it can be read without the token:
+    // whether the bot is wired up is otherwise invisible from the outside, and
+    // a silent bot gives no hint whether the token, the URL or the delivery is
+    // at fault. Telegram's reply carries no secret.
+    let note = String(res.status);
+    try {
+      const body = await res.text();
+      note = `${res.status} ${body.slice(0, 300)}`;
+    } catch {
+      // the status alone is still worth keeping
+    }
+    await setSetting('telegram_webhook_status', note);
+
+    if (!res.ok) webhookEnsured = false; // let the next request try again
+  } catch (e) {
     webhookEnsured = false;
+    await setSetting('telegram_webhook_status', `failed: ${String(e).slice(0, 300)}`);
   }
 }
 
@@ -368,8 +384,22 @@ Deno.serve(async (req) => {
   // sure Telegram knows where to deliver replies. That way the bot can be wired
   // up by adding the secrets and poking the function once, with the token never
   // leaving the project's settings.
+  //
+  // This is awaited, not fired and forgotten. The edge runtime tears the isolate
+  // down as soon as the response is returned, so a `void`-ed fetch to Telegram
+  // is cancelled mid-flight and the webhook is never actually registered — the
+  // bot then stays silent for ever, with nothing in the logs to show why. It
+  // costs one extra round trip on the first request an isolate serves.
+  //
+  // The origin is taken from SUPABASE_URL rather than from the incoming
+  // request: TLS is terminated at the edge, so inside the function `req.url`
+  // reads as plain http, and Telegram refuses a webhook that is not https
+  // ("bad webhook: An HTTPS URL must be provided").
   if (!url.pathname.endsWith('/hook')) {
-    void ensureWebhook(`${url.origin}/functions/v1/price-quote`);
+    const base = (Deno.env.get('SUPABASE_URL') || url.origin)
+      .replace(/^http:/, 'https:')
+      .replace(/\/+$/, '');
+    await ensureWebhook(`${base}/functions/v1/price-quote`);
   }
 
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });

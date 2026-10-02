@@ -7,6 +7,7 @@
 /logo.webp        /logo.webp        200
 /og-image.jpg     /og-image.jpg     200
 /favicon.ico      /favicon.ico      200
+/sw.js            /sw.js            200
 /blog/rss.xml     /blog/rss.xml     200
 /blog/*           /blog/:splat      200
 /services/*       /services/:splat  200

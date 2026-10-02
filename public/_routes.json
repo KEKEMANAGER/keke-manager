@@ -1,9 +1,12 @@
 {
   "version": 1,
-  "include": ["/*"],
+  "include": [
+    "/*"
+  ],
   "exclude": [
     "/_expo/*",
     "/assets/*",
+    "/sw.js",
     "/favicon.ico",
     "/logo.webp",
     "/logo.png",
