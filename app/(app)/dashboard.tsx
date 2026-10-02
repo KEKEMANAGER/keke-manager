@@ -562,15 +562,29 @@ export default function CompanyDashboardScreen() {
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{t('company.activeBookings')}</Text>
         <View style={styles.sectionHeadActions}>
-          <Pressable onPress={() => router.push('/(app)/price-request')}>
-            <Text style={styles.linkMuted}>{t('priceRequest.title')}</Text>
+          <Pressable
+            onPress={() => router.push('/(app)/price-request')}
+            style={({ pressed }) => [styles.headChip, pressed && styles.headChipPressed]}
+          >
+            <Ionicons name="pricetag-outline" size={15} color={COLORS.gold} />
+            <Text style={styles.headChipText}>{t('priceRequest.title')}</Text>
           </Pressable>
-          <Pressable onPress={() => router.push('/(app)/import-booking')}>
-            <Text style={styles.linkMuted}>{t('company.importBookingLink')}</Text>
+          <Pressable
+            onPress={() => router.push('/(app)/import-booking')}
+            style={({ pressed }) => [styles.headChip, pressed && styles.headChipPressed]}
+          >
+            <Ionicons name="document-attach-outline" size={15} color={COLORS.gold} />
+            <Text style={styles.headChipText}>{t('company.importBookingLink')}</Text>
           </Pressable>
           <View ref={newBookingLinkRef} collapsable={false}>
-            <Pressable onPress={() => router.push('/(app)/new-booking')}>
-              <Text style={styles.link}>{t('company.newBookingLink')}</Text>
+            <Pressable
+              onPress={() => router.push('/(app)/new-booking')}
+              style={({ pressed }) => [styles.headChip, styles.headChipPrimary, pressed && styles.headChipPressed]}
+            >
+              <Ionicons name="add" size={16} color={COLORS.white} />
+              <Text style={[styles.headChipText, styles.headChipTextPrimary]}>
+                {t('company.newBookingLink')}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -1140,6 +1154,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: SPACING.sm,
     marginBottom: SPACING.sm,
   },
   topStatsRow: {
@@ -1193,7 +1209,40 @@ const styles = StyleSheet.create({
   sectionHeadActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    rowGap: SPACING.xs,
+  },
+  // Plain words read as a caption, not as something to tap. These are the
+  // three ways a booking starts, so they are shaped like buttons and the
+  // primary one is filled — the shape carries the meaning in every language,
+  // whatever the word lengths turn out to be.
+  headChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  headChipPrimary: {
+    backgroundColor: COLORS.gold,
+    borderColor: COLORS.gold,
+    ...SHADOWS.card,
+  },
+  headChipPressed: {
+    opacity: 0.75,
+  },
+  headChipText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  headChipTextPrimary: {
+    color: COLORS.white,
   },
   linkMuted: {
     color: COLORS.textSecondary,

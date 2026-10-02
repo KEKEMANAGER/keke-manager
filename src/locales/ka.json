@@ -736,7 +736,7 @@
     "completedSpent": "დასრულებული: {{amount}}",
     "quickBooking": "სწრაფი ჯავშანი",
     "activeBookings": "აქტიური ჯავშნები",
-    "newBookingLink": "+ ახალი",
+    "newBookingLink": "ახალი",
     "bookingsTotalStat": "ჯავშნები სულ",
     "pendingStat": "მოლოდინში",
     "spentMonthStat": "დახარჯული (თვე)",

@@ -736,7 +736,7 @@
     "completedSpent": "Completed: {{amount}}",
     "quickBooking": "Quick booking",
     "activeBookings": "Active bookings",
-    "newBookingLink": "+ New",
+    "newBookingLink": "New",
     "bookingsTotalStat": "Total bookings",
     "pendingStat": "Pending",
     "spentMonthStat": "Spent (month)",

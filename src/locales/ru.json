@@ -613,7 +613,7 @@
     "completedSpent": "Завершено: {{amount}}",
     "quickBooking": "Быстрое бронирование",
     "activeBookings": "Активные бронирования",
-    "newBookingLink": "+ Новое",
+    "newBookingLink": "Новое",
     "bookingsTotalStat": "Всего бронирований",
     "pendingStat": "Ожидание",
     "spentMonthStat": "Потрачено (месяц)",
