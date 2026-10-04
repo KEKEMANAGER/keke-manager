@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,16 @@ import { sendMessage } from '../../lib/messages';
 import { hasTripNavigationTargets, openExternalNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
 import { completeTourTripWithOdometer, odometerErrorMessageKey } from '../../lib/tourTripLifecycle';
+import {
+  etaMinutes,
+  formatKm,
+  geocodeTripTarget,
+  readProgress,
+  recordPoint,
+  setDestination,
+  tripTargetLabel,
+  type TripProgress,
+} from '../../lib/tripProgress';
 
 const TBILISI: Region = {
   latitude: 41.6938,
@@ -63,6 +73,8 @@ export default function DriverGpsScreen() {
   const [mapEpoch, setMapEpoch] = useState(0);
   const [sendingPickup, setSendingPickup] = useState(false);
   const [pickupSent, setPickupSent] = useState(false);
+  const [progress, setProgress] = useState<TripProgress | null>(null);
+  const geocodedForRef = useRef<string | null>(null);
 
   const bookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
 
@@ -136,6 +148,14 @@ export default function DriverGpsScreen() {
               if (error && __DEV__) console.warn('[gps] upsertDriverLocation:', error.message);
             });
           }
+          // While this screen is open the background task is not running, so the
+          // trip has to be fed from here too — otherwise the distance and the
+          // arrival time would sit still exactly when the driver is watching them.
+          if (bookingId) {
+            void recordPoint(bookingId, { latitude, longitude }).then((res) => {
+              if (res) setProgress(res.progress);
+            });
+          }
         },
       );
       watchRef.current = sub;
@@ -143,7 +163,7 @@ export default function DriverGpsScreen() {
       if (__DEV__) console.warn('[gps] attachForegroundWatch failed:', e);
       setLocationDenied(true);
     }
-  }, [user?.id]);
+  }, [user?.id, bookingId]);
 
   const promptBackgroundDisclosure = useCallback((): Promise<boolean> => {
     return new Promise((resolve) => {
@@ -182,6 +202,8 @@ export default function DriverGpsScreen() {
       bookingId: bookingId || null,
       notificationTitle: t('gpsScreen.bgServiceTitle'),
       notificationBody: t('gpsScreen.bgServiceBody'),
+      arrivalTitle: t('gpsScreen.arrivalTitle'),
+      arrivalBody: t('gpsScreen.arrivalBody'),
       requestBackground: backgroundAccepted,
     });
 
@@ -193,7 +215,9 @@ export default function DriverGpsScreen() {
       return false;
     }
 
-    if (!result.backgroundGranted && backgroundAccepted) {
+    // `tripRequired` means background was skipped for want of a trip, not
+    // refused — telling the driver his permission was denied would be a lie.
+    if (!result.backgroundGranted && backgroundAccepted && !result.tripRequired) {
       Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
     }
 
@@ -244,6 +268,79 @@ export default function DriverGpsScreen() {
     pickupNavOpenedRef.current = true;
     void openExternalNavigation(pickup);
   }, [params.autoStart, isTracking, tripBooking]);
+
+  /**
+   * Where this leg is heading.
+   *
+   * Before the passengers are aboard that is the pickup address; afterwards it
+   * is the drop-off. Bookings store both as text, so the point we measure
+   * against has to be geocoded once per leg and then kept.
+   */
+  const targetQuery = useMemo(() => {
+    if (!tripBooking) return null;
+    const { pickup, destination } = tripNavigationTargets(tripBooking);
+    return (pickupSent ? destination : pickup) ?? destination ?? pickup ?? null;
+  }, [tripBooking, pickupSent]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || !bookingId || !targetQuery) return;
+    const signature = `${bookingId}|${targetQuery}`;
+    if (geocodedForRef.current === signature) return;
+    geocodedForRef.current = signature;
+    let cancelled = false;
+    void (async () => {
+      const point = await geocodeTripTarget(targetQuery);
+      if (cancelled) return;
+      if (!point) {
+        // No coordinates for this address: the trip still records distance, it
+        // just cannot offer an arrival time. Better than a wrong one.
+        geocodedForRef.current = null;
+        return;
+      }
+      const next = await setDestination(bookingId, {
+        ...point,
+        label: tripTargetLabel(targetQuery) || targetQuery,
+      });
+      if (!cancelled && next) setProgress(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId, targetQuery]);
+
+  /**
+   * Pick up what the background task wrote.
+   *
+   * It runs in its own JS context, so nothing it records reaches this screen by
+   * itself — without this poll the driver would come back to a trip frozen at
+   * the moment he left.
+   */
+  useEffect(() => {
+    if (Platform.OS === 'web' || !bookingId) {
+      setProgress(null);
+      return;
+    }
+    let cancelled = false;
+    const pull = async () => {
+      const current = await readProgress(bookingId);
+      if (!cancelled && current) setProgress(current);
+    };
+    void pull();
+    const timer = setInterval(() => void pull(), 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [bookingId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === 'web' || !bookingId) return;
+      void readProgress(bookingId).then((current) => {
+        if (current) setProgress(current);
+      });
+    }, [bookingId]),
+  );
 
   useEffect(() => {
     if (!isTracking || !currentLocation || Platform.OS === 'web') return;
@@ -402,6 +499,11 @@ export default function DriverGpsScreen() {
       : t('gpsScreen.stopTracking')
     : t('gpsScreen.enableGps');
 
+  const eta = etaMinutes(progress);
+  const arrived = Boolean(progress?.arrivedAt);
+  const destinationLabel = progress?.destination?.label ?? null;
+  const showTripProgress = Boolean(isTracking && bookingId);
+
   const tripIsActive =
     tripStatus === 'accepted' || tripStatus === 'confirmed' || tripStatus === 'in_progress';
   const showTripNav = Boolean(tripBooking && tripIsActive && hasTripNavigationTargets(tripBooking));
@@ -449,6 +551,17 @@ export default function DriverGpsScreen() {
               tracksViewChanges={false}
             />
           ) : null}
+          {progress?.destination ? (
+            <Marker
+              coordinate={{
+                latitude: progress.destination.latitude,
+                longitude: progress.destination.longitude,
+              }}
+              pinColor="green"
+              title={progress.destination.label}
+              tracksViewChanges={false}
+            />
+          ) : null}
         </MapView>
       </MapErrorBoundary>
 
@@ -485,6 +598,40 @@ export default function DriverGpsScreen() {
           <Ionicons name="battery-half-outline" size={18} color={COLORS.textSecondary} />
           <Text style={styles.batteryNoticeText}>{t('gpsScreen.batteryNotice')}</Text>
         </View>
+        {/* The driver's own half of the GPS: how far he has driven, which is what
+            he is paid for, and how long until he is there, which is what stops
+            the phone calls. Both come from the background location stream, and
+            both keep moving while this screen is shut. */}
+        {showTripProgress ? (
+          <View style={styles.tripCard}>
+            <View style={styles.tripRow}>
+              <Ionicons name="speedometer-outline" size={17} color={COLORS.goldDark} />
+              <Text style={styles.tripLabel}>{t('gpsScreen.tripDistance')}</Text>
+              <Text style={styles.tripValue}>
+                {formatKm(progress?.distanceM ?? 0)} {t('gpsScreen.kmUnit')}
+              </Text>
+            </View>
+            {destinationLabel ? (
+              <View style={[styles.tripRow, styles.tripRowLast]}>
+                <Ionicons
+                  name={arrived ? 'checkmark-circle-outline' : 'flag-outline'}
+                  size={17}
+                  color={arrived ? COLORS.success : COLORS.goldDark}
+                />
+                <Text style={styles.tripLabel} numberOfLines={1}>
+                  {destinationLabel}
+                </Text>
+                <Text style={[styles.tripValue, arrived && styles.tripValueArrived]}>
+                  {arrived
+                    ? t('gpsScreen.arrivedLabel')
+                    : eta !== null
+                      ? t('gpsScreen.etaValue', { minutes: eta })
+                      : '—'}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         {showTripNav && tripBooking ? (
           <View style={styles.navCard}>
             <View style={styles.navHeader}>
@@ -652,6 +799,41 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gold,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
+  },
+  tripCard: {
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 4,
+    marginBottom: SPACING.sm,
+  },
+  tripRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 9,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  tripRowLast: {
+    borderBottomWidth: 0,
+  },
+  tripLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  tripValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+    fontVariant: ['tabular-nums'],
+  },
+  tripValueArrived: {
+    color: COLORS.success,
   },
   batteryNotice: {
     flexDirection: 'row',

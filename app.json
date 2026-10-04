@@ -28,9 +28,9 @@
         "UIBackgroundModes": [
           "location"
         ],
-        "NSLocationWhenInUseUsageDescription": "KEKE uses your location to share your live position with the company during an active trip.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background. Continued use of GPS running in the background can dramatically decrease battery life. Tracking stops when you turn GPS off or finish the trip.",
-        "NSLocationAlwaysUsageDescription": "KEKE shares your location with the company while a trip is active, even when the app is in the background. Continued use of GPS running in the background can dramatically decrease battery life. Tracking stops when you turn GPS off or finish the trip.",
+        "NSLocationWhenInUseUsageDescription": "KEKE Manager uses your location to guide you to each pickup and stop, show how long until you arrive, and record the distance you drive, which your payment is based on.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "While a trip is active, KEKE Manager keeps your arrival time accurate, marks your arrival automatically so you do not need to touch the phone while driving, and records the distance you drive, which your payment is based on. This continues while you use a navigation app or the screen is locked, and the customer who booked the trip sees that the car is on its way. Continued use of GPS running in the background can dramatically decrease battery life. It stops when you finish the trip or turn GPS off.",
+        "NSLocationAlwaysUsageDescription": "While a trip is active, KEKE Manager keeps your arrival time accurate, marks your arrival automatically so you do not need to touch the phone while driving, and records the distance you drive, which your payment is based on. This continues while you use a navigation app or the screen is locked, and the customer who booked the trip sees that the car is on its way. Continued use of GPS running in the background can dramatically decrease battery life. It stops when you finish the trip or turn GPS off.",
         "NSCameraUsageDescription": "KEKE Manager uses the camera for odometer photos at tour start and end, plus profile and vehicle photos.",
         "NSPhotoLibraryUsageDescription": "KEKE needs access to your photo library to upload profile photos, vehicle photos, and verification documents.",
         "NSUserNotificationsUsageDescription": "KEKE Manager sends booking and driver notifications",
@@ -81,9 +81,9 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "KEKE uses your location to share your live position with the company during an active trip.",
-          "locationAlwaysAndWhenInUsePermission": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
-          "locationAlwaysPermission": "KEKE shares your location with the company while a trip is active, even when the app is in the background.",
+          "locationWhenInUsePermission": "KEKE Manager uses your location to guide you to each pickup and stop, show how long until you arrive, and record the distance you drive, which your payment is based on.",
+          "locationAlwaysAndWhenInUsePermission": "While a trip is active, KEKE Manager keeps your arrival time accurate, marks your arrival automatically so you do not need to touch the phone while driving, and records the distance you drive, which your payment is based on — while you navigate or the screen is locked.",
+          "locationAlwaysPermission": "While a trip is active, KEKE Manager keeps your arrival time accurate, marks your arrival automatically so you do not need to touch the phone while driving, and records the distance you drive, which your payment is based on — while you navigate or the screen is locked.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }

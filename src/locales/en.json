@@ -1177,6 +1177,12 @@
       "accept": "Accept",
       "decline": "Decline"
     },
+    "tripDistance": "Distance driven",
+    "kmUnit": "km",
+    "etaValue": "{{minutes}} min",
+    "arrivedLabel": "Arrived",
+    "arrivalTitle": "You have arrived",
+    "arrivalBody": "KEKE marked your arrival at the address automatically.",
     "batteryNotice": "This app uses your location in the background while a trip is active. Continued use of GPS running in the background can dramatically decrease battery life."
   },
   "tracking": {

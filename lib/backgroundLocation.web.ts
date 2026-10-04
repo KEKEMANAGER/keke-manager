@@ -5,7 +5,12 @@ export async function isBackgroundLocationRunning(): Promise<boolean> {
 }
 
 export type StartBackgroundLocationResult =
-  | { ok: true; backgroundGranted: boolean }
+  | {
+      ok: true;
+      backgroundGranted: boolean;
+      /** Background was skipped because there is no active trip, not because it was refused. */
+      tripRequired?: boolean;
+    }
   | { ok: false; reason: 'web' | 'foreground_denied' | 'error'; error?: string };
 
 export type StartBackgroundLocationOptions = {
@@ -13,6 +18,8 @@ export type StartBackgroundLocationOptions = {
   bookingId?: string | null;
   notificationTitle?: string;
   notificationBody?: string;
+  arrivalTitle?: string;
+  arrivalBody?: string;
   requestBackground?: boolean;
 };
 
