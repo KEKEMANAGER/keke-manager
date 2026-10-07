@@ -160,6 +160,22 @@ export function IconGooglePlay() {
   );
 }
 
+/** Apple mark for the App Store button, drawn to match IconGooglePlay's weight. */
+export function IconAppStore() {
+  return (
+    <Svg width="20" height="20" viewBox="0 0 20 20">
+      <Path
+        d="M14.8 13.9c-.3.7-.5 1-.9 1.6-.6.8-1.4 1.9-2.4 1.9-.9 0-1.1-.6-2.3-.6s-1.5.6-2.3.6c-1 0-1.8-1-2.4-1.8-1.6-2.4-1.8-5.3-.8-6.8.7-1.1 1.9-1.8 3-1.8 1.1 0 1.8.6 2.7.6.9 0 1.4-.6 2.7-.6 1 0 2 .5 2.7 1.5-2.4 1.3-2 4.7 0 5.4z"
+        fill={LANDING.accent}
+      />
+      <Path
+        d="M11.9 5.1c.5-.6.9-1.5.7-2.4-.8.1-1.7.6-2.2 1.2-.5.6-.9 1.4-.7 2.3.9.1 1.8-.4 2.2-1.1z"
+        fill={LANDING.accent}
+      />
+    </Svg>
+  );
+}
+
 export function IconGlobe() {
   return (
     <Svg width="28" height="28" viewBox="0 0 28 28">

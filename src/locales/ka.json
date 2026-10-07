@@ -873,7 +873,8 @@
     "type": {
       "sedan": "სედანი",
       "minivan": "მინივენი",
-      "suv": "ჯიპი (SUV 4x4)",
+      "suv": "ჯიპი (SUV)",
+      "offroad": "4x4 (ოფროუდი)",
       "microbus": "მიკროავტობუსი",
       "bus": "ავტობუსი",
       "special": "სპეც. ტრანსპორტი"
@@ -1838,7 +1839,8 @@
       "minivan": "მინივენი",
       "microbus": "მიკროავტობუსი",
       "bus": "ავტობუსი",
-      "suv": "ჯიპი"
+      "suv": "ჯიპი",
+      "offroad": "4x4"
     },
     "vehicleClass": "კლასი",
     "vehicleClasses": {

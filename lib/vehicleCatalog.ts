@@ -7,7 +7,15 @@ import ka from '../src/locales/ka.json';
 import ru from '../src/locales/ru.json';
 import i18n from '../src/lib/i18n';
 
-export const VEHICLE_TYPES = ['sedan', 'minivan', 'suv', 'microbus', 'bus', 'special'] as const;
+export const VEHICLE_TYPES = [
+  'sedan',
+  'minivan',
+  'suv',
+  'offroad',
+  'microbus',
+  'bus',
+  'special',
+] as const;
 export type VehicleTypeCode = (typeof VEHICLE_TYPES)[number];
 
 export const VEHICLE_CLASSES = ['economy', 'comfort', 'vip'] as const;
@@ -91,6 +99,7 @@ const TYPE_LABELS_EN: Record<VehicleTypeCode, string> = {
   sedan: 'Sedan',
   minivan: 'Minivan',
   suv: 'SUV',
+  offroad: '4x4 Off-road',
   microbus: 'Microbus',
   bus: 'Bus',
   special: 'Special transport',
@@ -141,6 +150,12 @@ const TYPE_ALIASES: Record<string, VehicleTypeCode> = {
   'suv 4x4': 'suv',
   '4x4': 'suv',
   jeep: 'suv',
+  offroad: 'offroad',
+  'off-road': 'offroad',
+  'off road': 'offroad',
+  '4x4 offroad': 'offroad',
+  ოფროუდი: 'offroad',
+  '4x4 (ოფროუდი)': 'offroad',
   microbus: 'microbus',
   minibus: 'microbus',
   'micro-bus': 'microbus',

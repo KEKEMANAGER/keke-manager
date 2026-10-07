@@ -29,8 +29,12 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-/** 6 MB of base64 ≈ 4.5 MB of file. Booking sheets are far smaller. */
-const MAX_BASE64_CHARS = 6 * 1024 * 1024;
+/**
+ * 11 MB of base64 ≈ 8 MB of file, matching the app's own cap. Base64 is a
+ * third larger than the bytes it carries, so this number has to lead the
+ * client's — a file the app accepted must not be refused here.
+ */
+const MAX_BASE64_CHARS = 11 * 1024 * 1024;
 const MAX_TEXT_CHARS = 60_000;
 
 const ANTHROPIC_MODEL = Deno.env.get('BOOKING_IMPORT_MODEL') ?? 'claude-sonnet-4-5';
@@ -742,6 +746,34 @@ function matchFlightDirection(text: string): BookingDraft['flight_direction'] {
   return null;
 }
 
+/** A cell that is nothing but a known label — "DROP OFF", "PHONE", "TIME". */
+function isBareLabel(cell: string): boolean {
+  const n = normalizeLabel(cell);
+  if (!n) return false;
+  return Object.prototype.hasOwnProperty.call(LABELS, n);
+}
+
+/**
+ * A printed form usually prints two fields side by side, so the page comes
+ * back as a row of LABELS with a row of VALUES under it:
+ *
+ *   PICK UP <TAB> DROP OFF
+ *   Hotel Moxy <TAB> Kutaisi Airport
+ *
+ * Read one line at a time that first row looks like a single label/value pair
+ * and hands "DROP OFF" to the pick-up field. That is worse than reading
+ * nothing: the template is authoritative, so a wrong value also locks the
+ * model out of the field it could have filled. Pairing the two rows by column
+ * is what the form actually means.
+ */
+function headerRowCells(line: string): string[] | null {
+  if (line.indexOf('\t') < 0) return null;
+  const cells = line.split('\t').map((c) => c.trim());
+  if (cells.length < 2 || cells.some((c) => !c)) return null;
+  if (!cells.every((c) => isBareLabel(c))) return null;
+  return cells;
+}
+
 function parseTemplate(text: string): {
   draft: BookingDraft;
   sources: Partial<Record<keyof BookingDraft, FieldSource>>;
@@ -756,8 +788,81 @@ function parseTemplate(text: string): {
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
+  /** Store one read value under the field its label named. */
+  const apply = (field: keyof BookingDraft | 'time' | 'vehicle', value: string) => {
+    switch (field) {
+      case 'kind': {
+        const k = matchKind(value);
+        if (k) { draft.kind = k; sources.kind = 'template'; }
+        break;
+      }
+      case 'date_display':
+        if (!rawDate) rawDate = value;
+        break;
+      case 'time':
+        if (!rawTime) rawTime = value;
+        break;
+      case 'vehicle': {
+        const t = matchVehicleType(value);
+        if (t && !draft.vehicle_type) { draft.vehicle_type = t; sources.vehicle_type = 'template'; }
+        const c = matchVehicleClass(value);
+        if (c && !draft.vehicle_class) { draft.vehicle_class = c; sources.vehicle_class = 'template'; }
+        break;
+      }
+      case 'vehicle_class': {
+        const c = matchVehicleClass(value);
+        if (c && !draft.vehicle_class) { draft.vehicle_class = c; sources.vehicle_class = 'template'; }
+        break;
+      }
+      case 'passengers': {
+        const n = parseNumber(value);
+        if (n !== null && n > 0 && draft.passengers == null) {
+          draft.passengers = Math.round(n);
+          sources.passengers = 'template';
+        }
+        break;
+      }
+      case 'client_price': {
+        const n = parseNumber(value);
+        if (n !== null && draft.client_price == null) {
+          draft.client_price = n;
+          sources.client_price = 'template';
+        }
+        break;
+      }
+      default: {
+        const key = field as keyof BookingDraft;
+        if (draft[key] == null) {
+          (draft as any)[key] = value;
+          sources[key] = 'template';
+        }
+      }
+    }
+  };
+
   for (let i = 0; i < lines.length; i += 1) {
     const line = stripMarks(lines[i]);
+
+    // A row of labels with a row of answers under it — pair them by column.
+    const header = headerRowCells(line);
+    if (header) {
+      // The blank form's own hint ("dd.mm.yyyy — for example 15.05.2026")
+      // can sit between the labels and the answers.
+      let j = i + 1;
+      if (lines[j] && looksLikeHint(lines[j])) j += 1;
+      const valueLine = lines[j] ? stripMarks(lines[j]) : '';
+      const values = valueLine ? valueLine.split('\t').map((c) => c.trim()) : [];
+      if (values.length === header.length && values.some((v) => v)) {
+        for (let k = 0; k < header.length; k += 1) {
+          const f = resolveLabel(normalizeLabel(header[k]));
+          if (f && values[k] && !isBareLabel(values[k])) apply(f, values[k]);
+        }
+        i = j;
+        continue;
+      }
+      // Nothing to pair with: let the ordinary label-then-value-below logic try.
+    }
+
     const pair = splitLabelValue(line);
 
     let label: string;
@@ -766,6 +871,10 @@ function parseTemplate(text: string): {
     if (pair) {
       label = normalizeLabel(pair[0]);
       value = pair[1].replace(/\t/g, ' ').trim();
+      // "GUEST NAME <TAB> PHONE" is two labels, not a guest called "PHONE".
+      // Clearing it here lets the value-on-the-next-line path, and failing
+      // that the model, fill the field instead of inheriting the mistake.
+      if (isBareLabel(value)) value = '';
     } else {
       // No separator on this line. It may still be a label whose value was
       // printed on the line below (the usual shape of a PDF form). Only a
@@ -797,51 +906,7 @@ function parseTemplate(text: string): {
       i += 1;
     }
 
-    switch (field) {
-      case 'kind': {
-        const k = matchKind(value);
-        if (k) { draft.kind = k; sources.kind = 'template'; }
-        break;
-      }
-      case 'date_display':
-        rawDate = value;
-        break;
-      case 'time':
-        rawTime = value;
-        break;
-      case 'vehicle': {
-        const t = matchVehicleType(value);
-        if (t) { draft.vehicle_type = t; sources.vehicle_type = 'template'; }
-        const c = matchVehicleClass(value);
-        if (c && !draft.vehicle_class) { draft.vehicle_class = c; sources.vehicle_class = 'template'; }
-        break;
-      }
-      case 'vehicle_class': {
-        const c = matchVehicleClass(value);
-        if (c) { draft.vehicle_class = c; sources.vehicle_class = 'template'; }
-        break;
-      }
-      case 'passengers': {
-        const n = parseNumber(value);
-        if (n !== null && n > 0) {
-          draft.passengers = Math.round(n);
-          sources.passengers = 'template';
-        }
-        break;
-      }
-      case 'client_price': {
-        const n = parseNumber(value);
-        if (n !== null) { draft.client_price = n; sources.client_price = 'template'; }
-        break;
-      }
-      default: {
-        const key = field as keyof BookingDraft;
-        if (draft[key] == null) {
-          (draft as any)[key] = value;
-          sources[key] = 'template';
-        }
-      }
-    }
+    apply(field, value);
   }
 
   if (rawDate) {
@@ -1413,7 +1478,7 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: 'ფაილი არ არის' }, 400);
   }
   if (b64.length > MAX_BASE64_CHARS) {
-    return json({ ok: false, error: 'ფაილი ძალიან დიდია (მაქს. ~4 MB)' }, 413);
+    return json({ ok: false, error: 'ფაილი ძალიან დიდია (მაქს. ~8 MB)' }, 413);
   }
 
   let bytes: Uint8Array;

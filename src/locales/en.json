@@ -873,7 +873,8 @@
     "type": {
       "sedan": "Sedan",
       "minivan": "Minivan",
-      "suv": "SUV 4x4",
+      "suv": "SUV",
+      "offroad": "4x4 Off-road",
       "microbus": "Microbus",
       "bus": "Bus",
       "special": "Special transport"
@@ -1838,7 +1839,8 @@
       "minivan": "Minivan",
       "microbus": "Microbus",
       "bus": "Bus",
-      "suv": "SUV"
+      "suv": "SUV",
+      "offroad": "4x4"
     },
     "vehicleClass": "Class",
     "vehicleClasses": {

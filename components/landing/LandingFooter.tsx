@@ -2,10 +2,11 @@ import { Link } from 'expo-router';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LandingCopy } from '../../lib/landingCopy';
 import { LANDING, landingFont, sx } from './landingTheme';
-import { IconGooglePlay } from './LandingIllustrations';
+import { IconAppStore, IconGooglePlay } from './LandingIllustrations';
 import type { ViewStyle } from 'react-native';
 
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.keke.manager';
+const APP_STORE_URL = 'https://apps.apple.com/app/keke-manager/id6809557226';
 
 type Props = {
   copy: LandingCopy;
@@ -52,6 +53,15 @@ export function LandingFooter({
                   {copy.ctaAppButton}
                 </Text>
                 <Text style={sx(styles.ctaStoreBtnBig, landingFont({ fontWeight: '700' }))}>Google Play</Text>
+              </View>
+            </Pressable>
+            <Pressable style={styles.ctaStoreBtn} onPress={() => void Linking.openURL(APP_STORE_URL)}>
+              <IconAppStore />
+              <View style={styles.ctaStoreBtnTextWrap}>
+                <Text style={sx(styles.ctaStoreBtnSmall, landingFont({ fontWeight: '400' }))}>
+                  {copy.ctaAppButton}
+                </Text>
+                <Text style={sx(styles.ctaStoreBtnBig, landingFont({ fontWeight: '700' }))}>App Store</Text>
               </View>
             </Pressable>
           </View>

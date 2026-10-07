@@ -173,8 +173,8 @@ const styles = StyleSheet.create({
   statusBadge: { alignSelf: 'flex-start', marginTop: 4, marginBottom: SPACING.sm },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   thumbWrap: {
-    width: 64,
-    height: 64,
+    width: 104,
+    height: 104,
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
@@ -198,9 +198,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: SPACING.md,
     maxHeight: '90%',
+    flex: 1,
   },
   previewTitle: { color: COLORS.text, fontWeight: '700', marginBottom: SPACING.sm },
-  previewImage: { width: '100%', height: 360 },
+  previewImage: { width: '100%', flex: 1, minHeight: 320 },
   previewClose: {
     marginTop: SPACING.md,
     alignSelf: 'center',

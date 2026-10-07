@@ -432,6 +432,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.card,
     padding: SPACING.md,
     maxHeight: '90%',
+    flex: 1,
   },
   previewTitle: {
     color: COLORS.text,
@@ -442,7 +443,8 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     width: '100%',
-    height: 360,
+    flex: 1,
+    minHeight: 320,
     borderRadius: 8,
     backgroundColor: COLORS.surfaceAlt,
   },

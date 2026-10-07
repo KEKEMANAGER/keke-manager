@@ -91,8 +91,12 @@ export type BookingImportFailure = { ok: false; error: string };
 
 export type PickedFile = { name: string; base64: string; sizeBytes: number };
 
-/** 4 MB of actual file — a booking sheet is a few kilobytes. */
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
+/**
+ * 8 MB of actual file. A typed booking sheet is a few kilobytes, but an
+ * operator's PDF often carries a scanned page, a logo and a map, and a file
+ * the company cannot send is worse than a slow upload.
+ */
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 function stripDataUrlPrefix(value: string): string {
   const comma = value.indexOf(',');
@@ -130,7 +134,7 @@ export async function pickBookingFile(): Promise<PickedFile | null> {
 
   const size = asset.size ?? 0;
   if (size > MAX_FILE_BYTES) {
-    throw new Error('ფაილი ძალიან დიდია (მაქს. 4 MB)');
+    throw new Error('ფაილი ძალიან დიდია (მაქს. 8 MB)');
   }
 
   const base64 = await readAsBase64(asset.uri);

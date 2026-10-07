@@ -357,9 +357,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: SPACING.md,
     maxHeight: '90%',
+    flex: 1,
   },
   previewTitle: { color: COLORS.text, fontWeight: '700', marginBottom: SPACING.sm },
-  previewImage: { width: '100%', height: 360 },
+  previewImage: { width: '100%', flex: 1, minHeight: 320 },
   previewClose: {
     marginTop: SPACING.md,
     alignSelf: 'center',

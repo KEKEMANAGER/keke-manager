@@ -17,7 +17,10 @@ export type VehicleModelRow = {
 /** Maps booking/vehicle type picker → makes.category filter. */
 export const TYPE_TO_MAKE_CATEGORY: Record<VehicleTypeCode, string> = {
   sedan: 'car',
-  suv: 'car',
+  // SUVs and 4x4s used to share the whole 61-make car list, so picking "SUV"
+  // offered Camrys and Corollas. Each now has its own curated make category.
+  suv: 'suv',
+  offroad: 'offroad',
   minivan: 'minivan',
   microbus: 'minibus',
   bus: 'bus',
