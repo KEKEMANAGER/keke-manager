@@ -50,15 +50,13 @@ export function DateOnlyField({
     setOpen(false);
   }
 
+  /** iOS reports every notch of the wheel; "Done" is what commits. */
   function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
     if (event.type === 'dismissed') {
       closePicker();
       return;
     }
-    const picked = coerceValidDate(selected ?? draft);
-    setDraft(picked);
-    onChange(picked);
-    closePicker();
+    setDraft(coerceValidDate(selected ?? draft));
   }
 
   function confirmIos() {

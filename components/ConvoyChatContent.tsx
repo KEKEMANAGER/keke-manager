@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useTranslation } from 'react-i18next';
 import { APP_HEADER_BODY_HEIGHT, CONTENT_PADDING_BOTTOM } from '../constants/layout';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
@@ -44,6 +45,7 @@ type Props = {
 export function ConvoyChatContent({ masterId, onClose, showClose = true }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardVisible();
   const { user, profile } = useAuth();
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [participants, setParticipants] = useState<ConvoyParticipant[]>([]);
@@ -164,7 +166,9 @@ export function ConvoyChatContent({ masterId, onClose, showClose = true }: Props
   return (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // Android draws edge to edge now, so the window no longer resizes for
+      // the keyboard; without this the bar sits underneath it.
+      behavior="padding"
       keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
     >
       <View style={[styles.header, { paddingTop: insets.top }]}>
@@ -215,7 +219,15 @@ export function ConvoyChatContent({ masterId, onClose, showClose = true }: Props
 
       {sendError ? <Text style={styles.sendError}>{sendError}</Text> : null}
 
-      <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, SPACING.sm) }]}>
+      <View
+        style={[
+          styles.inputRow,
+          {
+            // The keyboard covers the navigation bar itself.
+            paddingBottom: keyboardVisible ? SPACING.sm : Math.max(insets.bottom, SPACING.sm),
+          },
+        ]}
+      >
         <TextInput
           style={styles.input}
           value={text}

@@ -97,6 +97,13 @@ export function DateTimeField({
     });
   }
 
+  /**
+   * iOS reports EVERY notch of the wheel, not the moment the user is done.
+   * Treating the first notch as the answer closed the picker the instant it
+   * was touched — a company aiming for 14:30 got 09:00 and the sheet vanished
+   * under its hand. So only record what the wheel is showing; "Next" and
+   * "Done" are what commit it.
+   */
   function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
     if (event.type === 'dismissed') {
       closePicker();
@@ -104,22 +111,8 @@ export function DateTimeField({
     }
 
     const picked = coerceValidDate(selected ?? draft);
-
-    if (step === 'date') {
-      datePartRef.current = picked;
-      setDraft(picked);
-      if (mode === 'datetime') {
-        openTimeStep(picked);
-      } else {
-        finish(picked);
-      }
-      return;
-    }
-
-    const final =
-      mode === 'datetime' ? mergeDateAndTime(datePartRef.current, picked) : picked;
-    setDraft(final);
-    finish(final);
+    if (step === 'date') datePartRef.current = picked;
+    setDraft(picked);
   }
 
   function confirmIosStep() {

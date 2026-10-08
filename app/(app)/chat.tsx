@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
 import { useTranslation } from 'react-i18next';
 import { ChatScreenHeader } from '../../components/layout/ChatScreenHeader';
 import { CONTENT_PADDING_BOTTOM } from '../../constants/layout';
@@ -39,6 +40,7 @@ function formatMsgTime(iso: string): string {
 export default function CompanyChatScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardVisible();
   const { user, profile } = useAuth();
   const { uid, name, avatar, bookingId, threadType, senderRole, receiverRole } =
     useLocalSearchParams<{
@@ -222,7 +224,10 @@ export default function CompanyChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // Android 15 draws edge to edge, so the window no longer resizes for
+      // the keyboard and `undefined` left this bar underneath it — the
+      // driver could not see what he was typing. Lift it in JS on both.
+      behavior="padding"
       keyboardVerticalOffset={0}
     >
       <ChatScreenHeader
@@ -282,7 +287,18 @@ export default function CompanyChatScreen() {
 
       {sendError ? <Text style={styles.sendErr}>{sendError}</Text> : null}
 
-      <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, SPACING.md) + SPACING.sm }]}>
+      <View
+        style={[
+          styles.inputBar,
+          {
+            // The keyboard covers the home indicator / navigation bar
+            // itself, so that inset is only wanted while it is down.
+            paddingBottom: keyboardVisible
+              ? SPACING.md
+              : Math.max(insets.bottom, SPACING.md) + SPACING.sm,
+          },
+        ]}
+      >
         <TextInput
           style={styles.input}
           value={text}
