@@ -4,6 +4,7 @@ import type { BookingRow } from './bookings';
 import type { CompanyVoucherData } from './companyVoucherData';
 import { convoyVoucherCode, fetchCompanyVoucherData } from './companyVoucherData';
 import { generateCompanyVoucherHTML } from './companyVoucherHtml';
+import { generatePickupSignHTML, pickupSignName } from './pickupSignSheetHtml';
 import { generateTouristVoucherHTML } from './touristVoucherHtml';
 import {
   touristVoucherPdfDialogTitle,
@@ -67,5 +68,24 @@ export async function shareVoucherPDF(
   }
   if (__DEV__ && error) {
     console.warn('[voucher] fetchCompanyVoucherData', error.message);
+  }
+}
+/**
+ * The pickup sign as its own one-page PDF, so the driver can print it or hold
+ * the phone up. Separate from the voucher on purpose: the voucher is for him
+ * to read, this is for the guest to read.
+ */
+export async function sharePickupSignPDF(booking: BookingRow): Promise<void> {
+  const { uri } = await Print.printToFileAsync({
+    html: generatePickupSignHTML(booking),
+    base64: false,
+  });
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(uri, {
+      mimeType: 'application/pdf',
+      dialogTitle: pickupSignName(booking) || 'KEKE',
+      UTI: 'com.adobe.pdf',
+    });
   }
 }

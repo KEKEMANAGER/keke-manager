@@ -33,6 +33,8 @@ import { LegalSettingsLinks } from '../../components/LegalSettingsLinks';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { SearchableCitySelect } from '../../components/SearchableCitySelect';
+import { ServiceRegionsSelect } from '../../components/ServiceRegionsSelect';
+import { REGION_LABELS, isGeorgiaRegionCode } from '../../lib/georgiaRegions';
 import { isValidGeorgianCity } from '../../lib/georgianCities';
 import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
@@ -119,6 +121,8 @@ export default function DriverProfileScreen() {
   const [phone, setPhone] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [city, setCity] = useState<string | null>(null);
+  const [serviceRegions, setServiceRegions] = useState<string[]>([]);
+  const [travelsCountrywide, setTravelsCountrywide] = useState(false);
   const [bio, setBio] = useState('');
   const [spokenLanguages, setSpokenLanguages] = useState<string[]>([]);
   const [experienceYears, setExperienceYears] = useState('');
@@ -141,6 +145,22 @@ export default function DriverProfileScreen() {
   const [hireStatusBusy, setHireStatusBusy] = useState(false);
 
   const isHired = isHiredDriver(profile);
+
+  /** Read-only line for the view mode; an empty list is a sentence, not a dash. */
+  const serviceRegionsSummary = useMemo(() => {
+    const codes = serviceRegions.filter(isGeorgiaRegionCode);
+    if (codes.length === 0) return t('serviceRegions.allRegionsShort');
+    const lang = i18n.language ?? 'ka';
+    const names = codes.map((code) => {
+      const row = REGION_LABELS[code];
+      if (lang.startsWith('en')) return row.en;
+      if (lang.startsWith('ru')) return row.ru;
+      if (lang.startsWith('hy')) return row.hy;
+      return row.ka;
+    });
+    const line = names.join(', ');
+    return travelsCountrywide ? `${line} · ${t('serviceRegions.countrywideShort')}` : line;
+  }, [serviceRegions, travelsCountrywide, t, i18n.language]);
   const displayName = name.trim() || profile?.full_name?.trim() || '';
 
   const hiredStatusLabel = useMemo(() => {
@@ -158,7 +178,7 @@ export default function DriverProfileScreen() {
       const { data, error } = await supabase
         .from('users')
         .select(
-          'full_name, phone, city, bio, languages, experience_years, available_for_hire, bank_account',
+          'full_name, phone, city, bio, languages, experience_years, available_for_hire, bank_account, service_regions, travels_countrywide',
         )
         .eq('id', user.id)
         .maybeSingle();
@@ -175,6 +195,8 @@ export default function DriverProfileScreen() {
         experience_years?: number | null;
         available_for_hire?: boolean | null;
         bank_account?: string | null;
+        service_regions?: string[] | null;
+        travels_countrywide?: boolean | null;
       };
       if (typeof row.full_name === 'string' && row.full_name.trim()) {
         setName(row.full_name.trim());
@@ -185,6 +207,10 @@ export default function DriverProfileScreen() {
       const cityVal = row.city?.trim();
       setCity(cityVal && isValidGeorgianCity(cityVal) ? cityVal : null);
       setBio(row.bio?.trim() ?? '');
+      setServiceRegions(
+        Array.isArray(row.service_regions) ? row.service_regions.filter(isGeorgiaRegionCode) : [],
+      );
+      setTravelsCountrywide(row.travels_countrywide === true);
       setSpokenLanguages(
         Array.isArray(row.languages)
           ? row.languages.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
@@ -391,6 +417,10 @@ export default function DriverProfileScreen() {
       full_name: name.trim() || null,
       phone: phone.trim() || null,
       city,
+      // An empty list is the answer "send me everything", which is also what
+      // every driver who never opened this screen is treated as.
+      service_regions: serviceRegions.length > 0 ? serviceRegions : null,
+      travels_countrywide: serviceRegions.length > 0 ? travelsCountrywide : null,
       bio: bio.trim() || null,
       experience_years: Number.isFinite(years) && years > 0 ? years : null,
       bank_account: bankStored,
@@ -646,6 +676,14 @@ export default function DriverProfileScreen() {
               onChange={setCity}
               disabled={saveBusy}
             />
+            <ServiceRegionsSelect
+              label={t('serviceRegions.label')}
+              regions={serviceRegions}
+              onChangeRegions={setServiceRegions}
+              travelsCountrywide={travelsCountrywide}
+              onChangeTravelsCountrywide={setTravelsCountrywide}
+              disabled={saveBusy}
+            />
             <DateOnlyField
               label={t('profilePage.birthDate')}
               value={birthDate}
@@ -711,6 +749,7 @@ export default function DriverProfileScreen() {
               <ViewField label={t('profilePage.phone')} value="—" />
             )}
             <ViewField label={t('profilePage.city')} value={city || '—'} />
+            <ViewField label={t('serviceRegions.label')} value={serviceRegionsSummary} />
             <ViewField
               label={t('profilePage.bankAccount')}
               value={bankAccount.trim() ? bankAccount : t('profilePage.bankAccountMissing')}

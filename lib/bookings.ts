@@ -1039,6 +1039,9 @@ export async function insertBooking(row: InsertBookingInput) {
         transfer_in: row.transfer_in,
         transfer_out: row.transfer_out,
       },
+      fromLocation: row.from_location,
+      toLocation: row.to_location,
+      route: row.route,
     });
     if (assignedDriverId) {
       void notifyBookingVoucherCreated({

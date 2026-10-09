@@ -2,6 +2,7 @@ import type { BookingRow } from './bookings';
 import type { CompanyVoucherData } from './companyVoucherData';
 import { convoyVoucherCode, fetchCompanyVoucherData } from './companyVoucherData';
 import { generateCompanyVoucherHTML } from './companyVoucherHtml';
+import { generatePickupSignHTML, pickupSignName } from './pickupSignSheetHtml';
 import { generateTouristVoucherHTML } from './touristVoucherHtml';
 import {
   touristVoucherPdfDialogTitle,
@@ -53,4 +54,13 @@ export async function shareVoucherPDF(
   if (__DEV__ && error) {
     console.warn('[voucher.web] fetchCompanyVoucherData', error.message);
   }
+}
+/** Opens the pickup sign in a new tab and sends it straight to the printer. */
+export async function sharePickupSignPDF(booking: BookingRow): Promise<void> {
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(generatePickupSignHTML(booking));
+  win.document.close();
+  win.document.title = pickupSignName(booking) || 'KEKE';
+  win.print();
 }

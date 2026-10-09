@@ -131,7 +131,8 @@
       "activeSubtitle": "After you accept a booking it appears here — tap Start trip, then Complete.",
       "completedTitle": "No completed trips",
       "completedSubtitle": "Completed bookings are stored here for your history."
-    }
+    },
+    "voucherPrintPickupSign": "Print the pickup sign"
   },
   "dashboard": {
     "greeting": "Hello,",
@@ -1895,5 +1896,18 @@
     "needRoute": "Add a route or a description.",
     "sentTitle": "Sent",
     "sentBody": "You'll have a price in a few minutes — we'll notify you."
+  },
+  "serviceRegions": {
+    "label": "Where I drive",
+    "allRegionsHint": "Nothing selected — you receive bookings from every region. If you only drive in certain regions, tick them and you will see those bookings first.",
+    "allRegionsShort": "All regions",
+    "selectedHint": "You see bookings in these regions first. The rest still reach you, just a few minutes later.",
+    "choose": "Choose regions",
+    "change": "Change",
+    "pickTitle": "Where do you drive?",
+    "pickHint": "Tick the regions you work in. You get those bookings first — no booking is ever hidden from you.",
+    "countrywideTitle": "I travel countrywide for tours",
+    "countrywideHint": "Multi-day tours pay for the drive out, so you get those first from every region.",
+    "countrywideShort": "Tours — anywhere"
   }
 }

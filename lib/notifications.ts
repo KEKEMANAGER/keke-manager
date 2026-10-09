@@ -13,6 +13,11 @@ import {
   filterDriverIdsAvailableForWindow,
   SCHEDULE_OVERLAP_BUFFER_MS,
 } from './driverSchedules';
+import {
+  driverCoversRegions,
+  resolveBookingRegions,
+  type GeorgiaRegionCode,
+} from './georgiaRegions';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 import { sendBroadcastPushInRatingWaves } from './dispatchPushWaves';
 import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
@@ -151,6 +156,18 @@ export type NotifyMatchingDriversResult = {
 type DriverPushRecipient = {
   userId: string;
   token: string;
+  /**
+   * False only when this driver narrowed his own coverage and the job falls
+   * outside it. It moves him to the second wave; it never drops him.
+   */
+  coversRegion?: boolean;
+};
+
+/** Where the job is, so the drivers who work there are offered it first. */
+export type BookingCoverage = {
+  regions: GeorgiaRegionCode[];
+  /** Multi-day tours pay for the drive out, so "I travel countrywide" counts here. */
+  isMultiDayTour?: boolean;
 };
 
 type DriverPushRow = {
@@ -210,6 +227,8 @@ export async function fetchMatchingDriverPushRecipients(
   bookingCapacityTier?: string | null,
   /** Preferred model (minivan/microbus, e.g. 'vito'/'sprinter'). Null/unset = no preference. */
   bookingModelGroup?: string | null,
+  /** Where the job is. Omitted or empty = no coverage preference, order unchanged. */
+  coverage?: BookingCoverage | null,
 ): Promise<{
   recipients: DriverPushRecipient[];
   error: Error | null;
@@ -315,7 +334,9 @@ export async function fetchMatchingDriverPushRecipients(
       .not('push_token', 'is', null),
     supabase
       .from(USERS_DIRECTORY)
-      .select('id, is_verified, languages, is_hired_driver, is_guide_driver')
+      .select(
+        'id, is_verified, languages, is_hired_driver, is_guide_driver, service_regions, travels_countrywide',
+      )
       .in('id', driverIds),
   ]);
 
@@ -330,6 +351,10 @@ export async function fetchMatchingDriverPushRecipients(
     string,
     { is_hired_driver?: boolean | null; is_guide_driver?: boolean | null }
   >();
+  const coverageById = new Map<
+    string,
+    { service_regions?: string[] | null; travels_countrywide?: boolean | null }
+  >();
   for (const row of usersRes.data ?? []) {
     const u = row as {
       id: string;
@@ -337,7 +362,13 @@ export async function fetchMatchingDriverPushRecipients(
       languages?: string[] | null;
       is_hired_driver?: boolean | null;
       is_guide_driver?: boolean | null;
+      service_regions?: string[] | null;
+      travels_countrywide?: boolean | null;
     };
+    coverageById.set(String(u.id), {
+      service_regions: u.service_regions,
+      travels_countrywide: u.travels_countrywide,
+    });
     const uid = String(u.id);
     usersVerified.set(uid, u.is_verified === true);
     userLanguages.set(
@@ -388,9 +419,18 @@ export async function fetchMatchingDriverPushRecipients(
     }
   }
 
+  const bookingRegions = coverage?.regions ?? [];
   const recipients: DriverPushRecipient[] = [...byUser.entries()].map(([userId, token]) => ({
     userId,
     token,
+    coversRegion:
+      bookingRegions.length === 0
+        ? undefined
+        : driverCoversRegions(
+            coverageById.get(userId) ?? {},
+            bookingRegions,
+            coverage?.isMultiDayTour === true,
+          ),
   }));
 
   return { recipients, error: null, vehicleType, vehicleClass };
@@ -466,6 +506,14 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   requestedDriverCategory?: RequestedDriverCategory | null;
   /** Extra lines appended to push body (e.g. multi-day tour itinerary). */
   detailBody?: string | null;
+  /**
+   * Where the job runs. Drivers who work there are offered it first; everyone
+   * else still gets it in the second wave. Leave these out and the order is
+   * exactly what it was before coverage existed.
+   */
+  fromLocation?: string | null;
+  toLocation?: string | null;
+  route?: string | null;
 }): Promise<NotifyMatchingDriversResult> {
   const { vehicleType, vehicleClass } = normalizeBookingVehicleFilters(
     params.vehicleType,
@@ -511,6 +559,14 @@ export async function notifyMatchingDriversOfNewBooking(params: {
         params.requestedDriverCategory,
         params.capacityTier,
         params.modelGroup,
+        {
+          regions: resolveBookingRegions({
+            from_location: params.fromLocation,
+            to_location: params.toLocation,
+            route: params.route,
+          }),
+          isMultiDayTour: String(params.kind ?? '').trim() === 'tour',
+        },
       );
 
   if (error) {

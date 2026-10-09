@@ -421,6 +421,7 @@ export function CompanyBookingVoucherContent({
             pickupSignNameLabel={t('bookings.voucherPickupSignName')}
             pickupSignLogoLabel={t('bookings.voucherPickupSignLogo')}
             pickupSignPdfHint={t('bookings.voucherPickupSignPdfHint')}
+            printSignLabel={t('bookings.voucherPrintPickupSign')}
           />
 
           {booking.comment?.trim() ? (

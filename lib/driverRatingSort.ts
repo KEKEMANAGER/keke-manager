@@ -171,7 +171,21 @@ export async function fetchDriverRatingScores(
   return computeRatingAveragesFromRows(data as { driver_id: string; overall: number }[]);
 }
 
-export type PushRecipientLike = { userId: string; token: string };
+export type PushRecipientLike = {
+  userId: string;
+  token: string;
+  /**
+   * False only for a driver who has narrowed his own coverage and this job
+   * falls outside it. Undefined — the normal case — means no opinion, and the
+   * driver is ranked exactly as he was before coverage existed.
+   */
+  coversRegion?: boolean;
+};
+
+/** A driver who said "not my area" waits; everyone else keeps their place. */
+function coverageTier(recipient: PushRecipientLike): number {
+  return recipient.coversRegion === false ? 1 : 0;
+}
 
 function compareByRank(
   a: DriverRankScore | undefined,
@@ -217,9 +231,15 @@ export async function buildRatingWaves<T extends PushRecipientLike>(
   newDriverSlots = NEW_DRIVER_WAVE1_SLOTS,
 ): Promise<{ wave1: T[]; wave2: T[]; scores: Map<string, DriverRankScore> }> {
   const scores = await fetchDriverRankScores(recipients.map((r) => r.userId));
-  const sorted = [...recipients].sort((a, b) =>
-    compareByRank(scores.get(a.userId), scores.get(b.userId), a.userId, b.userId),
-  );
+  const sorted = [...recipients].sort((a, b) => {
+    // Coverage comes before score, but it only ever sorts — never excludes.
+    // Wave 1 still fills to wave1Size and wave 2 still carries everyone else,
+    // so a job in a region nobody claims is seen by exactly the same drivers
+    // as before.
+    const tier = coverageTier(a) - coverageTier(b);
+    if (tier !== 0) return tier;
+    return compareByRank(scores.get(a.userId), scores.get(b.userId), a.userId, b.userId);
+  });
 
   if (sorted.length <= wave1Size) {
     return { wave1: sorted, wave2: [], scores };
@@ -235,6 +255,9 @@ export async function buildRatingWaves<T extends PushRecipientLike>(
     const promoted: T[] = [];
     for (const r of rest) {
       if (seats === 0) break;
+      // A newcomer's reserved seat is for building a record, not for being
+      // sent somewhere he already said he does not drive.
+      if (coverageTier(r) > 0) continue;
       if (scores.get(r.userId)?.isNewDriver) {
         promoted.push(r);
         seats -= 1;

@@ -131,7 +131,8 @@
       "activeSubtitle": "After you accept a booking it appears here — tap Start trip, then Complete.",
       "completedTitle": "No completed trips",
       "completedSubtitle": "Completed bookings are stored here for your history."
-    }
+    },
+    "voucherPrintPickupSign": "Տպել դիմավորման ցուցանակը"
   },
   "dashboard": {
     "greeting": "Hello,",
@@ -1895,5 +1896,18 @@
     "needRoute": "Նշեք երթուղին կամ նկարագրությունը։",
     "sentTitle": "Ուղարկվել է",
     "sentBody": "Գինը կլինի մի քանի րոպեից — ծանուցում կստանաք։"
+  },
+  "serviceRegions": {
+    "label": "Որտեղ եմ աշխատում",
+    "allRegionsHint": "Ոչինչ նշված չէ — ամրագրումները գալիս են բոլոր մարզերից։ Եթե աշխատում եք միայն որոշ մարզերում, նշեք դրանք և այդ ամրագրումները կտեսնեք առաջինը։",
+    "allRegionsShort": "Բոլոր մարզերը",
+    "selectedHint": "Այս մարզերի ամրագրումներն առաջինը կտեսնեք։ Մնացածը նույնպես կհասնեն ձեզ, պարզապես մի քանի րոպե ուշ։",
+    "choose": "Ընտրել մարզերը",
+    "change": "Փոխել",
+    "pickTitle": "Որտե՞ղ եք աշխատում",
+    "pickHint": "Նշեք այն մարզերը, որտեղ աշխատում եք։ Այդ ամրագրումներն առաջինը կստանաք — ոչ մի ամրագրում ձեզանից չի թաքցվում։",
+    "countrywideTitle": "Տուրերի համար ճամփորդում եմ ամբողջ Վրաստանով",
+    "countrywideHint": "Բազմօրյա տուրերը հատուցում են ճանապարհը, ուստի դրանք առաջինը կստանաք ցանկացած մարզից։",
+    "countrywideShort": "Տուրեր — ամենուր"
   }
 }

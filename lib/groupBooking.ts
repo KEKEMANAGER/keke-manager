@@ -433,6 +433,9 @@ export async function broadcastOpenLegs(
         transfer_in: leg.transfer_in,
         transfer_out: leg.transfer_out,
       },
+      fromLocation: leg.from_location,
+      toLocation: leg.to_location,
+      route: leg.route,
     });
     count++;
   }
