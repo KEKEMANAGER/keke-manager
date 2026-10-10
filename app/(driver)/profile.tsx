@@ -34,7 +34,7 @@ import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { SearchableCitySelect } from '../../components/SearchableCitySelect';
 import { ServiceRegionsSelect } from '../../components/ServiceRegionsSelect';
-import { REGION_LABELS, isGeorgiaRegionCode } from '../../lib/georgiaRegions';
+import { isGeorgiaRegionCode, regionLabel } from '../../lib/georgiaRegions';
 import { isValidGeorgianCity } from '../../lib/georgianCities';
 import { OptionChips } from '../../components/OptionChips';
 import { StarRow } from '../../components/StarRow';
@@ -150,14 +150,7 @@ export default function DriverProfileScreen() {
   const serviceRegionsSummary = useMemo(() => {
     const codes = serviceRegions.filter(isGeorgiaRegionCode);
     if (codes.length === 0) return t('serviceRegions.allRegionsShort');
-    const lang = i18n.language ?? 'ka';
-    const names = codes.map((code) => {
-      const row = REGION_LABELS[code];
-      if (lang.startsWith('en')) return row.en;
-      if (lang.startsWith('ru')) return row.ru;
-      if (lang.startsWith('hy')) return row.hy;
-      return row.ka;
-    });
+    const names = codes.map((code) => regionLabel(code, i18n.language));
     const line = names.join(', ');
     return travelsCountrywide ? `${line} · ${t('serviceRegions.countrywideShort')}` : line;
   }, [serviceRegions, travelsCountrywide, t, i18n.language]);

@@ -229,6 +229,16 @@ export function isGeorgiaRegionCode(value: unknown): value is GeorgiaRegionCode 
   return typeof value === 'string' && (GEORGIA_REGION_CODES as readonly string[]).includes(value);
 }
 
+/** A region's name in the interface language. */
+export function regionLabel(code: GeorgiaRegionCode, language: string | null | undefined): string {
+  const row = REGION_LABELS[code];
+  const lang = language ?? 'ka';
+  if (lang.startsWith('en')) return row.en;
+  if (lang.startsWith('ru')) return row.ru;
+  if (lang.startsWith('hy')) return row.hy;
+  return row.ka;
+}
+
 /**
  * The region a typed place belongs to, or null when nothing is recognised.
  *

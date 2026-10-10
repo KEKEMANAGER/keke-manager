@@ -808,6 +808,15 @@
     "reuploadCta": "Загрузить документы снова",
     "backToStatus": "← К статусу"
   },
+  "companyVerificationGate": {
+    "pendingTitle": "Компания ожидает подтверждения",
+    "pendingSubtitle": "Регистрация получена. Администратор KEKE Manager проверит данные компании, и после подтверждения вы получите полный доступ — отправку заказов и работу с водителями.",
+    "rejectedTitle": "Верификация компании отклонена",
+    "rejectedSubtitle": "Аккаунт не подтверждён. Свяжитесь с нами, чтобы узнать подробности.",
+    "rejectionReasonLabel": "Причина",
+    "checkAgain": "Обновить статус",
+    "contactHint": "Вопросы? Напишите на info@kekemanager.com"
+  },
   "authScreen": {
     "signIn": "Вход",
     "signUp": "Регистрация",
@@ -1176,7 +1185,58 @@
     "viewDocument": "Открыть",
     "noDocument": "Нет",
     "approveSuccess": "Верификация одобрена",
-    "rejectSuccess": "Верификация отклонена"
+    "rejectSuccess": "Верификация отклонена",
+    "emptyPendingCompanies": "Нет компаний на проверке",
+    "emptySearch": "По этому запросу ничего нет",
+    "registeredAt": "Регистрация",
+    "waitingToday": "сегодня",
+    "waitingDays": "ожидает {{count}} дн.",
+    "statusRejected": "Отклонён"
+  },
+  "adminImportLog": {
+    "totals": "Всего {{total}} файлов · прочитано {{ok}} · не прочитано {{failed}}",
+    "showFailed": "Только ошибки",
+    "showAll": "Показать все",
+    "statusOk": "Прочитан — {{count}} услуг",
+    "statusEmpty": "Текст не найден (скан?)",
+    "statusError": "Не удалось прочитать",
+    "usedAi": "с помощью AI",
+    "warnings": "Предупреждения",
+    "noWarnings": "Предупреждений не было",
+    "empty": "Пока ничего не загружено."
+  },
+  "adminDispatchLog": {
+    "hint": "Каждый заказ — кто получил его в первой волне, кто во второй и кто взял. Нажмите, чтобы увидеть имена.",
+    "regions": "Регионы",
+    "noRegion": "Регион не распознан — ушло всем водителям одинаково",
+    "waves": "1-я волна: {{wave1}} водителей · 2-я волна: {{wave2}}",
+    "push": "Отправлено: {{sent}} · Не доставлено: {{failed}}",
+    "wonFromWave1": "Взял {{name}} (1-я волна)",
+    "wonFromWave2": "Взял {{name}} (2-я волна)",
+    "stillOpen": "Пока никто не взял",
+    "bookingGone": "Заказ удалён",
+    "wave1List": "1-я волна",
+    "wave2List": "2-я волна",
+    "empty": "Пока ничего не записано — следующий новый заказ появится здесь."
+  },
+  "adminRegions": {
+    "totalsTitle": "Покрытие водителями по регионам",
+    "totalDrivers": "Подтверждённых водителей: {{count}}",
+    "everywhere": "Работают везде (регион не выбран): {{count}} — свободны сейчас: {{available}}",
+    "countrywideTour": "Ездят по всей Грузии на туры: {{count}}",
+    "unresolvedBookings": "В {{count}} открытых заказах регион не распознан — такие идут всем водителям.",
+    "gapTitle": "Регионы без водителей, но с заказами",
+    "gapHint": "Заказы туда всё равно уходят, но только во второй волне — здесь нужны водители.",
+    "availableNow": "Свободны сейчас: {{count}}",
+    "tourReady": "На туры: {{count}}",
+    "openBookings": "Открытых заказов: {{count}}",
+    "uncoveredNote": "Этот регион никто не выбрал",
+    "noDrivers": "Водителей нет",
+    "driverAvailable": "свободен",
+    "driverUnavailable": "занят",
+    "empty": "Нет данных",
+    "bookingsUnavailable": "Не удалось прочитать открытые заказы — цифры ниже неполные.",
+    "bookingsTruncated": "Много открытых заказов — цифры по последним 500."
   },
   "adminPanel": {
     "title": "Админ-панель",
@@ -1277,7 +1337,11 @@
       "lastActivity": "Последняя активность",
       "recentBookings": "Последние бронирования (10)",
       "verifyToggle": "Верификация"
-    }
+    },
+    "verifySubTabCompanies": "Компании",
+    "tabRegions": "Регионы",
+    "tabDispatch": "Диспетчер",
+    "tabImports": "Импорт"
   },
   "dateOnlyField": {
     "default": "Выберите дату"

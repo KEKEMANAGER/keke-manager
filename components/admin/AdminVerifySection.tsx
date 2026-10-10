@@ -20,6 +20,7 @@ import {
   fetchAdminVerificationQueue,
   verificationDocSlotsForAdmin,
   type AdminDocumentKey,
+  type AdminVerificationQueueRole,
   type AdminVerificationUser,
 } from '../../lib/adminVerification';
 import { supabase } from '../../lib/supabase';
@@ -36,9 +37,12 @@ function idDocSlotsForUser(u: AdminVerificationUser): DocSlot[] {
 
 export function AdminVerifySection({
   searchQuery = '',
+  role,
   onQueueCountChange,
 }: {
   searchQuery?: string;
+  /** Omitted shows everyone, as this section did before the queues split. */
+  role?: AdminVerificationQueueRole;
   onQueueCountChange?: (count: number) => void;
 }) {
   const { t } = useTranslation();
@@ -55,7 +59,7 @@ export function AdminVerifySection({
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await fetchAdminVerificationQueue();
+      const { data, error: err } = await fetchAdminVerificationQueue({ role });
       if (err) {
         setError(err.message);
         setRows([]);
@@ -72,7 +76,7 @@ export function AdminVerifySection({
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [onQueueCountChange, t]);
+  }, [onQueueCountChange, role, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -181,9 +185,26 @@ export function AdminVerifySection({
   }
 
   function statusLabel(status: string | null): string {
-    if (status === 'pending') return t('adminVerify.statusPending');
-    if (status === 'submitted') return t('adminVerify.statusSubmitted');
+    const s = status?.trim().toLowerCase();
+    if (!s) return t('adminVerify.statusPending');
+    if (s === 'pending') return t('adminVerify.statusPending');
+    if (s === 'submitted') return t('adminVerify.statusSubmitted');
+    // A rejected company stays in its queue so this screen is still the one
+    // place that can let it back in — so the status has to be readable here.
+    if (s === 'rejected') return t('adminVerify.statusRejected');
     return status ?? '—';
+  }
+
+  /** How long this registration has been sitting in the queue. */
+  function waitingLabel(createdAt: string | null): string | null {
+    if (!createdAt) return null;
+    const ms = Date.parse(createdAt);
+    if (!Number.isFinite(ms)) return null;
+    const days = Math.max(0, Math.floor((Date.now() - ms) / 86_400_000));
+    const date = new Date(ms).toLocaleDateString();
+    return days === 0
+      ? `${date} · ${t('adminVerify.waitingToday')}`
+      : `${date} · ${t('adminVerify.waitingDays', { count: days })}`;
   }
 
   function renderCompanyInfo(user: AdminVerificationUser) {
@@ -243,10 +264,18 @@ export function AdminVerifySection({
             </Pressable>
           </View>
         ) : null}
-        {rows.length === 0 ? (
-          <Text style={adminStyles.empty}>{t('adminVerify.emptyPending')}</Text>
+        {filteredRows.length === 0 ? (
+          <Text style={adminStyles.empty}>
+            {rows.length > 0
+              ? t('adminVerify.emptySearch')
+              : role === 'company'
+                ? t('adminVerify.emptyPendingCompanies')
+                : t('adminVerify.emptyPending')}
+          </Text>
         ) : (
-          filteredRows.map((u) => (
+          filteredRows.map((u) => {
+            const waiting = waitingLabel(u.created_at);
+            return (
             <View key={u.id} style={adminStyles.card}>
               <Text style={adminStyles.cardTitle}>{u.full_name?.trim() || u.email || '—'}</Text>
               <Text style={adminStyles.cardMeta}>
@@ -255,6 +284,11 @@ export function AdminVerifySection({
               <Text style={adminStyles.cardMeta}>
                 {t('adminVerify.status')}: {statusLabel(u.verification_status)}
               </Text>
+              {waiting ? (
+                <Text style={adminStyles.cardMeta}>
+                  {t('adminVerify.registeredAt')}: {waiting}
+                </Text>
+              ) : null}
               {u.role === 'company' ? (
                 <>
                   <Text style={styles.sectionLabel}>{t('adminVerify.companyInfoSection')}</Text>
@@ -295,7 +329,8 @@ export function AdminVerifySection({
                 </Pressable>
               </View>
             </View>
-          ))
+            );
+          })
         )}
       </View>
 

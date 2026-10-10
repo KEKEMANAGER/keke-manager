@@ -17,6 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AdminBookingsSection } from '../../components/admin/AdminBookingsSection';
 import { AdminChatsSection } from '../../components/admin/AdminChatsSection';
+import { AdminDispatchLogSection } from '../../components/admin/AdminDispatchLogSection';
+import { AdminImportLogSection } from '../../components/admin/AdminImportLogSection';
+import { AdminRegionsSection } from '../../components/admin/AdminRegionsSection';
 import { AdminGpsSection } from '../../components/admin/AdminGpsSection';
 import { AdminStatsSection } from '../../components/admin/AdminStatsSection';
 import { AdminAdsSection } from '../../components/admin/AdminAdsSection';
@@ -54,7 +57,19 @@ function AdminSearchInput({
   );
 }
 
-const TAB_IDS: AdminTabId[] = ['users', 'verify', 'chats', 'bookings', 'gps', 'stats', 'ads', 'motivation'];
+const TAB_IDS: AdminTabId[] = [
+  'users',
+  'verify',
+  'chats',
+  'bookings',
+  'regions',
+  'dispatch',
+  'imports',
+  'gps',
+  'stats',
+  'ads',
+  'motivation',
+];
 
 function parseTab(raw: string | string[] | undefined): AdminTabId {
   const v = Array.isArray(raw) ? raw[0] : raw;
@@ -95,6 +110,9 @@ export default function AdminPanelScreen() {
       { id: 'verify' as const, label: t('adminPanel.tabVerify') },
       { id: 'chats' as const, label: t('adminPanel.tabChats'), badge: chatTabBadge },
       { id: 'bookings' as const, label: t('adminPanel.tabBookings') },
+      { id: 'regions' as const, label: t('adminPanel.tabRegions') },
+      { id: 'dispatch' as const, label: t('adminPanel.tabDispatch') },
+      { id: 'imports' as const, label: t('adminPanel.tabImports') },
       { id: 'gps' as const, label: t('adminPanel.tabGps') },
       { id: 'stats' as const, label: t('adminPanel.tabStats') },
       { id: 'ads' as const, label: '📢 რეკლამა' },
@@ -154,6 +172,24 @@ export default function AdminPanelScreen() {
       {tab === 'verify' ? <AdminVerifyPanel /> : null}
       {tab === 'chats' ? <AdminChatsSection /> : null}
       {tab === 'bookings' ? <AdminBookingsSection /> : null}
+      {tab === 'regions' ? (
+        <>
+          <AdminSearchInput value={searchQuery} onChangeText={setSearchQuery} />
+          <AdminRegionsSection searchQuery={searchQuery} />
+        </>
+      ) : null}
+      {tab === 'dispatch' ? (
+        <>
+          <AdminSearchInput value={searchQuery} onChangeText={setSearchQuery} />
+          <AdminDispatchLogSection searchQuery={searchQuery} />
+        </>
+      ) : null}
+      {tab === 'imports' ? (
+        <>
+          <AdminSearchInput value={searchQuery} onChangeText={setSearchQuery} />
+          <AdminImportLogSection searchQuery={searchQuery} />
+        </>
+      ) : null}
       {tab === 'gps' ? <AdminGpsSection /> : null}
       {tab === 'stats' ? <AdminStatsSection /> : null}
       {tab === 'ads' ? <AdminAdsSection /> : null}

@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import {
   GEORGIA_REGION_CODES,
-  REGION_LABELS,
   isGeorgiaRegionCode,
+  regionLabel,
   type GeorgiaRegionCode,
 } from '../lib/georgiaRegions';
 
@@ -17,14 +17,6 @@ type Props = {
   onChangeTravelsCountrywide: (value: boolean) => void;
   disabled?: boolean;
 };
-
-function labelFor(code: GeorgiaRegionCode, language: string): string {
-  const row = REGION_LABELS[code];
-  if (language.startsWith('en')) return row.en;
-  if (language.startsWith('ru')) return row.ru;
-  if (language.startsWith('hy')) return row.hy;
-  return row.ka;
-}
 
 /**
  * Where this driver is willing to work.
@@ -73,7 +65,7 @@ export function ServiceRegionsSelect({
                 onPress={() => toggle(code)}
                 style={({ pressed }) => [styles.chip, pressed && !disabled && styles.pressed]}
               >
-                <Text style={styles.chipText}>{labelFor(code, language)}</Text>
+                <Text style={styles.chipText}>{regionLabel(code, language)}</Text>
                 {!disabled ? <Text style={styles.chipRemove}>×</Text> : null}
               </Pressable>
             ))}
@@ -127,7 +119,7 @@ export function ServiceRegionsSelect({
                     ]}
                   >
                     <Text style={[styles.optionText, active && styles.optionTextActive]}>
-                      {labelFor(item, language)}
+                      {regionLabel(item, language)}
                     </Text>
                     {active ? <Text style={styles.check}>✓</Text> : null}
                   </Pressable>

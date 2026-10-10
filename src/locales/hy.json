@@ -963,6 +963,15 @@
     "reuploadCta": "Re-upload documents",
     "backToStatus": "← Back to status"
   },
+  "companyVerificationGate": {
+    "pendingTitle": "Ընկերությունը սպասում է հաստատման",
+    "pendingSubtitle": "Գրանցումը ստացված է։ KEKE Manager-ի ադմինիստրատորը կստուգի ընկերության տվյալները, և հաստատվելուց հետո կստանաք լրիվ հասանելիություն — ամրագրումներ ուղարկել և աշխատել վարորդների հետ։",
+    "rejectedTitle": "Ընկերության հաստատումը մերժված է",
+    "rejectedSubtitle": "Հաշիվը չի հաստատվել։ Մանրամասների համար կապվեք մեզ հետ։",
+    "rejectionReasonLabel": "Պատճառը",
+    "checkAgain": "Թարմացնել կարգավիճակը",
+    "contactHint": "Հարցեր ունե՞ք — գրեք info@kekemanager.com"
+  },
   "authScreen": {
     "signIn": "Sign in",
     "signUp": "Register",
@@ -1331,7 +1340,58 @@
     "viewDocument": "View",
     "noDocument": "Missing",
     "approveSuccess": "Verification approved",
-    "rejectSuccess": "Verification rejected"
+    "rejectSuccess": "Verification rejected",
+    "emptyPendingCompanies": "Հաստատման սպասող ընկերություններ չկան",
+    "emptySearch": "Այս որոնմամբ ոչինչ չի գտնվել",
+    "registeredAt": "Գրանցված",
+    "waitingToday": "այսօր",
+    "waitingDays": "սպասում է {{count}} օր",
+    "statusRejected": "Մերժված"
+  },
+  "adminImportLog": {
+    "totals": "Ընդամենը {{total}} ֆայլ · կարդացվել է {{ok}} · ձախողվել է {{failed}}",
+    "showFailed": "Միայն սխալները",
+    "showAll": "Ցույց տալ բոլորը",
+    "statusOk": "Կարդացվեց — {{count}} ծառայություն",
+    "statusEmpty": "Տեքստ չգտնվեց (սկան՞)",
+    "statusError": "Չհաջողվեց կարդալ",
+    "usedAi": "AI-ի օգնությամբ",
+    "warnings": "Զգուշացումներ",
+    "noWarnings": "Զգուշացումներ չկան",
+    "empty": "Դեռ ոչինչ վերբեռնված չէ։"
+  },
+  "adminDispatchLog": {
+    "hint": "Յուրաքանչյուր ամրագրում — ով ստացավ առաջին ալիքում, ով երկրորդում և ով վերցրեց։ Սեղմեք անունների համար։",
+    "regions": "Մարզեր",
+    "noRegion": "Մարզը չի ճանաչվել — հասել է բոլոր վարորդներին հավասարապես",
+    "waves": "1-ին ալիք՝ {{wave1}} վարորդ · 2-րդ ալիք՝ {{wave2}}",
+    "push": "Ուղարկված՝ {{sent}} · Ձախողված՝ {{failed}}",
+    "wonFromWave1": "Վերցրեց {{name}} (1-ին ալիք)",
+    "wonFromWave2": "Վերցրեց {{name}} (2-րդ ալիք)",
+    "stillOpen": "Դեռ ոչ ոք չի վերցրել",
+    "bookingGone": "Ամրագրումը ջնջված է",
+    "wave1List": "1-ին ալիք",
+    "wave2List": "2-րդ ալիք",
+    "empty": "Դեռ ոչինչ չի գրանցվել — հաջորդ նոր ամրագրումը կհայտնվի այստեղ։"
+  },
+  "adminRegions": {
+    "totalsTitle": "Վարորդների ծածկույթը մարզերով",
+    "totalDrivers": "Հաստատված վարորդներ՝ {{count}}",
+    "everywhere": "Աշխատում են ամենուր (մարզ ընտրված չէ)՝ {{count}} — ազատ են հիմա՝ {{available}}",
+    "countrywideTour": "Տուրերի համար ճամփորդում են ամբողջ Վրաստանով՝ {{count}}",
+    "unresolvedBookings": "{{count}} բաց ամրագրման մարզը չի ճանաչվել — դրանք հասնում են բոլոր վարորդներին։",
+    "gapTitle": "Չծածկված մարզեր՝ բաց աշխատանքով",
+    "gapHint": "Ամրագրումները դեռ ուղարկվում են, բայց միայն երկրորդ ալիքում — այս մարզերում վարորդ է պետք։",
+    "availableNow": "Ազատ են հիմա՝ {{count}}",
+    "tourReady": "Տուրերի համար՝ {{count}}",
+    "openBookings": "Բաց ամրագրումներ՝ {{count}}",
+    "uncoveredNote": "Այս մարզը ոչ ոք չի ընտրել",
+    "noDrivers": "Վարորդ չկա",
+    "driverAvailable": "ազատ",
+    "driverUnavailable": "զբաղված",
+    "empty": "Տվյալներ չկան",
+    "bookingsUnavailable": "Չհաջողվեց կարդալ բաց ամրագրումները — ներքևի թվերը ամբողջական չեն։",
+    "bookingsTruncated": "Շատ բաց ամրագրումներ — թվերը վերջին 500-ի համար են։"
   },
   "adminPanel": {
     "title": "Admin panel",
@@ -1432,7 +1492,11 @@
       "lastActivity": "Last activity",
       "recentBookings": "Last bookings (10)",
       "verifyToggle": "Verification"
-    }
+    },
+    "verifySubTabCompanies": "Ընկերություններ",
+    "tabRegions": "Մարզեր",
+    "tabDispatch": "Դիսպետչեր",
+    "tabImports": "Ներմուծում"
   },
   "dateOnlyField": {
     "default": "Select date"

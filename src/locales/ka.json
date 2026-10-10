@@ -963,6 +963,15 @@
     "reuploadCta": "დოკუმენტების ხელახლა ატვირთვა",
     "backToStatus": "← სტატუსზე დაბრუნება"
   },
+  "companyVerificationGate": {
+    "pendingTitle": "კომპანია დადასტურების მოლოდინშია",
+    "pendingSubtitle": "რეგისტრაცია მიღებულია. KEKE Manager-ის ადმინისტრატორი შეამოწმებს კომპანიის მონაცემებს და დადასტურების შემდეგ მიიღებთ სრულ წვდომას — ჯავშნების გაგზავნასა და მძღოლებთან მუშაობას.",
+    "rejectedTitle": "კომპანიის ვერიფიკაცია უარყოფილია",
+    "rejectedSubtitle": "ანგარიში ვერ დადასტურდა. დეტალებისთვის დაგვიკავშირდით.",
+    "rejectionReasonLabel": "მიზეზი",
+    "checkAgain": "სტატუსის განახლება",
+    "contactHint": "კითხვების შემთხვევაში დაგვიკავშირდით: info@kekemanager.com"
+  },
   "authScreen": {
     "signIn": "შესვლა",
     "signUp": "რეგისტრაცია",
@@ -1331,7 +1340,58 @@
     "viewDocument": "ნახვა",
     "noDocument": "არ არის",
     "approveSuccess": "ვერიფიკაცია დადასტურდა",
-    "rejectSuccess": "ვერიფიკაცია უარყოფილია"
+    "rejectSuccess": "ვერიფიკაცია უარყოფილია",
+    "emptyPendingCompanies": "მოლოდინში კომპანიები არ არის",
+    "emptySearch": "ძიებამ შედეგი ვერ მოიძია",
+    "registeredAt": "დარეგისტრირდა",
+    "waitingToday": "დღეს",
+    "waitingDays": "ელოდება {{count}} დღე",
+    "statusRejected": "უარყოფილია"
+  },
+  "adminImportLog": {
+    "totals": "სულ {{total}} ფაილი · წაიკითხა {{ok}} · ვერ წაიკითხა {{failed}}",
+    "showFailed": "მხოლოდ შეცდომები",
+    "showAll": "ყველას ჩვენება",
+    "statusOk": "წაიკითხა — {{count}} სერვისი",
+    "statusEmpty": "ტექსტი ვერ ვიპოვე (სკანი?)",
+    "statusError": "ვერ წაიკითხა",
+    "usedAi": "AI დახმარებით",
+    "warnings": "გაფრთხილებები",
+    "noWarnings": "გაფრთხილება არ იყო",
+    "empty": "ჯერ არაფერი ატვირთულა."
+  },
+  "adminDispatchLog": {
+    "hint": "ყველა ჯავშანი — ვის გაუვა პირველ ტალღაში, ვის მეორეში და ვინ აიღო ბოლოს. დააჭირე სიის სანახავად.",
+    "regions": "რეგიონი",
+    "noRegion": "რეგიონი ვერ ამოვიცანი — ყველა მძღოლს თანაბრად გაუვა",
+    "waves": "1-ლი ტალღა: {{wave1}} მძღოლი · 2-ე ტალღა: {{wave2}}",
+    "push": "გაიგზავნა: {{sent}} · ვერ გაიგზავნა: {{failed}}",
+    "wonFromWave1": "აიღო {{name}} (1-ლი ტალღა)",
+    "wonFromWave2": "აიღო {{name}} (2-ე ტალღა)",
+    "stillOpen": "ჯერ არავის აუღია",
+    "bookingGone": "ჯავშანი წაშლილია",
+    "wave1List": "1-ლი ტალღა",
+    "wave2List": "2-ე ტალღა",
+    "empty": "ჯერ არაფერი დაფიქსირებულა — პირველივე ახალი ჯავშანი აქ გამოჩნდება."
+  },
+  "adminRegions": {
+    "totalsTitle": "მძღოლების დაფარვა რეგიონებით",
+    "totalDrivers": "დადასტურებული მძღოლი: {{count}}",
+    "everywhere": "ყველგან მუშაობს (რეგიონი არ აურჩევია): {{count}} — ახლა თავისუფალი: {{available}}",
+    "countrywideTour": "ტურებზე მთელ საქართველოში დადის: {{count}}",
+    "unresolvedBookings": "{{count}} ღია ჯავშანში რეგიონი ვერ ამოვიცანი — ასეთი ჯავშანი ყველა მძღოლს მიდის.",
+    "gapTitle": "დაუფარავი რეგიონი ღია ჯავშნით",
+    "gapHint": "ამ რეგიონებში ჯავშნები მაინც იგზავნება, მაგრამ მხოლოდ მეორე ტალღაში — აქ მძღოლი გვჭირდება.",
+    "availableNow": "ახლა თავისუფალი: {{count}}",
+    "tourReady": "ტურებზე: {{count}}",
+    "openBookings": "ღია ჯავშანი: {{count}}",
+    "uncoveredNote": "ამ რეგიონს ვერავინ აურჩევია",
+    "noDrivers": "მძღოლი არ არის",
+    "driverAvailable": "თავისუფალი",
+    "driverUnavailable": "დაკავებული",
+    "empty": "მონაცემი არ არის",
+    "bookingsUnavailable": "ღია ჯავშნების წაკითხვა ვერ მოხერხდა — ქვემოთ ციფრები არასრულია.",
+    "bookingsTruncated": "ბევრი ღია ჯავშანია — ციფრები ბოლო 500-ზეა დათვლილი."
   },
   "adminPanel": {
     "title": "ადმინ პანელი",
@@ -1432,7 +1492,11 @@
       "lastActivity": "ბოლო აქტივობა",
       "recentBookings": "ბოლო ჯავშნები (10)",
       "verifyToggle": "ვერიფიკაცია"
-    }
+    },
+    "verifySubTabCompanies": "კომპანიები",
+    "tabRegions": "რეგიონები",
+    "tabDispatch": "დისპეჩერი",
+    "tabImports": "იმპორტი"
   },
   "dateOnlyField": {
     "default": "აირჩიეთ თარიღი"

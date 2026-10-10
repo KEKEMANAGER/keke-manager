@@ -10,7 +10,7 @@ import { AdminVerifySection } from './AdminVerifySection';
 import { AdminVehicleVerifySection } from './AdminVehicleVerifySection';
 import { AdminVehiclePhotoAuditSection } from './AdminVehiclePhotoAuditSection';
 
-type VerifySubTab = 'drivers' | 'vehicles' | 'photos';
+type VerifySubTab = 'companies' | 'drivers' | 'vehicles' | 'photos';
 
 function AdminSearchInput({
   value,
@@ -39,16 +39,22 @@ function AdminSearchInput({
 
 export function AdminVerifyPanel() {
   const { t } = useTranslation();
-  const [subTab, setSubTab] = useState<VerifySubTab>('drivers');
+  // Companies come first: one of them waiting means a business that cannot
+  // work at all until it is looked at, while a driver in the queue is one of
+  // many who could take the job.
+  const [subTab, setSubTab] = useState<VerifySubTab>('companies');
   const [searchQuery, setSearchQuery] = useState('');
+  const [companyCount, setCompanyCount] = useState(0);
   const [driverCount, setDriverCount] = useState(0);
   const [vehicleCount, setVehicleCount] = useState(0);
 
   const refreshCounts = useCallback(async () => {
-    const [drivers, vehicles] = await Promise.all([
-      fetchAdminVerificationQueueCount(),
+    const [companies, drivers, vehicles] = await Promise.all([
+      fetchAdminVerificationQueueCount({ role: 'company' }),
+      fetchAdminVerificationQueueCount({ role: 'driver' }),
       fetchAdminVehicleVerificationQueueCount(),
     ]);
+    setCompanyCount(companies);
     setDriverCount(drivers);
     setVehicleCount(vehicles);
   }, []);
@@ -64,6 +70,7 @@ export function AdminVerifyPanel() {
   }, [subTab, refreshCounts]);
 
   const subTabs: { id: VerifySubTab; label: string; count: number }[] = [
+    { id: 'companies', label: t('adminPanel.verifySubTabCompanies'), count: companyCount },
     { id: 'drivers', label: t('adminPanel.verifySubTabDrivers'), count: driverCount },
     { id: 'vehicles', label: t('adminPanel.verifySubTabVehicles'), count: vehicleCount },
     { id: 'photos', label: t('adminPanel.verifySubTabPhotos'), count: 0 },
@@ -103,8 +110,24 @@ export function AdminVerifyPanel() {
 
       <AdminSearchInput value={searchQuery} onChangeText={setSearchQuery} />
 
-      {subTab === 'drivers' ? (
-        <AdminVerifySection searchQuery={searchQuery} onQueueCountChange={setDriverCount} />
+      {/* `key` matters: both branches render the same component, so without it
+          React reuses one instance across the switch and a slow fetch from the
+          tab you just left can land in the tab you are now looking at — with
+          its Approve buttons pointing at the wrong rows. */}
+      {subTab === 'companies' ? (
+        <AdminVerifySection
+          key="company"
+          role="company"
+          searchQuery={searchQuery}
+          onQueueCountChange={setCompanyCount}
+        />
+      ) : subTab === 'drivers' ? (
+        <AdminVerifySection
+          key="driver"
+          role="driver"
+          searchQuery={searchQuery}
+          onQueueCountChange={setDriverCount}
+        />
       ) : subTab === 'vehicles' ? (
         <AdminVehicleVerifySection searchQuery={searchQuery} onQueueCountChange={setVehicleCount} />
       ) : (

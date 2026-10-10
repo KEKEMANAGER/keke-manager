@@ -101,6 +101,51 @@ function scheduleRatingWave2Push(params: {
   }, DISPATCH_RATING_WAVE2_DELAY_MS);
 }
 
+/**
+ * What the admin panel needs to answer "who got this booking, and why not him?"
+ *
+ * Nothing about dispatch was recorded before, so the only way to reconstruct a
+ * wave was to re-run the ranking in your head against data that had since
+ * changed. One row per dispatch, written here where the waves are actually
+ * decided, makes it a question you can look up.
+ */
+async function recordDispatch(params: {
+  bookingId: string;
+  regions: string[];
+  fromLocation?: string | null;
+  toLocation?: string | null;
+  wave1Ids: string[];
+  wave2Ids: string[];
+  wave1Tokens: number;
+  wave2Tokens: number;
+  sent: number;
+  failed: number;
+}): Promise<void> {
+  const { error } = await supabase.rpc('log_dispatch', {
+    p_booking_id: params.bookingId,
+    p_regions: params.regions,
+    p_from_location: params.fromLocation ?? null,
+    p_to_location: params.toLocation ?? null,
+    p_wave1_driver_ids: params.wave1Ids,
+    p_wave2_driver_ids: params.wave2Ids,
+    p_wave1_token_count: params.wave1Tokens,
+    p_wave2_token_count: params.wave2Tokens,
+    p_wave1_sent: params.sent,
+    p_wave1_failed: params.failed,
+  });
+  // A missing log must never cost anyone a booking, so this is fire-and-forget.
+  if (error && __DEV__) {
+    console.warn('[dispatchPushWaves] dispatch log failed:', error.message);
+  }
+}
+
+/** Where the job runs, for the dispatch log. Absent is fine — it logs anyway. */
+export type DispatchLogContext = {
+  regions?: string[];
+  fromLocation?: string | null;
+  toLocation?: string | null;
+};
+
 /** Broadcast push: top-rated wave first, remaining drivers after a short delay. */
 export async function sendBroadcastPushInRatingWaves(
   recipients: PushRecipientLike[],
@@ -108,6 +153,7 @@ export async function sendBroadcastPushInRatingWaves(
   body: string,
   data: Record<string, string>,
   bookingId?: string | null,
+  logContext?: DispatchLogContext,
 ): Promise<RatingWavePushResult> {
   const { wave1: wave1Recipients, wave2: wave2Recipients } = await buildRatingWaves(
     recipients,
@@ -137,6 +183,22 @@ export async function sendBroadcastPushInRatingWaves(
         data,
       });
     }
+  }
+
+  const logBookingId = bookingId?.trim();
+  if (logBookingId) {
+    void recordDispatch({
+      bookingId: logBookingId,
+      regions: logContext?.regions ?? [],
+      fromLocation: logContext?.fromLocation,
+      toLocation: logContext?.toLocation,
+      wave1Ids: [...new Set(wave1Recipients.map((r) => r.userId))],
+      wave2Ids: [...new Set(wave2Recipients.map((r) => r.userId))],
+      wave1Tokens: wave1Tokens.length,
+      wave2Tokens: wave2Tokens.length,
+      sent: batch1.sentCount,
+      failed: batch1.failedCount,
+    });
   }
 
   if (__DEV__) {

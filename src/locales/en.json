@@ -963,6 +963,15 @@
     "reuploadCta": "Re-upload documents",
     "backToStatus": "← Back to status"
   },
+  "companyVerificationGate": {
+    "pendingTitle": "Your company is awaiting approval",
+    "pendingSubtitle": "We have your registration. A KEKE Manager administrator will review your company details, and once it is approved you get full access — sending bookings and working with drivers.",
+    "rejectedTitle": "Company verification rejected",
+    "rejectedSubtitle": "This account was not approved. Contact us for the details.",
+    "rejectionReasonLabel": "Reason",
+    "checkAgain": "Check status again",
+    "contactHint": "Questions? Write to info@kekemanager.com"
+  },
   "authScreen": {
     "signIn": "Sign in",
     "signUp": "Register",
@@ -1331,7 +1340,58 @@
     "viewDocument": "View",
     "noDocument": "Missing",
     "approveSuccess": "Verification approved",
-    "rejectSuccess": "Verification rejected"
+    "rejectSuccess": "Verification rejected",
+    "emptyPendingCompanies": "No companies pending review",
+    "emptySearch": "Nothing matches that search",
+    "registeredAt": "Registered",
+    "waitingToday": "today",
+    "waitingDays": "waiting {{count}} days",
+    "statusRejected": "Rejected"
+  },
+  "adminImportLog": {
+    "totals": "{{total}} files · parsed {{ok}} · failed {{failed}}",
+    "showFailed": "Failures only",
+    "showAll": "Show all",
+    "statusOk": "Parsed — {{count}} services",
+    "statusEmpty": "No text found (a scan?)",
+    "statusError": "Could not read",
+    "usedAi": "with AI",
+    "warnings": "Warnings",
+    "noWarnings": "No warnings",
+    "empty": "Nothing uploaded yet."
+  },
+  "adminDispatchLog": {
+    "hint": "Every booking — who got it in wave 1, who in wave 2, and who took it. Tap for the names.",
+    "regions": "Regions",
+    "noRegion": "No region recognised — every driver got it equally",
+    "waves": "Wave 1: {{wave1}} drivers · Wave 2: {{wave2}}",
+    "push": "Sent: {{sent}} · Failed: {{failed}}",
+    "wonFromWave1": "Taken by {{name}} (wave 1)",
+    "wonFromWave2": "Taken by {{name}} (wave 2)",
+    "stillOpen": "Nobody has taken it yet",
+    "bookingGone": "Booking deleted",
+    "wave1List": "Wave 1",
+    "wave2List": "Wave 2",
+    "empty": "Nothing recorded yet — the next new booking will show up here."
+  },
+  "adminRegions": {
+    "totalsTitle": "Driver coverage by region",
+    "totalDrivers": "Approved drivers: {{count}}",
+    "everywhere": "Work everywhere (no region chosen): {{count}} — free now: {{available}}",
+    "countrywideTour": "Travel countrywide for tours: {{count}}",
+    "unresolvedBookings": "{{count}} open bookings name no region I recognise — those reach every driver.",
+    "gapTitle": "Uncovered regions with open work",
+    "gapHint": "Bookings there still go out, but only in the second wave — these regions need drivers.",
+    "availableNow": "Free now: {{count}}",
+    "tourReady": "On tours: {{count}}",
+    "openBookings": "Open bookings: {{count}}",
+    "uncoveredNote": "Nobody has chosen this region",
+    "noDrivers": "No drivers",
+    "driverAvailable": "free",
+    "driverUnavailable": "busy",
+    "empty": "No data",
+    "bookingsUnavailable": "Could not read the open bookings — the counts below are incomplete.",
+    "bookingsTruncated": "Many open bookings — the counts cover the latest 500."
   },
   "adminPanel": {
     "title": "Admin panel",
@@ -1432,7 +1492,11 @@
       "lastActivity": "Last activity",
       "recentBookings": "Last bookings (10)",
       "verifyToggle": "Verification"
-    }
+    },
+    "verifySubTabCompanies": "Companies",
+    "tabRegions": "Regions",
+    "tabDispatch": "Dispatch",
+    "tabImports": "Imports"
   },
   "dateOnlyField": {
     "default": "Select date"

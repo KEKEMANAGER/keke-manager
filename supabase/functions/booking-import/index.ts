@@ -4,10 +4,14 @@
 //
 // Design rules, in order of importance:
 //
-//  1. NOTHING is ever written to the database here. The function only returns a
-//     draft. The company reviews it and the normal booking-creation path runs,
-//     so every existing validation, the review gate and the availability check
-//     still apply. A bad parse can never create a bad booking.
+//  1. NO BOOKING is ever written here. The function only returns a draft. The
+//     company reviews it and the normal booking-creation path runs, so every
+//     existing validation, the review gate and the availability check still
+//     apply. A bad parse can never create a bad booking. The single write this
+//     function makes is one row in `booking_import_log` — what was uploaded and
+//     whether it parsed — so an upload that produced nothing can be looked up
+//     instead of guessed at. That insert is fire-and-forget: it never changes
+//     the answer and never fails the request.
 //  2. The deterministic template parser runs FIRST and always wins on the
 //     fields it recognises. The model is a fallback for free-form documents,
 //     not the primary path.
@@ -1465,20 +1469,88 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: 'ავტორიზაცია ვერ დადასტურდა' }, 401);
   }
 
+  const startedAt = Date.now();
+  const companyId = userData.user.id;
+  let logFileName = '';
+  let logBytes = 0;
+
+  /**
+   * One row per upload, written with the service role so a company cannot
+   * forge or suppress its own history.
+   *
+   * Two guards, because logging must never cost the company its import:
+   * the try/catch, and the deadline below. supabase-js sets no fetch timeout,
+   * so an unreachable database would otherwise hold a draft that has already
+   * been computed until the function hits its wall-clock limit — the answer
+   * lost to the bookkeeping about it.
+   */
+  const LOG_DEADLINE_MS = 2500;
+
+  async function logImport(
+    status: 'ok' | 'empty' | 'error',
+    extra: { error?: string; usedAi?: boolean; services?: number; warnings?: string[] } = {},
+  ): Promise<void> {
+    const write = (async () => {
+      try {
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        if (!serviceKey) return;
+        const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', serviceKey);
+        const { error } = await admin.from('booking_import_log').insert({
+          company_id: companyId,
+          file_name: logFileName || null,
+          file_bytes: logBytes || null,
+          status,
+          error: extra.error ?? null,
+          used_ai: extra.usedAi === true,
+          service_count: extra.services ?? 0,
+          warnings: (extra.warnings ?? []).slice(0, 20),
+          duration_ms: Date.now() - startedAt,
+        });
+        if (error) console.error('booking-import: log insert failed', error.message);
+      } catch (e) {
+        console.error('booking-import: log failed', String(e));
+      }
+    })();
+
+    let timer: number | undefined;
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        console.error('booking-import: log timed out, answering anyway');
+        resolve();
+      }, LOG_DEADLINE_MS);
+    });
+
+    await Promise.race([write, deadline]);
+    if (timer !== undefined) clearTimeout(timer);
+  }
+
+  /** Answer with a failure, and leave a trace of it. */
+  async function failWith(
+    status: 'empty' | 'error',
+    httpStatus: number,
+    message: string,
+  ): Promise<Response> {
+    await logImport(status, { error: message });
+    return json({ ok: false, error: message }, httpStatus);
+  }
+
   let payload: { fileName?: string; contentBase64?: string };
   try {
     payload = await req.json();
   } catch {
-    return json({ ok: false, error: 'არასწორი მოთხოვნა' }, 400);
+    return await failWith('error', 400, 'არასწორი მოთხოვნა');
   }
 
   const fileName = String(payload.fileName ?? '').trim();
   const b64 = String(payload.contentBase64 ?? '');
+  logFileName = fileName;
+  // Base64 carries a third more than the bytes it encodes.
+  logBytes = Math.round((b64.length * 3) / 4);
   if (!fileName || !b64) {
-    return json({ ok: false, error: 'ფაილი არ არის' }, 400);
+    return await failWith('error', 400, 'ფაილი არ არის');
   }
   if (b64.length > MAX_BASE64_CHARS) {
-    return json({ ok: false, error: 'ფაილი ძალიან დიდია (მაქს. ~8 MB)' }, 413);
+    return await failWith('error', 413, 'ფაილი ძალიან დიდია (მაქს. ~8 MB)');
   }
 
   let bytes: Uint8Array;
@@ -1487,18 +1559,19 @@ Deno.serve(async (req) => {
     bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   } catch {
-    return json({ ok: false, error: 'ფაილი დაზიანებულია' }, 400);
+    return await failWith('error', 400, 'ფაილი დაზიანებულია');
   }
+  logBytes = bytes.length;
 
   let text: string;
   try {
     text = await extractText(fileName, bytes);
   } catch (e) {
-    return json({ ok: false, error: friendlyExtractError(String((e as Error).message)) }, 415);
+    return await failWith('error', 415, friendlyExtractError(String((e as Error).message)));
   }
 
   if (!text.trim()) {
-    return json({ ok: false, error: 'ფაილში ტექსტი ვერ ვიპოვე' }, 422);
+    return await failWith('empty', 422, 'ფაილში ტექსტი ვერ ვიპოვე');
   }
 
   const { draft, sources } = parseTemplate(text);
@@ -1580,6 +1653,8 @@ Deno.serve(async (req) => {
   if (services.length > 1) {
     warnings.unshift(`ფაილში ${services.length} სერვისი ვიპოვე — ყველა ქვემოთ ჩანს.`);
   }
+
+  await logImport('ok', { usedAi, services: services.length, warnings });
 
   return json({
     ok: true,

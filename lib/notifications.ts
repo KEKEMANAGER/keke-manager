@@ -548,6 +548,12 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     );
   }
 
+  const bookingRegions = resolveBookingRegions({
+    from_location: params.fromLocation,
+    to_location: params.toLocation,
+    route: params.route,
+  });
+
   const targetedDriverId = String(params.driverId ?? '').trim();
   const { recipients, error } = targetedDriverId
     ? await fetchDriverPushRecipientsById(targetedDriverId, params.availability)
@@ -560,11 +566,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
         params.capacityTier,
         params.modelGroup,
         {
-          regions: resolveBookingRegions({
-            from_location: params.fromLocation,
-            to_location: params.toLocation,
-            route: params.route,
-          }),
+          regions: bookingRegions,
           isMultiDayTour: String(params.kind ?? '').trim() === 'tour',
         },
       );
@@ -641,6 +643,11 @@ export async function notifyMatchingDriversOfNewBooking(params: {
       body,
       data,
       params.bookingId,
+      {
+        regions: bookingRegions,
+        fromLocation: params.fromLocation,
+        toLocation: params.toLocation,
+      },
     );
     sentCount = batch.sentCount;
     failedCount = batch.failedCount;

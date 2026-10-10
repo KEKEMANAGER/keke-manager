@@ -1,4 +1,5 @@
 import type { KekeRole } from '../contexts/AuthContext';
+import { companyRowIsApproved, type CompanyApprovalFields } from './companyVerificationGate';
 import { withCacheBust } from './mediaUpload';
 import { supabase } from './supabase';
 import {
@@ -28,27 +29,98 @@ export type AdminVerificationUser = {
   company_phone: string | null;
   company_id_code: string | null;
   company_director: string | null;
+  created_at: string | null;
+  is_verified: boolean | null;
   vehicle: VehicleRow | null;
 };
 
-const USER_SELECT = `id, full_name, role, email, is_hired_driver, company_email, company_phone, company_id_code, company_director, ${VERIFICATION_DOC_COLUMNS}, license_photo, id_photo, vehicle_registration_photo, verification_status`;
+const USER_SELECT = `id, full_name, role, email, is_hired_driver, company_email, company_phone, company_id_code, company_director, created_at, ${VERIFICATION_DOC_COLUMNS}, license_photo, id_photo, vehicle_registration_photo, verification_status, is_verified`;
+
+/**
+ * Which half of the queue to show.
+ *
+ * Drivers and companies used to arrive in one list, which made a company
+ * registration easy to lose among thirty drivers — and a company now cannot
+ * work at all until it is approved, so it must not be the row that gets
+ * scrolled past.
+ */
+export type AdminVerificationQueueRole = 'driver' | 'company';
+
+type QueueOptions = { role?: AdminVerificationQueueRole };
+
+/**
+ * Narrows the query to one side of the split.
+ *
+ * Two different questions, so two different filters:
+ *
+ * - Companies: every company that cannot get into the app. Not "pending or
+ *   submitted" — a company whose status is 'rejected', NULL or anything else
+ *   is equally shut out, and if the queue did not show it there would be no
+ *   screen anywhere that could let it back in. The queue is deliberately the
+ *   exact complement of `companyRowIsApproved`; the status filter here only
+ *   keeps the query bounded, and the real predicate runs in
+ *   `filterQueueRows` below.
+ * - Drivers: "everything that is not a company", rather than role = driver on
+ *   the nose. A signup interrupted before the role was written leaves a row
+ *   with no role at all, and when the queue was one list those still showed
+ *   up. Matching 'driver' exactly would make them invisible in both tabs — an
+ *   account nobody can see is an account nobody can approve.
+ */
+/**
+ * Just the three filter methods used below, each returning the same builder.
+ * The two call sites hand in differently-typed builders (rows vs a head
+ * count), so the chain is typed through this shape and cast back once.
+ */
+type RoleFilterable = {
+  eq: (column: string, value: string) => RoleFilterable;
+  in: (column: string, values: string[]) => RoleFilterable;
+  or: (filter: string) => RoleFilterable;
+};
+
+function applyRoleFilter<T>(query: T, role: AdminVerificationQueueRole | undefined): T {
+  const q = query as unknown as RoleFilterable;
+
+  const filtered =
+    role === 'company'
+      ? q.eq('role', 'company').or('verification_status.is.null,verification_status.neq.approved')
+      : role === 'driver'
+        ? q.in('verification_status', ['pending', 'submitted']).or('role.is.null,role.neq.company')
+        : q.in('verification_status', ['pending', 'submitted']);
+
+  return filtered as unknown as T;
+}
+
+/** The half of the company filter PostgREST cannot express. */
+function filterQueueRows<T extends { role?: string | null } & CompanyApprovalFields>(
+  rows: T[],
+  role: AdminVerificationQueueRole | undefined,
+): T[] {
+  if (role !== 'company') return rows;
+  return rows.filter((row) => !companyRowIsApproved(row));
+}
 
 /** Users awaiting admin review (drivers who submitted, or still pending with docs). */
-export async function fetchAdminVerificationQueue(): Promise<{
+export async function fetchAdminVerificationQueue(options: QueueOptions = {}): Promise<{
   data: AdminVerificationUser[];
   error: Error | null;
 }> {
-  const { data, error } = await supabase
-    .from('users')
-    .select(USER_SELECT)
-    .in('verification_status', ['pending', 'submitted'])
-    .order('full_name', { ascending: true });
+  const query = applyRoleFilter(supabase.from('users').select(USER_SELECT), options.role);
+
+  // Companies are read oldest first: whoever has been waiting longest is at
+  // the top, because every day in this queue is a day they cannot work.
+  const { data, error } =
+    options.role === 'company'
+      ? await query.order('created_at', { ascending: true })
+      : await query.order('full_name', { ascending: true });
 
   if (error) {
     return { data: [], error: new Error(error.message) };
   }
 
-  const users = (data ?? []) as Omit<AdminVerificationUser, 'vehicle'>[];
+  const users = filterQueueRows(
+    (data ?? []) as Omit<AdminVerificationUser, 'vehicle'>[],
+    options.role,
+  );
 
   const withVehicle = await Promise.all(
     users.map(async (u) => {
@@ -86,11 +158,33 @@ export async function fetchAdminVerificationQueue(): Promise<{
 }
 
 /** Pending KYC count for admin verify badge. */
-export async function fetchAdminVerificationQueueCount(): Promise<number> {
-  const { count, error } = await supabase
-    .from('users')
-    .select('*', { count: 'exact', head: true })
-    .in('verification_status', ['pending', 'submitted']);
+export async function fetchAdminVerificationQueueCount(
+  options: QueueOptions = {},
+): Promise<number> {
+  // The company count needs the `is_verified` half of the predicate, which
+  // only runs in JS, so it counts rows rather than asking Postgres for a
+  // number that would be wrong. There are a handful of companies; this is
+  // cheap, and a badge that disagrees with the list is worse than a second
+  // round trip.
+  if (options.role === 'company') {
+    const query = applyRoleFilter(
+      supabase.from('users').select('verification_status, is_verified, role'),
+      'company',
+    );
+    const { data, error } = await query;
+    if (error) return 0;
+    return filterQueueRows(
+      (data ?? []) as ({ role?: string | null } & CompanyApprovalFields)[],
+      'company',
+    ).length;
+  }
+
+  const query = applyRoleFilter(
+    supabase.from('users').select('*', { count: 'exact', head: true }),
+    options.role,
+  );
+
+  const { count, error } = await query;
 
   if (error) return 0;
   return count ?? 0;
