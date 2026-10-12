@@ -120,6 +120,14 @@ export default function DriverChatScreen() {
     }
   }, [user?.id, otherUserId, scrollToBottom, threadOpts, t]);
 
+  // A different conversation starts clean. Without this the previous person's
+  // messages stayed on screen until the new ones arrived — same stale-peer
+  // problem as the avatar above, just a bigger thing to leave showing.
+  useEffect(() => {
+    setMessages([]);
+    setLoading(true);
+  }, [otherUserId]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -131,11 +139,21 @@ export default function DriverChatScreen() {
   }, [otherUserId]);
 
   useEffect(() => {
-    if (!otherUserId) {
-      setOtherVerified(false);
-      setOtherAvatarUrl(null);
-      return;
-    }
+    // Clear the previous person BEFORE fetching the new one. This screen is
+    // reused when you open one conversation after another, so without the
+    // reset a person who has no photo simply kept showing whoever was on
+    // screen before them — the fetch below only ever wrote an avatar it
+    // found, never cleared one it did not.
+    setOtherAvatarUrl(avatar?.trim() || null);
+    setResolvedName(null);
+    setOtherVerified(false);
+
+    if (!otherUserId) return;
+
+    // Switching quickly can leave an earlier request in flight; without this
+    // guard its late answer would overwrite the person now on screen.
+    let cancelled = false;
+
     void (async () => {
       try {
         const { data } = await supabase
@@ -143,6 +161,7 @@ export default function DriverChatScreen() {
           .select('full_name, is_verified, avatar_url')
           .eq('id', otherUserId)
           .maybeSingle();
+        if (cancelled) return;
         const row = data as {
           full_name?: string | null;
           is_verified?: boolean | null;
@@ -150,14 +169,18 @@ export default function DriverChatScreen() {
         } | null;
         setOtherVerified(!!row?.is_verified);
         const url = row?.avatar_url?.trim() ?? '';
-        if (url) setOtherAvatarUrl(url);
+        setOtherAvatarUrl(url || avatar?.trim() || null);
         const fullName = row?.full_name?.trim() ?? '';
-        if (fullName) setResolvedName(fullName);
+        setResolvedName(fullName || null);
       } catch {
-        setOtherVerified(false);
+        if (!cancelled) setOtherVerified(false);
       }
     })();
-  }, [otherUserId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [otherUserId, avatar]);
 
   useEffect(() => {
     if (isSupport || (threadOpts && 'bookingId' in threadOpts)) {
