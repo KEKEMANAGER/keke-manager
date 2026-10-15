@@ -261,19 +261,21 @@ export function validateCompanyProfileForm(input: CompanyProfileFormInput): stri
 export type DriverProfileFormInput = {
   name: string;
   phone: string;
-  vehicleType: string | null;
-  vehicleClass: string | null;
   experienceYears: string;
 };
 
+/**
+ * The profile form no longer carries a vehicle type/class pair, so it no longer
+ * demands one. A driver's vehicles live in the `vehicles` table — one row per
+ * car — and the profile only shows them. Requiring the pair here used to block
+ * a driver from saving his name or phone number until he had also described a
+ * car on a screen that could only describe one of them.
+ */
 export function validateDriverProfileForm(input: DriverProfileFormInput): string | null {
   const nameErr = validateRequired(input.name, t('validation.fields.name'));
   if (nameErr) return nameErr;
   const phoneErr = validatePhoneRequired(input.phone);
   if (phoneErr) return phoneErr;
-  if (!input.vehicleType || !input.vehicleClass) {
-    return t('validation.vehicleTypeClassRequired');
-  }
   return validateExperienceYears(input.experienceYears);
 }
 

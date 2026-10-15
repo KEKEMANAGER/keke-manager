@@ -123,8 +123,8 @@
     "voucherMeetGreetSection": "Meet & greet / tourist",
     "operatorLine": "Operator: {{name}}",
     "empty": {
-      "profileVehicleTitle": "Set your vehicle in profile",
-      "profileVehicleSubtitle": "Save vehicle type and class in your profile. Until then, matching orders and notifications will not appear.",
+      "profileVehicleTitle": "Add your vehicle",
+      "profileVehicleSubtitle": "Open “My vehicles” and add your car — type, plate and photos. Until you do, no jobs appear here and no notifications reach you.",
       "pendingTitle": "No pending orders",
       "pendingSubtitle": "New orders appear under Pending. Pull to refresh or check that your profile type/class matches the order.",
       "activeTitle": "No active booking",
@@ -190,7 +190,14 @@
     "bankAccountHint": "Companies transfer payment to this account after a completed trip.",
     "bankAccountMissing": "No IBAN on file",
     "bankAccountInvalidLength": "IBAN must be 15–34 characters",
-    "bankAccountInvalidChars": "IBAN may only contain letters and digits"
+    "bankAccountInvalidChars": "IBAN may only contain letters and digits",
+    "myVehicles": "My vehicles",
+    "manageVehicles": "Manage",
+    "seatsShort": "{{n}} seats",
+    "noVehicleTitle": "No vehicle added yet",
+    "noVehicleText": "Add your vehicle — type, plate and photos. Without one, no bookings will reach you.",
+    "noVehicleLegacy": "Your profile still carries an old entry: {{type}} · {{class}}. Add the vehicle with its full details so bookings can reach you.",
+    "vehiclesHint": "Type, class and seat count are changed on the vehicle page — this is a view only."
   },
   "bookingOdometer": {
     "sectionTitle": "Odometer",

@@ -1,0 +1,43 @@
+KEKE Manager - stash logs, rebase, push 
+=== stash === 
+warning: in the working copy of 'finish-log.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'gaushvi-9-log.txt', LF will be replaced by CRLF the next time Git touches it
+Saved working directory and index state On master: keke-logs
+warning: in the working copy of 'finish-log.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'gaushvi-9-log.txt', LF will be replaced by CRLF the next time Git touches it
+<stdin>:6: trailing whitespace.
+KEKE Manager - finish everything 
+warning: 1 line adds whitespace errors.
+=== fetch === 
+From https://github.com/KEKEMANAGER/keke-manager
+ * branch            master     -> FETCH_HEAD
+=== rebase === 
+From https://github.com/KEKEMANAGER/keke-manager
+ * branch            master     -> FETCH_HEAD
+Rebasing (1/1)Successfully rebased and updated refs/heads/master.
+=== push === 
+To https://github.com/KEKEMANAGER/keke-manager.git
+   d667748..cd36fa2  master -> master
+=== stash pop === 
+On branch master
+Your branch is up to date with 'origin/master'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   finish-log.txt
+	modified:   gaushvi-9-log.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	KEKE-FINISH.bat
+	KEKE-PUSH.bat
+	KEKE-PUSH2.bat
+	push-result.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+Dropped refs/stash@{0} (752f248017f758bfc1cfb63fa5c3d1deee2113b0)
+cd36fa2 Smart dispatch: no-show warnings, empty-leg chaining, importer memory
+d667748 content: add cover image for how-to-choose-reliable-driver-for-wine-tours-georgia
+d23200a content: add blog post — როგორ ავირჩიოთ სანდო მძღოლი ღვინის ტურებისთვის საქართველოში
+ae1ff4f content: add cover image for managing-multi-vehicle-fleet-tour-season-georgia

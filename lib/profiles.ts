@@ -248,6 +248,11 @@ export async function driverProfileMatchesBooking(
     .from('vehicles')
     .select('id, model')
     .eq('driver_id', id)
+    // Same guard as the push dispatch: a row with no plate is an abandoned
+    // draft still carrying the form's default sedan/economy, not a car. Without
+    // this, one stray tap on "add vehicle" earned a driver every sedan job.
+    .not('plate', 'is', null)
+    .neq('plate', '')
     .eq('is_active', true)
     .eq('type', bookingType)
     .eq('class', bookingClass);

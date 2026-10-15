@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -36,7 +36,7 @@ import { SearchableCitySelect } from '../../components/SearchableCitySelect';
 import { ServiceRegionsSelect } from '../../components/ServiceRegionsSelect';
 import { isGeorgiaRegionCode, regionLabel } from '../../lib/georgiaRegions';
 import { isValidGeorgianCity } from '../../lib/georgianCities';
-import { OptionChips } from '../../components/OptionChips';
+import { DriverVehiclesSummary } from '../../components/driver/DriverVehiclesSummary';
 import { StarRow } from '../../components/StarRow';
 import { fetchDriverAverageRating } from '../../lib/ratings';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -53,7 +53,7 @@ import {
 } from '../../lib/profiles';
 import { formatSpokenLanguagesList } from '../../lib/spokenLanguages';
 import { supabase } from '../../lib/supabase';
-import { fetchVehiclesByDriver } from '../../lib/vehicles';
+import { fetchVehiclesByDriver, type VehicleRow } from '../../lib/vehicles';
 import {
   fetchHiredDriverStatus,
   updateHiredDriverJobBoardProfile,
@@ -62,10 +62,6 @@ import {
 import { isHiredDriver } from '../../lib/role';
 import { fetchUserAvatarUrl, saveUserAvatarUrl } from '../../lib/userAvatar';
 import {
-  vehicleClassLabel,
-  vehicleClassUiOptions,
-  vehicleTypeLabel,
-  vehicleTypeUiOptions,
   type VehicleClassCode,
   type VehicleTypeCode,
 } from '../../lib/vehicleCatalog';
@@ -79,14 +75,6 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function DriverProfileScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const vehicleTypeOptions = useMemo(
-    () => vehicleTypeUiOptions(),
-    [],
-  );
-  const vehicleClassOptions = useMemo(
-    () => vehicleClassUiOptions(),
-    [],
-  );
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -128,8 +116,7 @@ export default function DriverProfileScreen() {
   const [experienceYears, setExperienceYears] = useState('');
   const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [birthDateLoaded, setBirthDateLoaded] = useState<string | null>(null);
-  const [vehicleModel, setVehicleModel] = useState('');
-  const [vehiclePlate, setVehiclePlate] = useState('');
+  const [vehicleList, setVehicleList] = useState<VehicleRow[]>([]);
   const [vehicleType, setVehicleType] = useState<VehicleTypeCode | null>(null);
   const [vehicleClass, setVehicleClass] = useState<VehicleClassCode | null>(null);
   const [ratingAverage, setRatingAverage] = useState(0);
@@ -271,6 +258,11 @@ export default function DriverProfileScreen() {
           (v) => v.plate?.trim() && v.verification_status !== 'rejected',
         ) ?? null;
 
+      // The whole fleet, for the list. Blank drafts are filtered inside the
+      // component, so a driver who tapped "add" and walked away does not see a
+      // phantom sedan here either.
+      setVehicleList(vehicleRows ?? []);
+
       // A real registered vehicle is the source of truth. The profile columns
       // are a copy kept in step by `syncProfileVehicle`, but a driver who
       // registered his car before that existed still has them empty — so fall
@@ -286,17 +278,24 @@ export default function DriverProfileScreen() {
           (vehicleRow?.class as typeof vehicleClass) ??
           null,
       );
-      setVehicleModel(vehicleRow?.model?.trim() ?? '');
-      setVehiclePlate(vehicleRow?.plate?.trim() ?? '');
     } catch {
-      setVehicleModel('');
-      setVehiclePlate('');
+      setVehicleList([]);
     }
   }, [user?.id]);
 
   useEffect(() => {
     void loadVehiclePreferences();
   }, [loadVehiclePreferences]);
+
+  // The fleet list is now read from the `vehicles` table, and the place it is
+  // edited is another screen. Without this, a driver who adds a second car and
+  // taps back finds the profile still showing one — the screen stays mounted,
+  // so the mount effect above never runs again.
+  useFocusEffect(
+    useCallback(() => {
+      if (!isHired) void loadVehiclePreferences();
+    }, [isHired, loadVehiclePreferences]),
+  );
 
   const loadRating = useCallback(async () => {
     if (!user?.id) return;
@@ -401,8 +400,6 @@ export default function DriverProfileScreen() {
       : (validateDriverProfileForm({
           name,
           phone,
-          vehicleType,
-          vehicleClass,
           experienceYears,
         }) ?? validateBioLength(bio));
     if (validationError) {
@@ -473,13 +470,20 @@ export default function DriverProfileScreen() {
         return;
       }
     } else {
-      const prefs: DriverVehiclePreferences = {
-        vehicle_type: vehicleType!,
-        vehicle_class: vehicleClass!,
-      };
+      // The legacy pair is no longer edited here, so there is nothing to write
+      // unless it already exists — and writing it when it doesn't would fail on
+      // a null type and take the whole save down with it. `syncProfileVehicle`
+      // keeps these columns current from the vehicle screen; this call only
+      // re-saves what is already there so an older account is not disturbed.
+      const prefs: DriverVehiclePreferences | null =
+        vehicleType && vehicleClass
+          ? { vehicle_type: vehicleType, vehicle_class: vehicleClass }
+          : null;
       const [usersRes, profilesRes, langRes, birthRes] = await Promise.all([
         supabase.from('users').update(userPatch).eq('id', user.id),
-        saveDriverVehiclePreferences(user.id, prefs),
+        prefs
+          ? saveDriverVehiclePreferences(user.id, prefs)
+          : Promise.resolve({ ok: true as const, error: null }),
         saveDriverLanguages(user.id, spokenLanguages),
         saveDriverBirthDate(user.id, birthIso),
       ]);
@@ -735,24 +739,6 @@ export default function DriverProfileScreen() {
               placeholder={t('profilePage.bankAccountPlaceholder')}
             />
             <Text style={styles.fieldHint}>{t('profilePage.bankAccountHint')}</Text>
-            {!isHired ? (
-              <>
-                <OptionChips
-                  label={t('profilePage.vehicleTypeLabel')}
-                  options={vehicleTypeOptions}
-                  value={vehicleType}
-                  onChange={setVehicleType}
-                  disabled={saveBusy}
-                />
-                <OptionChips
-                  label={t('profilePage.vehicleClassLabel')}
-                  options={vehicleClassOptions}
-                  value={vehicleClass}
-                  onChange={setVehicleClass}
-                  disabled={saveBusy}
-                />
-              </>
-            ) : null}
           </>
         ) : (
           <>
@@ -785,14 +771,6 @@ export default function DriverProfileScreen() {
             {!isHired ? (
               <>
                 <ViewField label={t('profilePage.experience')} value={experienceYears || '—'} />
-                <ViewField
-                  label={t('profilePage.vehicleTypeLabel')}
-                  value={vehicleType ? vehicleTypeLabel(vehicleType) : '—'}
-                />
-                <ViewField
-                  label={t('profilePage.vehicleClassLabel')}
-                  value={vehicleClass ? vehicleClassLabel(vehicleClass) : '—'}
-                />
               </>
             ) : (
               <ViewField label={t('jobBoard.statusLabel')} value={hiredStatusLabel} />
@@ -804,9 +782,13 @@ export default function DriverProfileScreen() {
 
       {!isHired ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t('profilePage.vehicleCard')}</Text>
-          <ViewField label={t('vehicleScreen.model')} value={vehicleModel || '—'} />
-          <ViewField label={t('profilePage.plate')} value={vehiclePlate || '—'} />
+          {/* No `cardTitle` here: the summary's own header carries the same
+              gold label plus the car count and the "manage" link on one row. */}
+          <DriverVehiclesSummary
+            vehicles={vehicleList}
+            legacyType={vehicleType}
+            legacyClass={vehicleClass}
+          />
         </View>
       ) : null}
 
