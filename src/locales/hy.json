@@ -255,8 +255,8 @@
     "duplicatePhotoBody": "This photo is identical to the previous one — please take a genuinely new photo with the camera.",
     "photosOverdueBanner": "Vehicle photos are out of date — they must be refreshed every 2 months. Retake them to receive new bookings.",
     "notUploadedYet": "Not uploaded yet: {{labels}}.",
-    "completeMessage": "Photo(s) are in Supabase (vehicles + media bucket).{{extra}}",
-    "completeTitle": "Complete",
+    "completeMessage": "Մեքենայի տվյալները պահպանված են։{{extra}}\n\nՀաջորդ քայլը՝ վերբեռնեք տեխանձնագրի երկու կողմը և սեղմեք «Ուղարկել ստուգման»։ Ադմինիստրատորի ստուգումից հետո մեքենան կակտիվանա։",
+    "completeTitle": "Պահպանված է",
     "photosSubtitle": "Upload any views you want (one or more). Path: media → vehicles/[user_id]/[angle].jpg{{webHint}}",
     "photosWebHint": " · On web: each button opens the file picker.",
     "vehicleData": "Vehicle details",
@@ -1973,5 +1973,23 @@
     "countrywideTitle": "Տուրերի համար ճամփորդում եմ ամբողջ Վրաստանով",
     "countrywideHint": "Բազմօրյա տուրերը հատուցում են ճանապարհը, ուստի դրանք առաջինը կստանաք ցանկացած մարզից։",
     "countrywideShort": "Տուրեր — ամենուր"
+  },
+  "bookingRisk": {
+    "level": {
+      "low": "Փոքր ռիսկ",
+      "medium": "Արժե ստուգել",
+      "high": "Բարձր ռիսկ — զանգահարեք վարորդին"
+    },
+    "reason": {
+      "pastPickupUnconfirmed": "Մեկնման ժամն անցել է {{minutes}} րոպե առաջ, վարորդը չի հաստատել և ամրագրումը չի սկսել։",
+      "reminderIgnored": "Մեկնումից մեկ ժամ առաջ հիշեցումն ուղարկվել է — վարորդը չի պատասխանել։",
+      "notConfirmed": "Մեկնմանը մնացել է {{minutes}} րոպե, ամրագրումը դեռ հաստատված չէ։",
+      "pastPickupNotStarted": "Հաստատված է, բայց ամրագրումը {{minutes}} րոպե չի սկսվել — հավանաբար պարզապես չի սեղմել «Սկսել»։",
+      "tightTurnaround": "Վարորդի նախորդ աշխատանքն ավարտվում է սրա սկսվելուց ընդամենը {{minutes}} րոպե առաջ։",
+      "gpsSilent": "Վարորդի հեռախոսը {{hours}} ժամից ավելի դիրք չի ուղարկում։",
+      "weakConfirmRate": "Այս վարորդը հաստատում է իրեն տրված ամրագրումների միայն {{percent}}%-ը։",
+      "weakCompletionRate": "Այս վարորդը մինչև վերջ հասցնում է վերցրած ամրագրումների {{percent}}%-ը։",
+      "noRecord": "Նոր վարորդ — {{jobs}} ավարտված ամրագրում, պատմություն դեռ չկա։"
+    }
   }
 }

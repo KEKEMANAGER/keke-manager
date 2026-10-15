@@ -53,7 +53,7 @@ import {
 } from '../../lib/profiles';
 import { formatSpokenLanguagesList } from '../../lib/spokenLanguages';
 import { supabase } from '../../lib/supabase';
-import { fetchVehicleByDriver } from '../../lib/vehicles';
+import { fetchVehiclesByDriver } from '../../lib/vehicles';
 import {
   fetchHiredDriverStatus,
   updateHiredDriverJobBoardProfile,
@@ -254,15 +254,38 @@ export default function DriverProfileScreen() {
   const loadVehiclePreferences = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const [{ data, error }, { data: vehicleRow }] = await Promise.all([
+      const [{ data, error }, { data: vehicleRows }] = await Promise.all([
         fetchDriverProfile(user.id),
-        fetchVehicleByDriver(user.id),
+        // Active first, then newest — a car still waiting for approval is
+        // still the car he just told us about.
+        fetchVehiclesByDriver(user.id),
       ]);
       if (error && __DEV__) {
         console.warn('[DriverProfile] fetchDriverProfile', error.message);
       }
-      if (data?.vehicle_type) setVehicleType(data.vehicle_type);
-      if (data?.vehicle_class) setVehicleClass(data.vehicle_class);
+      // Same two exclusions as `syncProfileVehicle`: a rejected row is not his
+      // car, and a row with no plate is an abandoned draft carrying the form's
+      // default type, not something to show him as fact.
+      const vehicleRow =
+        (vehicleRows ?? []).find(
+          (v) => v.plate?.trim() && v.verification_status !== 'rejected',
+        ) ?? null;
+
+      // A real registered vehicle is the source of truth. The profile columns
+      // are a copy kept in step by `syncProfileVehicle`, but a driver who
+      // registered his car before that existed still has them empty — so fall
+      // back to the vehicle rather than showing him a blank field he already
+      // filled in once.
+      setVehicleType(
+        (data?.vehicle_type as typeof vehicleType) ??
+          (vehicleRow?.type as typeof vehicleType) ??
+          null,
+      );
+      setVehicleClass(
+        (data?.vehicle_class as typeof vehicleClass) ??
+          (vehicleRow?.class as typeof vehicleClass) ??
+          null,
+      );
       setVehicleModel(vehicleRow?.model?.trim() ?? '');
       setVehiclePlate(vehicleRow?.plate?.trim() ?? '');
     } catch {
@@ -339,8 +362,11 @@ export default function DriverProfileScreen() {
   function onStartEdit() {
     setIsEditing(true);
     setSaveError(null);
-    if (!vehicleType) setVehicleType('sedan');
-    if (!vehicleClass) setVehicleClass('comfort');
+    // No "sedan / comfort" default any more. It was there only to give the
+    // pickers something to show, and it quietly put the wrong vehicle on the
+    // profile of every minivan driver who tapped save without looking. The
+    // values now arrive from his registered vehicle; if he genuinely has no
+    // vehicle yet, an empty picker is the honest state.
   }
 
   function onCancelEdit() {

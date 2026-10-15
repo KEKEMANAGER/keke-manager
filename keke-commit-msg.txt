@@ -1,0 +1,45 @@
+Smart dispatch: no-show warnings, empty-leg chaining, importer memory
+
+Three things the data already knew and nobody was told.
+
+1. No-show risk on the booking card (company + admin, never the driver).
+   lib/bookingRisk.ts reads what is already in the database - the 1h
+   confirmation reminder that went unanswered, a pickup time that has passed
+   with the trip never started, a previous job ending twenty minutes before
+   this one, a phone that stopped reporting a position - and turns it into one
+   sentence early enough to pick up the phone. Read-only: it changes no
+   booking, sends no push, reassigns nobody.
+
+   Two rules keep it worth believing. A driver's record never raises an alarm
+   on its own; it is capped so it can at most double a concern a live signal
+   already raised. And a signal we cannot read is not a bad signal - a driver
+   who never shared a location is silent, not suspicious.
+
+2. Empty-leg chaining in dispatch. A driver who drops a group in Kazbegi at
+   one and would drive home empty is the cheapest possible driver for a
+   three o'clock job out of Kazbegi, and dispatch had no idea he was there.
+   drivers_finishing_near finds him without showing anyone another company's
+   booking: it answers with a subset of the driver ids the caller already
+   holds, for a place the caller itself named.
+
+   Implemented as a sort tier beside coverageTier, so it only ever reorders.
+   Wave 1 still fills to the same size, wave 2 still carries everyone else,
+   the newcomer seats still hold, and with nothing marked the order is exactly
+   what it was. Coverage still outranks the calendar: a driver who told us he
+   does not work a region has said something about himself his schedule has
+   not.
+
+3. The importer remembers each company's wording. The model is asked for the
+   document's own heading per field; any heading the built-in label table does
+   not know is remembered against that company and merged into the next parse,
+   so the second file from an operator is usually read for free and exactly.
+   Built-in labels win every collision, lessons are per company, and a heading
+   the model marked uncertain is never written down - so learning cannot turn
+   a document that parses today into one that does not.
+
+Verified: 31 scoring cases and 10 wave cases pass, including "nobody is ever
+dropped from a wave" and "with no marks the order is pure score"; tsc clean;
+no new lint warnings; the new SQL exercised against live rows.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019Xh1c2GbLjyErA7oofz1ne

@@ -255,8 +255,8 @@
     "duplicatePhotoBody": "This photo is identical to the previous one — please take a genuinely new photo with the camera.",
     "photosOverdueBanner": "Vehicle photos are out of date — they must be refreshed every 2 months. Retake them to receive new bookings.",
     "notUploadedYet": "Not uploaded yet: {{labels}}.",
-    "completeMessage": "Photo(s) are in Supabase (vehicles + media bucket).{{extra}}",
-    "completeTitle": "Complete",
+    "completeMessage": "Your vehicle details are saved.{{extra}}\n\nNext step: upload both sides of the vehicle registration and press “Submit for review”. An administrator checks it and the vehicle becomes active.",
+    "completeTitle": "Saved",
     "photosSubtitle": "Upload any views you want (one or more). Path: media → vehicles/[user_id]/[angle].jpg{{webHint}}",
     "photosWebHint": " · On web: each button opens the file picker.",
     "vehicleData": "Vehicle details",
@@ -1973,5 +1973,23 @@
     "countrywideTitle": "I travel countrywide for tours",
     "countrywideHint": "Multi-day tours pay for the drive out, so you get those first from every region.",
     "countrywideShort": "Tours — anywhere"
+  },
+  "bookingRisk": {
+    "level": {
+      "low": "Minor risk",
+      "medium": "Worth checking",
+      "high": "High risk — call the driver"
+    },
+    "reason": {
+      "pastPickupUnconfirmed": "Pickup was {{minutes}} min ago, the driver never confirmed and the booking has not started.",
+      "reminderIgnored": "The reminder went out an hour before departure and the driver has not answered.",
+      "notConfirmed": "{{minutes}} min to departure and the booking is still unconfirmed.",
+      "pastPickupNotStarted": "Confirmed, but the booking has been due for {{minutes}} min — he probably just did not tap start.",
+      "tightTurnaround": "His previous job ends only {{minutes}} min before this one starts.",
+      "gpsSilent": "The driver's phone has not reported a position for over {{hours}} h.",
+      "weakConfirmRate": "This driver confirms only {{percent}}% of the bookings assigned to him.",
+      "weakCompletionRate": "This driver sees {{percent}}% of the bookings he takes through to the end.",
+      "noRecord": "New driver — {{jobs}} completed bookings, no track record yet."
+    }
   }
 }

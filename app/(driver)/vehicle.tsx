@@ -709,16 +709,17 @@ export default function DriverVehiclePhotosScreen() {
   }
 
   // ── Save add ──────────────────────────────────────────────────────────────
-  async function onSaveAdd() {
-    if (!userId || !selectedId) return;
+  /** Returns true only when the vehicle's details actually reached the database. */
+  async function onSaveAdd(): Promise<boolean> {
+    if (!userId || !selectedId) return false;
     const err = validateForm();
-    if (err) { setSaveError(err); showValidationAlert(err); return; }
+    if (err) { setSaveError(err); showValidationAlert(err); return false; }
     const capacity = parsePassengerCapacity(editPassengerCapacity);
     if (capacity == null) {
       const capErr = validatePassengerCapacity(editPassengerCapacity) ?? t('validation.passengerCapacityRequired');
       setSaveError(capErr);
       showValidationAlert(capErr);
-      return;
+      return false;
     }
     setSaveBusy(true);
     setSaveError(null);
@@ -734,7 +735,7 @@ export default function DriverVehiclePhotosScreen() {
     if (error) {
       setSaveBusy(false);
       setSaveError(getSupabaseErrorMessage(error));
-      return;
+      return false;
     }
 
     const subRef = subDriverRef.trim();
@@ -743,13 +744,13 @@ export default function DriverVehiclePhotosScreen() {
       if (resolveErr || !subId) {
         setSaveBusy(false);
         setSaveError(resolveErr?.message ?? t('fleet.driverNotFound'));
-        return;
+        return false;
       }
       const { error: fleetErr } = await assignSubDriverToVehicle(userId, selectedId, subId);
       if (fleetErr) {
         setSaveBusy(false);
         setSaveError(fleetErr.message);
-        return;
+        return false;
       }
     }
 
@@ -758,6 +759,7 @@ export default function DriverVehiclePhotosScreen() {
     setSubDriverRef('');
     setFormMode('view');
     void loadVehicles();
+    return true;
   }
 
   // ── Toggle active ─────────────────────────────────────────────────────────
@@ -951,8 +953,28 @@ export default function DriverVehiclePhotosScreen() {
     [localUrls, t],
   );
 
-  function onSubmitPress() {
+  /**
+   * The button at the END of the add form.
+   *
+   * It used to congratulate the driver and walk him to the dashboard without
+   * saving a single field. He filled in the type, the model, the plate and the
+   * seats, scrolled past the photos, pressed the big button that said
+   * "დასრულება", was told "დასრულებულია" — and everything he typed was thrown
+   * away. What stayed behind was the draft row the screen creates on "Add
+   * vehicle", still carrying the form's defaults (sedan / economy) with his
+   * photos attached to it.
+   *
+   * That is how a driver with a bus ends up registered as a sedan, how twenty
+   * plateless rows collected in the table, and why drivers could not work out
+   * what the app wanted from them. The button now saves first and only claims
+   * success when the database agrees.
+   */
+  async function onSubmitPress() {
     if (!hasAtLeastOnePhoto) return;
+
+    const saved = await onSaveAdd();
+    if (!saved) return;
+
     const extra = missingPhotoLabels.length > 0
       ? `\n\n${t('vehicleScreen.notUploadedYet', { labels: missingPhotoLabels.join(', ') })}`
       : '';
@@ -1237,8 +1259,8 @@ export default function DriverVehiclePhotosScreen() {
               {formMode === 'add' ? (
                 <>
                   <Pressable
-                    onPress={onSubmitPress}
-                    disabled={!hasAtLeastOnePhoto}
+                    onPress={() => void onSubmitPress()}
+                    disabled={!hasAtLeastOnePhoto || saveBusy}
                     style={({ pressed }) => [
                       styles.submit,
                       !hasAtLeastOnePhoto && styles.submitDisabled,

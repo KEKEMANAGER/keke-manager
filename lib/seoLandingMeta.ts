@@ -105,6 +105,11 @@ export function seoLandingServiceSchema(
       '@type': 'Offer',
       price: '0',
       priceCurrency: 'GEL',
+      // The machine-readable half of "the app is out". Search engines and the
+      // assistants that answer questions about KEKE Manager read this; without
+      // it they fall back to whatever prose they last crawled, which for months
+      // said the app was still waiting for store review.
+      availability: 'https://schema.org/InStock',
       description:
         lang === 'ka'
           ? 'ტუროკომპანიებისთვის უფასო — დაუკავშირდით ვერიფიცირებულ მძღოლებს'

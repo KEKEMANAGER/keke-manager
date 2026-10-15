@@ -20,6 +20,7 @@ import {
 } from './georgiaRegions';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 import { sendBroadcastPushInRatingWaves } from './dispatchPushWaves';
+import { markRecipientsFinishingNearPickup } from './emptyLegChaining';
 import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { formatTourBookingNotificationBody } from './tourDays';
@@ -267,6 +268,14 @@ export async function fetchMatchingDriverPushRecipients(
     .eq('is_active', true)
     .eq('is_verified', true)
     .eq('verification_status', 'approved')
+    // A row with no plate is not a car anyone has described — it is the draft
+    // the vehicle screen creates on "Add vehicle", carrying the form's default
+    // type. Nine of those were approved and matching as sedans, one of them
+    // belonging to a driver who actually has a bus. Dispatch decides who gets
+    // a booking, so the honest filter belongs here too and not only in the
+    // admin's approval.
+    .not('plate', 'is', null)
+    .neq('plate', '')
     .eq('type', vehicleType)
     .eq('class', vehicleClass);
   if (capacityTier) {
@@ -637,8 +646,17 @@ export async function notifyMatchingDriversOfNewBooking(params: {
     sentCount = batch.sentCount;
     failedCount = batch.failedCount;
   } else {
+    // Drivers already finishing a job next to this pickup go into the first
+    // wave. This only reorders the same recipients — see `emptyLegChaining` —
+    // so a failure here means the waves are built exactly as before.
+    const waveRecipients = await markRecipientsFinishingNearPickup(recipients, {
+      fromLocation: params.fromLocation,
+      route: params.route,
+      startAt: params.availability?.date_display ?? null,
+    });
+
     const batch = await sendBroadcastPushInRatingWaves(
-      recipients,
+      waveRecipients,
       title,
       body,
       data,

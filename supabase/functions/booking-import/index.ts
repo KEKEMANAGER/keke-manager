@@ -7,17 +7,26 @@
 //  1. NO BOOKING is ever written here. The function only returns a draft. The
 //     company reviews it and the normal booking-creation path runs, so every
 //     existing validation, the review gate and the availability check still
-//     apply. A bad parse can never create a bad booking. The single write this
-//     function makes is one row in `booking_import_log` — what was uploaded and
-//     whether it parsed — so an upload that produced nothing can be looked up
-//     instead of guessed at. That insert is fire-and-forget: it never changes
-//     the answer and never fails the request.
+//     apply. A bad parse can never create a bad booking. The only two writes
+//     this function makes are bookkeeping: one row in `booking_import_log` —
+//     what was uploaded and whether it parsed — and the label lesson in rule 4.
+//     Both are fire-and-forget: neither changes the answer, neither can fail
+//     the request.
 //  2. The deterministic template parser runs FIRST and always wins on the
 //     fields it recognises. The model is a fallback for free-form documents,
 //     not the primary path.
 //  3. If the model is unavailable, misconfigured or returns nonsense, the
 //     function still succeeds with whatever the template found, plus warnings.
 //     The feature degrades, it never breaks.
+//  4. The parser LEARNS a company's wording. The model is asked for the
+//     document's own heading per field, and any heading the built-in label
+//     table does not already know is remembered against that company
+//     (`company_import_labels`) and merged into the next parse. A transport
+//     company receives the same operators' layouts month after month, so the
+//     second file from an operator is usually read for free and exactly.
+//     Built-in labels always win a collision, lessons are per company, and a
+//     lesson the model marked uncertain is not written down — so no amount of
+//     learning can turn a document that parses today into one that does not.
 //
 // Deploy:  supabase functions deploy booking-import
 // Secrets: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
@@ -600,8 +609,48 @@ function normalizeLabel(s: string): string {
     .toLowerCase();
 }
 
-/** Longest known label first, so "pickup date" beats "date" and "to". */
+type LabelField = keyof BookingDraft | 'time' | 'vehicle';
+
+/**
+ * The label vocabulary one parse runs against.
+ *
+ * It used to be the module constants below and nothing else. It is a parameter
+ * now because a company's remembered labels (`company_import_labels`) are
+ * merged in per request, and this function can serve two companies at once in
+ * the same isolate — one global overlay would leak one operator's wording into
+ * another's document.
+ */
+type LabelBook = {
+  map: Record<string, LabelField>;
+  /** Longest first, so "pickup date" beats "date" and "to". */
+  keys: string[];
+};
+
 const LABEL_KEYS = Object.keys(LABELS).sort((a, b) => b.length - a.length);
+
+const BUILTIN_LABELS: LabelBook = { map: LABELS, keys: LABEL_KEYS };
+
+/**
+ * Built-ins plus what this company's files have taught us.
+ *
+ * Built-ins win every collision. A learned row may add a wording this table has
+ * never seen; it may never redefine one it has, so no amount of learning can
+ * break a document that already parsed correctly.
+ */
+function labelBookWith(learned: Record<string, LabelField> | null | undefined): LabelBook {
+  const extra = Object.entries(learned ?? {}).filter(
+    ([label, field]) =>
+      label.length >= 3 &&
+      label.length <= 60 &&
+      !Object.prototype.hasOwnProperty.call(LABELS, label) &&
+      typeof field === 'string',
+  );
+  if (extra.length === 0) return BUILTIN_LABELS;
+
+  const map: Record<string, LabelField> = { ...LABELS };
+  for (const [label, field] of extra) map[label] = field;
+  return { map, keys: Object.keys(map).sort((a, b) => b.length - a.length) };
+}
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -617,8 +666,8 @@ function escapeRegExp(s: string): string {
  * "Kakheti wine route" would resolve on "route" and a perfectly good value
  * would be thrown away.
  */
-function startsWithLabel(normalized: string): boolean {
-  for (const key of LABEL_KEYS) {
+function startsWithLabel(normalized: string, book: LabelBook = BUILTIN_LABELS): boolean {
+  for (const key of book.keys) {
     if (!normalized.startsWith(key)) continue;
     const after = normalized.charAt(key.length);
     if (after === '' || !/[\p{L}\p{N}]/u.test(after)) return true;
@@ -631,16 +680,19 @@ function startsWithLabel(normalized: string): boolean {
  * "PAX no.". An exact lookup would miss all of those, so fall back to finding a
  * known label as a whole word inside the cell text.
  */
-function resolveLabel(normalized: string): (keyof BookingDraft | 'time' | 'vehicle') | null {
-  const direct = LABELS[normalized];
+function resolveLabel(
+  normalized: string,
+  book: LabelBook = BUILTIN_LABELS,
+): LabelField | null {
+  const direct = book.map[normalized];
   if (direct) return direct;
   // A label cell often carries a hint under the label ("Vehicle / sedan,
   // minivan, microbus, bus"), so the allowance has to cover that.
   if (normalized.length > 160) return null;
 
-  for (const key of LABEL_KEYS) {
+  for (const key of book.keys) {
     const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(key)}([^\\p{L}\\p{N}]|$)`, 'u');
-    if (re.test(normalized)) return LABELS[key];
+    if (re.test(normalized)) return book.map[key];
   }
   return null;
 }
@@ -751,10 +803,10 @@ function matchFlightDirection(text: string): BookingDraft['flight_direction'] {
 }
 
 /** A cell that is nothing but a known label — "DROP OFF", "PHONE", "TIME". */
-function isBareLabel(cell: string): boolean {
+function isBareLabel(cell: string, book: LabelBook = BUILTIN_LABELS): boolean {
   const n = normalizeLabel(cell);
   if (!n) return false;
-  return Object.prototype.hasOwnProperty.call(LABELS, n);
+  return Object.prototype.hasOwnProperty.call(book.map, n);
 }
 
 /**
@@ -770,15 +822,18 @@ function isBareLabel(cell: string): boolean {
  * model out of the field it could have filled. Pairing the two rows by column
  * is what the form actually means.
  */
-function headerRowCells(line: string): string[] | null {
+function headerRowCells(line: string, book: LabelBook = BUILTIN_LABELS): string[] | null {
   if (line.indexOf('\t') < 0) return null;
   const cells = line.split('\t').map((c) => c.trim());
   if (cells.length < 2 || cells.some((c) => !c)) return null;
-  if (!cells.every((c) => isBareLabel(c))) return null;
+  if (!cells.every((c) => isBareLabel(c, book))) return null;
   return cells;
 }
 
-function parseTemplate(text: string): {
+function parseTemplate(
+  text: string,
+  book: LabelBook = BUILTIN_LABELS,
+): {
   draft: BookingDraft;
   sources: Partial<Record<keyof BookingDraft, FieldSource>>;
 } {
@@ -848,7 +903,7 @@ function parseTemplate(text: string): {
     const line = stripMarks(lines[i]);
 
     // A row of labels with a row of answers under it — pair them by column.
-    const header = headerRowCells(line);
+    const header = headerRowCells(line, book);
     if (header) {
       // The blank form's own hint ("dd.mm.yyyy — for example 15.05.2026")
       // can sit between the labels and the answers.
@@ -858,8 +913,8 @@ function parseTemplate(text: string): {
       const values = valueLine ? valueLine.split('\t').map((c) => c.trim()) : [];
       if (values.length === header.length && values.some((v) => v)) {
         for (let k = 0; k < header.length; k += 1) {
-          const f = resolveLabel(normalizeLabel(header[k]));
-          if (f && values[k] && !isBareLabel(values[k])) apply(f, values[k]);
+          const f = resolveLabel(normalizeLabel(header[k]), book);
+          if (f && values[k] && !isBareLabel(values[k], book)) apply(f, values[k]);
         }
         i = j;
         continue;
@@ -878,7 +933,7 @@ function parseTemplate(text: string): {
       // "GUEST NAME <TAB> PHONE" is two labels, not a guest called "PHONE".
       // Clearing it here lets the value-on-the-next-line path, and failing
       // that the model, fill the field instead of inheriting the mistake.
-      if (isBareLabel(value)) value = '';
+      if (isBareLabel(value, book)) value = '';
     } else {
       // No separator on this line. It may still be a label whose value was
       // printed on the line below (the usual shape of a PDF form). Only a
@@ -890,7 +945,7 @@ function parseTemplate(text: string): {
       value = '';
     }
 
-    const field = resolveLabel(label);
+    const field = resolveLabel(label, book);
     if (!field) continue;
 
     if (!value) {
@@ -903,8 +958,8 @@ function parseTemplate(text: string): {
       // to contain a colon ("08:00") or a label word ("Kakheti wine route")
       // is still this label's answer.
       const nextPair = splitLabelValue(next);
-      if (nextPair && resolveLabel(normalizeLabel(nextPair[0]))) continue;
-      if (!nextPair && startsWithLabel(normalizeLabel(next))) continue;
+      if (nextPair && resolveLabel(normalizeLabel(nextPair[0]), book)) continue;
+      if (!nextPair && startsWithLabel(normalizeLabel(next), book)) continue;
       value = next.replace(/\t/g, ' ').trim();
       if (!value) continue;
       i += 1;
@@ -1012,6 +1067,24 @@ const EXTRACT_TOOL = {
           hotel: { type: ['string', 'null'] },
         },
       },
+      field_labels: {
+        type: ['object', 'null'],
+        description:
+          "For each field you filled, the document's own HEADING for it — the printed label beside or above the value (\"Pick-up point\", \"მგზავრების რაოდენობა\", \"Nereden\"), copied as printed. The label, never the value. Leave a field out when the document prints no label for it, for example when the value sits in running prose.",
+        properties: {
+          date: { type: ['string', 'null'] },
+          time: { type: ['string', 'null'] },
+          from_location: { type: ['string', 'null'] },
+          to_location: { type: ['string', 'null'] },
+          passengers: { type: ['string', 'null'] },
+          vehicle_type: { type: ['string', 'null'] },
+          client_price: { type: ['string', 'null'] },
+          flight_number: { type: ['string', 'null'] },
+          passenger_name: { type: ['string', 'null'] },
+          passenger_phone: { type: ['string', 'null'] },
+          hotel: { type: ['string', 'null'] },
+        },
+      },
     },
     required: [],
   },
@@ -1029,6 +1102,7 @@ Rules:
 - Vehicle words: სედანი/sedan, მინივენი/Vito/Viano = minivan, მიკროავტობუსი/Sprinter = microbus, ავტობუსი = bus.
 - List in uncertain_fields any field you inferred rather than read.
 - Fill evidence with the exact wording you read each field from, copied from the document. A dispatcher checks your reading against it, so copy, never paraphrase.
+- Fill field_labels with the document's own printed heading for each field — the label, not the value. This operator will send files in this same layout again, and their wording is remembered so the next one is read without a model. Leave out any field the document does not label.
 - Call the submit_booking tool exactly once.`;
 
 /**
@@ -1524,6 +1598,126 @@ Deno.serve(async (req) => {
     if (timer !== undefined) clearTimeout(timer);
   }
 
+  /**
+   * This company's remembered label wordings — see
+   * `supabase/migrations/..._company_import_labels.sql` for why they exist.
+   *
+   * Bounded and deadlined like the log above, for the same reason: the import
+   * must never wait on its own memory. An empty answer means the built-in label
+   * table alone, which is exactly what every import did before this existed.
+   */
+  const LEARNED_DEADLINE_MS = 1500;
+  const LEARNED_LIMIT = 200;
+
+  async function loadLearnedLabels(): Promise<Record<string, LabelField>> {
+    const read = (async (): Promise<Record<string, LabelField>> => {
+      try {
+        // The caller's own client: the row-level policy already scopes this to
+        // the company's own vocabulary, so no service role is needed to read.
+        const { data, error } = await supabase
+          .from('company_import_labels')
+          .select('label, field')
+          .eq('company_id', companyId)
+          .order('last_seen_at', { ascending: false })
+          .limit(LEARNED_LIMIT);
+        if (error || !Array.isArray(data)) return {};
+        const out: Record<string, LabelField> = {};
+        for (const row of data as { label?: string; field?: string }[]) {
+          const label = String(row.label ?? '').trim().toLowerCase();
+          const field = String(row.field ?? '').trim();
+          if (label && field) out[label] = field as LabelField;
+        }
+        return out;
+      } catch (e) {
+        console.error('booking-import: learned labels read failed', String(e));
+        return {};
+      }
+    })();
+
+    let timer: number | undefined;
+    const deadline = new Promise<Record<string, LabelField>>((resolve) => {
+      timer = setTimeout(() => {
+        console.error('booking-import: learned labels timed out, using built-ins');
+        resolve({});
+      }, LEARNED_DEADLINE_MS);
+    });
+
+    const result = await Promise.race([read, deadline]);
+    if (timer !== undefined) clearTimeout(timer);
+    return result;
+  }
+
+  /**
+   * The AI reports a heading per field under its own names; the parser keys
+   * labels by draft field, with `time` and `vehicle` as its two pseudo-fields.
+   * Anything not on this list is not remembered.
+   */
+  const LEARNABLE_FIELDS: Record<string, LabelField> = {
+    date: 'date_display',
+    time: 'time',
+    from_location: 'from_location',
+    to_location: 'to_location',
+    passengers: 'passengers',
+    vehicle_type: 'vehicle',
+    client_price: 'client_price',
+    flight_number: 'flight_number',
+    passenger_name: 'passenger_name',
+    passenger_phone: 'passenger_phone',
+    hotel: 'hotel',
+  };
+
+  /**
+   * Remember the wordings the built-in table does not already know.
+   *
+   * Only the gaps are worth storing: a label the parser handles needs no
+   * lesson, and storing it would make a wrong lesson able to shadow a right
+   * answer. Fire-and-forget — a lesson lost costs nothing but a model call on
+   * the next file.
+   */
+  function rememberLabels(labels: unknown, uncertain: unknown): void {
+    if (!labels || typeof labels !== 'object' || Array.isArray(labels)) return;
+
+    // A field the model says it inferred rather than read teaches nothing: its
+    // "heading" is a guess, and a guess written down would be applied as fact
+    // to every later file from this company.
+    const guessed = new Set(
+      (Array.isArray(uncertain) ? uncertain : []).map((f) => String(f).trim()),
+    );
+
+    const lesson: Record<string, string> = {};
+    for (const [aiField, raw] of Object.entries(labels as Record<string, unknown>)) {
+      const field = LEARNABLE_FIELDS[aiField];
+      if (!field) continue;
+      if (guessed.has(aiField)) continue;
+      if (typeof raw !== 'string') continue;
+      const label = normalizeLabel(raw);
+      if (label.length < 3 || label.length > 60) continue;
+      // A heading, not a sentence and not a value.
+      if (/\d{2}/.test(label)) continue;
+      if (Object.prototype.hasOwnProperty.call(LABELS, label)) continue;
+      lesson[label] = field;
+    }
+
+    const count = Object.keys(lesson).length;
+    if (count === 0) return;
+
+    void (async () => {
+      try {
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        if (!serviceKey) return;
+        const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', serviceKey);
+        const { error } = await admin.rpc('remember_import_labels', {
+          p_company_id: companyId,
+          p_labels: lesson,
+        });
+        if (error) console.error('booking-import: remember failed', error.message);
+        else console.log(`booking-import: remembered ${count} label(s)`);
+      } catch (e) {
+        console.error('booking-import: remember threw', String(e));
+      }
+    })();
+  }
+
   /** Answer with a failure, and leave a trace of it. */
   async function failWith(
     status: 'empty' | 'error',
@@ -1574,7 +1768,10 @@ Deno.serve(async (req) => {
     return await failWith('empty', 422, 'ფაილში ტექსტი ვერ ვიპოვე');
   }
 
-  const { draft, sources } = parseTemplate(text);
+  // Built-in labels plus whatever this company's earlier files have taught us.
+  const labelBook = labelBookWith(await loadLearnedLabels());
+
+  const { draft, sources } = parseTemplate(text, labelBook);
   const warnings: string[] = [];
 
   // The template is authoritative. The model only fills what is still missing.
@@ -1622,6 +1819,10 @@ Deno.serve(async (req) => {
       evidence = normalizeEvidence(found[0]?.evidence);
       extraServices = found.slice(1).map(draftFromAi);
 
+      // Every service in a programme shares the document's layout, so the
+      // first one carries all the vocabulary there is to learn.
+      rememberLabels(found[0]?.field_labels, found[0]?.uncertain_fields);
+
       const uncertain = found[0]?.uncertain_fields;
       if (Array.isArray(uncertain) && uncertain.length > 0) {
         warnings.push(`ეს ველები AI-მ დაასკვნა, არ ეწერა პირდაპირ: ${uncertain.join(', ')}`);
@@ -1635,6 +1836,7 @@ Deno.serve(async (req) => {
       crossWarnings.push(...disagreementWarnings(draft, sources, data));
       mergeAi(draft, sources, data);
       evidence = normalizeEvidence(data.evidence);
+      rememberLabels(data.field_labels, data.uncertain_fields);
       if (Array.isArray(data.uncertain_fields) && data.uncertain_fields.length > 0) {
         warnings.push(
           `ეს ველები AI-მ დაასკვნა, არ ეწერა პირდაპირ: ${data.uncertain_fields.join(', ')}`,

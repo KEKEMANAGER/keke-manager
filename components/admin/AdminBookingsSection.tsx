@@ -1,9 +1,11 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { BookingRow } from '../../lib/bookings';
 import { fetchAdminBookings } from '../../lib/adminPanel';
+import { fetchBookingRiskMap, type BookingRiskAssessment } from '../../lib/bookingRisk';
+import { BookingRiskBadge } from '../BookingRiskBadge';
 import { COLORS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 
@@ -28,6 +30,7 @@ export function AdminBookingsSection() {
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [riskMap, setRiskMap] = useState<Map<string, BookingRiskAssessment>>(() => new Map());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,6 +56,28 @@ export function AdminBookingsSection() {
       void load();
     }, [load]),
   );
+
+  // Separate pass, after the list renders — see the same note in the company
+  // history screen. Admin sees the warnings for every company at once, which
+  // is the only place a pattern across companies is visible.
+  useEffect(() => {
+    if (rows.length === 0) {
+      setRiskMap((prev) => (prev.size === 0 ? prev : new Map()));
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const map = await fetchBookingRiskMap(rows);
+        if (!cancelled) setRiskMap(map);
+      } catch {
+        if (!cancelled) setRiskMap(new Map());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows]);
 
   if (loading) {
     return <ActivityIndicator color={COLORS.gold} style={{ marginTop: SPACING.xl }} size="large" />;
@@ -81,6 +106,7 @@ export function AdminBookingsSection() {
             <Text style={adminStyles.cardMeta}>
               {statusLabel(String(b.status), t)} · {formatGel(Number(b.price_gel) || 0)}
             </Text>
+            <BookingRiskBadge assessment={riskMap.get(String(b.id))} />
             <Text style={adminStyles.cardMeta}>
               {t('adminPanel.bookingKind')}: {String(b.kind ?? '—')}
             </Text>

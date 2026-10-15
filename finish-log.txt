@@ -1,0 +1,198 @@
+KEKE Manager - finish everything 
+WARNING: Docker is not running
+Uploading asset (booking-import): supabase/functions/booking-import/index.ts
+Deployed Functions on project brrjuxgxmpgvkddcuaad: booking-import
+You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/brrjuxgxmpgvkddcuaad/functions
+warning: in the working copy of 'components/ConvoyChatContent.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/DateTimeField.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/DateOnlyField.tsx', LF will be replaced by CRLF the next time Git touches it
+M  app/(app)/chat.tsx
+M  app/(driver)/chat.tsx
+M  components/ConvoyChatContent.tsx
+M  components/DateOnlyField.tsx
+M  components/DateTimeField.tsx
+A  hooks/useKeyboardVisible.ts
+ M lib/generated/blogManifest.json
+ M lib/generated/seoBlogLinkTitles.json
+ M lib/legalBundles.ts
+ M public/blog/rss.xml
+ M public/blogManifest.json
+ M public/llms-full.txt
+ M public/sitemap.xml
+?? build-android-only.bat
+?? build-ios-only.bat
+?? cf-login.bat
+?? deploy-booking-import.bat
+?? deploy-import-log.txt
+?? deploy-site-upload.bat
+?? deploy-site.bat
+?? finish-all.bat
+?? fix-and-push.bat
+?? ota-update.bat
+?? public/blog/akaki-kachibaia-keke-manager-founder-story-cover.svg
+?? push-and-build.bat
+?? push-only.bat
+?? push-to-github.bat
+?? site-log.txt
+?? submit-ios-login.bat
+?? submit-ios.bat
+?? upload-site.bat
+[master 430e0dd] Chat bar clears the keyboard; the time picker waits for Done
+ 6 files changed, 88 insertions(+), 26 deletions(-)
+ create mode 100644 hooks/useKeyboardVisible.ts
+From https://github.com/KEKEMANAGER/keke-manager
+ * branch            master     -> FETCH_HEAD
+   23002fe..8ba583b  master     -> origin/master
+warning: in the working copy of 'lib/generated/blogManifest.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/generated/seoBlogLinkTitles.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/legalBundles.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'public/blog/rss.xml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'public/blogManifest.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'public/llms-full.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'public/sitemap.xml', LF will be replaced by CRLF the next time Git touches it
+Created autostash: 79692c2
+Rebasing (1/1)Applied autostash.
+Successfully rebased and updated refs/heads/master.
+To https://github.com/KEKEMANAGER/keke-manager.git
+   8ba583b..945a8ee  master -> master
+
+> keke-manager-app@1.0.0 build
+> node scripts/normalize-expo-env.mjs && node scripts/seed-blog-articles.mjs && node scripts/build-blog.mjs && node scripts/optimize-brand-assets.mjs && node scripts/generate-seo-assets.mjs && node scripts/sync-legal-docs.mjs && expo export -p web --clear && node scripts/fix-cloudflare-assets.mjs && node scripts/copy-public-to-dist.mjs && node scripts/patch-web-html.mjs && node scripts/prerender-seo-routes.mjs && node scripts/verify-dist-assets.mjs && node scripts/report-bundle-size.mjs
+
+supabase-env: using committed public Supabase URL default
+supabase-env: using committed public Supabase anon key default
+normalize-expo-env: OK (Supabase URL + anon key present)
+Skip (exists): how-to-find-reliable-tour-driver-georgia
+Skip (exists): tour-transport-pricing-guide-georgia
+Skip (exists): managing-tourist-driver-fleet
+Skip (exists): booking-management-software-tour-companies
+Skip (exists): multi-day-tour-planning-georgia
+Skip (exists): how-to-become-tour-driver-georgia
+Skip (exists): guide-driver-vs-regular-driver
+Skip (exists): driver-earnings-georgia-tour-industry
+Skip (exists): best-vehicles-tourist-transport
+Skip (exists): languages-tour-drivers-should-know
+Skip (exists): tbilisi-airport-transfer-guide
+Skip (exists): tbilisi-kazbegi-day-trip-guide
+Skip (exists): kakheti-wine-tour-transport
+Skip (exists): georgia-mountain-tours-4x4
+Skip (exists): batumi-transport-tourism-guide
+Skip (exists): how-to-start-fleet-business-georgia
+Skip (exists): hiring-drivers-fleet-management
+Skip (exists): vehicle-maintenance-tourist-transport
+Skip (exists): georgia-tourism-trends-2026
+Skip (exists): b2b-transport-platforms-vs-traditional-booking
+Done: 0 written, 20 skipped → D:\keke-manager-app\content\blog
+SEO blog link titles: 14 slugs
+Built 36 blog posts → D:\keke-manager-app\lib\generated\blogManifest.json + public/blogManifest.json
+logo.webp: 8 KB
+public/logo.png: 25 KB
+public/logo.webp: 12 KB
+logo.png: 25 KB
+og-image.jpg: 33 KB (1200x630)
+Wrote D:\keke-manager-app\lib\legalBundles.ts
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓░░░░░░░░░░░░░░ 16.0% (4/7)
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% (19/98)
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+| expo-router/babel is deprecated in favor of babel-preset-expo in SDK 50. To fix the issue, remove "expo-router/babel" from "plugins" in your babel.config.js file.
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% ( 36/219)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% ( 54/279)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% ( 76/299)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% (120/396)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% (154/457)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% (223/516)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% (259/560)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% (314/598)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.9% (371/619)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓░░░░░░░░░░ 42.2% (425/654)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 46.9% (462/678)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 54.2% (520/706)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 54.2% (528/763)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 57.1% (593/785)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 58.7% (610/825)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 58.7% (662/868)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 59.6% (691/904)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.1% (752/955)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 73.2% ( 857/1007)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 77.6% ( 910/1033)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 84.2% ( 982/1072)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 93.3% (1073/1141)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 93.3% (1142/1192)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 96.0% (1218/1270)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (1297/1297)
+Web Bundled 110810ms node_modules\expo-router\entry.js (1297 modules)
+
+› Assets (20):
+assets\images\logo.65a279d36d06935bc9f0f4a8a6e2ec8f.webp (7.68 kB)
+node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf (390 kB)
+node_modules\@react-navigation\elements\lib\module\assets\back-icon-mask.0a328cd9c1afd0afe8e3b1ec5165b1b4.png (653 B)
+node_modules\@react-navigation\elements\lib\module\assets\back-icon.35ba0eaec5a4f5ed12ca16fabeae451d.png (207 B)
+node_modules\@react-navigation\elements\lib\module\assets\clear-icon.c94f6478e7ae0cdd9f15de1fcb9e5e55.png (4 variations | 425 B)
+node_modules\@react-navigation\elements\lib\module\assets\close-icon.808e1b1b9b53114ec2838071a7e6daa7.png (4 variations | 235 B)
+node_modules\@react-navigation\elements\lib\module\assets\search-icon.286d67d3f74808a60a78d3ebf1a5fb57.png (928 B)
+node_modules\expo-router\assets\arrow_down.017bc6ba3fc25503e5eb5e53826d48a8.png (9.46 kB)
+node_modules\expo-router\assets\error.d1ea1496f9057eb392d5bbf3732a61b7.png (469 B)
+node_modules\expo-router\assets\file.19eeb73b9593a38f8e9f418337fc7d10.png (138 B)
+node_modules\expo-router\assets\forward.d8b800c443b8972542883e0b9de2bdc6.png (188 B)
+node_modules\expo-router\assets\pkg.ab19f4cbc543357183a20571f68380a3.png (364 B)
+node_modules\expo-router\assets\sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png (465 B)
+node_modules\expo-router\assets\unmatched.20e71bdf79e3a97bf55fd9e164041578.png (4.75 kB)
+
+› web bundles (1):
+_expo/static/js/web/entry-3bb171643e76ab1de70ae7cba6238c5a.js (6.11 MB)
+
+› Files (3):
+favicon.ico (14.5 kB)
+index.html (1.22 kB)
+metadata.json (49 B)
+
+Exported: dist
+fix-cloudflare-assets: moved assets/node_modules -> assets/vendor
+fix-cloudflare-assets: patched 1 file(s) referencing assets/node_modules
+copy-public: asset-not-found.html (0.8 KB)
+copy-public: BingSiteAuth.xml (0.1 KB)
+copy-public: synced public/blog/en/how-important-is-the-driver-during-tour-transfer/
+copy-public: synced public/blog/en/
+copy-public: synced public/blog/ka/how-important-is-the-driver-during-tour-transfer/
+copy-public: synced public/blog/ka/
+copy-public: synced public/blog/
+copy-public: blogManifest.json (1352.0 KB)
+copy-public: llms-full.txt (14.4 KB)
+copy-public: llms.txt (4.9 KB)
+copy-public: logo.png (25.3 KB)
+copy-public: logo.webp (11.6 KB)
+copy-public: og-image.jpg (32.6 KB)
+copy-public: robots.txt (0.8 KB)
+copy-public: sitemap.xml (10.4 KB)
+copy-public: synced public/social/
+copy-public: sw.js (2.5 KB)
+copy-public: _headers (0.7 KB)
+copy-public: _redirects (1.0 KB)
+copy-public: _routes.json (0.3 KB)
+copy-public: OK
+supabase-env: using committed public Supabase URL default
+supabase-env: using committed public Supabase anon key default
+patch-web-html: inlined logo.webp (11.6 KB → data URI)
+patch-web-html: OK — SEO meta + static hero in dist/index.html
+prerender-seo: wrote 50 static HTML pages
+verify-dist-assets: OK (/_expo/static/js/web/entry-3bb171643e76ab1de70ae7cba6238c5a.js, 5.83 MB)
+Web bundle summary
+  Initial (entry + common + runtime): 5.83 MB
+    entry: 5.83 MB
+  All JS chunks: 5.83 MB (1 files)
+  Supabase in initial payload: yes (needs review)
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mThis command cannot be run in a non-interactive context[0m
+
+
+🪵  Logs were written to "C:\Users\tskit\AppData\Roaming\xdg.config\.wrangler\logs\wrangler-2026-10-08_20-58-57_522.log"

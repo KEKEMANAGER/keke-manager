@@ -1,0 +1,46 @@
+KEKE Manager - two leftover migration files 
+warning: in the working copy of 'supabase/migrations/20261010070000_drop_tmp_purge_helper.sql', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'supabase/migrations/20261010073000_privileged_verification_status.sql', LF will be replaced by CRLF the next time Git touches it
+ M lib/generated/blogManifest.json
+ M lib/generated/seoBlogLinkTitles.json
+ M lib/legalBundles.ts
+ M public/blog/rss.xml
+ M public/blogManifest.json
+ M public/llms-full.txt
+ M public/sitemap.xml
+A  supabase/migrations/20261010070000_drop_tmp_purge_helper.sql
+A  supabase/migrations/20261010073000_privileged_verification_status.sql
+?? build-android-only.bat
+?? build-ios-only.bat
+?? cf-login.bat
+?? deploy-booking-import.bat
+?? deploy-import-log.txt
+?? deploy-site-upload.bat
+?? deploy-site.bat
+?? finish-all.bat
+?? finish-log.txt
+?? fix-and-push.bat
+?? gaushvi-5-log.txt
+?? ota-update.bat
+?? public/blog/akaki-kachibaia-keke-manager-founder-story-cover.svg
+?? push-and-build.bat
+?? push-only.bat
+?? push-to-github.bat
+?? site-log.txt
+?? submit-ios-login.bat
+?? submit-ios.bat
+?? upload-site.bat
+[master 7831da0] Make users.verification_status an admin-only column
+ 2 files changed, 93 insertions(+)
+ create mode 100644 supabase/migrations/20261010070000_drop_tmp_purge_helper.sql
+ create mode 100644 supabase/migrations/20261010073000_privileged_verification_status.sql
+From https://github.com/KEKEMANAGER/keke-manager
+ * branch            master     -> FETCH_HEAD
+Created autostash: 5faf9c3
+Current branch master is up to date.
+Applied autostash.
+To https://github.com/KEKEMANAGER/keke-manager.git
+   e088d51..7831da0  master -> master
+7831da0 Make users.verification_status an admin-only column
+e088d51 Company approval gate; admin regions, dispatch log and import log
+e8bed6b Regional dispatch; the driver can print the pickup sign

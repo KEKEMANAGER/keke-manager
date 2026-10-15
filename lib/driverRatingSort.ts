@@ -180,11 +180,35 @@ export type PushRecipientLike = {
    * driver is ranked exactly as he was before coverage existed.
    */
   coversRegion?: boolean;
+  /**
+   * True for a driver who finishes another job near this pickup shortly before
+   * it starts. Undefined — the normal case — means no opinion. Like coverage,
+   * it only ever sorts.
+   */
+  endsNearPickup?: boolean;
 };
 
 /** A driver who said "not my area" waits; everyone else keeps their place. */
 function coverageTier(recipient: PushRecipientLike): number {
   return recipient.coversRegion === false ? 1 : 0;
+}
+
+/**
+ * A driver who is already going to be standing there goes first.
+ *
+ * He drops a group in Kazbegi at one and would otherwise drive back to Tbilisi
+ * empty; a two o'clock job out of Kazbegi costs him nothing and costs the
+ * company nothing to position. That is a better match than any score can see,
+ * so it is asked before the score — but after coverage, because a driver who
+ * has said he does not work a region has told us something about himself that
+ * his calendar has not.
+ *
+ * Like every tier here it only sorts. Wave 1 still fills to the same size and
+ * wave 2 still carries everyone else, so nobody is skipped because someone
+ * happened to be nearby.
+ */
+function emptyLegTier(recipient: PushRecipientLike): number {
+  return recipient.endsNearPickup === true ? 0 : 1;
 }
 
 function compareByRank(
@@ -238,6 +262,9 @@ export async function buildRatingWaves<T extends PushRecipientLike>(
     // as before.
     const tier = coverageTier(a) - coverageTier(b);
     if (tier !== 0) return tier;
+    // Already finishing next door beats a higher score — see `emptyLegTier`.
+    const leg = emptyLegTier(a) - emptyLegTier(b);
+    if (leg !== 0) return leg;
     return compareByRank(scores.get(a.userId), scores.get(b.userId), a.userId, b.userId);
   });
 

@@ -12,6 +12,7 @@ import {
 import { EmptyState } from '../../components/EmptyState';
 import { BookingOdometerSection, BookingOdometerBadge } from '../../components/BookingOdometerSection';
 import { DriverConfirmationBadge } from '../../components/DriverConfirmationBadge';
+import { BookingRiskBadge } from '../../components/BookingRiskBadge';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -31,6 +32,7 @@ import {
   openCompanyVoucher,
 } from '../../components/CompanyBookingVoucher';
 import { useAuth } from '../../contexts/AuthContext';
+import { fetchBookingRiskMap, type BookingRiskAssessment } from '../../lib/bookingRisk';
 import { canCompanyEditBooking } from '../../lib/bookingUpdate';
 import {
   fetchRatedBookingIdsForCompany,
@@ -117,6 +119,7 @@ export default function CompanyHistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(() => new Set());
+  const [riskMap, setRiskMap] = useState<Map<string, BookingRiskAssessment>>(() => new Map());
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
@@ -164,6 +167,29 @@ export default function CompanyHistoryScreen() {
     });
     return () => unsubscribeChannel(ch);
   }, [userId, load]);
+
+  // No-show warnings are worked out after the list is already on screen, in a
+  // pass of their own: they cost three extra queries and the bookings must
+  // never wait on them. A failure here leaves the list exactly as it was
+  // before this feature existed.
+  useEffect(() => {
+    if (rows.length === 0) {
+      setRiskMap((prev) => (prev.size === 0 ? prev : new Map()));
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const map = await fetchBookingRiskMap(rows);
+        if (!cancelled) setRiskMap(map);
+      } catch {
+        if (!cancelled) setRiskMap(new Map());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows]);
 
   const filtered = useMemo(
     () => rows.filter((r) => matchesFilter(r, filter) && matchesKindFilter(r, kindFilter)),
@@ -315,6 +341,7 @@ export default function CompanyHistoryScreen() {
               </View>
               <Text style={styles.route}>{routeSummary(r)}</Text>
               <DriverConfirmationBadge booking={r} />
+              <BookingRiskBadge assessment={riskMap.get(r.id)} />
               <View style={styles.cardBottom}>
                 <Text style={styles.date}>{formatBookingDate(r)}</Text>
                 <Text style={styles.price}>{formatGel(Number(r.price_gel))}</Text>

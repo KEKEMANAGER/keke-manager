@@ -1,6 +1,6 @@
 # KEKE Manager — Full reference for AI systems
 
-> Generated: 2026-09-01
+> Generated: 2026-10-08
 > Canonical summary: https://kekemanager.com/llms.txt
 > Website: https://kekemanager.com
 
@@ -15,7 +15,7 @@
 - **Sign up (free for companies):** https://kekemanager.com/sign-up
 - **Sign in:** https://kekemanager.com/sign-in
 - **Contact:** info@kekemanager.com | +995 551 003 411
-- **Verified drivers:** 500+ across Georgia
+- **Verified drivers:** verified across Georgia
 - **Languages (landing UI):** 33 (ka, en, ru, tr, es, fr, de, it, ar, zh, uk, pl, nl, pt, sv, no, da, fi, cs, hu, ro, bg, el, he, hi, ja, ko, th, vi, id, ms, az, hy)
 - **App UI (full):** Georgian, English, Russian
 - **Cities in platform directory:** 34 — თბილისი, ახალქალაქი, ახალციხე, ბათუმი, ბოლნისი, გორი, გრიგოლეთი, ზესტაფონი, ზუგდიდი, თელავი, თერჯოლა, კასპი, ლანჩხუთი, მარნეული, მცხეთა, ოზურგეთი, ონი, რუსთავი, სამტრედია, საჩხერე, სენაკი, სიღნაღი, ქობულეთი, ქუთაისი, ყვარელი, შუახევი, ჩოხატაური, ცაგერი, ძალისი, წალენჯიხა, წყალტუბო, ხაშური, ხობი, ხონი
@@ -51,7 +51,7 @@ Location fields support typed presets: airport (Tbilisi/Batumi/Kutaisi + custom)
 |--------|-------------|
 | Fleet management | Assign drivers to bookings; view company fleet and hired drivers |
 | GPS tracking | Live driver location on map for companies and admins |
-| Verified drivers | 500+ vetted guide-drivers and transport partners |
+| Verified drivers | Vetted guide-drivers and transport partners |
 | Bookings workflow | Create, edit, status updates, history, find-drivers matching |
 | PDF vouchers | Auto-generated company vouchers with route, client, vehicle details |
 | Three-way chat | Tour company, host, and driver in one thread per booking |
@@ -78,9 +78,9 @@ Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutai
 ## Location landing pages
 
 - [Tbilisi](https://kekemanager.com/locations/tbilisi): Find Verified Tour Drivers in Tbilisi | KEKE Manager
-  KEKE Manager connects tour companies and travel agencies with 500+ verified guide-drivers in Tbilisi. Manage bookings, GPS, and fleet in one B2B platform — not a taxi service.
+  KEKE Manager connects tour companies and travel agencies with verified guide-drivers in Tbilisi. Manage bookings, GPS, and fleet in one B2B platform — not a taxi service.
 - [Batumi](https://kekemanager.com/locations/batumi): Find Tour Drivers in Batumi | KEKE Manager B2B Platform
-  Connect with verified tour and transfer drivers in Batumi through KEKE Manager. Tour companies manage fleet and bookings; drivers join free. 500+ drivers across Georgia.
+  Connect with verified tour and transfer drivers in Batumi through KEKE Manager. Tour companies manage fleet and bookings; drivers join free. Verified drivers across Georgia.
 - [Kazbegi](https://kekemanager.com/locations/kazbegi): Mountain Tour Drivers Kazbegi | KEKE Manager
   Find verified 4x4 and mountain tour drivers for Kazbegi routes on KEKE Manager. Tour companies plan multi-day trips; drivers with suitable vehicles join the platform.
 - [Kutaisi](https://kekemanager.com/locations/kutaisi): Tour Drivers Kutaisi & Imereti | KEKE Manager
@@ -90,6 +90,8 @@ Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutai
 
 ## Service landing pages
 
+- [Tourist transport platform](https://kekemanager.com/services/turistuli-satransporto-platforma): Tourist Transport Platform in Georgia | KEKE Manager
+  A tourist transport platform connects tour operators with verified drivers directly, with no middleman. KEKE Manager is that platform in Georgia: bookings, GPS, digital vouchers, fleet management. Free for tour companies.
 - [Airport transfer driver matching](https://kekemanager.com/services/airport-transfer): Airport Transfer Drivers Georgia | KEKE Manager Platform
   Tour companies assign airport pickups to verified drivers on KEKE Manager. Agencies find partners across Georgia — we are a B2B platform, not a transfer company.
 - [Multi-day tour fleet management](https://kekemanager.com/services/multi-day-tour): Multi-Day Tour Fleet Management | KEKE Manager
@@ -101,30 +103,48 @@ Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutai
 - [Corporate group transport coordination](https://kekemanager.com/services/corporate-transfer): Corporate Group Transport for Tour Companies | KEKE Manager
   Tour companies coordinate corporate groups and MICE transport with verified drivers on KEKE Manager. Fleet dashboard, vouchers, and GPS — B2B platform only.
 
-## Blog articles (26)
+## Blog articles (36)
 
-- [What is KEKE Manager? The Complete 2026 Guide](https://kekemanager.com/blog/what-is-keke-manager) (2026-09-01)
-  KEKE Manager is a B2B platform connecting tour operators, transport companies, and verified drivers in Georgia. Learn how it works.
-- [The Founder of KEKE Manager — Akaki Kachibaia](https://kekemanager.com/blog/akaki-kachibaia-keke-manager-founder-story) (2026-09-01)
-  The story of Akaki Kachibaia — from driver to transport manager to founding KEKE Manager, the platform reshaping tourist transport in Georgia.
+- [undefined](https://kekemanager.com/blog/what-is-keke-manager) (2026-10-08)
+  
+- [undefined](https://kekemanager.com/blog/vardzia-uplistsikhe-autumn-transport-guide) (2026-10-08)
+  
+- [undefined](https://kekemanager.com/blog/ushguli-tusheti-autumn-transport-guide) (2026-10-08)
+  
 - [Tour Operator vs Driver: What Problems Does KEKE Manager Solve?](https://kekemanager.com/blog/tour-operator-vs-driver-keke-manager-problems) (2026-06-12)
   Replace WhatsApp chaos with one dashboard for tour operators and open bookings for drivers. GPS, vouchers, chat, and verification in one app. Free for companies; drivers from 29 GEL/month.
-- [How Important Is the Driver During a Tour or Transfer?](https://kekemanager.com/blog/how-important-is-the-driver-during-tour-transfer) (2026-06-09)
-  The driver is the face of your tour company. Learn why the right driver determines tour quality, review scores, and repeat bookings — and how to find them.
+- [Vehicle Maintenance for Tourist Transport](https://kekemanager.com/blog/vehicle-maintenance-tourist-transport) (2026-05-24)
+  Seasonal service, tires, safety, and false economies.
+- [undefined](https://kekemanager.com/blog/svaneti-winter-tour-transport-guide) (2026-10-08)
+  
+- [undefined](https://kekemanager.com/blog/svaneti-mestia-ushguli-tourist-transport-guide) (2026-10-08)
+  
 - [How to manage tour company drivers in Georgia — a complete guide](https://kekemanager.com/blog/manage-tour-company-drivers-georgia) (2026-06-06)
   KEKE Manager is a B2B platform for tour operators and drivers in Georgia. GPS tracking, digital vouchers, and booking management — all in one system.
 - [How to manage tour company drivers in Georgia — a complete guide](https://kekemanager.com/blog/manage-tour-company-drivers-georgia-en) (2026-06-06)
   KEKE Manager is a B2B platform for tour operators and drivers in Georgia. GPS tracking, digital vouchers, and booking management — all in one system.
+- [undefined](https://kekemanager.com/blog/kakheti-grape-harvest-season-transport-guide) (2026-10-08)
+  
+- [undefined](https://kekemanager.com/blog/how-to-manage-seasonal-driver-demand-georgia) (2026-10-08)
+  
+- [undefined](https://kekemanager.com/blog/how-to-choose-transport-company-tour-operator-georgia) (2026-10-08)
+  
+- [How Important Is the Driver During a Tour or Transfer?](https://kekemanager.com/blog/how-important-is-the-driver-during-tour-transfer) (2026-06-09)
+  The driver is the face of your tour company. Learn why the right driver determines tour quality, review scores, and repeat bookings — and how to find them.
+- [How to Start a Fleet Business in Georgia](https://kekemanager.com/blog/how-to-start-fleet-business-georgia) (2026-05-21)
+  Legal setup, vehicles, B2B sales, and platform onboarding.
+- [undefined](https://kekemanager.com/blog/guesthouse-owner-guide-driver-partnerships-georgia) (2026-10-08)
+  
+- [undefined](https://kekemanager.com/blog/fleet-owner-guide-managing-drivers-georgia) (2026-10-08)
+  
+- [undefined](https://kekemanager.com/blog/borjomi-bakuriani-autumn-winter-transport-guide) (2026-10-08)
+  
 - [B2B Transport Platforms vs Traditional Booking](https://kekemanager.com/blog/b2b-transport-platforms-vs-traditional-booking) (2026-05-27)
   WhatsApp, Excel, and centralized ecosystems compared.
 - [Georgia Tourism Trends 2026](https://kekemanager.com/blog/georgia-tourism-trends-2026) (2026-05-25)
   B2B transport, FIT growth, European market, and technology.
-- [Vehicle Maintenance for Tourist Transport](https://kekemanager.com/blog/vehicle-maintenance-tourist-transport) (2026-05-24)
-  Seasonal service, tires, safety, and false economies.
 - [Hiring Drivers and Fleet Management](https://kekemanager.com/blog/hiring-drivers-fleet-management) (2026-05-22)
   Recruiting, vetting, schedules, and KPIs for fleet hosts.
-- [How to Start a Fleet Business in Georgia](https://kekemanager.com/blog/how-to-start-fleet-business-georgia) (2026-05-21)
-  Legal setup, vehicles, B2B sales, and platform onboarding.
 - [Batumi Transport for Tourism](https://kekemanager.com/blog/batumi-transport-tourism-guide) (2026-05-20)
   Airport, seaside zone, seasonality, and transfers in Batumi.
 - [Georgia Mountain Tours and 4x4](https://kekemanager.com/blog/georgia-mountain-tours-4x4) (2026-05-18)
@@ -155,6 +175,8 @@ Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutai
   How to set rates, overtime, and seasonal coefficients for B2B tour transport.
 - [How to Find a Reliable Tour Driver in Georgia](https://kekemanager.com/blog/how-to-find-reliable-tour-driver-georgia) (2026-05-01)
   Practical guide for tour operators: vetting drivers, vehicles, licensing, and communication.
+- [undefined](https://kekemanager.com/blog/akaki-kachibaia-keke-manager-founder-story) (2026-10-08)
+  
 
 ## How to cite KEKE Manager
 

@@ -228,26 +228,76 @@ export async function insertVehicle(
     }
     return { data: null, error: new Error(error.message) };
   }
+
+  // The whole point of the vehicle form: what he typed here is now his profile
+  // too, instead of being asked for a second time.
+  await syncProfileVehicle(driverId);
+
   return { data: data ? normalizeVehicleRow(data as Record<string, unknown>) : null, error: null };
 }
 
-async function syncProfileVehicleFromActives(driverId: string): Promise<void> {
-  const { data: remaining } = await supabase
-    .from('vehicles')
-    .select('type, class')
-    .eq('driver_id', driverId)
-    .eq('is_active', true)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+/**
+ * Keep `profiles.vehicle_type` / `vehicle_class` in step with the driver's own
+ * vehicles.
+ *
+ * These two columns are a convenience copy — dispatch matches on the `vehicles`
+ * table itself and never reads them. But the driver sees them on his profile,
+ * and nothing used to write them when he registered a car: he filled in the
+ * whole vehicle form, then had to pick the same type and class a second time by
+ * hand, with the profile quietly defaulting to "sedan / comfort" if he did not
+ * notice. Editing the vehicle later left the old values behind, so the two
+ * drifted apart with nothing to show for it.
+ *
+ * An active vehicle wins, because that is the one he actually works with. A
+ * driver whose car is still waiting for approval has no active one, and showing
+ * him the car he just registered beats showing him nothing.
+ *
+ * Two rows are deliberately ignored, both learned the hard way from live data:
+ *
+ *   • A REJECTED vehicle. One driver's profile had been following a rejected
+ *     row while his approved car said something else.
+ *   • A STUB — a row carrying only the form's default type and class, with no
+ *     plate on it. Half-finished registrations like that sit in the table
+ *     looking like sedans, and letting one overwrite a profile replaces a true
+ *     answer with a default. The plate is the field every real car has, so it
+ *     is what separates a registration from an abandoned draft.
+ *
+ * When nothing qualifies, the profile is left exactly as it was. Stale is
+ * recoverable; overwritten is not.
+ */
+async function syncProfileVehicle(driverId: string): Promise<void> {
+  const id = driverId?.trim();
+  if (!id) return;
+  try {
+    const { data } = await supabase
+      .from('vehicles')
+      .select('type, class, plate, is_active, verification_status, updated_at')
+      .eq('driver_id', id)
+      .not('plate', 'is', null)
+      .or('verification_status.is.null,verification_status.neq.rejected')
+      // `true` sorts before `false` descending, so an active vehicle is picked
+      // over a pending one, and the newest wins within each group.
+      .order('is_active', { ascending: false })
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (remaining?.type && remaining?.class) {
+    const row = data as {
+      type?: string | null;
+      class?: string | null;
+      plate?: string | null;
+    } | null;
+    if (!row?.type || !row?.class || !row.plate?.trim()) return;
+
     await supabase
       .from('profiles')
       .upsert(
-        { id: driverId, vehicle_type: remaining.type, vehicle_class: remaining.class },
+        { id, vehicle_type: row.type, vehicle_class: row.class },
         { onConflict: 'id' },
       );
+  } catch {
+    // A profile copy one save behind is cosmetic. Failing the vehicle save
+    // over it would not be.
   }
 }
 
@@ -301,16 +351,7 @@ export async function toggleVehicleActive(
     return { is_active: !!current.is_active, error: new Error(error.message) };
   }
 
-  if (nextActive && current.type && current.class) {
-    await supabase
-      .from('profiles')
-      .upsert(
-        { id: driverId, vehicle_type: current.type, vehicle_class: current.class },
-        { onConflict: 'id' },
-      );
-  } else if (!nextActive) {
-    await syncProfileVehicleFromActives(driverId);
-  }
+  await syncProfileVehicle(driverId);
 
   return { is_active: nextActive, error: null };
 }
@@ -329,7 +370,12 @@ export async function deleteVehicle(
     .eq('id', vehicleId)
     .eq('driver_id', driverId)
     .eq('is_active', false);
-  return { error: error ? new Error(error.message) : null };
+  if (error) return { error: new Error(error.message) };
+
+  // The deleted car may have been the one the profile was showing.
+  await syncProfileVehicle(driverId);
+
+  return { error: null };
 }
 
 function normalizeVehicleDbFields(fields: {
@@ -416,7 +462,13 @@ export async function saveVehicleDetails(
     .update(payload)
     .eq('id', vehicleId)
     .eq('driver_id', driverId);
-  return { error: error ? new Error(error.message) : null };
+  if (error) return { error: new Error(error.message) };
+
+  // Changing the car changes the profile with it — otherwise a driver who
+  // swapped a sedan for a minivan keeps telling companies he drives a sedan.
+  await syncProfileVehicle(driverId);
+
+  return { error: null };
 }
 
 /**

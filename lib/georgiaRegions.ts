@@ -229,6 +229,17 @@ export function isGeorgiaRegionCode(value: unknown): value is GeorgiaRegionCode 
   return typeof value === 'string' && (GEORGIA_REGION_CODES as readonly string[]).includes(value);
 }
 
+/**
+ * The spellings that identify a region, for a caller that has to match place
+ * text somewhere this module cannot reach — currently the dispatch's
+ * `drivers_finishing_near` function, which compares a finishing job's drop-off
+ * inside the database. Handing over the keywords keeps this table the only copy
+ * of how Georgian place names are written.
+ */
+export function regionPlaceKeywords(code: GeorgiaRegionCode): string[] {
+  return REGION_DEFS.find((def) => def.code === code)?.places ?? [];
+}
+
 /** A region's name in the interface language. */
 export function regionLabel(code: GeorgiaRegionCode, language: string | null | undefined): string {
   const row = REGION_LABELS[code];

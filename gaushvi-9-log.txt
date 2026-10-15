@@ -1,0 +1,6 @@
+KEKE Manager - smart dispatch (risk warnings, empty-leg, importer memory) 
+ 
+=== tsc === 
+lib/seoRelatedBlog.ts(6,19): error TS2352: Conversion of type '{ "tbilisi-airport-transfer-guide": { ka: string; en: string; }; "how-to-find-reliable-tour-driver-georgia": { ka: string; en: string; }; "tour-transport-pricing-guide-georgia": { ka: string; en: string; }; ... 10 more ...; "b2b-transport-platforms-vs-traditional-booking": { ...; }; }' to type 'Record<string, BlogLinkTitle>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Property '"fleet-owner-guide-managing-drivers-georgia"' is incompatible with index signature.
+    Type '{}' is missing the following properties from type 'BlogLinkTitle': ka, en
