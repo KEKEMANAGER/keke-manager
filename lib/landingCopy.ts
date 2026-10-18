@@ -16,6 +16,9 @@ export type LandingCopy = {
   heroSubtitle: string;
   heroCtaPrimary: string;
   heroCtaSecondary: string;
+  localOnlyTitle: string;
+  localOnlyLine1: string;
+  localOnlyLine2: string;
   rolesTitle: string;
   roleCompanyTitle: string;
   roleCompanyText: string;
@@ -92,6 +95,11 @@ const EN: LandingCopy = {
     'Tourism companies, guide-drivers, drivers with own vehicles (hosts), and drivers looking for work — all together in one ecosystem.',
   heroCtaPrimary: 'Start for free →',
   heroCtaSecondary: '▶ See how it works',
+  localOnlyTitle: 'We are your tool — not your competitor',
+  localOnlyLine1:
+    'Only tourism and transport companies registered in Georgia can join KEKE Manager.',
+  localOnlyLine2:
+    'Foreign tour operators have no access to the platform — we direct them to Georgian companies. We do not sell tours and we never work with your clients directly.',
   rolesTitle: '4 roles, one platform',
   roleCompanyTitle: 'Tourism company',
   roleCompanyText:
@@ -173,6 +181,11 @@ const KA: LandingCopy = {
     'ტურისტული კომპანიები, გიდ-მძღოლები, მძღოლები საკუთარი ავტოტრანსპორტით (ჰოსტები) და მძღოლები ვისაც სამსახური უნდათ — ყველა ერთად, ერთ ეკოსისტემაში.',
   heroCtaPrimary: 'დაიწყე ახლავე →',
   heroCtaSecondary: '▶ ნახე როგორ მუშაობს',
+  localOnlyTitle: 'ჩვენ თქვენი ინსტრუმენტი ვართ — არა კონკურენტი',
+  localOnlyLine1:
+    'KEKE Manager-ზე რეგისტრაცია შეუძლიათ მხოლოდ საქართველოში რეგისტრირებულ ტურისტულ და ტრანსპორტ კომპანიებს.',
+  localOnlyLine2:
+    'უცხოურ ტუროპერატორებს პლატფორმაზე წვდომა არ აქვთ — ჩვენ მათ ქართულ კომპანიებთან ვამისამართებთ. ტურებს არ ვყიდით და თქვენს კლიენტებთან პირდაპირ არასდროს ვმუშაობთ.',
   rolesTitle: '4 როლი, ერთი პლატფორმა',
   roleCompanyTitle: 'ტურისტული კომპანია',
   roleCompanyText:
@@ -254,6 +267,11 @@ const RU: LandingCopy = {
     'Туристические компании, гид-водители, водители со своим транспортом (хосты) и водители в поиске работы — всё в одной экосистеме.',
   heroCtaPrimary: 'Начать бесплатно →',
   heroCtaSecondary: '▶ Как это работает',
+  localOnlyTitle: 'Мы ваш инструмент, а не конкурент',
+  localOnlyLine1:
+    'Зарегистрироваться в KEKE Manager могут только туристические и транспортные компании, зарегистрированные в Грузии.',
+  localOnlyLine2:
+    'У иностранных туроператоров нет доступа к платформе — мы направляем их к грузинским компаниям. Мы не продаём туры и никогда не работаем с вашими клиентами напрямую.',
   rolesTitle: '4 роли, одна платформа',
   roleCompanyTitle: 'Туристическая компания',
   roleCompanyText:
@@ -333,6 +351,11 @@ const HY: LandingCopy = {
     'Տուրիստական ընկերություններ, գիդ-վարորդներ, սեփական մեքենայով վարորդներ (հոստեր) և աշխատանք փնտրող վարորդներ — բոլորը մեկ էկոհամակարգում։',
   heroCtaPrimary: 'Սկսել անվճար →',
   heroCtaSecondary: '▶ Ինչպես է աշխատում',
+  localOnlyTitle: 'Մենք ձեր գործիքն ենք, ոչ թե մրցակիցը',
+  localOnlyLine1:
+    'KEKE Manager-ում կարող են գրանցվել միայն Վրաստանում գրանցված զբոսաշրջային և տրանսպորտային ընկերությունները։',
+  localOnlyLine2:
+    'Օտարերկրյա տուրօպերատորները հարթակ մուտք չունեն — մենք նրանց ուղղորդում ենք վրացական ընկերություններին։ Մենք տուրեր չենք վաճառում և երբեք ուղղակիորեն չենք աշխատում ձեր հաճախորդների հետ։',
   rolesTitle: '4 դեր, մեկ հարթակ',
   roleCompanyTitle: 'Տուրիստական ընկերություն',
   roleCompanyText:

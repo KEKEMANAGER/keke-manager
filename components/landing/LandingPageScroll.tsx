@@ -60,6 +60,29 @@ export function LandingPageScroll({
         <View style={containerStyle}>{heroChildren}</View>
       </View>
 
+      {/* The first thing a Georgian tour operator wants to know is whether this
+          platform will go around them and sell to their clients. Saying it here,
+          directly under the hero, costs one band and removes the objection
+          before it is formed. */}
+      <View nativeID="local-only" style={sx(styles.sectionBand, styles.localOnlySection)}>
+        <View style={containerStyle}>
+          <View style={styles.localOnlyCard}>
+            <View style={styles.localOnlyBar} />
+            <View style={styles.localOnlyBody}>
+              <Text style={sx(styles.localOnlyTitle, landingFont({ fontWeight: '800' }))}>
+                {copy.localOnlyTitle}
+              </Text>
+              <Text style={sx(styles.localOnlyText, landingFont({ fontWeight: '600' }))}>
+                {copy.localOnlyLine1}
+              </Text>
+              <Text style={sx(styles.localOnlyText, landingFont({ fontWeight: '400' }))}>
+                {copy.localOnlyLine2}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
       <View nativeID="roles" style={sx(styles.sectionBand, styles.rolesSection)}>
         <View style={containerStyle}>
           <Text style={sx(styles.sectionTitle, landingFont({ fontWeight: '800' }))}>{copy.rolesTitle}</Text>
@@ -162,6 +185,17 @@ const styles = StyleSheet.create({
     paddingTop: 48,
     paddingBottom: 80,
   },
+  localOnlySection: { backgroundColor: LANDING.white, paddingTop: 8, paddingBottom: 40 },
+  localOnlyCard: {
+    flexDirection: 'row',
+    backgroundColor: LANDING.accentLight,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  localOnlyBar: { width: 6, backgroundColor: LANDING.accent },
+  localOnlyBody: { flex: 1, paddingVertical: 22, paddingHorizontal: 24 },
+  localOnlyTitle: { fontSize: 19, lineHeight: 26, color: LANDING.text },
+  localOnlyText: { marginTop: 8, fontSize: 15, lineHeight: 23, color: LANDING.muted },
   rolesSection: { backgroundColor: LANDING.bgSoft, paddingVertical: 56 },
   sectionTitle: { fontSize: 28, color: LANDING.text, textAlign: 'center', marginBottom: 28 },
   carouselOuter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' },
