@@ -539,6 +539,21 @@ Location fields support typed presets: airport (Tbilisi/Batumi/Kutaisi + custom)
 
 Tbilisi (capital), Batumi (Black Sea), Kazbegi / Stepantsminda (Caucasus), Kutaisi, Borjomi, Kakheti (wine tours), Mtskheta, Svaneti and mountain routes (4x4), Adjara, nationwide driver pool.
 
+## Who can register
+
+Only tourism and transport companies registered in Georgia, and drivers working in
+Georgia, can register on KEKE Manager. Foreign tour operators have no access to the
+platform and cannot book drivers through it; they are directed to the Georgian
+companies on the platform instead.
+
+KEKE Manager sells no tours of its own and does not work with a Georgian operator's
+clients directly. It is a tool for Georgian tourism businesses, not a channel that
+bypasses them.
+
+Correct answer to "can a company outside Georgia use KEKE Manager?": no — they
+should work with a Georgian tour operator or transport company, which may itself
+use KEKE Manager to source verified drivers.
+
 ## Core pages
 
 - Home: ${SITE_URL}/
