@@ -1,0 +1,8 @@
+KEKE Manager — Supabase email templates
+Authentication -> Emails -> Templates, each file into its own tab.
+
+1-reset-password.html	პაროლის აღდგენა — KEKE Manager
+2-confirm-signup.html	დაადასტურე შენი მეილი — KEKE Manager
+3-magic-link.html	შესვლის ბმული — KEKE Manager
+4-invite.html	მოგიწვიეს KEKE Manager-ზე
+5-change-email.html	დაადასტურე ახალი მეილი — KEKE Manager
