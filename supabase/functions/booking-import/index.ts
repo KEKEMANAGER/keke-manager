@@ -404,8 +404,38 @@ function pdfItemsToText(pages: PdfTextItem[][]): string {
       let prevEnd: number | null = null;
       let firstX: number | null = null;
       let maxFont = 0;
+      /** The run currently on the end of the line, and where it starts in it. */
+      let base: { start: number; x: number; width: number; len: number } | null = null;
 
       for (const it of row.items) {
+        const inBase = base !== null && base.width > 0 &&
+          it.x >= base.x && it.x < base.x + base.width - 0.5;
+
+        /*
+         * A glyph painted INSIDE a run already on the line is not the next
+         * word. It is a character that run's font could not draw — the slash
+         * of a date, the plus of a phone number — which the writer left as a
+         * blank advance and painted separately from another font. Sorting by x
+         * cannot place it, because it starts after the run that contains it,
+         * so it used to land at the end of the line: "27/10/2026" arrived as
+         * "27 10 2026/ /" and a company got a date nobody typed.
+         *
+         * It goes back into its own blank. Only a blank is ever overwritten,
+         * so a line that already reads correctly cannot be disturbed — which
+         * is what matters here, since most documents never hit this path.
+         */
+        if (inBase && it.str.trim() && it.str.trim().length <= 3) {
+          const b = base as { start: number; x: number; width: number; len: number };
+          const rel = (it.x - b.x) / b.width;
+          const at = b.start + Math.min(b.len - 1, Math.max(0, Math.round(rel * b.len)));
+          if (line[at] === ' ') {
+            line = line.slice(0, at) + it.str.trim() + line.slice(at + 1);
+            continue;
+          }
+        }
+        // The blank such a glyph was painted over: already represented.
+        if (inBase && !it.str.trim()) continue;
+
         if (prevEnd !== null) {
           const gap = it.x - prevEnd;
           if (gap > COLUMN_GAP || atColumnStart(it.x)) line += '\t';
@@ -413,6 +443,9 @@ function pdfItemsToText(pages: PdfTextItem[][]): string {
         }
         if (firstX === null && it.str.trim()) firstX = it.x;
         if (it.str.trim()) maxFont = Math.max(maxFont, it.fontSize || 0);
+        if (it.str.trim()) {
+          base = { start: line.length, x: it.x, width: it.width || 0, len: it.str.length };
+        }
         line += it.str;
         prevEnd = it.x + (it.width || 0);
       }
@@ -1098,6 +1131,7 @@ Rules:
 - Only report what the document actually says. If a field is not stated, return null. Never guess a price, a phone number or a date.
 - Dates in these documents are DAY FIRST (15/05/2026 is 15 May 2026), unless the format is clearly YYYY-MM-DD.
 - Times are local Tbilisi time, 24-hour.
+- A PDF whose document mixed fonts can lose punctuation altogether: "0900" is 09:00, and a phone number can arrive without its "+" or glued to the name printed before it. Read the digits for what they plainly are, copy the evidence exactly as it appeared, and name such a field in uncertain_fields so the dispatcher checks it.
 - "ტრანსფერი"/transfer = transfer. A single day of sightseeing = day_tour. Several days = tour, and then fill tour_days.
 - Vehicle words: სედანი/sedan, მინივენი/Vito/Viano = minivan, მიკროავტობუსი/Sprinter = microbus, ავტობუსი = bus.
 - List in uncertain_fields any field you inferred rather than read.
