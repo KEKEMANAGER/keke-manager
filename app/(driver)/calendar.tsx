@@ -12,16 +12,52 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { DateTimeField } from '../../components/DateTimeField';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatDisplayDateTime, parseStoredDateTime } from '../../lib/dateTime';
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  parseStoredDateTime,
+} from '../../lib/dateTime';
 import {
   createManualDriverSchedule,
   deleteManualDriverSchedule,
   fetchDriverSchedules,
   type DriverScheduleRow,
 } from '../../lib/driverSchedules';
+
+/*
+ * Drivers asked for this in the group: "change the calendar so we can mark the
+ * days we are busy." The blocking itself already worked — what the screen
+ * showed was two date-time pickers and a list of hour ranges, which is a form,
+ * not a calendar. A driver who is away on a three-day tour wants to tap three
+ * days. So the month is drawn, a tap takes the whole day, and the hour-level
+ * form stays underneath for the half-day cases.
+ */
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+/** The weeks of `cursor`'s month, Monday first, padded with nulls. */
+function monthMatrix(cursor: Date): (Date | null)[] {
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const lead = (first.getDay() + 6) % 7; // JS weeks start Sunday; ours start Monday
+  const days = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+  const cells: (Date | null)[] = Array.from({ length: lead }, () => null);
+  for (let d = 1; d <= days; d += 1) {
+    cells.push(new Date(cursor.getFullYear(), cursor.getMonth(), d));
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
 
 export default function DriverCalendarScreen() {
   const { t } = useTranslation();
@@ -32,9 +68,48 @@ export default function DriverCalendarScreen() {
   const [blocks, setBlocks] = useState<DriverScheduleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [busyStart, setBusyStart] = useState<Date | null>(null);
-  const [busyEnd, setBusyEnd] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
+  const [monthCursor, setMonthCursor] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  /** What a square shows: a booking the driver took, a day he blocked, or free. */
+  function dayState(day: Date): { kind: 'free' | 'busy' | 'booking'; manual: DriverScheduleRow | null } {
+    const from = startOfDay(day).getTime();
+    const to = endOfDay(day).getTime();
+    let manual: DriverScheduleRow | null = null;
+    for (const row of blocks) {
+      const start = parseStoredDateTime(row.start_time)?.getTime();
+      const end = parseStoredDateTime(row.end_time)?.getTime();
+      if (start == null || end == null) continue;
+      if (start > to || end < from) continue;
+      if (row.source === 'booking') return { kind: 'booking', manual: null };
+      // A square is only "taken" when the block covers the day end to end;
+      // an hour or two leaves the day free to be offered.
+      if (start <= from && end >= to) manual = row;
+    }
+    return manual ? { kind: 'busy', manual } : { kind: 'free', manual: null };
+  }
+
+  async function onToggleDay(day: Date) {
+    if (!userId || saving) return;
+    const state = dayState(day);
+    if (state.kind === 'booking') {
+      Alert.alert(t('calendarScreen.title'), t('calendarScreen.bookingDayHint'));
+      return;
+    }
+    setSaving(true);
+    const res = state.manual
+      ? await deleteManualDriverSchedule(state.manual.id, userId)
+      : await createManualDriverSchedule(userId, { start: startOfDay(day), end: endOfDay(day) });
+    setSaving(false);
+    if (!res.ok) {
+      Alert.alert(t('system.errorTitle'), res.error?.message ?? t('calendarScreen.saveFailed'));
+      return;
+    }
+    void load();
+  }
 
   function scheduleTitle(row: DriverScheduleRow): string {
     if (row.source === 'booking') return t('calendarScreen.booking');
@@ -71,27 +146,6 @@ export default function DriverCalendarScreen() {
     }, [load]),
   );
 
-  async function onAddBusyBlock() {
-    if (!userId) return;
-    if (!busyStart || !busyEnd) {
-      Alert.alert(t('validation.alertTitle'), t('calendarScreen.fillDates'));
-      return;
-    }
-    if (busyEnd.getTime() <= busyStart.getTime()) {
-      Alert.alert(t('validation.alertTitle'), t('calendarScreen.endAfterStart'));
-      return;
-    }
-    setSaving(true);
-    const res = await createManualDriverSchedule(userId, { start: busyStart, end: busyEnd });
-    setSaving(false);
-    if (!res.ok) {
-      Alert.alert(t('system.errorTitle'), res.error?.message ?? t('calendarScreen.saveFailed'));
-      return;
-    }
-    setBusyStart(null);
-    setBusyEnd(null);
-    void load();
-  }
 
   function onDeleteBlock(row: DriverScheduleRow) {
     if (row.source !== 'manual' || !userId) return;
@@ -138,37 +192,85 @@ export default function DriverCalendarScreen() {
       <Text style={styles.subtitle}>{t('calendarScreen.subtitle')}</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>{t('calendarScreen.newBusy')}</Text>
-        <DateTimeField
-          label={t('calendarScreen.start')}
-          value={busyStart}
-          onChange={setBusyStart}
-          minimumDate={new Date()}
-        />
-        <DateTimeField
-          label={t('calendarScreen.end')}
-          value={busyEnd}
-          onChange={setBusyEnd}
-          minimumDate={busyStart ?? new Date()}
-        />
-        <Pressable
-          onPress={() => void onAddBusyBlock()}
-          disabled={saving}
-          style={({ pressed }) => [
-            styles.primaryBtn,
-            (pressed || saving) && styles.pressed,
-            saving && styles.btnDisabled,
-          ]}
-        >
-          {saving ? (
-            <ActivityIndicator color={COLORS.black} />
-          ) : (
-            <Text style={styles.primaryBtnText}>{t('calendarScreen.imBusy')}</Text>
-          )}
-        </Pressable>
+        <View style={styles.monthHead}>
+          <Pressable
+            onPress={() =>
+              setMonthCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))
+            }
+            style={styles.monthNav}
+          >
+            <Text style={styles.monthNavText}>‹</Text>
+          </Pressable>
+          <Text style={styles.monthTitle}>
+            {`${t('calendarScreen.months').split(',')[monthCursor.getMonth()] ?? ''} ${monthCursor.getFullYear()}`}
+          </Text>
+          <Pressable
+            onPress={() =>
+              setMonthCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))
+            }
+            style={styles.monthNav}
+          >
+            <Text style={styles.monthNavText}>›</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.weekRow}>
+          {t('calendarScreen.weekdays')
+            .split(',')
+            .map((w) => (
+              <Text key={w} style={styles.weekday}>
+                {w}
+              </Text>
+            ))}
+        </View>
+
+        <View style={styles.grid}>
+          {monthMatrix(monthCursor).map((day, i) => {
+            if (!day) return <View key={`b${i}`} style={styles.cell} />;
+            const past = endOfDay(day).getTime() < Date.now();
+            const state = dayState(day);
+            return (
+              <Pressable
+                key={day.toISOString()}
+                disabled={past || saving}
+                onPress={() => void onToggleDay(day)}
+                style={[
+                  styles.cell,
+                  styles.cellDay,
+                  state.kind === 'busy' && styles.cellBusy,
+                  state.kind === 'booking' && styles.cellBooking,
+                  past && styles.cellPast,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.cellText,
+                    (state.kind === 'busy' || state.kind === 'booking') && styles.cellTextOn,
+                    past && styles.cellTextPast,
+                  ]}
+                >
+                  {day.getDate()}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={styles.tapHint}>{t('calendarScreen.tapHint')}</Text>
+
+        <View style={styles.legend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, styles.cellBusy]} />
+            <Text style={styles.legendText}>{t('calendarScreen.legendBusy')}</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, styles.cellBooking]} />
+            <Text style={styles.legendText}>{t('calendarScreen.legendBooking')}</Text>
+          </View>
+        </View>
       </View>
 
-      <Text style={styles.sectionTitle}>{t('calendarScreen.myBusyHours')}</Text>
+      <Text style={styles.sectionTitle}>{t('calendarScreen.myBusyDays')}</Text>
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={{ marginVertical: SPACING.lg }} />
       ) : blocks.length === 0 ? (
@@ -177,10 +279,25 @@ export default function DriverCalendarScreen() {
         blocks.map((row) => {
           const start = parseStoredDateTime(row.start_time);
           const end = parseStoredDateTime(row.end_time);
-          const range =
-            start && end
-              ? `${formatDisplayDateTime(start)} — ${formatDisplayDateTime(end)}`
-              : '—';
+          // A day the driver blocked runs 00:00 to 23:59, and printing those
+          // two numbers back at him is exactly the hour-counting he asked us
+          // to take away. Whole days read as dates; a booking keeps its hours,
+          // because for a booking the hour is the point.
+          const wholeDays =
+            !!start &&
+            !!end &&
+            start.getHours() === 0 &&
+            start.getMinutes() === 0 &&
+            end.getHours() === 23 &&
+            end.getMinutes() === 59;
+          const sameDate = !!start && !!end && start.toDateString() === end.toDateString();
+          const range = !start || !end
+            ? '—'
+            : wholeDays
+              ? (sameDate
+                  ? formatDisplayDate(start)
+                  : `${formatDisplayDate(start)} — ${formatDisplayDate(end)}`)
+              : `${formatDisplayDateTime(start)} — ${formatDisplayDateTime(end)}`;
           return (
             <View key={row.id} style={styles.blockCard}>
               <View style={styles.blockHeader}>
@@ -218,6 +335,43 @@ export default function DriverCalendarScreen() {
 }
 
 const styles = StyleSheet.create({
+  monthHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.sm,
+  },
+  monthNav: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs },
+  monthNavText: { fontSize: 26, fontWeight: '700', color: COLORS.gold },
+  monthTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
+  weekRow: { flexDirection: 'row' },
+  weekday: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+    paddingBottom: SPACING.xs,
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { width: `${100 / 7}%`, aspectRatio: 1, padding: 3 },
+  cellDay: { alignItems: 'center', justifyContent: 'center' },
+  cellText: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+  cellTextOn: { color: COLORS.black },
+  cellTextPast: { color: COLORS.textMuted },
+  cellPast: { opacity: 0.4 },
+  cellBusy: { backgroundColor: COLORS.gold, borderRadius: RADIUS.md },
+  cellBooking: { backgroundColor: COLORS.goldLight, borderRadius: RADIUS.md },
+  tapHint: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.sm,
+    lineHeight: 18,
+  },
+  legend: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 14, height: 14 },
+  legendText: { fontSize: 12, color: COLORS.textSecondary },
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,

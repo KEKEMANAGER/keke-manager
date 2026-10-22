@@ -105,6 +105,7 @@ export function AppDrawer() {
             ]
           : []),
         { icon: 'calendar-outline', label: t('menu.myBookings'), route: '/(driver)/bookings' },
+        { icon: 'calendar-number-outline', label: t('menu.myCalendar'), route: '/(driver)/calendar' },
         { icon: 'chatbubbles-outline', label: t('menu.chats'), route: '/(driver)/chat-list' },
         { icon: 'person-outline', label: t('menu.myProfile'), route: '/(driver)/profile' },
         {
@@ -128,6 +129,7 @@ export function AppDrawer() {
         { icon: 'hand-left-outline', label: t('menu.myHost'), route: '/(driver)/my-host' },
         { icon: 'car-outline', label: t('menu.assignedVehicle'), route: '/(driver)/assigned-vehicle' },
         { icon: 'calendar-outline', label: t('menu.myBookings'), route: '/(driver)/bookings' },
+        { icon: 'calendar-number-outline', label: t('menu.myCalendar'), route: '/(driver)/calendar' },
         { icon: 'chatbubbles-outline', label: t('menu.chats'), route: '/(driver)/chat-list' },
         { icon: 'person-outline', label: t('menu.myProfile'), route: '/(driver)/profile' },
         {

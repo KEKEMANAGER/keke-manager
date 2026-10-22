@@ -1137,24 +1137,24 @@
   },
   "calendarScreen": {
     "title": "Calendar",
-    "subtitle": "Set exact hours when you are busy. Blocking applies only within that interval.",
-    "newBusy": "New busy block",
-    "start": "Start",
-    "end": "End",
-    "imBusy": "I'm busy",
-    "myBusyHours": "My busy hours",
-    "empty": "You have no busy hours right now.",
+    "subtitle": "Նշեք օրերը, երբ զբաղված եք։ Նշված օրերին հարցումներ չեն գա։",
+    "empty": "Զբաղված օրեր չկան։",
     "booking": "Booking",
     "manual": "Manual",
     "busyLabel": "Busy",
     "delete": "Delete",
     "bookingHint": "The calendar frees automatically when the booking ends.",
-    "fillDates": "Select start and end time.",
-    "endAfterStart": "End must be after start.",
     "saveFailed": "Could not save",
     "deleteTitle": "Delete",
     "deleteConfirm": "Delete these busy hours?",
-    "deleteFailed": "Could not delete"
+    "deleteFailed": "Could not delete",
+    "tapHint": "Հպեք օրվան՝ զբաղված նշելու համար։ Կրկին հպեք՝ ազատելու համար։",
+    "bookingDayHint": "Այդ օրը ամրագրում ունեք — օրացույցն ավտոմատ զբաղված է։",
+    "legendBusy": "Զբաղված",
+    "legendBooking": "Ամրագրում",
+    "myBusyDays": "Իմ զբաղված օրերը",
+    "months": "Հունվար,Փետրվար,Մարտ,Ապրիլ,Մայիս,Հունիս,Հուլիս,Օգոստոս,Սեպտեմբեր,Հոկտեմբեր,Նոյեմբեր,Դեկտեմբեր",
+    "weekdays": "Երկ,Երք,Չրք,Հնգ,Ուրբ,Շբթ,Կիր"
   },
   "gpsScreen": {
     "title": "GPS / Map",
@@ -1637,7 +1637,8 @@
     "hostOnlyBody": "Add a second vehicle to unlock “My drivers”",
     "hostFleetHint": "Fleet → vehicles → /vehicles",
     "language": "Change language",
-    "driversFilterAll": "Բոլորը"
+    "driversFilterAll": "Բոլորը",
+    "myCalendar": "Իմ օրացույցը"
   },
   "settings": {
     "deleteAccount": "Delete account",

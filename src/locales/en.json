@@ -1137,24 +1137,24 @@
   },
   "calendarScreen": {
     "title": "Calendar",
-    "subtitle": "Set exact hours when you are busy. Blocking applies only within that interval.",
-    "newBusy": "New busy block",
-    "start": "Start",
-    "end": "End",
-    "imBusy": "I'm busy",
-    "myBusyHours": "My busy hours",
-    "empty": "You have no busy hours right now.",
+    "subtitle": "Mark the days you are busy. No booking requests reach you on a marked day.",
+    "empty": "You have no busy days.",
     "booking": "Booking",
     "manual": "Manual",
     "busyLabel": "Busy",
     "delete": "Delete",
     "bookingHint": "The calendar frees automatically when the booking ends.",
-    "fillDates": "Select start and end time.",
-    "endAfterStart": "End must be after start.",
     "saveFailed": "Could not save",
     "deleteTitle": "Delete",
     "deleteConfirm": "Delete these busy hours?",
-    "deleteFailed": "Could not delete"
+    "deleteFailed": "Could not delete",
+    "tapHint": "Tap a day to mark it busy. Tap it again to free it.",
+    "bookingDayHint": "You have a booking that day — the calendar blocks it automatically.",
+    "legendBusy": "Busy",
+    "legendBooking": "Booking",
+    "myBusyDays": "My busy days",
+    "months": "January,February,March,April,May,June,July,August,September,October,November,December",
+    "weekdays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
   },
   "gpsScreen": {
     "title": "GPS / Map",
@@ -1637,7 +1637,8 @@
     "hostOnlyBody": "Add a second vehicle to unlock “My drivers”",
     "hostFleetHint": "Fleet → vehicles → /vehicles",
     "language": "Change language",
-    "driversFilterAll": "All"
+    "driversFilterAll": "All",
+    "myCalendar": "My calendar"
   },
   "settings": {
     "deleteAccount": "Delete account",
