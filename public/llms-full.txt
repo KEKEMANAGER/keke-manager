@@ -1,6 +1,6 @@
 # KEKE Manager — Full reference for AI systems
 
-> Generated: 2026-10-18
+> Generated: 2026-10-22
 > Canonical summary: https://kekemanager.com/llms.txt
 > Website: https://kekemanager.com
 
@@ -118,8 +118,10 @@ use KEKE Manager to source verified drivers.
 - [Corporate group transport coordination](https://kekemanager.com/services/corporate-transfer): Corporate Group Transport for Tour Companies | KEKE Manager
   Tour companies coordinate corporate groups and MICE transport with verified drivers on KEKE Manager. Fleet dashboard, vouchers, and GPS — B2B platform only.
 
-## Blog articles (40)
+## Blog articles (41)
 
+- [How to Manage Driver Payments and Contracts in Georgia](https://kekemanager.com/blog/how-to-manage-driver-payments-and-contracts-georgia) (2026-10-22)
+  Complete guide for fleet owners: payment models, contracts, taxes, and risks in tourist transport.
 - [How to Prepare Your Driver Fleet for Georgia's Autumn Tourism Season](https://kekemanager.com/blog/how-to-prepare-driver-fleet-for-autumn-tourism-season-georgia) (2026-10-18)
   Autumn tourism season demands, grape harvest, mountain routes, and practical fleet management tips for transport companies in Georgia.
 - [How to Choose a Reliable Driver for Wine Tours in Georgia](https://kekemanager.com/blog/how-to-choose-reliable-driver-for-wine-tours-georgia) (2026-10-15)
