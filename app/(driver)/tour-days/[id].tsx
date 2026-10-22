@@ -27,6 +27,17 @@ import {
 } from '../../../lib/tourDayLogs';
 
 /**
+ * Today in the driver's own timezone, as the `YYYY-MM-DD` the plan uses, so a
+ * plain string compare answers "has this day started yet".
+ */
+function todayIso(): string {
+  const now = new Date();
+  const m = `${now.getMonth() + 1}`.padStart(2, '0');
+  const d = `${now.getDate()}`.padStart(2, '0');
+  return `${now.getFullYear()}-${m}-${d}`;
+}
+
+/**
  * Day-by-day close-out for a multi-day tour.
  *
  * The driver closes each day as it ends — odometer, where he slept, what he
@@ -236,9 +247,22 @@ export default function TourDaysScreen() {
         </View>
       </View>
 
-      {progress.days.map((day) => {
+      {progress.days.map((day, idx) => {
         const isOpenForm = openDay === day.dayIndex;
         const state = day.isClosed ? 'closed' : day.canClose ? 'ready' : 'waiting';
+        // A grey button with no explanation reads as a broken app. The server
+        // decides; this only says out loud which of its rules is still unmet.
+        const prevDay = idx > 0 ? progress.days[idx - 1] : null;
+        const lockReason =
+          state !== 'waiting'
+            ? null
+            : prevDay && !prevDay.isClosed
+              ? t('tourDays.lockedPrevDay', { n: prevDay.dayIndex })
+              : day.dayDate && day.dayDate > todayIso()
+                ? t('tourDays.lockedUntil', { date: day.dayDate })
+                : booking?.status && booking.status !== 'in_progress'
+                  ? t('tourDays.lockedNotStarted')
+                  : null;
         return (
           <View
             key={day.dayIndex}
@@ -385,18 +409,21 @@ export default function TourDaysScreen() {
                 </View>
               </View>
             ) : (
-              <Pressable
-                style={[
-                  styles.dayAction,
-                  !day.canClose && !day.isClosed ? styles.btnDisabled : null,
-                ]}
-                disabled={!day.canClose && !day.isClosed}
-                onPress={() => startClosing(day)}
-              >
-                <Text style={styles.dayActionText}>
-                  {day.isClosed ? t('tourDays.edit') : t('tourDays.closeDay')}
-                </Text>
-              </Pressable>
+              <>
+                <Pressable
+                  style={[
+                    styles.dayAction,
+                    !day.canClose && !day.isClosed ? styles.btnDisabled : null,
+                  ]}
+                  disabled={!day.canClose && !day.isClosed}
+                  onPress={() => startClosing(day)}
+                >
+                  <Text style={styles.dayActionText}>
+                    {day.isClosed ? t('tourDays.edit') : t('tourDays.closeDay')}
+                  </Text>
+                </Pressable>
+                {lockReason ? <Text style={styles.lockHint}>{lockReason}</Text> : null}
+              </>
             )}
           </View>
         );
@@ -541,6 +568,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dayActionText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
+  lockHint: {
+    marginTop: SPACING.xs,
+    textAlign: 'center',
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
   btnDisabled: { opacity: 0.45 },
   finishBtn: {
     marginTop: SPACING.md,
