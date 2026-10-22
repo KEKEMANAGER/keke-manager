@@ -16,9 +16,9 @@ import { EmptyState } from '../../../components/EmptyState';
 import { StarRow } from '../../../components/StarRow';
 import { APP_HEADER_BODY_HEIGHT } from '../../../constants/layout';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../../constants/theme';
-import { fetchMatchingDrivers, type MatchingDriver } from '../../../lib/drivers';
+import { ANY_VEHICLE, fetchMatchingDrivers, type MatchingDriver } from '../../../lib/drivers';
 import { withCacheBust } from '../../../lib/mediaUpload';
-import { VEHICLE_CLASSES, VEHICLE_TYPES } from '../../../lib/vehicleCatalog';
+import { VEHICLE_TYPES, vehicleTypeLabel } from '../../../lib/vehicleCatalog';
 
 export default function CompanyDriversScreen() {
   const { t } = useTranslation();
@@ -27,11 +27,17 @@ export default function CompanyDriversScreen() {
   const [drivers, setDrivers] = useState<MatchingDriver[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  /* The screen used to ask for one hardcoded category — the first type and the
+     second class in the catalog, sedan + comfort — so a company browsing its
+     drivers saw only the sedans and concluded the platform had four people on
+     it. The directory now asks for every approved vehicle, and the filter the
+     company does want is on screen, where it can see what it is filtering. */
+  const [typeFilter, setTypeFilter] = useState<string>(ANY_VEHICLE);
 
   const load = useCallback(async () => {
     const { data, error } = await fetchMatchingDrivers(
-      VEHICLE_TYPES[0],
-      VEHICLE_CLASSES[1] ?? 'comfort',
+      typeFilter,
+      ANY_VEHICLE,
       null,
       null,
       'all',
@@ -39,7 +45,7 @@ export default function CompanyDriversScreen() {
       { sortMode: 'rating' },
     );
     if (!error) setDrivers(data);
-  }, []);
+  }, [typeFilter]);
 
   useEffect(() => {
     void (async () => {
@@ -69,6 +75,27 @@ export default function CompanyDriversScreen() {
     >
       <Text style={styles.title}>{t('menu.drivers')}</Text>
       <Text style={styles.sub}>{t('menu.driversHint')}</Text>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chips}
+      >
+        {[ANY_VEHICLE, ...VEHICLE_TYPES].map((code) => {
+          const active = typeFilter === code;
+          return (
+            <Pressable
+              key={code}
+              onPress={() => setTypeFilter(code)}
+              style={[styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {code === ANY_VEHICLE ? t('menu.driversFilterAll') : vehicleTypeLabel(code)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {loading ? (
         <ActivityIndicator color={COLORS.gold} style={{ marginTop: SPACING.xl }} />
@@ -134,7 +161,19 @@ export default function CompanyDriversScreen() {
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: SPACING.md, gap: SPACING.sm },
   title: { fontSize: 22, fontWeight: '800', color: COLORS.text },
-  sub: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.md },
+  sub: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  chips: { gap: SPACING.xs, paddingBottom: SPACING.md, paddingRight: SPACING.md },
+  chip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 999,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.surfaceAlt,
+  },
+  chipActive: { backgroundColor: COLORS.goldTint, borderColor: COLORS.gold },
+  chipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  chipTextActive: { color: COLORS.text },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.card,

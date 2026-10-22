@@ -26,16 +26,27 @@ import {
   type VehicleTypeCode,
 } from './vehicleCatalog';
 
-/** Booking vehicle type + class must match the driver's vehicle row exactly. */
+/**
+ * The company's driver directory asks for every approved vehicle rather than
+ * one category. Booking never passes this: a booking always carries the type
+ * and class the operator chose, and a missing one still aborts the match.
+ */
+export const ANY_VEHICLE = 'all';
+
+/**
+ * Booking vehicle type + class must match the driver's vehicle row exactly.
+ * A null on either side means that dimension was not asked about (the
+ * directory), so it matches anything.
+ */
 function vehicleMatchesSelection(
   type: string | null | undefined,
   vehicleClass: string | null | undefined,
-  normType: VehicleTypeCode,
-  normClass: VehicleClassCode,
+  normType: VehicleTypeCode | null,
+  normClass: VehicleClassCode | null,
 ): boolean {
   const vt = normalizeVehicleType(type ?? '');
   const vc = normalizeVehicleClass(vehicleClass ?? '');
-  return vt === normType && vc === normClass;
+  return (normType === null || vt === normType) && (normClass === null || vc === normClass);
 }
 
 type DriverMatchExclusion = {
@@ -157,14 +168,16 @@ export async function fetchMatchingDrivers(
 ): Promise<{ data: MatchingDriver[]; error: Error | null }> {
   const category = normalizeRequestedDriverCategory(driverCategory ?? 'all');
   const cityNorm = cityFilter?.trim() || null;
-  const normType = normalizeVehicleType(vehicleType);
-  const normClass = normalizeVehicleClass(vehicleClass);
+  const anyType = vehicleType === ANY_VEHICLE;
+  const anyClass = vehicleClass === ANY_VEHICLE;
+  const normType = anyType ? null : normalizeVehicleType(vehicleType);
+  const normClass = anyClass ? null : normalizeVehicleClass(vehicleClass);
   const normTier = normalizeCapacityTier(capacityTier, normType);
   const normModelGroup = normalizeModelGroup(modelGroup, normType);
 
   const exclusions: DriverMatchExclusion[] = [];
 
-  if (!normType || !normClass) {
+  if ((!anyType && !normType) || (!anyClass && !normClass)) {
     logFetchMatchingDrivers('abort: invalid vehicle type/class', {
       vehicleType,
       vehicleClass,
@@ -174,8 +187,8 @@ export async function fetchMatchingDrivers(
     return { data: [], error: null };
   }
 
-  const typeVariants = vehicleTypeRawValues(normType);
-  const classVariants = vehicleClassRawValues(normClass);
+  const typeVariants = normType ? vehicleTypeRawValues(normType) : null;
+  const classVariants = normClass ? vehicleClassRawValues(normClass) : null;
 
   logFetchMatchingDrivers('1. vehicles query', {
     table: 'vehicles',
@@ -189,13 +202,17 @@ export async function fetchMatchingDrivers(
     requiredLanguages,
   });
 
-  const vehiclesRes = await supabase
+  let vehiclesQuery = supabase
     .from('vehicles')
     .select(
       'id, driver_id, type, class, model, year, color, plate, passenger_capacity, capacity_tier, photo_front, photo_left, photo_right, photo_interior, photo_rear, photo_meta, is_active, is_verified, verification_status',
-    )
-    .in('type', typeVariants)
-    .in('class', classVariants)
+    );
+  // Left off entirely for the directory, so one `.in()` on a null list can
+  // never quietly return nothing.
+  if (typeVariants) vehiclesQuery = vehiclesQuery.in('type', typeVariants);
+  if (classVariants) vehiclesQuery = vehiclesQuery.in('class', classVariants);
+
+  const vehiclesRes = await vehiclesQuery
     .eq('is_verified', true)
     .eq('verification_status', 'approved')
     .order('is_active', { ascending: false });

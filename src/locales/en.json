@@ -1636,7 +1636,8 @@
     "hostOnlyTitle": "Fleet hosts only",
     "hostOnlyBody": "Add a second vehicle to unlock “My drivers”",
     "hostFleetHint": "Fleet → vehicles → /vehicles",
-    "language": "Change language"
+    "language": "Change language",
+    "driversFilterAll": "All"
   },
   "settings": {
     "deleteAccount": "Delete account",

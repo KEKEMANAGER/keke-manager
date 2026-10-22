@@ -1481,7 +1481,8 @@
     "hostOnlyTitle": "Только для хоста автопарка",
     "hostOnlyBody": "Добавьте второй автомобиль — появится пункт «Мои водители»",
     "hostFleetHint": "Автопарк → автомобили",
-    "language": "Сменить язык"
+    "language": "Сменить язык",
+    "driversFilterAll": "Все"
   },
   "settings": {
     "deleteAccount": "Удалить аккаунт",

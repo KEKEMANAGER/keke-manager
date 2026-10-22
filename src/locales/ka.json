@@ -1636,7 +1636,8 @@
     "hostOnlyTitle": "მხოლოდ ფლოტის ჰოსტისთვის",
     "hostOnlyBody": "დაამატეთ მეორე მანქანა — ავტომატურად გამოჩნდება „ჩემი მძღოლები“",
     "hostFleetHint": "ფლოტი → მანქანები → /vehicles",
-    "language": "ენის შეცვლა"
+    "language": "ენის შეცვლა",
+    "driversFilterAll": "ყველა"
   },
   "settings": {
     "deleteAccount": "ანგარიშის წაშლა",
