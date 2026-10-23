@@ -58,6 +58,8 @@ function priceNotesHtml(booking: BookingRow): string {
   const notes: string[] = [];
   if (booking.price_includes_fuel === false) {
     notes.push('ფასში საწვავი არ შედის — ცალკე ანაზღაურდება');
+  } else if (booking.price_includes_fuel === true) {
+    notes.push('ფასში საწვავი შედის');
   }
   if (booking.driver_overnight_by === 'company') {
     notes.push('ღამისთევას აწყობს კომპანია');

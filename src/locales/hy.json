@@ -1854,6 +1854,7 @@
   },
   "bookingPrice": {
     "fuelNotIncluded": "Fuel not included — paid separately",
+    "fuelIncluded": "Վառելիքը ներառված է գնի մեջ",
     "overnightByCompany": "Overnight stay arranged by the company",
     "overnightByKeke": "Overnight stay arranged by KEKE Manager"
   },

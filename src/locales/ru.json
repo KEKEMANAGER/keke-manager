@@ -1854,6 +1854,7 @@
   },
   "bookingPrice": {
     "fuelNotIncluded": "Топливо не включено — оплачивается отдельно",
+    "fuelIncluded": "Топливо включено в цену",
     "overnightByCompany": "Ночлег организует компания",
     "overnightByKeke": "Ночлег организует KEKE Manager"
   },

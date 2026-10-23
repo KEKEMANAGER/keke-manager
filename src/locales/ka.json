@@ -1854,6 +1854,7 @@
   },
   "bookingPrice": {
     "fuelNotIncluded": "ფასში საწვავი არ შედის — ცალკე ანაზღაურდება",
+    "fuelIncluded": "ფასში საწვავი შედის",
     "overnightByCompany": "ღამისთევას აწყობს კომპანია",
     "overnightByKeke": "ღამისთევას აწყობს KEKE Manager"
   },

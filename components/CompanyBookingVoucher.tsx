@@ -269,8 +269,13 @@ export function CompanyBookingVoucherContent({
       : bookingOfferedPriceGel(booking);
   const priceNotes: string[] = [];
   if (!isConvoy) {
+    // Said in both directions on purpose. A driver reading "nothing about
+    // fuel" cannot tell whether it is included or whether the company left the
+    // field blank, and that is the argument that happens at the petrol station.
     if (booking.price_includes_fuel === false) {
       priceNotes.push(t('bookingPrice.fuelNotIncluded'));
+    } else if (booking.price_includes_fuel === true) {
+      priceNotes.push(t('bookingPrice.fuelIncluded'));
     }
     if (booking.driver_overnight_by === 'company') {
       priceNotes.push(t('bookingPrice.overnightByCompany'));
