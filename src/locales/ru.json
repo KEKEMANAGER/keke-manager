@@ -1743,6 +1743,8 @@
     "from": "Откуда",
     "to": "Куда",
     "passengers": "Пассажиры",
+    "pickupTimeRow": "Время подачи",
+    "hotelRow": "Отель",
     "passengerName": "Имя туриста",
     "passengerPhone": "Телефон туриста",
     "price": "Цена",

@@ -28,7 +28,13 @@ import {
   fetchCompanyVoucherData,
   vehicleMakeModelYearLine,
 } from '../lib/companyVoucherData';
-import { vehicleClassLabel, vehicleTypeLabel } from '../lib/vehicleCatalog';
+import { languageCodesFromList, spokenLanguageLabel } from '../lib/spokenLanguages';
+import {
+  capacityTierLabel,
+  modelGroupLabel,
+  vehicleClassLabel,
+  vehicleTypeLabel,
+} from '../lib/vehicleCatalog';
 import { formatStoredDateForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
@@ -279,6 +285,12 @@ export function CompanyBookingVoucherContent({
       `KEKE-${booking.id.slice(0, 6).toUpperCase()}`;
   const isTour = booking.kind === 'tour' || booking.kind === 'day_tour';
   const tourDays = (booking.tour_days ?? []) as TourDayPersisted[];
+  // What the company asked for and the driver has to deliver: the languages the
+  // guests speak, the size of car, the hour of the pickup. All of it was being
+  // stored on the booking and shown nowhere.
+  const requiredLanguagesLine = languageCodesFromList(booking.required_languages ?? [])
+    .map((code) => spokenLanguageLabel(code))
+    .join(', ');
 
   async function onPdf() {
     setSharing(true);
@@ -425,6 +437,33 @@ export function CompanyBookingVoucherContent({
             />
           ) : null}
           <DetailRow label={t('companyVoucher.passengers')} value={String(booking.passengers ?? 1)} />
+          {booking.requested_capacity_tier?.trim() ? (
+            <DetailRow
+              label={t('newBooking.form.capacityTier')}
+              value={capacityTierLabel(booking.requested_capacity_tier)}
+            />
+          ) : null}
+          {booking.requested_vehicle_model_group?.trim() ? (
+            <DetailRow
+              label={t('newBooking.form.modelGroup')}
+              value={modelGroupLabel(booking.requested_vehicle_model_group)}
+            />
+          ) : null}
+          {requiredLanguagesLine ? (
+            <DetailRow
+              label={t('newBooking.form.requiredLanguages')}
+              value={requiredLanguagesLine}
+            />
+          ) : null}
+          {booking.pickup_time?.trim() ? (
+            <DetailRow
+              label={t('companyVoucher.pickupTimeRow')}
+              value={booking.pickup_time.trim()}
+            />
+          ) : null}
+          {booking.hotel?.trim() ? (
+            <DetailRow label={t('companyVoucher.hotelRow')} value={booking.hotel.trim()} />
+          ) : null}
           {booking.flight_number?.trim() ? (
             <DetailRow
               label={t('companyVoucher.flightNumber')}

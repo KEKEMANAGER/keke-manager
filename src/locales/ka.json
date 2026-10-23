@@ -1676,6 +1676,8 @@
     "from": "საიდან",
     "to": "სად",
     "passengers": "მგზავრები",
+    "pickupTimeRow": "აყვანის დრო",
+    "hotelRow": "სასტუმრო",
     "passengerName": "ტურისტის სახელი",
     "passengerPhone": "ტურისტის ტელეფონი",
     "price": "ფასი",

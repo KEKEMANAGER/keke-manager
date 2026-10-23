@@ -10,7 +10,13 @@ import { formatVoucherPriceGel, stripVoucherEmojis } from './bookingVoucherDispl
 import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from './companyVoucherData';
 import { convoyVoucherCode, vehicleMakeModelYearLine } from './companyVoucherData';
 import type { ConvoyPeerLeg } from './convoyPeers';
-import { vehicleClassLabel, vehicleTypeLabel } from './vehicleCatalog';
+import { languageCodesFromList, spokenLanguageLabel } from './spokenLanguages';
+import {
+  capacityTierLabel,
+  modelGroupLabel,
+  vehicleClassLabel,
+  vehicleTypeLabel,
+} from './vehicleCatalog';
 import { bookingKindLabel } from './bookingLabels';
 import { formatStoredDateForDisplay } from './dateTime';
 import { tourVoucherHtmlRows } from './tourDays';
@@ -177,6 +183,9 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
   const priceLine = formatVoucherPriceGel(offeredGel);
   const priceLabel = isSubDriverViewer ? 'შენი ხელფასი' : 'ფასი';
   const priceNotes = isConvoy ? '' : priceNotesHtml(booking);
+  const requiredLanguagesLine = languageCodesFromList(booking.required_languages ?? [])
+    .map((code) => spokenLanguageLabel(code))
+    .join(', ');
 
   const bookingSection = [
     row('ტიპი', bookingKindLabel(booking.kind, booking.flight_direction)),
@@ -188,6 +197,15 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ? row('სად', formatLocationDisplay(booking.to_location, booking.to_location_type, { withIcon: false }))
       : '',
     row('მგზავრები', String(booking.passengers ?? 1)),
+    booking.requested_capacity_tier?.trim()
+      ? row('კატეგორია', capacityTierLabel(booking.requested_capacity_tier))
+      : '',
+    booking.requested_vehicle_model_group?.trim()
+      ? row('სასურველი მოდელი', modelGroupLabel(booking.requested_vehicle_model_group))
+      : '',
+    requiredLanguagesLine ? row('მძღოლის ენები', requiredLanguagesLine) : '',
+    booking.pickup_time?.trim() ? row('აყვანის დრო', booking.pickup_time.trim()) : '',
+    booking.hotel?.trim() ? row('სასტუმრო', booking.hotel.trim()) : '',
     booking.flight_number?.trim()
       ? row('ფრენის ნომერი', booking.flight_number.trim())
       : '',

@@ -1676,6 +1676,8 @@
     "from": "From",
     "to": "To",
     "passengers": "Passengers",
+    "pickupTimeRow": "Pickup time",
+    "hotelRow": "Hotel",
     "passengerName": "Tourist name",
     "passengerPhone": "Tourist phone",
     "price": "Price",

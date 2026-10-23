@@ -1676,6 +1676,8 @@
     "from": "From",
     "to": "To",
     "passengers": "Passengers",
+    "pickupTimeRow": "Վերցնելու ժամը",
+    "hotelRow": "Հյուրանոց",
     "passengerName": "Tourist name",
     "passengerPhone": "Tourist phone",
     "price": "Price",
