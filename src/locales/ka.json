@@ -1856,7 +1856,7 @@
     "fuelNotIncluded": "ფასში საწვავი არ შედის — ცალკე ანაზღაურდება",
     "fuelIncluded": "ფასში საწვავი შედის",
     "overnightByCompany": "ღამისთევას აწყობს კომპანია",
-    "overnightByKeke": "ღამისთევას აწყობს KEKE Manager"
+    "overnightByKeke": "ღამისთევის დაჯავშნაში KEKE Manager დაგეხმარებათ, ან მძღოლი თვითონ პოულობს"
   },
   "tourDays": {
     "title": "ტურის დღეები",

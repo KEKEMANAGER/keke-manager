@@ -1856,7 +1856,7 @@
     "fuelNotIncluded": "Топливо не включено — оплачивается отдельно",
     "fuelIncluded": "Топливо включено в цену",
     "overnightByCompany": "Ночлег организует компания",
-    "overnightByKeke": "Ночлег организует KEKE Manager"
+    "overnightByKeke": "KEKE Manager поможет забронировать ночлег, либо водитель находит его сам"
   },
   "tourDays": {
     "title": "Дни тура",

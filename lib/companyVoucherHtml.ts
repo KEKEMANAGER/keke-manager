@@ -64,7 +64,7 @@ function priceNotesHtml(booking: BookingRow): string {
   if (booking.driver_overnight_by === 'company') {
     notes.push('ღამისთევას აწყობს კომპანია');
   } else if (booking.driver_overnight_by === 'keke') {
-    notes.push('ღამისთევას აწყობს KEKE Manager');
+    notes.push('ღამისთევის დაჯავშნაში KEKE Manager დაგეხმარებათ, ან მძღოლი თვითონ პოულობს');
   }
   if (notes.length === 0) return '';
   return notes
