@@ -51,6 +51,25 @@ import { VoucherModeTabs, type VoucherMode } from './VoucherModeTabs';
 
 const VOUCHER_LOCATION = { withIcon: false as const };
 
+/**
+ * An airport transfer on a tour voucher: when, where, which flight.
+ *
+ * The row used to print the route alone. A driver meeting a flight the evening
+ * before a tour then had the one line that matters — the landing time and the
+ * flight number — nowhere on his voucher, while the date at the top of the page
+ * was the tour's first day, a day later. Both are stored on the leg; both
+ * belong on the line.
+ */
+function transferLine(
+  date: string | null | undefined,
+  route: string,
+  flight: string | null | undefined,
+): string {
+  const when = date?.trim() ? formatStoredDateForDisplay(date) : '';
+  const flightNo = flight?.trim() ?? '';
+  return [when, route === '—' ? '' : route, flightNo].filter(Boolean).join(' · ') || route;
+}
+
 type ContentProps = {
   data: CompanyVoucherData;
   onClose?: () => void;
@@ -434,24 +453,32 @@ export function CompanyBookingVoucherContent({
           {isTour && booking.transfer_in && (booking.transfer_in.airport || booking.transfer_in.hotel) ? (
             <DetailRow
               label={t('newBooking.form.transferArrivalSection')}
-              value={formatLocationRoute(
-                booking.transfer_in.airport,
-                booking.transfer_in.airport_type,
-                booking.transfer_in.hotel,
-                booking.transfer_in.hotel_type,
-                VOUCHER_LOCATION,
+              value={transferLine(
+                booking.transfer_in.date,
+                formatLocationRoute(
+                  booking.transfer_in.airport,
+                  booking.transfer_in.airport_type,
+                  booking.transfer_in.hotel,
+                  booking.transfer_in.hotel_type,
+                  VOUCHER_LOCATION,
+                ),
+                booking.transfer_in.flight,
               )}
             />
           ) : null}
           {isTour && booking.transfer_out && (booking.transfer_out.airport || booking.transfer_out.hotel) ? (
             <DetailRow
               label={t('newBooking.form.transferDepartureSection')}
-              value={formatLocationRoute(
-                booking.transfer_out.hotel,
-                booking.transfer_out.hotel_type,
-                booking.transfer_out.airport,
-                booking.transfer_out.airport_type,
-                VOUCHER_LOCATION,
+              value={transferLine(
+                booking.transfer_out.date,
+                formatLocationRoute(
+                  booking.transfer_out.hotel,
+                  booking.transfer_out.hotel_type,
+                  booking.transfer_out.airport,
+                  booking.transfer_out.airport_type,
+                  VOUCHER_LOCATION,
+                ),
+                booking.transfer_out.flight,
               )}
             />
           ) : null}

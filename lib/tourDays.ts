@@ -250,7 +250,9 @@ export function tourVoucherHtmlRows(
         : [from !== '—' ? from : '', to !== '—' ? to : ''].filter(Boolean).join(' → ');
     rows.push(
       `<div class="row"><span class="label">${escapeHtml(L.transferArrival)}</span><span class="value">${escapeHtml(
-        [formatStoredDateForDisplay(tin.date), route].filter((x) => x && x !== '—').join(' · '),
+        [formatStoredDateForDisplay(tin.date), route, tin.flight?.trim() ?? '']
+          .filter((x) => x && x !== '—')
+          .join(' · '),
       )}</span></div>`,
     );
   }
@@ -305,7 +307,9 @@ export function tourVoucherHtmlRows(
         : [from !== '—' ? from : '', to !== '—' ? to : ''].filter(Boolean).join(' → ');
     rows.push(
       `<div class="row"><span class="label">${escapeHtml(L.transferDeparture)}</span><span class="value">${escapeHtml(
-        [formatStoredDateForDisplay(tout.date), route].filter((x) => x && x !== '—').join(' · '),
+        [formatStoredDateForDisplay(tout.date), route, tout.flight?.trim() ?? '']
+          .filter((x) => x && x !== '—')
+          .join(' · '),
       )}</span></div>`,
     );
   }
