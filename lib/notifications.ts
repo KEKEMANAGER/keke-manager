@@ -344,7 +344,7 @@ export async function fetchMatchingDriverPushRecipients(
     supabase
       .from(USERS_DIRECTORY)
       .select(
-        'id, is_verified, languages, is_hired_driver, is_guide_driver, service_regions, travels_countrywide',
+        'id, is_verified, languages, is_hired_driver, is_guide_driver, service_regions, travels_countrywide, city',
       )
       .in('id', driverIds),
   ]);
@@ -352,6 +352,15 @@ export async function fetchMatchingDriverPushRecipients(
   if (profilesRes.error) {
     if (__DEV__) console.warn('[notify] profiles push query failed:', profilesRes.error.message);
     return { recipients: [], error: new Error(profilesRes.error.message), vehicleType, vehicleClass };
+  }
+
+  // Unread, this error becomes "no drivers match": every verification lookup
+  // below misses, the recipient list comes back empty, and the booking reaches
+  // nobody with nothing logged. That is exactly what one missing view column
+  // did on the first live booking.
+  if (usersRes.error) {
+    if (__DEV__) console.warn('[notify] users directory query failed:', usersRes.error.message);
+    return { recipients: [], error: new Error(usersRes.error.message), vehicleType, vehicleClass };
   }
 
   const usersVerified = new Map<string, boolean>();
@@ -362,7 +371,11 @@ export async function fetchMatchingDriverPushRecipients(
   >();
   const coverageById = new Map<
     string,
-    { service_regions?: string[] | null; travels_countrywide?: boolean | null }
+    {
+      service_regions?: string[] | null;
+      travels_countrywide?: boolean | null;
+      city?: string | null;
+    }
   >();
   for (const row of usersRes.data ?? []) {
     const u = row as {
@@ -373,10 +386,12 @@ export async function fetchMatchingDriverPushRecipients(
       is_guide_driver?: boolean | null;
       service_regions?: string[] | null;
       travels_countrywide?: boolean | null;
+      city?: string | null;
     };
     coverageById.set(String(u.id), {
       service_regions: u.service_regions,
       travels_countrywide: u.travels_countrywide,
+      city: u.city,
     });
     const uid = String(u.id);
     usersVerified.set(uid, u.is_verified === true);

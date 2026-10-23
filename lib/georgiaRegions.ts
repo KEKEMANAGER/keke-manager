@@ -305,19 +305,36 @@ export function resolveBookingRegions(booking: {
  * Whether this driver should be in the first wave for these regions.
  *
  * Returns true whenever there is no reason to say otherwise: no regions on the
- * booking, no answer from the driver, a multi-day tour he travels for. Only a
- * driver who narrowed his own coverage, for a booking whose region is known and
- * outside it, drops to the second wave.
+ * booking, nothing known about where the driver works, a multi-day tour he
+ * travels for. Only a driver we can place somewhere else drops to the second
+ * wave.
+ *
+ * The city is the fallback because it is the field drivers actually fill in.
+ * Four of sixty-seven verified drivers had picked service regions, so treating
+ * "no regions" as "works everywhere" put a Batumi driver in the first wave for
+ * a Tbilisi airport pickup, level with the drivers already in Tbilisi. A city
+ * he typed himself is a weaker claim than a region he ticked, so it only
+ * decides the case the regions leave open.
  */
 export function driverCoversRegions(
-  driver: { service_regions?: string[] | null; travels_countrywide?: boolean | null },
+  driver: {
+    service_regions?: string[] | null;
+    travels_countrywide?: boolean | null;
+    city?: string | null;
+  },
   bookingRegions: GeorgiaRegionCode[],
   isMultiDayTour = false,
 ): boolean {
   if (bookingRegions.length === 0) return true;
 
   const declared = (driver.service_regions ?? []).filter(isGeorgiaRegionCode);
-  if (declared.length === 0) return true;
+
+  if (declared.length === 0) {
+    const home = resolveRegionFromText(driver.city ?? null);
+    // Nothing declared and no city on file: unchanged, he stays in wave one.
+    if (!home) return true;
+    return bookingRegions.includes(home);
+  }
 
   if (isMultiDayTour && driver.travels_countrywide === true) return true;
 
