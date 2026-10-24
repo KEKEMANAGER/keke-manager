@@ -191,7 +191,22 @@ export default function ImportBookingScreen() {
     Alert.alert(
       t('common.success'),
       done.length > 1 ? t('importBooking.createdMany', { count: done.length }) : t('importBooking.created'),
-      [{ text: t('common.ok'), onPress: () => router.replace('/(app)/dashboard') }],
+      [
+        {
+          text: t('common.ok'),
+          onPress: () => {
+            // "Back" now returns to the previous screen, so this one is
+            // cleared rather than left showing a file that is already sent.
+            setServices([]);
+            setActiveIndex(0);
+            setCreatedIndexes([]);
+            setWarnings([]);
+            setUsedAi(false);
+            setFileName('');
+            router.replace('/(app)/dashboard');
+          },
+        },
+      ],
     );
   }
 

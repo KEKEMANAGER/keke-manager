@@ -63,6 +63,12 @@ function CompanyTabsInner() {
       <AppHeader />
       <Tabs
         initialRouteName="dashboard"
+        // Every detail screen here (voucher, driver, chat, history, settings…)
+        // is a hidden tab, and tabs keep no stack: with the default back
+        // behaviour "back" went to the first route, i.e. the dashboard, from
+        // wherever the user was. "history" makes back return to the screen
+        // the user actually came from.
+        backBehavior="history"
         screenOptions={{
           headerShown: false,
           sceneStyle: { paddingTop: scenePadTop },

@@ -3,19 +3,18 @@ import { useCallback, useMemo } from 'react';
 import { useAndroidBackHandler } from './useAndroidBackHandler';
 
 /**
- * Back for a screen that lives as a hidden tab.
+ * Back for a detail screen in the company/admin area, with a known fallback.
  *
- * The company/admin area is a Tabs navigator, and every detail screen in it
- * (a user, a voucher, a chat) is a hidden tab. Tabs keep no stack: their
- * `back()` goes to the navigator's first route, which redirects to the
- * dashboard. So "back" from a company opened in the admin panel landed on the
- * main menu instead of the company list.
+ * Those screens are hidden tabs, and the area's Tabs navigator now keeps the
+ * order screens were visited in (backBehavior "history"), so a plain back
+ * returns to the screen the user came from — the companies list he opened a
+ * company from, say — still mounted and exactly as he left it. Going back
+ * through history matters: navigating "forward" to the previous screen would
+ * leave this one behind it, and back from there would bring it up again.
  *
- * A screen that knows where it was opened from passes that place here and goes
- * back to it explicitly. The place it returns to is still mounted, so its
- * state (the sub-tab, the scroll position) is exactly as the user left it.
- * Without a target the router's own `back()` runs, as before, and the Android
- * back button is left to whatever else handles it.
+ * When there is nothing to go back to (the screen was opened straight from a
+ * notification or a link), the target is opened instead, so back still lands
+ * somewhere sensible rather than on the dashboard.
  */
 export function useBackTo(target: Href | null | undefined): () => void {
   const router = useRouter();
@@ -27,15 +26,16 @@ export function useBackTo(target: Href | null | undefined): () => void {
   const stableTarget = useMemo(() => target ?? null, [key]);
 
   const goBack = useCallback(() => {
-    if (stableTarget) router.navigate(stableTarget);
+    if (router.canGoBack()) router.back();
+    else if (stableTarget) router.navigate(stableTarget);
     else router.back();
   }, [router, stableTarget]);
 
   const onHardwareBack = useCallback(() => {
     if (!stableTarget) return false;
-    router.navigate(stableTarget);
+    goBack();
     return true;
-  }, [router, stableTarget]);
+  }, [goBack, stableTarget]);
 
   useAndroidBackHandler(onHardwareBack, !!stableTarget);
 
