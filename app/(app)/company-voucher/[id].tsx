@@ -14,7 +14,7 @@ export default function CompanyVoucherScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const bookingId = (id ?? '').trim();
 
@@ -32,7 +32,9 @@ export default function CompanyVoucherScreen() {
     // An admin opens other companies' bookings from the panel, so the
     // company filter has to come off for them — it is what the booking would
     // be narrowed to, and it would narrow every other company's to nothing.
-    const asCompany = user.role === 'admin' ? undefined : user.id;
+    // The role lives on the KEKE profile; `user.role` is Supabase's auth role
+    // ('authenticated'), so checking it never recognised an admin.
+    const asCompany = profile?.role === 'admin' ? undefined : user.id;
     const res = await fetchCompanyVoucherData(bookingId, asCompany, user.id);
     setLoading(false);
     if (res.error || !res.data) {
@@ -42,7 +44,7 @@ export default function CompanyVoucherScreen() {
     }
     setData(res.data);
     setError(null);
-  }, [bookingId, user?.id, user?.role, t]);
+  }, [bookingId, user?.id, profile?.role, t]);
 
   useEffect(() => {
     void load();

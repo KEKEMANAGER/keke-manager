@@ -1504,7 +1504,13 @@
     "verifySubTabCompanies": "Companies",
     "tabRegions": "Regions",
     "tabDispatch": "Dispatch",
-    "tabImports": "Imports"
+    "tabImports": "Imports",
+    "usersTab": {
+      "drivers": "Drivers",
+      "companies": "Companies",
+      "all": "All"
+    },
+    "noVehicle": "No vehicle added"
   },
   "dateOnlyField": {
     "default": "Select date"

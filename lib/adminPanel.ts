@@ -14,6 +14,20 @@ export type AdminUserRow = {
   is_verified: boolean | null;
   verification_status: string | null;
   created_at: string | null;
+  phone?: string | null;
+};
+
+/** A driver's vehicle as the admin users list shows it. */
+export type AdminVehicleRow = {
+  id: string;
+  driver_id: string;
+  type: string | null;
+  class: string | null;
+  model: string | null;
+  plate: string | null;
+  year: number | string | null;
+  is_active: boolean | null;
+  is_verified: boolean | null;
 };
 
 export type AdminStats = {
@@ -29,7 +43,7 @@ export type AdminStats = {
 };
 
 const USER_LIST_SELECT =
-  'id, full_name, email, role, is_hired_driver, is_guide_driver, is_blocked, is_verified, verification_status, created_at';
+  'id, full_name, email, role, is_hired_driver, is_guide_driver, is_blocked, is_verified, verification_status, created_at, phone';
 
 export async function fetchAdminUsers(): Promise<{ data: AdminUserRow[]; error: Error | null }> {
   const { data, error } = await supabase
@@ -38,6 +52,25 @@ export async function fetchAdminUsers(): Promise<{ data: AdminUserRow[]; error: 
     .order('created_at', { ascending: false });
   if (error) return { data: [], error: new Error(error.message) };
   return { data: (data ?? []) as AdminUserRow[], error: null };
+}
+
+/** Every vehicle, grouped by driver id, for the drivers tab of the users list. */
+export async function fetchAdminVehiclesByDriver(): Promise<{
+  data: Record<string, AdminVehicleRow[]>;
+  error: Error | null;
+}> {
+  const { data, error } = await supabase
+    .from('vehicles')
+    .select('id, driver_id, type, class, model, plate, year, is_active, is_verified')
+    .order('is_active', { ascending: false });
+  if (error) return { data: {}, error: new Error(error.message) };
+  const byDriver: Record<string, AdminVehicleRow[]> = {};
+  for (const v of (data ?? []) as AdminVehicleRow[]) {
+    const id = String(v.driver_id ?? '').trim();
+    if (!id) continue;
+    (byDriver[id] ??= []).push(v);
+  }
+  return { data: byDriver, error: null };
 }
 
 function updateError(

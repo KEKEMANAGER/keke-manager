@@ -1349,7 +1349,13 @@
     "verifySubTabCompanies": "Компании",
     "tabRegions": "Регионы",
     "tabDispatch": "Диспетчер",
-    "tabImports": "Импорт"
+    "tabImports": "Импорт",
+    "usersTab": {
+      "drivers": "Водители",
+      "companies": "Компании",
+      "all": "Все"
+    },
+    "noVehicle": "Транспорт не добавлен"
   },
   "dateOnlyField": {
     "default": "Выберите дату"

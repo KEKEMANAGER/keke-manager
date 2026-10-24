@@ -1504,7 +1504,13 @@
     "verifySubTabCompanies": "Ընկերություններ",
     "tabRegions": "Մարզեր",
     "tabDispatch": "Դիսպետչեր",
-    "tabImports": "Ներմուծում"
+    "tabImports": "Ներմուծում",
+    "usersTab": {
+      "drivers": "Վարորդներ",
+      "companies": "Ընկերություններ",
+      "all": "Բոլորը"
+    },
+    "noVehicle": "Տրանսպորտ ավելացված չէ"
   },
   "dateOnlyField": {
     "default": "Select date"

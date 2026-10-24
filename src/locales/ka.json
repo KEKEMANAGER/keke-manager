@@ -1504,7 +1504,13 @@
     "verifySubTabCompanies": "კომპანიები",
     "tabRegions": "რეგიონები",
     "tabDispatch": "დისპეჩერი",
-    "tabImports": "იმპორტი"
+    "tabImports": "იმპორტი",
+    "usersTab": {
+      "drivers": "მძღოლები",
+      "companies": "კომპანიები",
+      "all": "ყველა"
+    },
+    "noVehicle": "ტრანსპორტი არ აქვს დამატებული"
   },
   "dateOnlyField": {
     "default": "აირჩიეთ თარიღი"

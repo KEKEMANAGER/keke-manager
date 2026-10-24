@@ -15,18 +15,39 @@ import type { KekeRole } from '../../contexts/AuthContext';
 import {
   deleteAdminUser,
   fetchAdminUsers,
+  fetchAdminVehiclesByDriver,
   setAdminUserBlocked,
   setAdminUserRole,
   type AdminUserRow,
+  type AdminVehicleRow,
 } from '../../lib/adminPanel';
+import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
+
+type UserTab = 'drivers' | 'companies' | 'all';
+
+function isDriverRow(u: AdminUserRow): boolean {
+  return u.role === 'driver' || !!u.is_hired_driver;
+}
+
+function vehicleLine(v: AdminVehicleRow): string {
+  const parts = [
+    vehicleTypeLabel(v.type),
+    vehicleClassLabel(v.class),
+    [v.model?.trim(), v.year ? String(v.year) : ''].filter(Boolean).join(' '),
+    v.plate?.trim(),
+  ].filter((p) => p && p !== '—');
+  return parts.join(' · ') || '—';
+}
 
 export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }) {
   const { t } = useTranslation();
   const router = useRouter();
   const [rows, setRows] = useState<AdminUserRow[]>([]);
+  const [vehiclesByDriver, setVehiclesByDriver] = useState<Record<string, AdminVehicleRow[]>>({});
+  const [tab, setTab] = useState<UserTab>('drivers');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
@@ -39,7 +60,12 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await fetchAdminUsers();
+      const [{ data, error: err }, vehiclesRes] = await Promise.all([
+        fetchAdminUsers(),
+        fetchAdminVehiclesByDriver(),
+      ]);
+      // Vehicles are extra detail on the drivers tab; the list still works without them.
+      setVehiclesByDriver(vehiclesRes.error ? {} : vehiclesRes.data);
       if (err) {
         setError(err.message);
         setRows([]);
@@ -60,15 +86,36 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
     }, [load]),
   );
 
+  const counts = useMemo(
+    () => ({
+      drivers: rows.filter(isDriverRow).length,
+      companies: rows.filter((u) => u.role === 'company').length,
+      all: rows.length,
+    }),
+    [rows],
+  );
+
   const filteredRows = useMemo(() => {
+    const inTab = rows.filter((u) =>
+      tab === 'drivers' ? isDriverRow(u) : tab === 'companies' ? u.role === 'company' : true,
+    );
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((u) => {
+    if (!q) return inTab;
+    return inTab.filter((u) => {
       const name = (u.full_name ?? '').trim().toLowerCase();
       const email = (u.email ?? '').trim().toLowerCase();
-      return name.includes(q) || email.includes(q);
+      const phone = (u.phone ?? '').replace(/\s/g, '');
+      const plates = (vehiclesByDriver[u.id] ?? [])
+        .map((v) => (v.plate ?? '').toLowerCase().replace(/[\s-]/g, ''))
+        .join(' ');
+      const qCompact = q.replace(/[\s-]/g, '');
+      return (
+        name.includes(q) ||
+        email.includes(q) ||
+        (!!qCompact && (phone.includes(qCompact) || plates.includes(qCompact)))
+      );
     });
-  }, [rows, searchQuery]);
+  }, [rows, searchQuery, tab, vehiclesByDriver]);
 
   function typeLabel(u: AdminUserRow): string {
     if (u.role === 'company') return t('adminPanel.typeCompany');
@@ -168,7 +215,27 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
           </Pressable>
         </View>
       ) : null}
-      {rows.length === 0 ? (
+      <View style={styles.tabs}>
+        {(['drivers', 'companies', 'all'] as const).map((key) => {
+          const active = tab === key;
+          return (
+            <Pressable
+              key={key}
+              onPress={() => setTab(key)}
+              style={({ pressed }) => [
+                styles.tab,
+                active && styles.tabActive,
+                pressed && { opacity: 0.88 },
+              ]}
+            >
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                {t(`adminPanel.usersTab.${key}`)} ({counts[key]})
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {filteredRows.length === 0 ? (
         <Text style={adminStyles.empty}>{t('adminPanel.usersEmpty')}</Text>
       ) : (
         filteredRows.map((u) => (
@@ -176,9 +243,25 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
             <Pressable onPress={() => openUserDetail(u)} style={({ pressed }) => pressed && { opacity: 0.9 }}>
               <Text style={adminStyles.cardTitle}>{u.full_name?.trim() || u.email || '—'}</Text>
               <Text style={adminStyles.cardMeta}>{u.email}</Text>
+              {u.phone?.trim() ? (
+                <Text style={adminStyles.cardMeta}>{u.phone.trim()}</Text>
+              ) : null}
               <Text style={adminStyles.cardMeta}>
                 {t('adminPanel.userType')}: {typeLabel(u)}
               </Text>
+              {isDriverRow(u) ? (
+                <View style={styles.vehicleBox}>
+                  {(vehiclesByDriver[u.id] ?? []).length === 0 ? (
+                    <Text style={styles.vehicleNone}>{t('adminPanel.noVehicle')}</Text>
+                  ) : (
+                    (vehiclesByDriver[u.id] ?? []).map((v) => (
+                      <Text key={v.id} style={styles.vehicleLine}>
+                        🚗 {vehicleLine(v)}
+                      </Text>
+                    ))
+                  )}
+                </View>
+              ) : null}
               <Text style={styles.tapHint}>{t('adminPanel.userDetail.tapForDetails')}</Text>
             </Pressable>
             {u.is_blocked ? (
@@ -383,6 +466,45 @@ const styles = StyleSheet.create({
   },
   deleteErrorText: {
     color: COLORS.error,
+    fontSize: 13,
+  },
+  tabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  tab: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: RADIUS.button,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+  },
+  tabActive: {
+    backgroundColor: COLORS.gold,
+    borderColor: COLORS.gold,
+  },
+  tabText: {
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  tabTextActive: {
+    color: '#0f0f0f',
+  },
+  vehicleBox: {
+    marginTop: 6,
+    gap: 2,
+  },
+  vehicleLine: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  vehicleNone: {
+    color: COLORS.textMuted,
     fontSize: 13,
   },
   tapHint: {
