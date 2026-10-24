@@ -117,7 +117,12 @@ export function AdminBookingsSection() {
               </Text>
             ) : null}
             <Pressable
-              onPress={() => router.push(`/(app)/company-voucher/${String(b.id)}`)}
+              onPress={() =>
+                router.push({
+                  pathname: '/(app)/company-voucher/[id]',
+                  params: { id: String(b.id), adminTab: 'bookings' },
+                })
+              }
               style={({ pressed }) => [styles.voucherBtn, pressed && { opacity: 0.92 }]}
             >
               <Text style={styles.voucherBtnText}>{t('adminDispatchLog.openVoucher')}</Text>

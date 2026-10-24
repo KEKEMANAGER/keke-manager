@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,16 +7,20 @@ import { useTranslation } from 'react-i18next';
 import { CompanyBookingVoucherContent } from '../../../components/CompanyBookingVoucher';
 import { COLORS, SPACING } from '../../../constants/theme';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBackTo } from '../../../hooks/useBackTo';
+import { adminPanelBackHref } from '../../../lib/adminNav';
 import type { CompanyVoucherData } from '../../../lib/companyVoucherData';
 import { fetchCompanyVoucherData } from '../../../lib/companyVoucherData';
 
 export default function CompanyVoucherScreen() {
   const { t } = useTranslation();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuth();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, adminTab } = useLocalSearchParams<{ id: string; adminTab?: string }>();
   const bookingId = (id ?? '').trim();
+  // Opened from the admin panel: back returns to that tab of the panel.
+  // Opened by a company: unchanged.
+  const goBack = useBackTo(adminPanelBackHref(adminTab));
 
   const [data, setData] = useState<CompanyVoucherData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +57,7 @@ export default function CompanyVoucherScreen() {
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.nav}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+        <Pressable onPress={goBack} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </Pressable>
         <Text style={styles.navTitle}>{t('companyVoucher.title')}</Text>
@@ -65,7 +69,7 @@ export default function CompanyVoucherScreen() {
       ) : data ? (
         <CompanyBookingVoucherContent
           data={data}
-          onClose={() => router.back()}
+          onClose={goBack}
           showClose={false}
         />
       ) : (

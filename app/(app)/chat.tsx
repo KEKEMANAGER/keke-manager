@@ -28,6 +28,7 @@ import {
   subscribeToMessages,
   type MessageRow,
 } from '../../lib/messages';
+import { adminPanelBackHref } from '../../lib/adminNav';
 import { supabase } from '../../lib/supabase';
 import { notifyChatUnreadMayHaveChanged } from '../../lib/useChatUnreadCount';
 import { SUPPORT_THREAD_TYPE } from '../../lib/supportChat';
@@ -42,7 +43,7 @@ export default function CompanyChatScreen() {
   const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardVisible();
   const { user, profile } = useAuth();
-  const { uid, name, avatar, bookingId, threadType, senderRole, receiverRole } =
+  const { uid, name, avatar, bookingId, threadType, senderRole, receiverRole, adminTab } =
     useLocalSearchParams<{
       uid: string;
       name: string;
@@ -51,7 +52,10 @@ export default function CompanyChatScreen() {
       threadType?: ChatThreadType;
       senderRole?: ParticipantRole;
       receiverRole?: ParticipantRole;
+      adminTab?: string;
     }>();
+  // A support chat the admin opened from the panel goes back to the panel.
+  const backTo = adminPanelBackHref(adminTab);
 
   const isSupport =
     threadType === 'support' ||
@@ -257,6 +261,7 @@ export default function CompanyChatScreen() {
         otherName={otherName}
         otherAvatarUrl={otherAvatarUrl}
         otherVerified={otherVerified}
+        backTo={backTo}
       />
 
       {loadError && !loading ? (

@@ -70,6 +70,7 @@ export function AdminSupportInbox() {
         uid: row.user_id,
         name: row.user_name ?? row.user_email ?? '',
         threadType: 'support',
+        adminTab: 'chats',
       },
     });
   }

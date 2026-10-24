@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAndroidBackHandler } from '../../hooks/useAndroidBackHandler';
+import { useBackTo } from '../../hooks/useBackTo';
 import { NameWithVerifiedBadge } from '../NameWithVerifiedBadge';
 import { UserAvatar } from '../UserAvatar';
 import { APP_HEADER_BODY_HEIGHT, Z_INDEX } from '../../constants/layout';
@@ -15,24 +16,29 @@ type Props = {
   otherName: string;
   otherAvatarUrl: string | null;
   otherVerified: boolean;
+  /** Where back goes when the chat knows where it was opened from. */
+  backTo?: Href | null;
 };
 
-export function ChatScreenHeader({ otherName, otherAvatarUrl, otherVerified }: Props) {
+export function ChatScreenHeader({ otherName, otherAvatarUrl, otherVerified, backTo }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { openDrawer } = useAppMenu();
+  const goBack = useBackTo(backTo);
 
+  // With a backTo, useBackTo owns the Android button; without one, as before.
   useAndroidBackHandler(
     useCallback(() => {
       router.back();
       return true;
     }, [router]),
+    !backTo,
   );
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top, minHeight: insets.top + APP_HEADER_BODY_HEIGHT }]}>
-      <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+      <Pressable onPress={goBack} style={styles.backBtn} hitSlop={8}>
         <Ionicons name="chevron-back" size={24} color={COLORS.text} />
       </Pressable>
       <UserAvatar name={otherName} uri={otherAvatarUrl} size={40} />

@@ -4,12 +4,19 @@ import { StyleSheet, View } from 'react-native';
 import { AdminUserDetailView } from '../../../components/admin/AdminUserDetailView';
 import { COLORS } from '../../../constants/theme';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useBackTo } from '../../../hooks/useBackTo';
+import { adminPanelBackHref } from '../../../lib/adminNav';
 
 export default function AdminUserDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, adminTab } = useLocalSearchParams<{ id: string; adminTab?: string }>();
   const router = useRouter();
   const { profile, loading } = useAuth();
   const userId = typeof id === 'string' ? id : Array.isArray(id) ? id[0] : '';
+
+  // Only the admin panel opens this screen, so back always returns there —
+  // to the tab it came from, the users list by default.
+  const tab = adminTab ?? 'users';
+  const goBack = useBackTo(adminPanelBackHref(tab) ?? adminPanelBackHref('users'));
 
   useEffect(() => {
     if (loading) return;
@@ -26,8 +33,10 @@ export default function AdminUserDetailScreen() {
     <View style={styles.root}>
       <AdminUserDetailView
         userId={userId}
-        onClose={() => router.back()}
-        onOpenUser={(hostId) => router.push(`/(app)/admin-user/${hostId}`)}
+        onClose={goBack}
+        onOpenUser={(hostId) =>
+          router.push({ pathname: '/(app)/admin-user/[id]', params: { id: hostId, adminTab: tab } })
+        }
       />
     </View>
   );

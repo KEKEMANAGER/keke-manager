@@ -178,7 +178,7 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
       setDetailUserId(u.id);
       return;
     }
-    router.push(`/(app)/admin-user/${u.id}`);
+    router.push({ pathname: '/(app)/admin-user/[id]', params: { id: u.id, adminTab: 'users' } });
   }
 
   function confirmDelete(u: AdminUserRow) {

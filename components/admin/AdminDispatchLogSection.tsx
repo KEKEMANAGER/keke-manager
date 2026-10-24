@@ -154,7 +154,12 @@ export function AdminDispatchLogSection({ searchQuery = '' }: { searchQuery?: st
                 <Text style={styles.drillText}>{r.wave2Names.join(', ') || '—'}</Text>
                 {r.booking_id ? (
                   <Pressable
-                    onPress={() => router.push(`/(app)/company-voucher/${r.booking_id}`)}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/company-voucher/[id]',
+                        params: { id: String(r.booking_id), adminTab: 'dispatch' },
+                      })
+                    }
                     style={({ pressed }) => [styles.voucherBtn, pressed && styles.pressed]}
                   >
                     <Text style={styles.voucherBtnText}>
