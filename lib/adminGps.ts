@@ -76,7 +76,7 @@ export async function fetchAllActiveDriverLocations(): Promise<{
 }> {
   const { data: locs, error: locErr } = await supabase
     .from('driver_locations')
-    .select('driver_id, latitude, longitude, updated_at');
+    .select('driver_id, latitude, longitude, updated_at, gps_mode');
 
   if (locErr) return { data: [], error: new Error(locErr.message) };
   if (!locs?.length) return { data: [], error: null };

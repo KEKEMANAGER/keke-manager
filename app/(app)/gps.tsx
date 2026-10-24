@@ -123,6 +123,7 @@ export default function CompanyGpsScreen() {
             latitude: loc.latitude,
             longitude: loc.longitude,
             updated_at: loc.updated_at,
+            gps_mode: loc.gps_mode ?? null,
             full_name: loc.full_name ?? pin.full_name,
           };
         }),
@@ -282,6 +283,12 @@ export default function CompanyGpsScreen() {
               {t('tracking.ago')}
             </Text>
           </View>
+          {selectedPin.gps_mode === 'foreground' ? (
+            <View style={styles.gpsModeWarn}>
+              <Ionicons name="warning-outline" size={15} color={COLORS.goldDark} />
+              <Text style={styles.gpsModeWarnText}>{t('tracking.gpsForegroundOnly')}</Text>
+            </View>
+          ) : null}
         </>
       ) : !loading ? (
         <View style={styles.noSignalWrap}>
@@ -650,6 +657,16 @@ const styles = StyleSheet.create({
   infoValue: { flex: 1, color: COLORS.text, fontSize: 13, fontWeight: '600', textAlign: 'right' },
   infoSub: { color: COLORS.textSecondary, fontSize: 11, textAlign: 'right', marginTop: 1 },
   infoValueStale: { color: COLORS.goldDark },
+  gpsModeWarn: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: 8,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  gpsModeWarnText: { flex: 1, color: COLORS.goldDark, fontSize: 12, fontWeight: '600', lineHeight: 17 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.xs },
   coordRow: { flexDirection: 'row', paddingVertical: SPACING.xs },
   coordItem: { flex: 1 },

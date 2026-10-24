@@ -304,6 +304,9 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
             <Text style={styles.detailMeta}>
               {selected.vehicle_label ?? '—'} · {formatAgo(selected.updated_at)} {t('tracking.ago')}
             </Text>
+            {selected.gps_mode === 'foreground' ? (
+              <Text style={styles.detailWarn}>⚠ {t('tracking.gpsForegroundOnly')}</Text>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -480,6 +483,7 @@ const styles = StyleSheet.create({
   },
   detailName: { fontSize: 16, fontWeight: '800', color: COLORS.text },
   detailMeta: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
+  detailWarn: { fontSize: 12, color: COLORS.goldDark, fontWeight: '600', marginTop: 4 },
   compactHeader: {
     flexDirection: 'row',
     alignItems: 'center',

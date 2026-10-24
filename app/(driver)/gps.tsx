@@ -61,6 +61,8 @@ export default function DriverGpsScreen() {
   const autoStartHandledRef = useRef(false);
   const pickupNavOpenedRef = useRef(false);
   const disclosureResolverRef = useRef<((accepted: boolean) => void) | null>(null);
+  /** The background task is running, so the position keeps flowing when the app is minimized. */
+  const bgRunningRef = useRef(false);
 
   const [isTracking, setIsTracking] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -144,7 +146,10 @@ export default function DriverGpsScreen() {
           if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
           setCurrentLocation({ latitude, longitude });
           if (user?.id) {
-            void upsertDriverLocation(user.id, latitude, longitude).then(({ error }) => {
+            // Tells the company map whether this pin keeps moving once the app
+            // is minimized ('background') or freezes then ('foreground').
+            const mode = bgRunningRef.current ? 'background' : 'foreground';
+            void upsertDriverLocation(user.id, latitude, longitude, mode).then(({ error }) => {
               if (error && __DEV__) console.warn('[gps] upsertDriverLocation:', error.message);
             });
           }
@@ -215,9 +220,12 @@ export default function DriverGpsScreen() {
       return false;
     }
 
-    // `tripRequired` means background was skipped for want of a trip, not
-    // refused — telling the driver his permission was denied would be a lie.
-    if (!result.backgroundGranted && backgroundAccepted && !result.tripRequired) {
+    bgRunningRef.current = result.running;
+
+    // Only when the position would really stop once he minimizes the app.
+    // "While using the app" is enough for the trip now, so it is not nagged
+    // about; `tripRequired` means there was no trip to run, not a refusal.
+    if (!result.running && backgroundAccepted && !result.tripRequired) {
       Alert.alert(t('gpsScreen.bgPermissionDeniedTitle'), t('gpsScreen.bgPermissionDeniedBody'));
     }
 
@@ -237,6 +245,7 @@ export default function DriverGpsScreen() {
         const running = await isBackgroundLocationRunning();
         if (cancelled) return;
         if (running) {
+          bgRunningRef.current = true;
           setIsTracking(true);
           await attachForegroundWatch();
         }
@@ -366,6 +375,7 @@ export default function DriverGpsScreen() {
   async function stopTracking() {
     stopWatch();
     await stopBackgroundLocation();
+    bgRunningRef.current = false;
     setIsTracking(false);
     if (user?.id) {
       const { error } = await clearDriverLocation(user.id);

@@ -1222,7 +1222,8 @@
     "mapUnavailable": "The map could not be loaded. You can still use the driver list below.",
     "locationPermissionDenied": "Location permission is required for GPS tracking.",
     "fleetTitle": "Fleet GPS",
-    "fleetDrivers": "{{count}} drivers on map"
+    "fleetDrivers": "{{count}} drivers on map",
+    "gpsForegroundOnly": "Այս վարորդի GPS-ը աշխատում է միայն բաց հավելվածով․ երբ այն փոքրացվում է, դիրքը դադարում է թարմացվել։"
   },
   "companyGps": {
     "empty": "No drivers on active tours",

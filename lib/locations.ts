@@ -1,11 +1,22 @@
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
 
+/**
+ * How the driver's phone is sending its position.
+ * - `background`: the trip's background task runs, so updates keep coming with
+ *   the app minimized or the screen off.
+ * - `foreground`: only the open GPS screen sends; the pin stops when the app is
+ *   minimized.
+ * Null when the driver's app is older than this field.
+ */
+export type GpsMode = 'background' | 'foreground';
+
 export type DriverLocationRow = {
   driver_id: string;
   latitude: number;
   longitude: number;
   updated_at: string;
+  gps_mode?: GpsMode | null;
 };
 
 export type DriverLocationWithInfo = DriverLocationRow & {
@@ -22,9 +33,17 @@ export async function upsertDriverLocation(
   driverId: string,
   latitude: number,
   longitude: number,
+  gpsMode?: GpsMode,
 ): Promise<{ error: Error | null }> {
+  const now = new Date().toISOString();
   const { error } = await supabase.from('driver_locations').upsert(
-    { driver_id: driverId, latitude, longitude, updated_at: new Date().toISOString() },
+    {
+      driver_id: driverId,
+      latitude,
+      longitude,
+      updated_at: now,
+      ...(gpsMode ? { gps_mode: gpsMode, gps_mode_at: now } : {}),
+    },
     { onConflict: 'driver_id' },
   );
   return { error: error ? new Error(error.message) : null };
@@ -142,7 +161,7 @@ export async function fetchLocationsForDriverIds(
   const [{ data: locs, error: locErr }, { data: users }] = await Promise.all([
     supabase
       .from('driver_locations')
-      .select('driver_id, latitude, longitude, updated_at')
+      .select('driver_id, latitude, longitude, updated_at, gps_mode')
       .in('driver_id', ids),
     supabase.from(USERS_DIRECTORY).select('id, full_name').in('id', ids),
   ]);

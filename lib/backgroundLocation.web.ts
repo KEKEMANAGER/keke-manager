@@ -8,6 +8,8 @@ export type StartBackgroundLocationResult =
   | {
       ok: true;
       backgroundGranted: boolean;
+      /** The background task is running (never on web). */
+      running: boolean;
       /** Background was skipped because there is no active trip, not because it was refused. */
       tripRequired?: boolean;
     }

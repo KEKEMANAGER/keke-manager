@@ -1222,7 +1222,8 @@
     "mapUnavailable": "The map could not be loaded. You can still use the driver list below.",
     "locationPermissionDenied": "Location permission is required for GPS tracking.",
     "fleetTitle": "Fleet GPS",
-    "fleetDrivers": "{{count}} drivers on map"
+    "fleetDrivers": "{{count}} drivers on map",
+    "gpsForegroundOnly": "This driver's GPS only works while the app is open — the position stops updating when the app is minimized."
   },
   "companyGps": {
     "empty": "No drivers on active tours",

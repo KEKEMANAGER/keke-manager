@@ -99,6 +99,7 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
       driverId,
       last.coords.latitude,
       last.coords.longitude,
+      'background',
     );
     if (locErr && __DEV__) console.warn('[bg-location] upsert failed:', locErr.message);
 
@@ -139,7 +140,13 @@ export async function isBackgroundLocationRunning(): Promise<boolean> {
 export type StartBackgroundLocationResult =
   | {
       ok: true;
+      /** The OS granted "Always" / "Allow all the time". */
       backgroundGranted: boolean;
+      /**
+       * The background task is running: the position keeps updating with the
+       * app minimized. True with "While using the app" too — see below.
+       */
+      running: boolean;
       /** Background was skipped because there is no active trip, not because it was refused. */
       tripRequired?: boolean;
     }
@@ -214,9 +221,10 @@ export async function startBackgroundLocation(
       await AsyncStorage.multiRemove([ACTIVE_BOOKING_KEY, ARRIVAL_COPY_KEY]);
     }
 
-    if (!backgroundGranted) {
-      // No background permission — caller still uses watchPositionAsync for foreground.
-      return { ok: true, backgroundGranted: false };
+    if (!requestBackground) {
+      // He declined the disclosure about locating him while the app is
+      // minimized: the open screen's foreground watch only, as he chose.
+      return { ok: true, backgroundGranted: false, running: false };
     }
 
     // Persistent location exists here to run a trip: it carries the distance the
@@ -225,31 +233,48 @@ export async function startBackgroundLocation(
     // there is none of that to do, so the OS is never asked to keep locating
     // him; the visible map runs on the foreground watch like any other screen.
     if (!trip) {
-      return { ok: true, backgroundGranted: false, tripRequired: true };
+      return { ok: true, backgroundGranted, running: false, tripRequired: true };
     }
 
     const alreadyStarted = await isBackgroundLocationRunning();
     if (alreadyStarted) {
-      return { ok: true, backgroundGranted: true };
+      return { ok: true, backgroundGranted, running: true };
     }
 
-    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.High,
-      timeInterval: 5000,
-      distanceInterval: 15,
-      pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: true,
-      foregroundService: {
-        notificationTitle: notificationTitle?.trim() || 'KEKE · GPS active',
-        notificationBody:
-          notificationBody?.trim() ||
-          'Sharing your location with the company while the trip is active.',
-        notificationColor: '#D4AF37',
-      },
-      activityType: Location.ActivityType.AutomotiveNavigation,
-    });
+    // "Always" is not needed for this. Started now, while he is looking at the
+    // GPS screen, the updates carry on after he minimizes the app with
+    // "While using the app" as well: on Android through the foreground service
+    // and its "GPS active" notification, on iPhone with the blue location
+    // indicator. expo-location checks only the foreground permission here for
+    // that reason. What "Always" adds is surviving the app being swiped away.
+    // Before this, a driver who picked "While using" (most of them) was located
+    // only while the app was open, so his pin froze the moment he switched to
+    // Maps or locked the screen.
+    try {
+      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 5000,
+        distanceInterval: 15,
+        pausesUpdatesAutomatically: false,
+        showsBackgroundLocationIndicator: true,
+        foregroundService: {
+          notificationTitle: notificationTitle?.trim() || 'KEKE · GPS active',
+          notificationBody:
+            notificationBody?.trim() ||
+            'Sharing your location with the company while the trip is active.',
+          notificationColor: '#D4AF37',
+        },
+        activityType: Location.ActivityType.AutomotiveNavigation,
+      });
+    } catch (e) {
+      // Location services off, or the OS refused the service. The trip still
+      // runs on the open screen's watch, exactly as it did before this change,
+      // rather than not tracking at all.
+      if (__DEV__) console.warn('[bg-location] background start failed:', e);
+      return { ok: true, backgroundGranted, running: false };
+    }
 
-    return { ok: true, backgroundGranted: true };
+    return { ok: true, backgroundGranted, running: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (__DEV__) console.warn('[bg-location] start failed:', msg);

@@ -1,5 +1,5 @@
 import { fetchFleetDriverIdsAround } from './fleet';
-import { fetchLocationsForDriverIds } from './locations';
+import { fetchLocationsForDriverIds, type GpsMode } from './locations';
 import { supabase } from './supabase';
 
 export type CompanyGpsDriverPin = {
@@ -7,6 +7,8 @@ export type CompanyGpsDriverPin = {
   latitude: number | null;
   longitude: number | null;
   updated_at: string | null;
+  /** 'foreground': the pin stops moving whenever the driver minimizes the app. */
+  gps_mode: GpsMode | null;
   full_name: string | null;
   booking_id: string;
   booking_status: string;
@@ -128,6 +130,7 @@ export async function fetchCompanyActiveGpsDrivers(
       latitude: loc?.latitude ?? null,
       longitude: loc?.longitude ?? null,
       updated_at: loc?.updated_at ?? null,
+      gps_mode: loc?.gps_mode ?? null,
       full_name: loc?.full_name ?? meta.full_name,
       booking_id: meta.booking_id,
       booking_status: meta.booking_status,
