@@ -1379,7 +1379,8 @@
     "bookingGone": "Booking deleted",
     "wave1List": "Wave 1",
     "wave2List": "Wave 2",
-    "empty": "Nothing recorded yet — the next new booking will show up here."
+    "empty": "Nothing recorded yet — the next new booking will show up here.",
+    "openVoucher": "Open voucher"
   },
   "adminRegions": {
     "totalsTitle": "Driver coverage by region",

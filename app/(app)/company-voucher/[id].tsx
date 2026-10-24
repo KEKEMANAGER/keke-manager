@@ -29,7 +29,11 @@ export default function CompanyVoucherScreen() {
       return;
     }
     setLoading(true);
-    const res = await fetchCompanyVoucherData(bookingId, user.id, user.id);
+    // An admin opens other companies' bookings from the panel, so the
+    // company filter has to come off for them — it is what the booking would
+    // be narrowed to, and it would narrow every other company's to nothing.
+    const asCompany = user.role === 'admin' ? undefined : user.id;
+    const res = await fetchCompanyVoucherData(bookingId, asCompany, user.id);
     setLoading(false);
     if (res.error || !res.data) {
       setError(res.error?.message ?? t('companyVoucher.loadError'));
@@ -38,7 +42,7 @@ export default function CompanyVoucherScreen() {
     }
     setData(res.data);
     setError(null);
-  }, [bookingId, user?.id, t]);
+  }, [bookingId, user?.id, user?.role, t]);
 
   useEffect(() => {
     void load();

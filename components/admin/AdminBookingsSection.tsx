@@ -1,12 +1,12 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { BookingRow } from '../../lib/bookings';
 import { fetchAdminBookings } from '../../lib/adminPanel';
 import { fetchBookingRiskMap, type BookingRiskAssessment } from '../../lib/bookingRisk';
 import { BookingRiskBadge } from '../BookingRiskBadge';
-import { COLORS, SPACING } from '../../constants/theme';
+import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 
 function formatGel(n: number): string {
@@ -27,6 +27,7 @@ function statusLabel(status: string, t: (k: string) => string): string {
 
 export function AdminBookingsSection() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,9 +116,26 @@ export function AdminBookingsSection() {
                 {t('adminPanel.bookingWhen')}: {b.date_display}
               </Text>
             ) : null}
+            <Pressable
+              onPress={() => router.push(`/(app)/company-voucher/${String(b.id)}`)}
+              style={({ pressed }) => [styles.voucherBtn, pressed && { opacity: 0.92 }]}
+            >
+              <Text style={styles.voucherBtnText}>{t('adminDispatchLog.openVoucher')}</Text>
+            </Pressable>
           </View>
         ))
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  voucherBtn: {
+    marginTop: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.text,
+    alignItems: 'center',
+  },
+  voucherBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
+});

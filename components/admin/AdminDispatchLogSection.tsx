@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ function timeLabel(iso: string): string {
 
 export function AdminDispatchLogSection({ searchQuery = '' }: { searchQuery?: string }) {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const [rows, setRows] = useState<DispatchLogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +152,16 @@ export function AdminDispatchLogSection({ searchQuery = '' }: { searchQuery?: st
                   {t('adminDispatchLog.wave2List')}
                 </Text>
                 <Text style={styles.drillText}>{r.wave2Names.join(', ') || '—'}</Text>
+                {r.booking_id ? (
+                  <Pressable
+                    onPress={() => router.push(`/(app)/company-voucher/${r.booking_id}`)}
+                    style={({ pressed }) => [styles.voucherBtn, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.voucherBtnText}>
+                      {t('adminDispatchLog.openVoucher')}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : null}
           </Pressable>
@@ -162,6 +173,14 @@ export function AdminDispatchLogSection({ searchQuery = '' }: { searchQuery?: st
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.92 },
+  voucherBtn: {
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.text,
+    alignItems: 'center',
+  },
+  voucherBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 13 },
   hint: {
     color: COLORS.textSecondary,
     fontSize: 12,
