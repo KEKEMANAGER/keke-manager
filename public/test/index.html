@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>ენის ტესტი — KEKE Manager</title>
+<link rel="icon" href="/logo.png">
+<style>
+  :root{
+    --gold:#F5A623; --gold-dark:#D4920B; --ink:#1A1A2E;
+    --bg:#F8F9FA; --card:#FFFFFF; --line:#E5E7EB;
+    --muted:#6B7280; --faint:#9CA3AF; --red:#EF4444; --green:#16A34A; --blue:#3B82F6;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"Noto Sans Georgian",sans-serif;
+    padding:0 16px 48px; max-width:560px; margin:0 auto;
+  }
+  header{display:flex;align-items:center;gap:10px;padding:20px 0 14px}
+  header img{width:34px;height:34px;border-radius:9px}
+  header b{font-size:17px;letter-spacing:-.2px}
+  header span{color:var(--muted);font-size:13px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+  h1{font-size:22px;line-height:1.3;margin:0 0 8px}
+  h2{font-size:16px;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--muted)}
+  p.lead{color:var(--ink)}
+  .btn{
+    display:block;width:100%;border:0;border-radius:13px;padding:15px 18px;
+    font-family:inherit;font-weight:600;font-size:16px;line-height:1.2;cursor:pointer;background:var(--gold);color:var(--ink);
+  }
+  .btn:active{background:var(--gold-dark)}
+  .btn[disabled]{opacity:.45;cursor:default}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+  .btn.danger{background:var(--red);color:#fff}
+  .btn+.btn{margin-top:9px}
+  .pick{display:flex;gap:10px}
+  .pick button{
+    flex:1;border:2px solid var(--line);background:#fff;border-radius:14px;padding:18px 10px;
+    font-family:inherit;font-weight:600;font-size:16px;line-height:1.2;color:var(--ink);cursor:pointer
+  }
+  .pick button[aria-pressed="true"]{border-color:var(--gold);background:#FFFBF0}
+  .pick small{display:block;font-weight:400;color:var(--muted);margin-top:4px;font-size:12px}
+  .steps{display:flex;gap:6px;margin:0 0 16px}
+  .steps i{flex:1;height:4px;border-radius:2px;background:var(--line)}
+  .steps i.on{background:var(--gold)}
+  .steps i.done{background:var(--green)}
+  .q{font-size:19px;line-height:1.4;font-weight:600;margin:0 0 6px;color:var(--ink)}
+  .qka{font-size:14px;color:var(--muted);margin:0 0 18px}
+  .rec{display:flex;flex-direction:column;align-items:center;gap:14px;padding:10px 0 4px}
+  .mic{
+    width:96px;height:96px;border-radius:50%;border:0;background:var(--gold);
+    display:grid;place-items:center;cursor:pointer;transition:transform .12s
+  }
+  .mic:active{transform:scale(.95)}
+  .mic.on{background:var(--red);animation:pulse 1.4s infinite}
+  .mic svg{width:40px;height:40px;fill:var(--ink)}
+  .mic.on svg{fill:#fff}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{box-shadow:0 0 0 16px rgba(239,68,68,0)}}
+  .time{font:600 28px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:1px}
+  .hint{font-size:13px;color:var(--faint);text-align:center;min-height:18px}
+  audio{width:100%;margin:6px 0 2px}
+  .row{display:flex;gap:9px}
+  .row .btn{margin-top:0}
+  .err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:12px}
+  .ok{background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:12px}
+  .lvl{font-family:inherit;font-weight:700;font-size:64px;line-height:1;color:var(--gold-dark);text-align:center;margin:10px 0 6px}
+  .lvlname{text-align:center;color:var(--muted);margin-bottom:14px}
+  ul{margin:0 0 12px;padding-left:20px;color:var(--muted)}
+  li{margin-bottom:6px}
+  .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:sp .8s linear infinite;margin:10px auto}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  footer{text-align:center;color:var(--faint);font-size:12px;padding:8px 0 0}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="/logo.png" alt="">
+  <div><b>KEKE Manager</b><br><span>ენის შემოწმება</span></div>
+</header>
+
+<div id="err" class="err" hidden></div>
+
+<!-- 1. intro -->
+<section id="s-intro" class="card">
+  <h1>ენის დონის შემოწმება</h1>
+  <p class="lead">ეს ხმოვანი ტესტია. დაგისვამთ 3 კითხვას — უბრალოდ ხმამაღლა უპასუხებ,
+  როგორც ტურისტს უპასუხებდი. სულ 2–3 წუთი.</p>
+  <ul>
+    <li>დაგჭირდება მიკროფონი და წყნარი ადგილი</li>
+    <li>თითო პასუხი მაქსიმუმ 25 წამია — საკმარისია</li>
+    <li>არ გჭირდება ზეპირად სწავლა — ილაპარაკე თავისუფლად</li>
+    <li>შემოწმების შემდეგ დონე (A1–C2) გამოჩნდება შენს პროფილში და კომპანიები დაინახავენ</li>
+  </ul>
+  <p style="font-size:13px">ჩანაწერი ინახება KEKE Manager-ში და მხოლოდ შემოწმებისთვის გამოიყენება.</p>
+  <h2 style="margin-top:18px">რომელ ენაზე?</h2>
+  <div class="pick" id="pick">
+    <button type="button" data-lang="en" aria-pressed="false">English<small>ინგლისური</small></button>
+    <button type="button" data-lang="ru" aria-pressed="false">Русский<small>რუსული</small></button>
+  </div>
+  <button class="btn" id="go" style="margin-top:16px" disabled>დაწყება</button>
+</section>
+
+<!-- 2. questions -->
+<section id="s-test" class="card" hidden>
+  <div class="steps" id="steps"><i></i><i></i><i></i></div>
+  <p style="font-size:13px;margin:0 0 4px;color:var(--faint)" id="qn"></p>
+  <p class="q" id="q"></p>
+  <p class="qka" id="qka"></p>
+
+  <div class="rec">
+    <button class="mic" id="mic" type="button" aria-label="ჩაწერა">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12h-2Z"/></svg>
+    </button>
+    <div class="time" id="time">0:00</div>
+    <div class="hint" id="hint">დააჭირე და ილაპარაკე</div>
+  </div>
+
+  <div id="playback" hidden>
+    <audio id="audio" controls preload="metadata"></audio>
+    <div class="row">
+      <button class="btn ghost" id="again" type="button">თავიდან ჩაწერა</button>
+      <button class="btn" id="next" type="button">შემდეგი</button>
+    </div>
+  </div>
+</section>
+
+<!-- 3. sending -->
+<section id="s-send" class="card" hidden>
+  <div class="spin"></div>
+  <h2 style="text-align:center">მიმდინარეობს შემოწმება</h2>
+  <p style="text-align:center" id="sendmsg">ჩანაწერები იგზავნება…</p>
+</section>
+
+<!-- 4. result -->
+<section id="s-done" class="card" hidden>
+  <div id="graded" hidden>
+    <p style="text-align:center;margin:0;color:var(--muted);font-size:13px" id="rlang"></p>
+    <div class="lvl" id="rlevel">—</div>
+    <div class="lvlname" id="rname"></div>
+    <div class="ok" id="rnote" hidden></div>
+  </div>
+  <div id="pending" hidden>
+    <div class="ok">ჩანაწერები მივიღეთ. ✅</div>
+    <p>შემოწმება ხელით მოხდება და დონე შენს პროფილში გამოჩნდება.</p>
+  </div>
+  <p style="margin-top:14px">დახურე ეს გვერდი — მეტი არაფერი გჭირდება.</p>
+  <button class="btn ghost" id="restart" type="button">სხვა ენის ტესტი</button>
+</section>
+
+<footer>KEKE Manager · kekemanager.com</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  var FN = "https://brrjuxgxmpgvkddcuaad.supabase.co/functions/v1/language-test";
+  var MAX_MS = 25000, MIN_MS = 4000;
+  var SR = 16000; // 16 kHz mono WAV: the one format every browser can make and every grader can read
+
+  var QUESTIONS = {
+    en: [
+      { q:"Please introduce yourself: your name, the city you work in, and the car you drive.",
+        ka:"წარადგინე თავი: სახელი, რომელ ქალაქში მუშაობ და რა მანქანა გაქვს." },
+      { q:"Four tourists land at 11 p.m. and one suitcase is missing. Tell them what you will do.",
+        ka:"ოთხი ტურისტი ღამის 11-ზე ჩამოფრინდა და ერთი ჩანთა დაიკარგა. უთხარი, რას გააკეთებ." },
+      { q:"Tell me about one place in Georgia you like showing tourists, and why they should see it.",
+        ka:"მოყევი ერთ ადგილზე საქართველოში, სადაც ტურისტების წაყვანა გიყვარს, და რატომ." }
+    ],
+    ru: [
+      { q:"Представьтесь, пожалуйста: имя, город, в котором вы работаете, и ваша машина.",
+        ka:"წარადგინე თავი: სახელი, რომელ ქალაქში მუშაობ და რა მანქანა გაქვს." },
+      { q:"Четыре туриста приземлились в 11 вечера, и один чемодан потерялся. Скажите им, что вы будете делать.",
+        ka:"ოთხი ტურისტი ღამის 11-ზე ჩამოფრინდა და ერთი ჩანთა დაიკარგა. უთხარი, რას გააკეთებ." },
+      { q:"Расскажите об одном месте в Грузии, куда вы любите возить туристов, и почему его стоит увидеть.",
+        ka:"მოყევი ერთ ადგილზე საქართველოში, სადაც ტურისტების წაყვანა გიყვარს, და რატომ." }
+    ]
+  };
+
+  var LEVELS = {
+    A1:"დამწყები", A2:"საბაზისო", B1:"საშუალო",
+    B2:"კარგი — ტურისტთან თავისუფლად", C1:"ძალიან კარგი", C2:"მშობლიურის დონე"
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+  var token = new URLSearchParams(location.search).get("t") || "";
+  var lang = null, idx = 0, answers = [], chunks = [], t0 = 0, tick = null, stream = null;
+
+  function show(which){
+    ["intro","test","send","done"].forEach(function(n){ $("s-"+n).hidden = (n !== which); });
+    window.scrollTo(0,0);
+  }
+  function fail(msg){
+    var e = $("err"); e.textContent = msg; e.hidden = false;
+    window.scrollTo(0,0);
+  }
+  function clearErr(){ $("err").hidden = true; }
+
+  if (!token) {
+    fail("ლინკი არასრულია. გამოიყენე ზუსტად ის მისამართი, რომელიც KEKE Manager-იდან მოგივიდა.");
+    $("go").disabled = true;
+  }
+
+  // ---- language pick -------------------------------------------------------
+  Array.prototype.forEach.call($("pick").children, function(b){
+    b.addEventListener("click", function(){
+      lang = b.getAttribute("data-lang");
+      Array.prototype.forEach.call($("pick").children, function(x){
+        x.setAttribute("aria-pressed", String(x === b));
+      });
+      $("go").disabled = !token;
+    });
+  });
+
+  $("go").addEventListener("click", function(){
+    if (!lang) return;
+    idx = 0; answers = [];
+    clearErr(); show("test"); paint();
+  });
+
+  function paint(){
+    var item = QUESTIONS[lang][idx];
+    $("qn").textContent = "კითხვა " + (idx+1) + " / 3";
+    $("q").textContent = item.q;
+    $("qka").textContent = item.ka;
+    Array.prototype.forEach.call($("steps").children, function(el,i){
+      el.className = i < idx ? "done" : (i === idx ? "on" : "");
+    });
+    $("playback").hidden = true;
+    $("mic").hidden = false;
+    $("mic").classList.remove("on");
+    $("time").textContent = "0:00";
+    $("hint").textContent = "დააჭირე და ილაპარაკე";
+    $("next").textContent = idx === 2 ? "დასრულება" : "შემდეგი";
+  }
+
+  function fmt(ms){
+    var s = Math.floor(ms/1000);
+    return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
+  }
+
+  var ctx = null, srcNode = null, proc = null, recording = false;
+
+  $("mic").addEventListener("click", function(){
+    if (recording) { stop(); } else { start(); }
+  });
+
+  function start(){
+    clearErr();
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !AC) {
+      fail("ეს ბრაუზერი ჩაწერას არ უჭერს მხარს. გახსენი ლინკი Chrome-ით ან Safari-ით.");
+      return;
+    }
+    // The context must be created/resumed inside the tap, or iOS keeps it silent.
+    if (!ctx) ctx = new AC();
+    if (ctx.state === "suspended") ctx.resume();
+
+    navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, channelCount:1 } })
+      .then(function(s){
+        stream = s;
+        chunks = [];
+        srcNode = ctx.createMediaStreamSource(s);
+        proc = ctx.createScriptProcessor(4096, 1, 1);
+        proc.onaudioprocess = function(ev){
+          if (recording) chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0)));
+        };
+        srcNode.connect(proc);
+        proc.connect(ctx.destination); // some browsers only fire onaudioprocess when connected
+        recording = true;
+        t0 = Date.now();
+        $("mic").classList.add("on");
+        $("hint").textContent = "ვწერ… დააჭირე გასაჩერებლად";
+        tick = setInterval(function(){
+          var d = Date.now() - t0;
+          $("time").textContent = fmt(d);
+          if (d >= MAX_MS) stop();
+        }, 200);
+      })
+      .catch(function(){
+        fail("მიკროფონზე წვდომა ვერ მივიღე. ბრაუზერის პარამეტრებში დაუშვი მიკროფონი და სცადე ხელახლა.");
+      });
+  }
+
+  function stop(){
+    if (!recording) return;
+    recording = false;
+    if (tick) { clearInterval(tick); tick = null; }
+    try { proc.disconnect(); srcNode.disconnect(); } catch(e){}
+    proc = null; srcNode = null;
+    if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+    $("mic").classList.remove("on");
+    finished();
+  }
+
+  // Float32 at the device rate -> 16-bit PCM mono at 16 kHz in a WAV container.
+  function toWav(parts, inRate){
+    var total = 0, i, j;
+    for (i = 0; i < parts.length; i++) total += parts[i].length;
+    var all = new Float32Array(total), off = 0;
+    for (i = 0; i < parts.length; i++) { all.set(parts[i], off); off += parts[i].length; }
+
+    var ratio = inRate / SR;
+    var outLen = Math.max(0, Math.floor(total / ratio));
+    var pcm = new Int16Array(outLen);
+    for (i = 0; i < outLen; i++) {
+      // average the source samples that land in this output sample (a cheap low-pass)
+      var a = Math.floor(i * ratio), b = Math.min(total, Math.floor((i + 1) * ratio));
+      var sum = 0, n = 0;
+      for (j = a; j < b; j++) { sum += all[j]; n++; }
+      var v = n ? sum / n : 0;
+      v = Math.max(-1, Math.min(1, v));
+      pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
+    }
+
+    var buf = new ArrayBuffer(44 + pcm.length * 2);
+    var dv = new DataView(buf);
+    function str(o, s){ for (var k = 0; k < s.length; k++) dv.setUint8(o + k, s.charCodeAt(k)); }
+    str(0, "RIFF"); dv.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVE");
+    str(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, SR, true); dv.setUint32(28, SR * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+    str(36, "data"); dv.setUint32(40, pcm.length * 2, true);
+    for (i = 0; i < pcm.length; i++) dv.setInt16(44 + i * 2, pcm[i], true);
+    return new Blob([buf], { type: "audio/wav" });
+  }
+
+  // Root-mean-square loudness over the whole take, to catch a muted or covered mic.
+  function loudness(parts){
+    var sum = 0, n = 0;
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      for (var j = 0; j < p.length; j += 4) { sum += p[j] * p[j]; n++; }
+    }
+    return n ? Math.sqrt(sum / n) : 0;
+  }
+
+  function finished(){
+    var ms = Date.now() - t0;
+    if (ms < MIN_MS || !chunks.length) {
+      $("hint").textContent = "ძალიან მოკლეა — ილაპარაკე მინიმუმ 5 წამი.";
+      chunks = [];
+      return;
+    }
+    if (loudness(chunks) < 0.004) {
+      $("hint").textContent = "ხმა ვერ გავიგე — ტელეფონი ახლოს მიიტანე და ხელახლა სცადე.";
+      chunks = [];
+      return;
+    }
+    var blob = toWav(chunks, ctx.sampleRate);
+    chunks = [];
+    answers[idx] = { blob: blob, ms: ms, type: "audio/wav" };
+    $("audio").src = URL.createObjectURL(blob);
+    $("mic").hidden = true;
+    $("playback").hidden = false;
+    $("hint").textContent = "მოისმინე და თუ მოგწონს — შემდეგი";
+  }
+
+  $("again").addEventListener("click", function(){ answers[idx] = null; paint(); });
+
+  $("next").addEventListener("click", function(){
+    if (!answers[idx]) return;
+    if (idx < 2) { idx++; paint(); } else { submit(); }
+  });
+
+  // ---- submit --------------------------------------------------------------
+  function ext(type){
+    if (type.indexOf("mp4") > -1) return "m4a";
+    if (type.indexOf("ogg") > -1) return "ogg";
+    if (type.indexOf("mpeg") > -1) return "mp3";
+    if (type.indexOf("wav") > -1) return "wav";
+    return "webm";
+  }
+
+  function submit(){
+    show("send");
+    var fd = new FormData();
+    fd.append("token", token);
+    fd.append("language", lang);
+    fd.append("questions", JSON.stringify(QUESTIONS[lang].map(function(x){ return x.q; })));
+    fd.append("duration_ms", String(answers.reduce(function(a,x){ return a + (x ? x.ms : 0); }, 0)));
+    answers.forEach(function(a, i){
+      fd.append("a" + (i+1), a.blob, "a" + (i+1) + "." + ext(a.type));
+    });
+
+    $("sendmsg").textContent = "ჩანაწერები იგზავნება…";
+    fetch(FN, { method:"POST", body: fd })
+      .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, body:j }; }); })
+      .then(function(res){
+        if (!res.ok) throw new Error((res.body && res.body.error) || "ვერ გაიგზავნა");
+        var b = res.body || {};
+        show("done");
+        if (b.level) {
+          $("graded").hidden = false; $("pending").hidden = true;
+          $("rlang").textContent = (lang === "en" ? "ინგლისური" : "რუსული") + " — შენი დონე";
+          $("rlevel").textContent = b.level;
+          $("rname").textContent = LEVELS[b.level] || "";
+          if (b.note) { $("rnote").textContent = b.note; $("rnote").hidden = false; }
+        } else {
+          $("graded").hidden = true; $("pending").hidden = false;
+        }
+      })
+      .catch(function(e){
+        show("test");
+        fail((e && e.message) || "გაგზავნა ვერ მოხერხდა. შეამოწმე ინტერნეტი და სცადე ხელახლა.");
+        $("playback").hidden = false; $("mic").hidden = true;
+      });
+  }
+
+  $("restart").addEventListener("click", function(){
+    lang = null; idx = 0; answers = [];
+    Array.prototype.forEach.call($("pick").children, function(x){ x.setAttribute("aria-pressed","false"); });
+    $("go").disabled = true;
+    clearErr(); show("intro");
+  });
+})();
+</script>
+</body>
+</html>

@@ -15,6 +15,10 @@
 /sign-up/*        /sign-up/:splat   200
 /sign-in/*        /sign-in/:splat   200
 
+# Driver voice language test: a static page, must not fall through to the SPA
+/test             /test/index.html  200
+/test/*           /test/:splat      200
+
 # Missing build assets must 404 — never serve index.html as JavaScript (MIME error)
 /_expo/*          /asset-not-found.html         404
 /assets/*         /asset-not-found.html         404
