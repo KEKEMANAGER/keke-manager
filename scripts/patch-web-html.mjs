@@ -104,7 +104,25 @@ const CRITICAL_LANDING_SHELL = `
 </script>
 `.trim();
 
+/**
+ * A password-recovery link opened in a browser.
+ *
+ * Supabase sends the driver wherever `redirect_to` says, and when the mail was
+ * triggered without one it sends him to the site root with the tokens in the
+ * fragment: `https://kekemanager.com/#access_token=...&type=recovery`. The home
+ * page has no idea what to do with that, so the driver lands on the marketing
+ * page and concludes the link is broken. It happened to the first driver who
+ * tried it.
+ *
+ * This runs before the app boots, spots a recovery fragment on any page other
+ * than the reset screen, and moves it there with the fragment intact. The reset
+ * screen already reads the tokens out of the URL, so from there it is the
+ * ordinary flow.
+ */
+const RECOVERY_REDIRECT_SCRIPT = `<script id="keke-recovery-redirect">(function(){try{var h=location.hash||'';var q=location.search||'';var s=h+q;if(!/type=recovery/.test(s)&&!/access_token=/.test(s)&&!/[?&]code=/.test(s))return;var p=location.pathname||'/';if(p.indexOf('/reset-password')===0)return;location.replace('/reset-password'+q+h);}catch(e){}})();</script>`;
+
 const HEAD_INJECT = [
+  RECOVERY_REDIRECT_SCRIPT,
   RUNTIME_ENV_SCRIPT,
   SEO_HEAD,
   buildGaScript(),
@@ -128,6 +146,7 @@ function stripHeadInjections(html) {
   html = html.replace(/<script type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>\s*/gi, '');
   html = html.replace(/<link rel="preload" href="\/logo\.webp"[^>]*>\s*/g, '');
   html = html.replace(/<style id="keke-critical-css">[\s\S]*?<\/style>\s*/g, '');
+  html = html.replace(/<script id="keke-recovery-redirect">[\s\S]*?<\/script>\s*/g, '');
   html = html.replace(/<script id="keke-runtime-env">[\s\S]*?<\/script>\s*/g, '');
   html = html.replace(/<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js[^"]*"><\/script>\s*/g, '');
   html = html.replace(/<script id="keke-ga4">[\s\S]*?<\/script>\s*/g, '');
@@ -197,6 +216,11 @@ if (!html.includes('keke-lcp-shell') || !html.includes('data:image/webp;base64,'
 }
 if (!html.includes('application/ld+json') || !html.includes('meta name="description"')) {
   console.error('patch-web-html: failed to inject SEO meta');
+  process.exit(1);
+}
+
+if (!html.includes('keke-recovery-redirect')) {
+  console.error('patch-web-html: failed to inject the recovery redirect');
   process.exit(1);
 }
 
