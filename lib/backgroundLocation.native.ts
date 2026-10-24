@@ -19,6 +19,12 @@ const ACTIVE_BOOKING_KEY = 'bg-location:active-booking-id';
  * sentences are stored alongside the trip and read back verbatim.
  */
 const ARRIVAL_COPY_KEY = 'bg-location:arrival-copy';
+/**
+ * The driver accepted the disclosure about being located while the app is
+ * minimized during a trip. It is what lets a dead task be restarted without
+ * showing him anything (resumeTripLocation); a decline clears it.
+ */
+const CONSENT_KEY = 'bg-location:consent';
 
 type LocationTaskData = {
   locations?: Location.LocationObject[];
@@ -251,21 +257,10 @@ export async function startBackgroundLocation(
     // only while the app was open, so his pin froze the moment he switched to
     // Maps or locked the screen.
     try {
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 5000,
-        distanceInterval: 15,
-        pausesUpdatesAutomatically: false,
-        showsBackgroundLocationIndicator: true,
-        foregroundService: {
-          notificationTitle: notificationTitle?.trim() || 'KEKE · GPS active',
-          notificationBody:
-            notificationBody?.trim() ||
-            'Sharing your location with the company while the trip is active.',
-          notificationColor: '#D4AF37',
-        },
-        activityType: Location.ActivityType.AutomotiveNavigation,
-      });
+      await Location.startLocationUpdatesAsync(
+        LOCATION_TASK_NAME,
+        tripTaskOptions(notificationTitle, notificationBody),
+      );
     } catch (e) {
       // Location services off, or the OS refused the service. The trip still
       // runs on the open screen's watch, exactly as it did before this change,
@@ -279,6 +274,106 @@ export async function startBackgroundLocation(
     const msg = e instanceof Error ? e.message : String(e);
     if (__DEV__) console.warn('[bg-location] start failed:', msg);
     return { ok: false, reason: 'error', error: msg };
+  }
+}
+
+function tripTaskOptions(
+  notificationTitle?: string,
+  notificationBody?: string,
+): Location.LocationTaskOptions {
+  return {
+    accuracy: Location.Accuracy.High,
+    timeInterval: 5000,
+    distanceInterval: 15,
+    pausesUpdatesAutomatically: false,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: notificationTitle?.trim() || 'KEKE · GPS active',
+      notificationBody:
+        notificationBody?.trim() ||
+        'Sharing your location with the company while the trip is active.',
+      notificationColor: '#D4AF37',
+    },
+    activityType: Location.ActivityType.AutomotiveNavigation,
+  };
+}
+
+/** Record whether the driver accepted the background-location disclosure. */
+export async function setBackgroundTrackingConsent(accepted: boolean): Promise<void> {
+  try {
+    if (accepted) await AsyncStorage.setItem(CONSENT_KEY, '1');
+    else await AsyncStorage.removeItem(CONSENT_KEY);
+  } catch {
+    // best effort: without the flag a dead task is simply not restarted
+  }
+}
+
+/**
+ * Whether the driver agreed to be located with the app minimized. "Always" can
+ * only have been granted after he accepted the disclosure (the app asks for it
+ * only then), so it counts for drivers from before the flag existed.
+ */
+async function hasBackgroundTrackingConsent(): Promise<boolean> {
+  try {
+    if ((await AsyncStorage.getItem(CONSENT_KEY)) === '1') return true;
+  } catch {
+    // fall through to the permission
+  }
+  try {
+    const bg = await Location.getBackgroundPermissionsAsync();
+    return bg.status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+export type ResumeTripLocationOptions = {
+  driverId: string;
+  bookingId: string;
+  notificationTitle?: string;
+  notificationBody?: string;
+  arrivalTitle?: string;
+  arrivalBody?: string;
+};
+
+/**
+ * Restart a trip's background task that the OS ended.
+ *
+ * The task starts when the driver begins the trip, but a reboot, the app being
+ * swiped away or a phone's battery saver can end it, and nothing started it
+ * again: his pin froze for the rest of the trip, "Always" permission or not.
+ * Called whenever the app comes to the front during a trip. It never asks for a
+ * permission or shows anything — it only resumes what he already turned on, and
+ * does nothing if he declined the disclosure or took location away.
+ */
+export async function resumeTripLocation(options: ResumeTripLocationOptions): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  const id = options.driverId?.trim();
+  const trip = options.bookingId?.trim();
+  if (!id || !trip) return false;
+  try {
+    if (await isBackgroundLocationRunning()) return true;
+    const fg = await Location.getForegroundPermissionsAsync();
+    if (fg.status !== 'granted') return false;
+    if (!(await hasBackgroundTrackingConsent())) return false;
+
+    await AsyncStorage.setItem(ACTIVE_DRIVER_KEY, id);
+    await AsyncStorage.setItem(ACTIVE_BOOKING_KEY, trip);
+    await AsyncStorage.setItem(
+      ARRIVAL_COPY_KEY,
+      JSON.stringify({
+        title: options.arrivalTitle?.trim() || 'KEKE Manager',
+        body: options.arrivalBody?.trim() || '',
+      }),
+    );
+    await Location.startLocationUpdatesAsync(
+      LOCATION_TASK_NAME,
+      tripTaskOptions(options.notificationTitle, options.notificationBody),
+    );
+    return true;
+  } catch (e) {
+    if (__DEV__) console.warn('[bg-location] resume failed:', e);
+    return false;
   }
 }
 

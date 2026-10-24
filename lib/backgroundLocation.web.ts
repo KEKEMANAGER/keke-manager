@@ -32,3 +32,18 @@ export async function startBackgroundLocation(
 }
 
 export async function stopBackgroundLocation(): Promise<void> {}
+
+export async function setBackgroundTrackingConsent(_accepted: boolean): Promise<void> {}
+
+export type ResumeTripLocationOptions = {
+  driverId: string;
+  bookingId: string;
+  notificationTitle?: string;
+  notificationBody?: string;
+  arrivalTitle?: string;
+  arrivalBody?: string;
+};
+
+export async function resumeTripLocation(_options: ResumeTripLocationOptions): Promise<boolean> {
+  return false;
+}

@@ -14,6 +14,7 @@ import { DriverVerificationGuard } from '../../components/driver/DriverVerificat
 import { AppMenuProvider } from '../../contexts/AppMenuContext';
 import { ChatUnreadProvider } from '../../contexts/ChatUnreadContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTripLocationKeeper } from '../../hooks/useTripLocationKeeper';
 import { notifyIncomingChatMessageLocally } from '../../lib/localNotifications';
 import { subscribeToConversationList } from '../../lib/messages';
 import { supabase } from '../../lib/supabase';
@@ -29,6 +30,10 @@ function DriverTabsInner() {
   const tabMinH = tabBarMinHeight(bottomPad);
   const onChat = segments[segments.length - 1] === 'chat';
   const scenePadTop = onChat ? 0 : insets.top + APP_HEADER_BODY_HEIGHT + 8;
+
+  // A trip's background GPS that the phone ended is restarted whenever the
+  // app comes back to the front.
+  useTripLocationKeeper(user?.id);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !user?.id) return;

@@ -11,8 +11,10 @@ import { BackgroundLocationDisclosureModal } from '../../components/BackgroundLo
 import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { fetchActiveTripId } from '../../lib/activeTrip';
 import {
   isBackgroundLocationRunning,
+  setBackgroundTrackingConsent,
   startBackgroundLocation,
   stopBackgroundLocation,
 } from '../../lib/backgroundLocation';
@@ -78,7 +80,31 @@ export default function DriverGpsScreen() {
   const [progress, setProgress] = useState<TripProgress | null>(null);
   const geocodedForRef = useRef<string | null>(null);
 
-  const bookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
+  const paramBookingId = typeof params.bookingId === 'string' ? params.bookingId.trim() : '';
+  // Opened from the tab bar there is no bookingId in the route, and without a
+  // trip the background task is never started: the driver who reopened GPS
+  // mid-trip was tracked only while this screen was on top. Fall back to his
+  // in-progress trip.
+  const [activeTripId, setActiveTripId] = useState('');
+  const bookingId = paramBookingId || activeTripId;
+
+  const refreshActiveTrip = useCallback(async () => {
+    if (paramBookingId || !user?.id || Platform.OS === 'web') {
+      setActiveTripId('');
+      return;
+    }
+    setActiveTripId((await fetchActiveTripId(user.id)) ?? '');
+  }, [paramBookingId, user?.id]);
+
+  useEffect(() => {
+    void refreshActiveTrip();
+  }, [refreshActiveTrip]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshActiveTrip();
+    }, [refreshActiveTrip]),
+  );
 
   const refreshTripBooking = useCallback(async (): Promise<TripBookingState | null> => {
     if (!bookingId) {
@@ -178,6 +204,9 @@ export default function DriverGpsScreen() {
   }, []);
 
   const resolveDisclosure = useCallback((accepted: boolean) => {
+    // Remembered so a trip's GPS that the phone killed can be restarted
+    // without asking again — and, after a decline, never is.
+    void setBackgroundTrackingConsent(accepted);
     setDisclosureVisible(false);
     const resolve = disclosureResolverRef.current;
     disclosureResolverRef.current = null;
