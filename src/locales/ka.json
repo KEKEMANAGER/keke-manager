@@ -1181,6 +1181,7 @@
     "bgPermissionDeniedBody": "რომ აპის დახურვის შემდეგაც გაგრძელდეს ტრეკინგი, პარამეტრებში დართე ლოკაცია „ყოველთვის“.",
     "navigatePickup": "ნავიგაცია pickup-მდე",
     "navigateDestination": "ნავიგაცია დანიშნულებამდე",
+    "todayStops": "დღევანდელი გაჩერებები: დააჭირე და გაიხსნება Google Maps",
     "externalNavHint": "კომპანია KEKE რუკაზე გიყურებს. მისამართამდე Google/Apple Maps გამოიყენე.",
     "completeNeedsInProgressTitle": "რეისი ჯერ არ დაწყებულა",
     "completeNeedsInProgress": "ჯავშნის დასრულება შესაძლებელია მხოლოდ „გზაში“ სტატუსში.",

@@ -22,6 +22,8 @@ import { bookingStatusLabel, formatBookingDate } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
 import type { ConvoyPeerLeg } from '../lib/convoyPeers';
 import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from '../lib/companyVoucherData';
+import { splitTourStops } from '../lib/openExternalNavigation';
+import { NavigablePlaceChips } from './NavigablePlaceChips';
 import {
   convoyVoucherCode,
   enrichCompanyVoucherFromBooking,
@@ -539,9 +541,9 @@ export function CompanyBookingVoucherContent({
                   d.driverOvernight?.trim() ||
                   (d as { driver_overnight?: string }).driver_overnight?.trim() ||
                   '';
-                const stops = Array.isArray(d.stops)
-                  ? d.stops.filter(Boolean).join(', ')
-                  : String(d.stops ?? '').trim();
+                // Every stop and the hotel open in Google Maps on a tap, so the
+                // driver navigates to the exact place instead of retyping it.
+                const stops = splitTourStops(d.stops);
                 return (
                   <View key={`${d.day}-${d.date}`} style={styles.tourDayCard}>
                     <Text style={styles.tourDayHead}>
@@ -551,15 +553,17 @@ export function CompanyBookingVoucherContent({
                     <Text style={styles.tourDayRoute}>
                       {(d.fromPlace || '—').trim()} → {(d.toPlace || '—').trim()}
                     </Text>
-                    {stops ? (
-                      <Text style={styles.tourDayMeta}>
-                        {t('bookings.voucherStops')}: {stops}
-                      </Text>
+                    {stops.length > 0 ? (
+                      <View style={styles.tourDayPlaces}>
+                        <Text style={styles.tourDayMeta}>{t('bookings.voucherStops')}:</Text>
+                        <NavigablePlaceChips places={stops} numbered />
+                      </View>
                     ) : null}
                     {hotel ? (
-                      <Text style={styles.tourDayMeta}>
-                        {t('bookings.voucherHotel')}: {hotel}
-                      </Text>
+                      <View style={styles.tourDayPlaces}>
+                        <Text style={styles.tourDayMeta}>{t('bookings.voucherHotel')}:</Text>
+                        <NavigablePlaceChips places={[hotel]} />
+                      </View>
                     ) : null}
                     {overnight ? (
                       <Text style={styles.tourDayMeta}>
@@ -1076,6 +1080,7 @@ const styles = StyleSheet.create({
   tourDayHead: { fontSize: 13, fontWeight: '700', color: COLORS.goldDark },
   tourDayRoute: { fontSize: 13, marginTop: 4 },
   tourDayMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  tourDayPlaces: { marginTop: 4 },
   tourNights: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
   convoySummary: {
     fontSize: 13,

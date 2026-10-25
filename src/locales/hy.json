@@ -1181,6 +1181,7 @@
     "bgPermissionDeniedBody": "To keep tracking the trip when the app is closed, allow location access \"Always\" in system settings.",
     "navigatePickup": "Navigate to pickup",
     "navigateDestination": "Navigate to destination",
+    "todayStops": "Today's stops: tap one to open it in Google Maps",
     "externalNavHint": "The company tracks you on KEKE. Use Google/Apple Maps for directions.",
     "completeNeedsInProgressTitle": "Trip not started yet",
     "completeNeedsInProgress": "You can finish the booking only while it is in progress.",

@@ -1026,6 +1026,7 @@
     "bgPermissionDeniedBody": "Чтобы отслеживание работало при закрытом приложении, разрешите доступ к геолокации «Всегда» в настройках.",
     "navigatePickup": "Навигация до pickup",
     "navigateDestination": "Навигация до пункта назначения",
+    "todayStops": "Остановки на сегодня: нажмите, чтобы открыть в Google Maps",
     "externalNavHint": "Компания видит вас на карте KEKE. Для маршрута используйте Google/Apple Maps.",
     "completeNeedsInProgressTitle": "Рейс ещё не начат",
     "completeNeedsInProgress": "Завершить бронирование можно только в статусе «В пути».",

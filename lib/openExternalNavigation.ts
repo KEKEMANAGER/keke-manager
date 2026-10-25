@@ -20,6 +20,44 @@ export function navigationQueryFromBookingFields(
   return navigationQueryFromLocation(label);
 }
 
+/**
+ * A tour day's stops as separate places. Companies type them as one line —
+ * "სამების ტაძარი - მეტეხის ხიდი - დაშბაშის კანიონი" — or send them as a list.
+ * Only a dash with spaces around it separates, so a hyphenated name stays whole.
+ */
+export function splitTourStops(raw: unknown): string[] {
+  const parts = Array.isArray(raw)
+    ? raw.map((p) => String(p ?? ''))
+    : String(raw ?? '').split(/\s+[-–—]\s+|\s*[,;|→\n]\s*/);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of parts) {
+    const name = part
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^[-–—•·.\s]+|[-–—•·.\s]+$/g, '');
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+/** Today's stops on a multi-day tour, by the phone's own date; none on other days. */
+export function todaysTourStops(
+  days: TourDayPersisted[] | null | undefined,
+  now: Date = new Date(),
+): string[] {
+  if (!Array.isArray(days) || days.length === 0) return [];
+  const m = `${now.getMonth() + 1}`.padStart(2, '0');
+  const d = `${now.getDate()}`.padStart(2, '0');
+  const today = `${now.getFullYear()}-${m}-${d}`;
+  const day = days.find((x) => String(x?.date ?? '').slice(0, 10) === today);
+  return day ? splitTourStops(day.stops) : [];
+}
+
 export type TripNavigationTargets = {
   pickup: string | null;
   destination: string | null;
@@ -90,6 +128,20 @@ export async function openExternalNavigation(destination: string): Promise<boole
   if (!trimmed) return false;
 
   const q = encodeURIComponent(trimmed);
+
+  // In a browser there are no app schemes to try (react-native-web answers
+  // "yes" to every one and would open a dead page), so Google Maps on the web.
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') {
+      window.open(
+        `https://www.google.com/maps/dir/?api=1&destination=${q}&travelmode=driving`,
+        '_blank',
+        'noopener',
+      );
+    }
+    return true;
+  }
+
   const urls =
     Platform.OS === 'ios'
       ? [

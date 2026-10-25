@@ -16,7 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../../constants/theme';
 import { useAuth } from '../../../contexts/AuthContext';
+import { NavigablePlaceChips } from '../../../components/NavigablePlaceChips';
 import { fetchBookingById, routeSummary, type BookingRow } from '../../../lib/bookings';
+import { splitTourStops } from '../../../lib/openExternalNavigation';
 import {
   captureTourDayOdometer,
   closeTourDay,
@@ -305,7 +307,8 @@ export default function TourDaysScreen() {
                 {[day.fromPlace, day.toPlace].filter(Boolean).join(' → ')}
               </Text>
             ) : null}
-            {day.stops ? <Text style={styles.dayStops}>{day.stops}</Text> : null}
+            {/* Each stop opens in Google Maps, straight to the exact place. */}
+            <NavigablePlaceChips places={splitTourStops(day.stops)} numbered />
             {day.plannedOvernight ? (
               <Text style={styles.dayMeta}>
                 {t('tourDays.plannedOvernight')}: {day.plannedOvernight}
@@ -503,7 +506,6 @@ const styles = StyleSheet.create({
   badgeTextClosed: { color: '#047857' },
   badgeTextReady: { color: COLORS.goldDark },
   dayRoute: { fontSize: 14, color: COLORS.text, marginTop: 2 },
-  dayStops: { fontSize: 13, color: COLORS.textSecondary },
   dayMeta: { fontSize: 12, color: COLORS.textMuted },
   closedBox: {
     marginTop: SPACING.sm,

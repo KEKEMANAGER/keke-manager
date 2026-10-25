@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import {
   openExternalNavigation,
+  todaysTourStops,
   tripNavigationTargets,
   type TripNavigationTargets,
 } from '../lib/openExternalNavigation';
+import { NavigablePlaceChips } from './NavigablePlaceChips';
 
 type TripNavBooking = Parameters<typeof tripNavigationTargets>[0];
 
@@ -24,9 +26,15 @@ export function DriverTripNavigationButtons({
 }: Props) {
   const { t } = useTranslation();
   const targets = targetsProp ?? tripNavigationTargets(booking);
-  const { pickup, destination } = targets;
+  const { pickup } = targets;
 
-  if (!pickup && !destination) return null;
+  // On a tour day the programme's stops are the real destinations. The
+  // "destination" of a tour is its title ("Mtskheta & Uplistsikhe Cave Tour"),
+  // which Maps cannot find, so today's stops replace that button.
+  const todayStops = variant === 'panel' ? todaysTourStops(booking.tour_days) : [];
+  const destination = todayStops.length > 0 ? null : targets.destination;
+
+  if (!pickup && !destination && todayStops.length === 0) return null;
 
   async function navigate(query: string | null) {
     if (!query) return;
@@ -77,6 +85,12 @@ export function DriverTripNavigationButtons({
           <Ionicons name="flag-outline" size={18} color={COLORS.goldDark} />
           <Text style={styles.panelBtnOutlineText}>{t('gpsScreen.navigateDestination')}</Text>
         </Pressable>
+      ) : null}
+      {todayStops.length > 0 ? (
+        <View>
+          <Text style={styles.stopsLabel}>{t('gpsScreen.todayStops')}</Text>
+          <NavigablePlaceChips places={todayStops} numbered />
+        </View>
       ) : null}
     </View>
   );
@@ -139,6 +153,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  stopsLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginTop: SPACING.xs,
   },
   pressed: {
     opacity: 0.9,
