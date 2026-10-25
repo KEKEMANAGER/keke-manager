@@ -11,7 +11,9 @@ import { acceptBookingAtomic, type AcceptBookingResult } from './bookingAssignme
 import { isReviewDebtError, reviewDebtMessage } from './companyReviewGate';
 import {
   estimateBookingBusyWindow,
+  fetchDriverSchedules,
   filterDriverIdsAvailableForWindow,
+  intervalsOverlap,
   releaseDriverScheduleForBooking,
 } from './driverSchedules';
 import { notifyBookingAssignedByHost, notifyHostTourCompleted } from './fleetNotifications';
@@ -793,7 +795,57 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     );
   });
 
-  return { data: hydrateBookingRows(rows), error: null };
+  const open = await withoutBookingsOnBusyDays(id, rows as Record<string, unknown>[]);
+  return { data: hydrateBookingRows(open), error: null };
+}
+
+/**
+ * Drops the open bookings that fall on time the driver has closed in his
+ * calendar, or that clash with a trip he already has.
+ *
+ * The new-booking push already skipped a driver on his closed days, but the
+ * list of open bookings still showed them — so he kept being offered work on
+ * days he had blocked, and accepting one then failed on the calendar's
+ * no-overlap rule. A booking offered to him by name stays visible, so a
+ * company that picked him is never left waiting on a booking he cannot see.
+ * If the calendar cannot be read, nothing is hidden.
+ */
+async function withoutBookingsOnBusyDays<T extends Record<string, unknown>>(
+  driverId: string,
+  rows: T[],
+): Promise<T[]> {
+  const sized = rows.map((row) => ({
+    row,
+    window: row.driver_id
+      ? null
+      : estimateBookingBusyWindow({
+          kind: String(row.kind ?? ''),
+          date_display: (row.date_display as string | null | undefined) ?? null,
+          itinerary: (row.itinerary as ItineraryDay[] | null | undefined) ?? null,
+          tour_days: (row.tour_days as TourDayPersisted[] | null | undefined) ?? null,
+          transfer_in: (row.transfer_in as TourTransferLeg | null | undefined) ?? null,
+          transfer_out: (row.transfer_out as TourTransferLeg | null | undefined) ?? null,
+        }),
+  }));
+  const windows = sized.flatMap((s) => (s.window ? [s.window] : []));
+  if (windows.length === 0) return rows;
+
+  const from = new Date(Math.min(...windows.map((w) => w.start.getTime())));
+  const to = new Date(Math.max(...windows.map((w) => w.end.getTime())));
+  const { data: blocks, error } = await fetchDriverSchedules(driverId, from, to);
+  if (error || blocks.length === 0) return rows;
+
+  return sized
+    .filter(({ row, window }) => {
+      if (!window) return true;
+      const rowId = String(row.id ?? '');
+      return !blocks.some(
+        (b) =>
+          b.booking_id !== rowId &&
+          intervalsOverlap(window.start, window.end, new Date(b.start_time), new Date(b.end_time)),
+      );
+    })
+    .map((s) => s.row);
 }
 
 export async function insertBooking(row: InsertBookingInput) {
