@@ -72,6 +72,26 @@ export function toBirthDateIso(date: Date): string {
 }
 
 /** Format DB value for UI (ISO or legacy text). */
+/**
+ * A stored calendar day as `25.10.2026`, with no time.
+ *
+ * For values that are only a date — a tour day's `2026-10-25`. Handed to
+ * `formatStoredDateForDisplay`, such a value is read as midnight UTC and shown
+ * in Georgian time, so every tour day on the voucher read "04:00": a start
+ * time nobody had entered, which drivers took for the time to set off.
+ */
+export function formatStoredDayForDisplay(value: string | null | undefined): string {
+  const raw = value?.trim();
+  if (!raw) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (m && raw.length <= 10) return `${m[3]}.${m[2]}.${m[1]}`;
+  const parsed = parseStoredDateTime(raw);
+  if (!parsed) return raw;
+  const d = String(parsed.getDate()).padStart(2, '0');
+  const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+  return `${d}.${mo}.${parsed.getFullYear()}`;
+}
+
 export function formatStoredDateForDisplay(value: string | null | undefined): string {
   const parsed = parseStoredDateTime(value);
   if (parsed) return formatDisplayDateTime(parsed);

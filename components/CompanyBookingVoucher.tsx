@@ -37,7 +37,7 @@ import {
   vehicleClassLabel,
   vehicleTypeLabel,
 } from '../lib/vehicleCatalog';
-import { formatStoredDateForDisplay } from '../lib/dateTime';
+import { formatStoredDateForDisplay, formatStoredDayForDisplay } from '../lib/dateTime';
 import { countTourOvernights } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
 import {
@@ -397,7 +397,7 @@ export function CompanyBookingVoucherContent({
               <View style={styles.updatedPill}>
                 <Text style={styles.updatedPillText}>
                   {t('companyVoucher.updated')}{' '}
-                  {formatStoredDateForDisplay(
+                  {formatStoredDayForDisplay(
                     booking.updated_at?.slice(0, 10) ?? booking.created_at.slice(0, 10),
                   )}
                 </Text>
@@ -548,7 +548,7 @@ export function CompanyBookingVoucherContent({
                   <View key={`${d.day}-${d.date}`} style={styles.tourDayCard}>
                     <Text style={styles.tourDayHead}>
                       {t('bookings.voucherDay', { day: d.day })} ·{' '}
-                      {formatStoredDateForDisplay(d.date)}
+                      {formatStoredDayForDisplay(d.date)}
                     </Text>
                     <Text style={styles.tourDayRoute}>
                       {(d.fromPlace || '—').trim()} → {(d.toPlace || '—').trim()}

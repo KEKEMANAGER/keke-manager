@@ -18,7 +18,7 @@ import {
   vehicleTypeLabel,
 } from './vehicleCatalog';
 import { bookingKindLabel } from './bookingLabels';
-import { formatStoredDateForDisplay } from './dateTime';
+import { formatStoredDateForDisplay, formatStoredDayForDisplay } from './dateTime';
 import { tourVoucherHtmlRows } from './tourDays';
 import { pickupSignVoucherHtmlSection } from './voucherPickupSign';
 
@@ -175,7 +175,7 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
 
   const updatedBadge =
     booking.driver_update_pending && booking.updated_at
-      ? `<span class="updated-badge">განახლდა ${escapeHtml(formatStoredDateForDisplay(booking.updated_at.slice(0, 10)))}</span>`
+      ? `<span class="updated-badge">განახლდა ${escapeHtml(formatStoredDayForDisplay(booking.updated_at.slice(0, 10)))}</span>`
       : '';
 
   const isSubDriverViewer = !isConvoy && !!data.viewerUserId && isFleetSubDriverBooking(booking, data.viewerUserId);
