@@ -44,6 +44,7 @@
     },
     "android": {
       "package": "com.keke.manager",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 21,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

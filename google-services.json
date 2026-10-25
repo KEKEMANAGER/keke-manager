@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "101615302843",
+    "project_id": "keke-manager",
+    "storage_bucket": "keke-manager.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:101615302843:android:d6ed831640b8bec730119e",
+        "android_client_info": {
+          "package_name": "com.keke.manager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTwlpoeCc7Lmw4LnFDQNUKnJwZk5iBIVA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
