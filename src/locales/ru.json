@@ -514,7 +514,8 @@
       "session": "Сессия не найдена. Войдите снова",
       "operator": "Выберите оператора",
       "tourDates": "Выберите даты начала и окончания тура",
-      "tourEndBeforeStart": "Дата окончания должна быть после даты начала"
+      "tourEndBeforeStart": "Дата окончания должна быть после даты начала",
+      "mapLink": "Ссылка Google Maps неверна. Вставьте ссылку из Google Maps («Поделиться» → «Копировать ссылку») или оставьте поле пустым."
     },
     "dayLine": "День {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -546,6 +547,15 @@
       "hotel": "Отель",
       "address": "Адрес"
     }
+  },
+  "mapLink": {
+    "label": "Ссылка Google Maps (необязательно)",
+    "placeholder": "https://maps.app.goo.gl/…",
+    "hint": "Найдите место в Google Maps → «Поделиться» → «Копировать ссылку» → вставьте сюда. Водитель приедет точно в эту точку.",
+    "search": "Найти в Google Maps",
+    "valid": "Ссылка добавлена: водитель приедет точно сюда",
+    "check": "Проверить",
+    "invalid": "Это не ссылка Google Maps. Вставьте ссылку из Google Maps или оставьте поле пустым."
   },
   "historyPage": {
     "title": "История заказов",
@@ -1027,6 +1037,8 @@
     "navigatePickup": "Навигация до pickup",
     "navigateDestination": "Навигация до пункта назначения",
     "todayStops": "Остановки на сегодня: нажмите, чтобы открыть в Google Maps",
+    "dayStart": "Начало дня: отель прошлой ночи",
+    "dayEnd": "Конец дня: отель на сегодня",
     "externalNavHint": "Компания видит вас на карте KEKE. Для маршрута используйте Google/Apple Maps.",
     "completeNeedsInProgressTitle": "Рейс ещё не начат",
     "completeNeedsInProgress": "Завершить бронирование можно только в статусе «В пути».",

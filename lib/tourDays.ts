@@ -1,6 +1,7 @@
 import type { ItineraryDay, TourDayPersisted, TourTransferLeg } from './bookings';
 import { formatLocationDisplay } from './bookingLocations';
 import { formatDisplayDateTime, formatStoredDateForDisplay, parseStoredDateTime, toIsoString } from './dateTime';
+import { extractGoogleMapsLink } from './googleMapsLink';
 
 /** Form state for one calendar day in a multi-day tour. */
 export type TourDayForm = {
@@ -11,6 +12,8 @@ export type TourDayForm = {
   to: string;
   stops: string;
   touristHotel: string;
+  /** Google Maps link for the tourists' hotel, as typed (optional). */
+  touristHotelLink: string;
   driverOvernight: string;
 };
 
@@ -72,6 +75,7 @@ export function generateTourDaysFromRange(
       to: prev?.to ?? '',
       stops: prev?.stops ?? '',
       touristHotel: prev?.touristHotel ?? '',
+      touristHotelLink: prev?.touristHotelLink ?? '',
       driverOvernight: prev?.driverOvernight ?? '',
     };
   });
@@ -82,12 +86,20 @@ function stopsToString(stops: string | string[] | undefined): string {
   return String(stops ?? '').trim();
 }
 
-function readTourDayHotel(d: TourDayPersisted): string {
+export function readTourDayHotel(d: TourDayPersisted): string {
   const v =
     d.touristHotel ??
     (d as { tourist_hotel?: string }).tourist_hotel ??
     '';
   return String(v).trim();
+}
+
+/** The hotel's Google Maps link, when the company pasted a real one. */
+export function readTourDayHotelLink(d: TourDayPersisted | null | undefined): string | null {
+  if (!d) return null;
+  return extractGoogleMapsLink(
+    d.touristHotelLink ?? (d as { tourist_hotel_link?: string }).tourist_hotel_link,
+  );
 }
 
 function readTourDayOvernight(d: TourDayPersisted): string {
@@ -109,6 +121,7 @@ export function persistTourDaysForDb(days: TourDayForm[]): TourDayPersisted[] {
     ...(idx < lastIdx
       ? {
           touristHotel: d.touristHotel.trim() || undefined,
+          touristHotelLink: extractGoogleMapsLink(d.touristHotelLink) ?? undefined,
           driverOvernight: d.driverOvernight.trim() || undefined,
         }
       : {}),

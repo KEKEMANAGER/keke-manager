@@ -1,10 +1,13 @@
-/** Structured booking location types (matches `bookings.from_location_type` / `to_location_type`). */
+import { extractGoogleMapsLink, locationTypeTakesMapLink, mapLinkState } from './googleMapsLink';
 
+/** Structured booking location types (matches `bookings.from_location_type` / `to_location_type`). */
 export type LocationType = 'airport' | 'train_station' | 'hotel' | 'address';
 
 export type LocationValue = {
   type: LocationType | null;
   name: string;
+  /** Google Maps link as typed, for a hotel or an address (see `googleMapsLink`). */
+  link?: string;
 };
 
 export const LOCATION_TYPES: LocationType[] = ['airport', 'train_station', 'hotel', 'address'];
@@ -40,11 +43,13 @@ export function emptyLocationValue(): LocationValue {
 export function locationValueFromStored(
   name: string | null | undefined,
   type: string | null | undefined,
+  link?: string | null,
 ): LocationValue {
   const trimmed = name?.trim() ?? '';
   if (!trimmed) return emptyLocationValue();
   if (isLocationType(type)) {
-    return { type, name: trimmed };
+    const storedLink = locationTypeTakesMapLink(type) ? extractGoogleMapsLink(link) : null;
+    return storedLink ? { type, name: trimmed, link: storedLink } : { type, name: trimmed };
   }
   if ((AIRPORT_OPTIONS as readonly string[]).includes(trimmed)) {
     return { type: 'airport', name: trimmed };
@@ -100,6 +105,21 @@ export function persistLocationFields(value: LocationValue): {
   if (!name) return { name: null, type: null };
   const type = value.type && isLocationType(value.type) ? value.type : null;
   return { name, type };
+}
+
+/**
+ * The Google Maps link to store with a location: only for a hotel or an
+ * address, and only a link that really opens Google Maps.
+ */
+export function persistLocationLink(value: LocationValue | null | undefined): string | null {
+  if (!value || !locationTypeTakesMapLink(value.type)) return null;
+  return extractGoogleMapsLink(value.link);
+}
+
+/** True when the company typed something in the link box that is not a Google Maps link. */
+export function locationMapLinkIsInvalid(value: LocationValue | null | undefined): boolean {
+  if (!value || !locationTypeTakesMapLink(value.type)) return false;
+  return mapLinkState(value.link) === 'invalid';
 }
 
 /** Display with icon when type is known; plain text for legacy (type null). */

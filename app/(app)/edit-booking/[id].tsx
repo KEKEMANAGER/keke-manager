@@ -24,8 +24,10 @@ import {
 } from '../../../lib/bookingUpdate';
 import {
   emptyLocationValue,
+  locationMapLinkIsInvalid,
   locationValueFromStored,
   persistLocationFields,
+  persistLocationLink,
   type LocationValue,
 } from '../../../lib/bookingLocations';
 import { showErrorAlert, showValidationAlert } from '../../../lib/validation';
@@ -63,8 +65,10 @@ export default function EditBookingScreen() {
         return;
       }
       setBooking(data);
-      setFromLoc(locationValueFromStored(data.from_location, data.from_location_type));
-      setToLoc(locationValueFromStored(data.to_location, data.to_location_type));
+      setFromLoc(
+        locationValueFromStored(data.from_location, data.from_location_type, data.from_location_link),
+      );
+      setToLoc(locationValueFromStored(data.to_location, data.to_location_type, data.to_location_link));
       setDateDisplay(data.date_display ?? '');
       setPassengers(String(data.passengers ?? 1));
       setPriceGel(String(data.price_gel ?? ''));
@@ -115,6 +119,10 @@ export default function EditBookingScreen() {
         showValidationAlert(t('newBooking.validation.locationTo'));
         return;
       }
+      if (locationMapLinkIsInvalid(fromLoc) || locationMapLinkIsInvalid(toLoc)) {
+        showValidationAlert(t('newBooking.validation.mapLink'));
+        return;
+      }
     }
 
     setSaving(true);
@@ -129,6 +137,13 @@ export default function EditBookingScreen() {
         from_location_type: fromP.type,
         to_location: toP.name,
         to_location_type: toP.type,
+        // Links are edited only where the pickers are shown (transfers).
+        ...(isTransferKind(booking.kind)
+          ? {
+              from_location_link: persistLocationLink(fromLoc),
+              to_location_link: persistLocationLink(toLoc),
+            }
+          : {}),
         date_display: dateDisplay.trim() || null,
         ...(isGroupMaster
           ? {}
@@ -192,11 +207,13 @@ export default function EditBookingScreen() {
             label={t('newBooking.form.pickupLocation')}
             value={fromLoc}
             onChange={setFromLoc}
+            showMapLink
           />
           <LocationPicker
             label={t('newBooking.form.dropoffLocation')}
             value={toLoc}
             onChange={setToLoc}
+            showMapLink
           />
         </>
       ) : (

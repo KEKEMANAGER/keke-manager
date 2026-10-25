@@ -19,6 +19,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { NavigablePlaceChips } from '../../../components/NavigablePlaceChips';
 import { fetchBookingById, routeSummary, type BookingRow } from '../../../lib/bookings';
 import { splitTourStops } from '../../../lib/openExternalNavigation';
+import { readTourDayHotel, readTourDayHotelLink } from '../../../lib/tourDays';
 import {
   captureTourDayOdometer,
   closeTourDay,
@@ -265,6 +266,11 @@ export default function TourDaysScreen() {
                 : booking?.status && booking.status !== 'in_progress'
                   ? t('tourDays.lockedNotStarted')
                   : null;
+        // Tonight's hotel, where the driver leaves the group at the end of the
+        // day — with the company's exact Google Maps link when it gave one.
+        const planned = booking?.tour_days?.find((d) => Number(d?.day) === day.dayIndex);
+        const hotel = planned ? readTourDayHotel(planned) : '';
+        const hotelLink = planned ? readTourDayHotelLink(planned) : null;
         return (
           <View
             key={day.dayIndex}
@@ -309,6 +315,15 @@ export default function TourDaysScreen() {
             ) : null}
             {/* Each stop opens in Google Maps, straight to the exact place. */}
             <NavigablePlaceChips places={splitTourStops(day.stops)} numbered />
+            {hotel || hotelLink ? (
+              <View style={styles.hotelRow}>
+                <Text style={styles.dayMeta}>{t('bookings.voucherHotel')}:</Text>
+                <NavigablePlaceChips
+                  places={[{ name: hotel, link: hotelLink }]}
+                  fallbackName={t('bookings.voucherHotel')}
+                />
+              </View>
+            ) : null}
             {day.plannedOvernight ? (
               <Text style={styles.dayMeta}>
                 {t('tourDays.plannedOvernight')}: {day.plannedOvernight}
@@ -507,6 +522,7 @@ const styles = StyleSheet.create({
   badgeTextReady: { color: COLORS.goldDark },
   dayRoute: { fontSize: 14, color: COLORS.text, marginTop: 2 },
   dayMeta: { fontSize: 12, color: COLORS.textMuted },
+  hotelRow: { marginTop: SPACING.xs },
   closedBox: {
     marginTop: SPACING.sm,
     padding: SPACING.sm,

@@ -10,8 +10,10 @@ import { trimUserId } from './userId';
 const BOOKING_UPDATE_FIELDS = [
   'from_location',
   'from_location_type',
+  'from_location_link',
   'to_location',
   'to_location_type',
+  'to_location_link',
   'route',
   'date_display',
   'passengers',
@@ -39,8 +41,10 @@ const BOOKING_UPDATE_FIELDS = [
 const MASTER_TO_LEG_SYNC_FIELDS = [
   'from_location',
   'from_location_type',
+  'from_location_link',
   'to_location',
   'to_location_type',
+  'to_location_link',
   'route',
   'date_display',
   'flight_number',
@@ -62,8 +66,10 @@ function labelForField(key: string): string {
   const labels: Record<string, string> = {
     from_location: 'საიდან',
     from_location_type: 'საიდან (ტიპი)',
+    from_location_link: 'საიდან (Google Maps ბმული)',
     to_location: 'სად',
     to_location_type: 'სად (ტიპი)',
+    to_location_link: 'სად (Google Maps ბმული)',
     route: 'მარშრუტი',
     date_display: 'თარიღი',
     passengers: 'მგზავრები',

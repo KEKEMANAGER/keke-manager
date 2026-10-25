@@ -13,6 +13,8 @@ import {
   locationUsesPresetDropdown,
   presetOptionsForType,
 } from '../lib/bookingLocations';
+import { locationTypeTakesMapLink } from '../lib/googleMapsLink';
+import { MapLinkField } from './MapLinkField';
 
 type Props = {
   label: string;
@@ -22,6 +24,11 @@ type Props = {
   allowedTypes?: LocationType[];
   textPlaceholder?: string;
   presetPlaceholder?: string;
+  /**
+   * Offer an optional Google Maps link once a hotel or an address is chosen,
+   * so the driver is taken to that exact spot. Only where the form saves it.
+   */
+  showMapLink?: boolean;
 };
 
 export function LocationPicker({
@@ -31,6 +38,7 @@ export function LocationPicker({
   allowedTypes = LOCATION_TYPES,
   textPlaceholder,
   presetPlaceholder,
+  showMapLink = false,
 }: Props) {
   const { t } = useTranslation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -172,18 +180,32 @@ export function LocationPicker({
           ) : null}
         </>
       ) : (
-        <TextInput
-          value={safeName}
-          onChangeText={(name) => onChange({ type: selectedType, name: name ?? '' })}
-          placeholder={
-            textPlaceholder ||
-            (selectedType === 'hotel'
-              ? t('locationPicker.hotelPlaceholder')
-              : t('locationPicker.addressPlaceholder'))
-          }
-          placeholderTextColor={COLORS.textMuted}
-          style={styles.textInput}
-        />
+        <>
+          <TextInput
+            value={safeName}
+            onChangeText={(name) =>
+              onChange({ ...(value ?? {}), type: selectedType, name: name ?? '' })
+            }
+            placeholder={
+              textPlaceholder ||
+              (selectedType === 'hotel'
+                ? t('locationPicker.hotelPlaceholder')
+                : t('locationPicker.addressPlaceholder'))
+            }
+            placeholderTextColor={COLORS.textMuted}
+            style={styles.textInput}
+          />
+          {showMapLink && locationTypeTakesMapLink(selectedType) ? (
+            <MapLinkField
+              compact
+              value={value?.link ?? ''}
+              onChangeText={(link) =>
+                onChange({ ...(value ?? {}), type: selectedType, name: safeName, link })
+              }
+              placeName={safeName}
+            />
+          ) : null}
+        </>
       )}
     </View>
   );

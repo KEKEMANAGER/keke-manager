@@ -1,12 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
-import { navigationQueryFromLocation, openExternalNavigation } from '../lib/openExternalNavigation';
+import { extractGoogleMapsLink } from '../lib/googleMapsLink';
+import {
+  navigationQueryFromLocation,
+  openPlaceNavigation,
+  type NavPlace,
+} from '../lib/openExternalNavigation';
 
 type Props = {
-  places: string[];
+  /** Place names, or places with the exact Google Maps link the company gave. */
+  places: (string | NavPlace)[];
   /** Numbered 1, 2, 3… when the list is the order of the day. */
   numbered?: boolean;
+  /** Shown on a chip whose place has a link but no name. */
+  fallbackName?: string;
 };
 
 /**
@@ -18,28 +26,34 @@ type Props = {
  * to retype each one into Maps on the road; the only navigation button he had
  * pointed at the tour's title ("Mtskheta & Uplistsikhe Cave Tour"), which Maps
  * cannot find.
+ *
+ * A hotel or an address may also carry the company's own Google Maps link; the
+ * chip then opens that exact spot, and wears a pin to say so.
  */
-export function NavigablePlaceChips({ places, numbered = false }: Props) {
+export function NavigablePlaceChips({ places, numbered = false, fallbackName = '' }: Props) {
   if (places.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
-      {places.map((place, i) => {
-        const query = navigationQueryFromLocation(place);
-        if (!query) return null;
+      {places.map((entry, i) => {
+        const place: NavPlace = typeof entry === 'string' ? { name: entry } : entry;
+        const name = place.name.trim() || fallbackName;
+        const link = extractGoogleMapsLink(place.link);
+        const query = navigationQueryFromLocation(place.name);
+        if (!query && !link) return null;
         return (
           <Pressable
-            key={`${i}-${place}`}
-            onPress={() => void openExternalNavigation(query)}
+            key={`${i}-${name}`}
+            onPress={() => void openPlaceNavigation(query, link)}
             style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
             accessibilityRole="link"
-            accessibilityLabel={place}
+            accessibilityLabel={name}
             hitSlop={4}
           >
-            <Ionicons name="navigate" size={13} color={COLORS.goldDark} />
+            <Ionicons name={link ? 'location' : 'navigate'} size={13} color={COLORS.goldDark} />
             <Text style={styles.chipText} numberOfLines={2}>
               {numbered ? `${i + 1}. ` : ''}
-              {place}
+              {name}
             </Text>
           </Pressable>
         );

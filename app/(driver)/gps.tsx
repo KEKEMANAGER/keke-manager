@@ -26,7 +26,7 @@ import {
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
 import { sendMessage } from '../../lib/messages';
-import { hasTripNavigationTargets, openExternalNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
+import { hasTripNavigationTargets, openPlaceNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
 import { completeTourTripWithOdometer, odometerErrorMessageKey } from '../../lib/tourTripLifecycle';
 import {
@@ -48,7 +48,7 @@ const TBILISI: Region = {
 };
 
 const TRIP_BOOKING_SELECT =
-  'id, kind, status, company_id, from_location, from_location_type, to_location, to_location_type, transfer_in, transfer_out, tour_days';
+  'id, kind, status, company_id, from_location, from_location_type, from_location_link, to_location, to_location_type, to_location_link, transfer_in, transfer_out, tour_days';
 
 type TripBookingState = TripNavBooking & Pick<BookingRow, 'id' | 'kind' | 'status' | 'company_id'>;
 
@@ -301,10 +301,10 @@ export default function DriverGpsScreen() {
     if (params.autoStart !== '1') return;
     if (!isTracking || !tripBooking) return;
     if (pickupNavOpenedRef.current) return;
-    const { pickup } = tripNavigationTargets(tripBooking);
+    const { pickup, pickupLink } = tripNavigationTargets(tripBooking);
     if (!pickup) return;
     pickupNavOpenedRef.current = true;
-    void openExternalNavigation(pickup);
+    void openPlaceNavigation(pickup, pickupLink);
   }, [params.autoStart, isTracking, tripBooking]);
 
   /**

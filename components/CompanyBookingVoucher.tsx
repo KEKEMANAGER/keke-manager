@@ -22,6 +22,7 @@ import { bookingStatusLabel, formatBookingDate } from '../lib/bookings';
 import { bookingKindLabel } from '../lib/bookingLabels';
 import type { ConvoyPeerLeg } from '../lib/convoyPeers';
 import type { CompanyVoucherConvoyLeg, CompanyVoucherData } from '../lib/companyVoucherData';
+import { extractGoogleMapsLink } from '../lib/googleMapsLink';
 import { splitTourStops } from '../lib/openExternalNavigation';
 import { NavigablePlaceChips } from './NavigablePlaceChips';
 import {
@@ -38,7 +39,7 @@ import {
   vehicleTypeLabel,
 } from '../lib/vehicleCatalog';
 import { formatStoredDateForDisplay, formatStoredDayForDisplay } from '../lib/dateTime';
-import { countTourOvernights } from '../lib/tourDays';
+import { countTourOvernights, readTourDayHotelLink } from '../lib/tourDays';
 import { bookingOfferedPriceGel } from '../lib/bookingPrice';
 import {
   driverPayableGel,
@@ -99,6 +100,26 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function SectionHeader({ title }: { title: string }) {
   return <Text style={styles.sectionHeader}>{stripVoucherEmojis(title)}</Text>;
+}
+
+/**
+ * A hotel or an address the company gave its own Google Maps link for, as a
+ * chip under its row: one tap and the driver is on his way to that exact spot.
+ */
+function LinkedPlaceChip({
+  name,
+  link,
+}: {
+  name: string | null | undefined;
+  link: string | null | undefined;
+}) {
+  const mapLink = extractGoogleMapsLink(link);
+  if (!mapLink) return null;
+  return (
+    <View style={styles.linkedPlace}>
+      <NavigablePlaceChips places={[{ name: String(name ?? '').trim(), link: mapLink }]} />
+    </View>
+  );
 }
 
 type ConvoyLegCardProps = {
@@ -437,11 +458,17 @@ export function CompanyBookingVoucherContent({
               value={formatLocationDisplay(booking.from_location, booking.from_location_type, VOUCHER_LOCATION)}
             />
           ) : null}
+          {booking.from_location ? (
+            <LinkedPlaceChip name={booking.from_location} link={booking.from_location_link} />
+          ) : null}
           {booking.to_location ? (
             <DetailRow
               label={t('companyVoucher.to')}
               value={formatLocationDisplay(booking.to_location, booking.to_location_type, VOUCHER_LOCATION)}
             />
+          ) : null}
+          {booking.to_location ? (
+            <LinkedPlaceChip name={booking.to_location} link={booking.to_location_link} />
           ) : null}
           <DetailRow label={t('companyVoucher.passengers')} value={String(booking.passengers ?? 1)} />
           {booking.requested_capacity_tier?.trim() ? (
@@ -512,6 +539,18 @@ export function CompanyBookingVoucherContent({
               )}
             />
           ) : null}
+          {isTour && booking.transfer_in ? (
+            <>
+              <LinkedPlaceChip
+                name={booking.transfer_in.airport}
+                link={booking.transfer_in.airport_link}
+              />
+              <LinkedPlaceChip
+                name={booking.transfer_in.hotel}
+                link={booking.transfer_in.hotel_link}
+              />
+            </>
+          ) : null}
           {isTour && booking.transfer_out && (booking.transfer_out.airport || booking.transfer_out.hotel) ? (
             <DetailRow
               label={t('newBooking.form.transferDepartureSection')}
@@ -528,6 +567,18 @@ export function CompanyBookingVoucherContent({
               )}
             />
           ) : null}
+          {isTour && booking.transfer_out ? (
+            <>
+              <LinkedPlaceChip
+                name={booking.transfer_out.hotel}
+                link={booking.transfer_out.hotel_link}
+              />
+              <LinkedPlaceChip
+                name={booking.transfer_out.airport}
+                link={booking.transfer_out.airport_link}
+              />
+            </>
+          ) : null}
 
           {isTour && tourDays.length > 0 ? (
             <View style={styles.tourBlock}>
@@ -537,6 +588,7 @@ export function CompanyBookingVoucherContent({
                   d.touristHotel?.trim() ||
                   (d as { tourist_hotel?: string }).tourist_hotel?.trim() ||
                   '';
+                const hotelLink = readTourDayHotelLink(d);
                 const overnight =
                   d.driverOvernight?.trim() ||
                   (d as { driver_overnight?: string }).driver_overnight?.trim() ||
@@ -559,10 +611,13 @@ export function CompanyBookingVoucherContent({
                         <NavigablePlaceChips places={stops} numbered />
                       </View>
                     ) : null}
-                    {hotel ? (
+                    {hotel || hotelLink ? (
                       <View style={styles.tourDayPlaces}>
                         <Text style={styles.tourDayMeta}>{t('bookings.voucherHotel')}:</Text>
-                        <NavigablePlaceChips places={[hotel]} />
+                        <NavigablePlaceChips
+                          places={[{ name: hotel, link: hotelLink }]}
+                          fallbackName={t('bookings.voucherHotel')}
+                        />
                       </View>
                     ) : null}
                     {overnight ? (
@@ -1081,6 +1136,11 @@ const styles = StyleSheet.create({
   tourDayRoute: { fontSize: 13, marginTop: 4 },
   tourDayMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   tourDayPlaces: { marginTop: 4 },
+  linkedPlace: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingBottom: 6,
+  },
   tourNights: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
   convoySummary: {
     fontSize: 13,

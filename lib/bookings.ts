@@ -324,6 +324,8 @@ export type TourDayPersisted = {
   toPlace: string;
   stops: string | string[];
   touristHotel?: string;
+  /** Google Maps link for the tourists' hotel, pasted by the company. */
+  touristHotelLink?: string;
   driverOvernight?: string;
   /** @deprecated legacy flag */
   overnight?: boolean;
@@ -336,8 +338,12 @@ export type TourTransferLeg = {
   date: string;
   airport?: string;
   airport_type?: string | null;
+  /** Google Maps link when this end is a hotel or an address. */
+  airport_link?: string;
   hotel?: string;
   hotel_type?: string | null;
+  /** Google Maps link when this end is a hotel or an address. */
+  hotel_link?: string;
   flight?: string;
   passengerName?: string;
 };
@@ -354,8 +360,12 @@ export type BookingRow = {
   kind: BookingType;
   from_location: string | null;
   from_location_type?: string | null;
+  /** Google Maps link for a hotel/address pickup (transfers). */
+  from_location_link?: string | null;
   to_location: string | null;
   to_location_type?: string | null;
+  /** Google Maps link for a hotel/address drop-off (transfers). */
+  to_location_link?: string | null;
   route: string | null;
   date_display: string | null;
   passengers: number;
@@ -445,8 +455,10 @@ export type InsertBookingInput = {
   kind: BookingType;
   from_location: string | null;
   from_location_type?: string | null;
+  from_location_link?: string | null;
   to_location: string | null;
   to_location_type?: string | null;
+  to_location_link?: string | null;
   route: string | null;
   date_display: string | null;
   passengers: number;
@@ -951,6 +963,14 @@ export async function insertBooking(row: InsertBookingInput) {
         row.requested_driver_category ?? 'all',
       ),
     };
+
+    // Sent only when set, so a booking without links inserts exactly as before.
+    if (row.from_location_link) {
+      body.from_location_link = row.from_location_link;
+    }
+    if (row.to_location_link) {
+      body.to_location_link = row.to_location_link;
+    }
 
     if (row.is_group_master === true) {
       body.is_group_master = true;

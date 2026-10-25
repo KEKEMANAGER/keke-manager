@@ -47,17 +47,21 @@ import {
   type TransportLegDraft,
 } from '../../lib/transportPlan';
 import { LocationPicker } from '../../components/LocationPicker';
+import { MapLinkField } from '../../components/MapLinkField';
 import { PickupSignLogoField } from '../../components/PickupSignLogoField';
 import {
   emptyLocationValue,
   formatLocationDisplay,
   formatLocationRoute,
+  locationMapLinkIsInvalid,
   locationValueIsComplete,
   persistLocationFields,
+  persistLocationLink,
   transportReferenceKindForLocations,
   type LocationValue,
   type TransportReferenceKind,
 } from '../../lib/bookingLocations';
+import { mapLinkState } from '../../lib/googleMapsLink';
 import { isPickupSignLogoPdf } from '../../lib/pickupSignLogo';
 import {
   capacityTierLabel,
@@ -158,6 +162,14 @@ function parseAmountGeorgian(raw: string): number {
   if (!t) return 0;
   const n = parseFloat(t);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** `{ [key]: link }` when there is a link, nothing otherwise, so a leg without one is stored as before. */
+function withLink<K extends 'airport_link' | 'hotel_link'>(
+  key: K,
+  link: string | null,
+): Partial<Record<K, string>> {
+  return link ? ({ [key]: link } as Record<K, string>) : {};
 }
 
 function initialItineraryDay(day = 1): ItineraryDay {
@@ -1097,11 +1109,17 @@ export default function NewBookingScreen() {
         if (!locationValueIsComplete(arrivalFrom)) return t('newBooking.validation.locationFrom');
         if (!locationValueIsComplete(arrivalTo)) return t('newBooking.validation.locationTo');
         if (!arrivalDateTime) return t('newBooking.validation.dateTime');
+        if (locationMapLinkIsInvalid(arrivalFrom) || locationMapLinkIsInvalid(arrivalTo)) {
+          return t('newBooking.validation.mapLink');
+        }
         return null;
       }
       if (!locationValueIsComplete(departureFrom)) return t('newBooking.validation.locationFrom');
       if (!locationValueIsComplete(departureTo)) return t('newBooking.validation.locationTo');
       if (!departureDateTime) return t('newBooking.validation.departureDate');
+      if (locationMapLinkIsInvalid(departureFrom) || locationMapLinkIsInvalid(departureTo)) {
+        return t('newBooking.validation.mapLink');
+      }
       return null;
     }
     if (booking_kind === 'dayTour') {
@@ -1139,6 +1157,17 @@ export default function NewBookingScreen() {
         if (!locationValueIsComplete(transferOutHotelLoc)) return t('newBooking.validation.locationFrom');
         if (!locationValueIsComplete(transferOutAirportLoc)) return t('newBooking.validation.locationTo');
       }
+      // A link box left with something that is not a Google Maps link would
+      // send the driver nowhere; empty is fine, the name is searched instead.
+      const badTransferLink =
+        (hasArrivalTransfer &&
+          (locationMapLinkIsInvalid(transferInAirportLoc) || locationMapLinkIsInvalid(transferInHotelLoc))) ||
+        (hasDepartureTransfer &&
+          (locationMapLinkIsInvalid(transferOutHotelLoc) || locationMapLinkIsInvalid(transferOutAirportLoc)));
+      const badDayLink = tourDays.some(
+        (d, i) => i < tourDays.length - 1 && mapLinkState(d.touristHotelLink) === 'invalid',
+      );
+      if (badTransferLink || badDayLink) return t('newBooking.validation.mapLink');
       return null;
     }
     return t('newBooking.validation.kind');
@@ -1302,6 +1331,8 @@ export default function NewBookingScreen() {
             airport_type: transferInAirportP.type,
             hotel: transferInHotelP.name ?? undefined,
             hotel_type: transferInHotelP.type,
+            ...withLink('airport_link', persistLocationLink(transferInAirportLoc)),
+            ...withLink('hotel_link', persistLocationLink(transferInHotelLoc)),
             ...(tourTransferInFlightNo.trim()
               ? { flight: tourTransferInFlightNo.trim() }
               : {}),
@@ -1315,6 +1346,8 @@ export default function NewBookingScreen() {
             hotel_type: transferOutHotelP.type,
             airport: transferOutAirportP.name ?? undefined,
             airport_type: transferOutAirportP.type,
+            ...withLink('hotel_link', persistLocationLink(transferOutHotelLoc)),
+            ...withLink('airport_link', persistLocationLink(transferOutAirportLoc)),
             ...(tourTransferOutFlightNo.trim()
               ? { flight: tourTransferOutFlightNo.trim() }
               : {}),
@@ -1361,6 +1394,14 @@ export default function NewBookingScreen() {
           ? transferTab === 'arrival'
             ? arrivalToP.type
             : departureToP.type
+          : null,
+      from_location_link:
+        booking_kind === 'transfer'
+          ? persistLocationLink(transferTab === 'arrival' ? arrivalFrom : departureFrom)
+          : null,
+      to_location_link:
+        booking_kind === 'transfer'
+          ? persistLocationLink(transferTab === 'arrival' ? arrivalTo : departureTo)
           : null,
       route: routeForDb,
       date_display: isDayTour
@@ -1599,6 +1640,7 @@ export default function NewBookingScreen() {
                     label={t('newBooking.form.pickupLocation')}
                     value={arrivalFrom}
                     onChange={setArrivalFrom}
+                    showMapLink
                   />
                   <DateTimeField
                     label={t('newBooking.form.dateTime')}
@@ -1611,6 +1653,7 @@ export default function NewBookingScreen() {
                     label={t('newBooking.form.dropoffLocation')}
                     value={arrivalTo}
                     onChange={setArrivalTo}
+                    showMapLink
                   />
                   <TransportReferenceField
                     pickup={arrivalFrom}
@@ -1625,6 +1668,7 @@ export default function NewBookingScreen() {
                     label={t('newBooking.form.pickupLocation')}
                     value={departureFrom}
                     onChange={setDepartureFrom}
+                    showMapLink
                   />
                   <DateTimeField
                     label={t('newBooking.form.departureDateTime')}
@@ -1637,6 +1681,7 @@ export default function NewBookingScreen() {
                     label={t('newBooking.form.dropoffLocation')}
                     value={departureTo}
                     onChange={setDepartureTo}
+                    showMapLink
                   />
                   <TransportReferenceField
                     pickup={departureFrom}
@@ -1838,11 +1883,13 @@ export default function NewBookingScreen() {
                   label={t('newBooking.form.transferInFrom')}
                   value={transferInAirportLoc}
                   onChange={setTransferInAirportLoc}
+                  showMapLink
                 />
                 <LocationPicker
                   label={t('newBooking.form.transferInTo')}
                   value={transferInHotelLoc}
                   onChange={setTransferInHotelLoc}
+                  showMapLink
                 />
                 <TransportReferenceField
                   pickup={transferInAirportLoc}
@@ -1872,11 +1919,13 @@ export default function NewBookingScreen() {
                   label={t('newBooking.form.transferOutFrom')}
                   value={transferOutHotelLoc}
                   onChange={setTransferOutHotelLoc}
+                  showMapLink
                 />
                 <LocationPicker
                   label={t('newBooking.form.transferOutTo')}
                   value={transferOutAirportLoc}
                   onChange={setTransferOutAirportLoc}
+                  showMapLink
                 />
                 <TransportReferenceField
                   pickup={transferOutHotelLoc}
@@ -1942,6 +1991,11 @@ export default function NewBookingScreen() {
                         placeholder={t('newBooking.form.placeholders.touristHotel')}
                       />
                       <Text style={styles.fieldHint}>{t('newBooking.form.touristHotelHint')}</Text>
+                      <MapLinkField
+                        value={day.touristHotelLink ?? ''}
+                        onChangeText={(text) => patchTourDay(dayIndex, { touristHotelLink: text })}
+                        placeName={day.touristHotel ?? ''}
+                      />
                       <AuthInput
                         label={t('newBooking.form.driverOvernight')}
                         value={day.driverOvernight ?? ''}

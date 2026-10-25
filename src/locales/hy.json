@@ -515,7 +515,8 @@
       "driverPickLeg": "Vehicle {{n}}: select a driver or choose \"All matching drivers\"",
       "passengers": "Enter number of passengers",
       "session": "Session not found. Please sign in again",
-      "operator": "Select an operator"
+      "operator": "Select an operator",
+      "mapLink": "The Google Maps link is not valid. Paste a link from Google Maps (Share → Copy link) or leave the field empty."
     },
     "dayLine": "Day {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -546,6 +547,15 @@
       "hotel": "Hotel",
       "address": "Address"
     }
+  },
+  "mapLink": {
+    "label": "Google Maps link (optional)",
+    "placeholder": "https://maps.app.goo.gl/…",
+    "hint": "Find the place in Google Maps → Share → Copy link → paste it here. The driver is taken to this exact spot.",
+    "search": "Find in Google Maps",
+    "valid": "Link added: the driver goes to this exact spot",
+    "check": "Check",
+    "invalid": "This is not a Google Maps link. Paste a link from Google Maps or leave it empty."
   },
   "historyPage": {
     "title": "Booking history",
@@ -1182,6 +1192,8 @@
     "navigatePickup": "Navigate to pickup",
     "navigateDestination": "Navigate to destination",
     "todayStops": "Today's stops: tap one to open it in Google Maps",
+    "dayStart": "Start of the day: last night's hotel",
+    "dayEnd": "End of the day: tonight's hotel",
     "externalNavHint": "The company tracks you on KEKE. Use Google/Apple Maps for directions.",
     "completeNeedsInProgressTitle": "Trip not started yet",
     "completeNeedsInProgress": "You can finish the booking only while it is in progress.",
