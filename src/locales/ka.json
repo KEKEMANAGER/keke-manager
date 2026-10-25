@@ -314,7 +314,12 @@
     "photoAuditEmpty": "ჯერ არცერთ მანქანას არ აქვს ატვირთული ფოტო.",
     "photoOverdueBadge": "ვადაგადაცილებული",
     "photoDueBadge": "ვადა: {{date}}",
-    "photoNoMetaBadge": "საჭიროებს განახლებას"
+    "photoNoMetaBadge": "საჭიროებს განახლებას",
+    "carPhotos": "მანქანის ფოტოები",
+    "techPassport": "ტექპასპორტი",
+    "missingPhotosTitle": "ფოტოები აკლია",
+    "missingPhotosBody": "არ არის ატვირთული: {{list}}. მაინც დაადასტურო მანქანა?",
+    "approveAnyway": "მაინც დადასტურება"
   },
   "newBooking": {
     "title": "ახალი ჯავშანი",

@@ -27,6 +27,34 @@ function vehicleNeedsReview(status: AdminVehicleVerificationRow['verification_st
   return status === 'pending' || status === 'submitted';
 }
 
+type PhotoColumn =
+  | 'photo_front'
+  | 'photo_left'
+  | 'photo_right'
+  | 'photo_rear'
+  | 'photo_interior'
+  | 'tech_passport_front'
+  | 'tech_passport_back';
+
+/** The car itself, from every side — checked against the tech passport before approval. */
+const CAR_PHOTO_SLOTS: { column: PhotoColumn; labelKey: string }[] = [
+  { column: 'photo_front', labelKey: 'vehicleScreen.photoFront' },
+  { column: 'photo_left', labelKey: 'vehicleScreen.photoLeft' },
+  { column: 'photo_right', labelKey: 'vehicleScreen.photoRight' },
+  { column: 'photo_rear', labelKey: 'vehicleScreen.photoRear' },
+  { column: 'photo_interior', labelKey: 'vehicleScreen.photoInterior' },
+];
+
+const PASSPORT_SLOTS: { column: PhotoColumn; labelKey: string }[] = [
+  { column: 'tech_passport_front', labelKey: 'verificationScreen.tech_passport_front' },
+  { column: 'tech_passport_back', labelKey: 'verificationScreen.tech_passport_back' },
+];
+
+function photoUrl(v: AdminVehicleVerificationRow, column: PhotoColumn): string | null {
+  const raw = v[column];
+  return typeof raw === 'string' && raw.trim() ? raw : null;
+}
+
 function vehicleTypeDisplay(v: AdminVehicleVerificationRow): string {
   const type = v.type ? vehicleTypeLabel(v.type) : null;
   const cls = v.class ? vehicleClassLabel(v.class) : null;
@@ -125,7 +153,32 @@ export function AdminVehicleVerifySection({
     setRejectTargetId(null);
   }
 
-  async function onApprove(vehicleId: string) {
+  /**
+   * Approving with photos missing is still possible, but never by accident:
+   * the car is approved on what the photos show, not on the passport alone.
+   */
+  function confirmApproveWithMissing(v: AdminVehicleVerificationRow): Promise<boolean> {
+    const missing = [...CAR_PHOTO_SLOTS, ...PASSPORT_SLOTS]
+      .filter((s) => !photoUrl(v, s.column))
+      .map((s) => t(s.labelKey));
+    if (missing.length === 0) return Promise.resolve(true);
+    const title = t('adminVehicleVerify.missingPhotosTitle');
+    const body = t('adminVehicleVerify.missingPhotosBody', { list: missing.join(', ') });
+    if (Platform.OS === 'web') {
+      const ok = typeof window !== 'undefined' ? window.confirm(`${title}\n\n${body}`) : false;
+      return Promise.resolve(ok);
+    }
+    return new Promise((resolve) => {
+      Alert.alert(title, body, [
+        { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+        { text: t('adminVehicleVerify.approveAnyway'), onPress: () => resolve(true) },
+      ]);
+    });
+  }
+
+  async function onApprove(vehicle: AdminVehicleVerificationRow) {
+    const vehicleId = vehicle.id;
+    if (!(await confirmApproveWithMissing(vehicle))) return;
     setActingId(vehicleId);
     const { error: err } = await approveVehicleVerification(vehicleId);
     setActingId(null);
@@ -171,23 +224,25 @@ export function AdminVehicleVerifySection({
     void load(true);
   }
 
-  function docButton(v: AdminVehicleVerificationRow, url: string | null, labelKey: string) {
+  /** A thumbnail of one photo; tap it for the full-size view. */
+  function photoTile(v: AdminVehicleVerificationRow, column: PhotoColumn, labelKey: string) {
+    const url = photoUrl(v, column);
     return (
       <Pressable
-        key={labelKey}
+        key={column}
         disabled={!url}
         onPress={() => url && setPreview({ url, title: t(labelKey) })}
-        style={({ pressed }) => [
-          styles.docBtn,
-          !url && styles.docBtnDisabled,
-          pressed && url && styles.docBtnPressed,
-        ]}
+        style={({ pressed }) => [styles.tile, pressed && url && styles.tilePressed]}
       >
-        <Text style={[styles.docBtnText, !url && styles.docBtnTextDisabled]} numberOfLines={1}>
+        {url ? (
+          <Image source={{ uri: url }} style={styles.tileImage} resizeMode="cover" />
+        ) : (
+          <View style={[styles.tileImage, styles.tileEmpty]}>
+            <Text style={styles.tileEmptyText}>{t('adminVerify.noDocument')}</Text>
+          </View>
+        )}
+        <Text style={[styles.tileLabel, !url && styles.tileLabelMissing]} numberOfLines={2}>
           {t(labelKey)}
-        </Text>
-        <Text style={[styles.docBtnHint, !url && styles.docBtnTextDisabled]}>
-          {url ? t('adminVerify.viewDocument') : t('adminVerify.noDocument')}
         </Text>
       </Pressable>
     );
@@ -229,13 +284,17 @@ export function AdminVehicleVerifySection({
             </Text>
             {vehicleNeedsReview(v.verification_status) ? (
               <>
-                <View style={styles.docGrid}>
-                  {docButton(v, v.tech_passport_front, 'verificationScreen.tech_passport_front')}
-                  {docButton(v, v.tech_passport_back, 'verificationScreen.tech_passport_back')}
+                <Text style={styles.groupLabel}>{t('adminVehicleVerify.carPhotos')}</Text>
+                <View style={styles.tileGrid}>
+                  {CAR_PHOTO_SLOTS.map((s) => photoTile(v, s.column, s.labelKey))}
+                </View>
+                <Text style={styles.groupLabel}>{t('adminVehicleVerify.techPassport')}</Text>
+                <View style={styles.tileGrid}>
+                  {PASSPORT_SLOTS.map((s) => photoTile(v, s.column, s.labelKey))}
                 </View>
                 <View style={adminStyles.btnRow}>
                   <Pressable
-                    onPress={() => void onApprove(v.id)}
+                    onPress={() => void onApprove(v)}
                     disabled={actingId === v.id}
                     style={({ pressed }) => [styles.approve, (pressed || actingId === v.id) && { opacity: 0.88 }]}
                   >
@@ -306,28 +365,33 @@ export function AdminVehicleVerifySection({
 }
 
 const styles = StyleSheet.create({
-  docGrid: {
+  groupLabel: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
+  },
+  tileGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
-  docBtn: {
-    minWidth: '45%',
-    flexGrow: 1,
+  tile: { width: '31%', minWidth: 92, flexGrow: 0 },
+  tilePressed: { opacity: 0.85 },
+  tileImage: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    backgroundColor: COLORS.surface,
   },
-  docBtnDisabled: { opacity: 0.5 },
-  docBtnPressed: { opacity: 0.88, borderColor: COLORS.gold },
-  docBtnText: { color: COLORS.text, fontSize: 12, fontWeight: '700' },
-  docBtnTextDisabled: { color: COLORS.textMuted },
-  docBtnHint: { color: COLORS.textSecondary, fontSize: 11, marginTop: 4 },
+  tileEmpty: { alignItems: 'center', justifyContent: 'center' },
+  tileEmptyText: { color: COLORS.textMuted, fontSize: 11, fontWeight: '700' },
+  tileLabel: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '600', marginTop: 4 },
+  tileLabelMissing: { color: COLORS.error },
   approve: {
     flex: 1,
     backgroundColor: COLORS.gold,

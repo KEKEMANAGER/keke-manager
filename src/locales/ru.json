@@ -314,7 +314,12 @@
     "photoAuditEmpty": "Пока ни у одного автомобиля нет загруженных фото.",
     "photoOverdueBadge": "Просрочено",
     "photoDueBadge": "Срок: {{date}}",
-    "photoNoMetaBadge": "Требуется обновление"
+    "photoNoMetaBadge": "Требуется обновление",
+    "carPhotos": "Фото автомобиля",
+    "techPassport": "Техпаспорт",
+    "missingPhotosTitle": "Не хватает фото",
+    "missingPhotosBody": "Не загружено: {{list}}. Всё равно подтвердить автомобиль?",
+    "approveAnyway": "Всё равно подтвердить"
   },
   "newBooking": {
     "title": "Новый заказ",

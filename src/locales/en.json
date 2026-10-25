@@ -314,7 +314,12 @@
     "photoAuditEmpty": "No vehicle has uploaded photos yet.",
     "photoOverdueBadge": "Overdue",
     "photoDueBadge": "Due: {{date}}",
-    "photoNoMetaBadge": "Needs refresh"
+    "photoNoMetaBadge": "Needs refresh",
+    "carPhotos": "Car photos",
+    "techPassport": "Registration certificate",
+    "missingPhotosTitle": "Photos missing",
+    "missingPhotosBody": "Not uploaded: {{list}}. Approve the car anyway?",
+    "approveAnyway": "Approve anyway"
   },
   "newBooking": {
     "title": "New booking",

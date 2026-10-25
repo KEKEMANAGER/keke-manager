@@ -314,7 +314,12 @@
     "photoAuditEmpty": "No vehicle has uploaded photos yet.",
     "photoOverdueBadge": "Overdue",
     "photoDueBadge": "Due: {{date}}",
-    "photoNoMetaBadge": "Needs refresh"
+    "photoNoMetaBadge": "Needs refresh",
+    "carPhotos": "Մեքենայի լուսանկարներ",
+    "techPassport": "Տեխանձնագիր",
+    "missingPhotosTitle": "Լուսանկարներ են պակասում",
+    "missingPhotosBody": "Վերբեռնված չէ՝ {{list}}։ Այնուամենայնիվ հաստատե՞լ մեքենան։",
+    "approveAnyway": "Այնուամենայնիվ հաստատել"
   },
   "newBooking": {
     "title": "New booking",
