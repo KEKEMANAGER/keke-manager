@@ -16,7 +16,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { DateOnlyField } from '../../components/DateOnlyField';
 import { DateTimeField } from '../../components/DateTimeField';
+import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import { insertBooking, type InsertBookingInput } from '../../lib/bookings';
@@ -31,11 +33,14 @@ import {
   type BookingImportFailure,
   type BookingImportResult,
   type ImportedBookingDraft,
+  type ImportedLeg,
   type ImportedService,
+  type ImportedTourDay,
   type PhotoSource,
   type PickedImage,
 } from '../../lib/bookingImport';
 import { parseStoredDateTime } from '../../lib/dateTime';
+import { parseDateOnly, toDateOnlyString } from '../../lib/tourDays';
 
 /**
  * A booking from whatever the tour operator sent: a message pasted from
@@ -83,6 +88,27 @@ function formatImportedDate(iso: string): string {
 function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
+
+/** YYYY-MM-DD moved by whole days, on the calendar rather than the clock. */
+function addDaysToDateOnly(date: string, days: number): string {
+  const d = parseDateOnly(date);
+  if (!d) return date;
+  d.setDate(d.getDate() + days);
+  return toDateOnlyString(d);
+}
+
+function shiftLeg(leg: ImportedLeg | null | undefined, days: number): ImportedLeg | null {
+  if (!leg) return null;
+  const at = leg.date_display ? Date.parse(leg.date_display) : NaN;
+  if (!Number.isFinite(at)) return leg;
+  return { ...leg, date_display: new Date(at + days * 86_400_000).toISOString() };
+}
+
+function localDayNumber(d: Date): number {
+  return Math.round(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86_400_000);
+}
+
+const EMPTY_LEG: ImportedLeg = { date_display: null, from: null, to: null, flight: null };
 
 const VEHICLE_TYPES = ['sedan', 'minivan', 'microbus', 'bus', 'suv'] as const;
 const VEHICLE_CLASSES = ['economy', 'comfort', 'vip'] as const;
@@ -226,6 +252,10 @@ export default function ImportBookingScreen() {
   const draft = active?.draft ?? null;
   const sources = active?.sources ?? {};
   const evidence = active?.evidence ?? null;
+  const isTour = draft?.kind === 'tour';
+  const tourDays = draft?.tour_days ?? [];
+  /** A sign is held at an arrival: any transfer, or a tour that opens with one. */
+  const showMeetGreet = !isTour || !!draft?.transfer_in || draft?.meet_greet === true;
   const pendingIndexes = services
     .map((_, i) => i)
     .filter((i) => !createdIndexes.includes(i));
@@ -253,10 +283,84 @@ export default function ImportBookingScreen() {
     Alert.alert(title, message, onClose ? [{ text: t('common.ok'), onPress: onClose }] : undefined);
   }
 
-  function patch(changes: Partial<ImportedBookingDraft>) {
+  function patchDraft(update: (d: ImportedBookingDraft) => ImportedBookingDraft) {
     setServices((prev) =>
-      prev.map((s, i) => (i === activeIndex ? { ...s, draft: { ...s.draft, ...changes } } : s)),
+      prev.map((s, i) => (i === activeIndex ? { ...s, draft: update(s.draft) } : s)),
     );
+  }
+
+  function patch(changes: Partial<ImportedBookingDraft>) {
+    patchDraft((d) => ({ ...d, ...changes }));
+  }
+
+  function patchDay(index: number, changes: Partial<ImportedTourDay>) {
+    patchDraft((d) => ({
+      ...d,
+      tour_days: (d.tour_days ?? []).map((day, i) => (i === index ? { ...day, ...changes } : day)),
+    }));
+  }
+
+  function removeDay(index: number) {
+    patchDraft((d) => {
+      const days = (d.tour_days ?? [])
+        .filter((_, i) => i !== index)
+        .map((day, i) => ({ ...day, day: i + 1 }));
+      return { ...d, tour_days: days.length > 0 ? days : null };
+    });
+  }
+
+  /** One more day, dated the day after the last one. */
+  function addDay() {
+    patchDraft((d) => {
+      const days = d.tour_days ?? [];
+      const last = days[days.length - 1];
+      const start = parseStoredDateTime(d.date_display);
+      const date = last?.date
+        ? addDaysToDateOnly(last.date, 1)
+        : start
+          ? toDateOnlyString(start)
+          : null;
+      return {
+        ...d,
+        tour_days: [
+          ...days,
+          { day: days.length + 1, date, fromPlace: null, toPlace: null, stops: null, hotel: null },
+        ],
+      };
+    });
+  }
+
+  function patchLeg(key: 'transfer_in' | 'transfer_out', changes: Partial<ImportedLeg> | null) {
+    patchDraft((d) =>
+      changes === null ? { ...d, [key]: null } : { ...d, [key]: { ...(d[key] ?? EMPTY_LEG), ...changes } },
+    );
+  }
+
+  /**
+   * A new start date carries the whole tour with it: its days and its
+   * transfers move by the same number of days. Fixing a year the message
+   * did not state is then one change, not six.
+   */
+  function onStartChange(next: Date | null) {
+    patchDraft((d) => {
+      const updated: ImportedBookingDraft = {
+        ...d,
+        date_display: next ? next.toISOString() : null,
+        pickup_time: next ? hhmm(next) : null,
+      };
+      const before = parseStoredDateTime(d.date_display);
+      if (d.kind !== 'tour' || !next || !before) return updated;
+      const shift = localDayNumber(next) - localDayNumber(before);
+      if (shift === 0) return updated;
+      return {
+        ...updated,
+        tour_days: d.tour_days
+          ? d.tour_days.map((day) => (day.date ? { ...day, date: addDaysToDateOnly(day.date, shift) } : day))
+          : null,
+        transfer_in: shiftLeg(d.transfer_in, shift),
+        transfer_out: shiftLeg(d.transfer_out, shift),
+      };
+    });
   }
 
   function showResult(res: BookingImportResult | BookingImportFailure, source: ReadSource) {
@@ -369,13 +473,11 @@ export default function ImportBookingScreen() {
         createdByName: profile?.full_name ?? null,
       });
 
+      // The itinerary and a tour's arrival and departure come from the draft.
       const payload = {
         ...base,
         price_gel: d.client_price ?? 0,
         commission: null,
-        itinerary: null,
-        transfer_in: null,
-        transfer_out: null,
       } as InsertBookingInput;
 
       const { id, error } = await insertBooking(payload);
@@ -643,15 +745,9 @@ export default function ImportBookingScreen() {
             <View style={styles.field}>
               <DateTimeField
                 key={`date-${activeIndex}`}
-                label={t('importBooking.date')}
+                label={isTour ? t('importBooking.tourStart') : t('importBooking.date')}
                 value={parseStoredDateTime(draft.date_display)}
-                onChange={(d) =>
-                  patch(
-                    d
-                      ? { date_display: d.toISOString(), pickup_time: hhmm(d) }
-                      : { date_display: null, pickup_time: null },
-                  )
-                }
+                onChange={onStartChange}
                 placeholder={t('importBooking.datePlaceholder')}
               />
               {fromAi('date_display') || quote('date_display') ? (
@@ -662,22 +758,36 @@ export default function ImportBookingScreen() {
               ) : null}
             </View>
 
-            <ReviewField
-              label={t('importBooking.from')}
-              aiLabel={aiLabel}
-              fromAi={fromAi('from_location')}
-              quote={quote('from_location')}
-              value={draft.from_location ?? ''}
-              onChange={(v) => patch({ from_location: v || null })}
-            />
-            <ReviewField
-              label={t('importBooking.to')}
-              aiLabel={aiLabel}
-              fromAi={fromAi('to_location')}
-              quote={quote('to_location')}
-              value={draft.to_location ?? ''}
-              onChange={(v) => patch({ to_location: v || null })}
-            />
+            {!isTour ? (
+              <>
+                <ReviewField
+                  label={t('importBooking.from')}
+                  aiLabel={aiLabel}
+                  fromAi={fromAi('from_location')}
+                  quote={quote('from_location')}
+                  value={draft.from_location ?? ''}
+                  onChange={(v) => patch({ from_location: v || null })}
+                />
+                <ReviewField
+                  label={t('importBooking.to')}
+                  aiLabel={aiLabel}
+                  fromAi={fromAi('to_location')}
+                  quote={quote('to_location')}
+                  value={draft.to_location ?? ''}
+                  onChange={(v) => patch({ to_location: v || null })}
+                />
+              </>
+            ) : null}
+            {draft.kind === 'day_tour' ? (
+              <ReviewField
+                label={t('importBooking.route')}
+                aiLabel={aiLabel}
+                fromAi={fromAi('route')}
+                quote={quote('route')}
+                value={draft.route ?? ''}
+                onChange={(v) => patch({ route: v || null })}
+              />
+            ) : null}
             <ReviewField
               label={t('importBooking.passengers')}
               aiLabel={aiLabel}
@@ -710,14 +820,30 @@ export default function ImportBookingScreen() {
               labelFor={(v) => t(`importBooking.vehicleClasses.${v}`)}
             />
 
-            <ReviewField
-              label={t('importBooking.flight')}
-              aiLabel={aiLabel}
-              fromAi={fromAi('flight_number')}
-              quote={quote('flight_number')}
-              value={draft.flight_number ?? ''}
-              onChange={(v) => patch({ flight_number: v || null })}
-            />
+            <View style={styles.field}>
+              <LanguageMultiSelect
+                label={t('newBooking.form.requiredLanguages')}
+                value={draft.required_languages ?? []}
+                onChange={(codes) => patch({ required_languages: codes.length > 0 ? codes : null })}
+              />
+              {fromAi('required_languages') ? (
+                <View style={styles.dateMeta}>
+                  <AiTag show label={aiLabel} />
+                </View>
+              ) : null}
+            </View>
+
+            {/* On a tour the flights belong to its arrival and departure below. */}
+            {!isTour || draft.flight_number ? (
+              <ReviewField
+                label={t('importBooking.flight')}
+                aiLabel={aiLabel}
+                fromAi={fromAi('flight_number')}
+                quote={quote('flight_number')}
+                value={draft.flight_number ?? ''}
+                onChange={(v) => patch({ flight_number: v || null })}
+              />
+            ) : null}
             <ReviewField
               label={t('importBooking.passengerName')}
               aiLabel={aiLabel}
@@ -748,32 +874,38 @@ export default function ImportBookingScreen() {
               keyboardType="decimal-pad"
             />
 
-            <View style={styles.switchRow}>
-              <Text style={styles.fieldLabel}>{t('importBooking.meetGreet')}</Text>
-              <Switch
-                value={draft.meet_greet === true}
-                onValueChange={(v) => patch({ meet_greet: v })}
-                trackColor={{ true: COLORS.goldLight, false: COLORS.border }}
-                thumbColor={draft.meet_greet ? COLORS.gold : COLORS.white}
-              />
-            </View>
+            {showMeetGreet ? (
+              <View style={styles.switchRow}>
+                <Text style={styles.fieldLabel}>{t('importBooking.meetGreet')}</Text>
+                <Switch
+                  value={draft.meet_greet === true}
+                  onValueChange={(v) => patch({ meet_greet: v })}
+                  trackColor={{ true: COLORS.goldLight, false: COLORS.border }}
+                  thumbColor={draft.meet_greet ? COLORS.gold : COLORS.white}
+                />
+              </View>
+            ) : null}
 
-            <ReviewField
-              label={t('importBooking.hotel')}
-              aiLabel={aiLabel}
-              fromAi={fromAi('hotel')}
-              quote={quote('hotel')}
-              value={draft.hotel ?? ''}
-              onChange={(v) => patch({ hotel: v || null })}
-            />
-            <ReviewField
-              label={t('importBooking.sign')}
-              aiLabel={aiLabel}
-              fromAi={fromAi('sign_text')}
-              quote={quote('sign_text')}
-              value={draft.sign_text ?? ''}
-              onChange={(v) => patch({ sign_text: v || null })}
-            />
+            {!isTour || draft.hotel ? (
+              <ReviewField
+                label={t('importBooking.hotel')}
+                aiLabel={aiLabel}
+                fromAi={fromAi('hotel')}
+                quote={quote('hotel')}
+                value={draft.hotel ?? ''}
+                onChange={(v) => patch({ hotel: v || null })}
+              />
+            ) : null}
+            {showMeetGreet ? (
+              <ReviewField
+                label={t('importBooking.sign')}
+                aiLabel={aiLabel}
+                fromAi={fromAi('sign_text')}
+                quote={quote('sign_text')}
+                value={draft.sign_text ?? ''}
+                onChange={(v) => patch({ sign_text: v || null })}
+              />
+            ) : null}
             <ReviewField
               label={t('importBooking.comment')}
               aiLabel={aiLabel}
@@ -783,6 +915,143 @@ export default function ImportBookingScreen() {
               onChange={(v) => patch({ comment: v || null })}
             />
           </View>
+
+          {isTour ? (
+            <View style={styles.card}>
+              <View style={styles.fieldHead}>
+                <Text style={styles.sectionTitle}>{t('importBooking.tourDays')}</Text>
+                <AiTag show={fromAi('tour_days')} label={aiLabel} />
+              </View>
+              {tourDays.map((day, i) => (
+                <View key={`day-${activeIndex}-${i}`} style={styles.subBlock}>
+                  <View style={styles.subHead}>
+                    <Text style={styles.subTitle}>{t('newBooking.form.dayN', { n: i + 1 })}</Text>
+                    <Pressable onPress={() => removeDay(i)} hitSlop={8}>
+                      <Text style={styles.removeText}>{t('importBooking.remove')}</Text>
+                    </Pressable>
+                  </View>
+                  <DateOnlyField
+                    key={`day-date-${activeIndex}-${i}`}
+                    label={t('importBooking.dayDate')}
+                    value={parseDateOnly(day.date)}
+                    onChange={(v) => patchDay(i, { date: v ? toDateOnlyString(v) : null })}
+                  />
+                  <ReviewField
+                    label={t('newBooking.form.stops')}
+                    aiLabel={aiLabel}
+                    fromAi={false}
+                    quote={null}
+                    value={day.stops ?? ''}
+                    onChange={(v) => patchDay(i, { stops: v || null })}
+                  />
+                  <View style={styles.row2}>
+                    <View style={styles.half}>
+                      <ReviewField
+                        label={t('newBooking.form.from')}
+                        aiLabel={aiLabel}
+                        fromAi={false}
+                        quote={null}
+                        value={day.fromPlace ?? ''}
+                        onChange={(v) => patchDay(i, { fromPlace: v || null })}
+                      />
+                    </View>
+                    <View style={styles.half}>
+                      <ReviewField
+                        label={t('newBooking.form.to')}
+                        aiLabel={aiLabel}
+                        fromAi={false}
+                        quote={null}
+                        value={day.toPlace ?? ''}
+                        onChange={(v) => patchDay(i, { toPlace: v || null })}
+                      />
+                    </View>
+                  </View>
+                  {i < tourDays.length - 1 ? (
+                    <ReviewField
+                      label={t('newBooking.form.touristHotel')}
+                      aiLabel={aiLabel}
+                      fromAi={false}
+                      quote={null}
+                      value={day.hotel ?? ''}
+                      onChange={(v) => patchDay(i, { hotel: v || null })}
+                    />
+                  ) : null}
+                </View>
+              ))}
+              <Pressable onPress={addDay} style={styles.addBtn}>
+                <Text style={styles.addBtnText}>+ {t('importBooking.addDay')}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {isTour ? (
+            <View style={styles.card}>
+              {(['transfer_in', 'transfer_out'] as const).map((key) => {
+                const leg = draft[key] ?? null;
+                const isIn = key === 'transfer_in';
+                if (!leg) {
+                  return (
+                    <Pressable key={key} onPress={() => patchLeg(key, {})} style={styles.addBtn}>
+                      <Text style={styles.addBtnText}>
+                        +{' '}
+                        {isIn
+                          ? t('newBooking.smartForm.arrivalTransfer')
+                          : t('newBooking.smartForm.departureTransfer')}
+                      </Text>
+                    </Pressable>
+                  );
+                }
+                return (
+                  <View key={key} style={styles.subBlock}>
+                    <View style={styles.subHead}>
+                      <View style={styles.fieldHead}>
+                        <Text style={styles.subTitle}>
+                          {isIn
+                            ? t('newBooking.form.transferArrivalSection')
+                            : t('newBooking.form.transferDepartureSection')}
+                        </Text>
+                        <AiTag show={fromAi(key)} label={aiLabel} />
+                      </View>
+                      <Pressable onPress={() => patchLeg(key, null)} hitSlop={8}>
+                        <Text style={styles.removeText}>{t('importBooking.remove')}</Text>
+                      </Pressable>
+                    </View>
+                    <DateTimeField
+                      key={`${key}-${activeIndex}`}
+                      label={isIn ? t('newBooking.form.dateTime') : t('newBooking.form.departureDateTime')}
+                      value={parseStoredDateTime(leg.date_display)}
+                      onChange={(v) => patchLeg(key, { date_display: v ? v.toISOString() : null })}
+                      placeholder={t('importBooking.datePlaceholder')}
+                    />
+                    <ReviewField
+                      label={isIn ? t('newBooking.form.transferInFrom') : t('newBooking.form.transferOutFrom')}
+                      aiLabel={aiLabel}
+                      fromAi={false}
+                      quote={null}
+                      value={leg.from ?? ''}
+                      onChange={(v) => patchLeg(key, { from: v || null })}
+                    />
+                    <ReviewField
+                      label={isIn ? t('newBooking.form.transferInTo') : t('newBooking.form.transferOutTo')}
+                      aiLabel={aiLabel}
+                      fromAi={false}
+                      quote={null}
+                      value={leg.to ?? ''}
+                      onChange={(v) => patchLeg(key, { to: v || null })}
+                    />
+                    <ReviewField
+                      label={t('importBooking.flight')}
+                      aiLabel={aiLabel}
+                      fromAi={false}
+                      quote={null}
+                      value={leg.flight ?? ''}
+                      onChange={(v) => patchLeg(key, { flight: v || null })}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
 
           <Pressable
             style={[
@@ -1014,4 +1283,28 @@ const styles = StyleSheet.create({
   },
   createBtnText: { color: COLORS.white, fontWeight: '800', fontSize: 16 },
   btnDisabled: { opacity: 0.5 },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  subBlock: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    gap: SPACING.xs,
+    backgroundColor: COLORS.surface,
+  },
+  subHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  subTitle: { fontSize: 14, fontWeight: '800', color: COLORS.text },
+  removeText: { fontSize: 12, fontWeight: '700', color: COLORS.error },
+  row2: { flexDirection: 'row', gap: SPACING.sm },
+  half: { flex: 1, minWidth: 0 },
+  addBtn: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: COLORS.gold,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    backgroundColor: COLORS.goldTint,
+  },
+  addBtnText: { color: COLORS.goldDark, fontWeight: '800', fontSize: 14 },
 });

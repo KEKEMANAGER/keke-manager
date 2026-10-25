@@ -110,7 +110,27 @@ type BookingDraft = {
     stops: string | null;
     hotel: string | null;
   }[] | null;
+  /** A tour's arrival transfer (airport -> hotel), part of the same booking. */
+  transfer_in: DraftLeg | null;
+  /** A tour's departure transfer (hotel -> airport), part of the same booking. */
+  transfer_out: DraftLeg | null;
+  /** Languages the driver must speak, as the app's language codes. */
+  required_languages: string[] | null;
 };
+
+/** One transfer leg of a tour. `date_display` is an ISO instant like the booking's own. */
+type DraftLeg = {
+  date_display: string | null;
+  from: string | null;
+  to: string | null;
+  flight: string | null;
+};
+
+/** The app's language codes (lib/spokenLanguages.ts SPOKEN_LANGUAGE_CODES). */
+const LANGUAGE_CODES = [
+  'ka', 'en', 'ru', 'de', 'fr', 'es', 'it', 'tr', 'ar', 'zh', 'ja', 'ko', 'pt', 'nl', 'pl', 'uk',
+  'hy', 'az', 'fa', 'hi', 'sv', 'no', 'da', 'fi', 'cs', 'ro', 'el', 'he', 'th', 'vi', 'id', 'bn', 'ur',
+] as const;
 
 const EMPTY_DRAFT: BookingDraft = {
   kind: null,
@@ -133,6 +153,9 @@ const EMPTY_DRAFT: BookingDraft = {
   comment: null,
   hotel: null,
   tour_days: null,
+  transfer_in: null,
+  transfer_out: null,
+  required_languages: null,
 };
 
 // ---------------------------------------------------------------- file → text
@@ -889,9 +912,21 @@ function headerRowCells(line: string, book: LabelBook = BUILTIN_LABELS): string[
   return cells;
 }
 
+/**
+ * `prose` is for a pasted message rather than a file. A form prints a label
+ * alone and its answer under it; a message writes "Pickup: Rooms Hotel" on one
+ * line, and a line that merely CONTAINS a label word is a sentence. Read as a
+ * form, "26 October Departure Transfer" became a pickup label and the line
+ * under it — "sedan, English-speaking driver" — the pickup place, and the
+ * template always wins. So in prose a label needs its colon (or tab), the
+ * answer goes on the same line or straight under a label that ends in one,
+ * and the whole-text guesses (arrival/departure, meet & greet) are left to the
+ * model, which reads them in context.
+ */
 function parseTemplate(
   text: string,
   book: LabelBook = BUILTIN_LABELS,
+  opts: { prose?: boolean } = {},
 ): {
   draft: BookingDraft;
   sources: Partial<Record<keyof BookingDraft, FieldSource>>;
@@ -987,6 +1022,8 @@ function parseTemplate(
     let value: string;
 
     if (pair) {
+      // In a message a label is a few words, not the first half of a sentence.
+      if (opts.prose && normalizeLabel(pair[0]).length > 40) continue;
       label = normalizeLabel(pair[0]);
       value = pair[1].replace(/\t/g, ' ').trim();
       // "GUEST NAME <TAB> PHONE" is two labels, not a guest called "PHONE".
@@ -994,6 +1031,8 @@ function parseTemplate(
       // that the model, fill the field instead of inheriting the mistake.
       if (isBareLabel(value, book)) value = '';
     } else {
+      // A message line with no separator is a sentence, never a label.
+      if (opts.prose) continue;
       // No separator on this line. It may still be a label whose value was
       // printed on the line below (the usual shape of a PDF form). Only a
       // short line qualifies: resolveLabel matches a known word anywhere in
@@ -1042,6 +1081,8 @@ function parseTemplate(
     }
   }
 
+  if (opts.prose) return { draft, sources };
+
   const dir = matchFlightDirection(text);
   if (dir && !draft.flight_direction) {
     draft.flight_direction = dir;
@@ -1089,19 +1130,53 @@ const EXTRACT_TOOL = {
       },
       tour_days: {
         type: ['array', 'null'],
-        description: 'One entry per day for a multi-day tour, in order.',
+        description:
+          'For kind "tour": one entry per sightseeing day, in order. The arrival and departure transfers do not go here — they go in transfer_in and transfer_out.',
         items: {
           type: 'object',
           properties: {
             day: { type: 'integer' },
             date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
-            fromPlace: { type: ['string', 'null'] },
-            toPlace: { type: ['string', 'null'] },
-            stops: { type: ['string', 'null'] },
+            fromPlace: { type: ['string', 'null'], description: 'Where the day starts, e.g. the city the group slept in.' },
+            toPlace: { type: ['string', 'null'], description: 'Where the day ends, e.g. the city the group sleeps in that night.' },
+            stops: {
+              type: ['string', 'null'],
+              description: 'The places visited that day, as written ("Sighnaghi - Bodbe", "Tbilisi City tour").',
+            },
             hotel: { type: ['string', 'null'], description: 'Where the group sleeps that night.' },
           },
           required: ['day'],
         },
+      },
+      transfer_in: {
+        type: ['object', 'null'],
+        description:
+          'For kind "tour" only: the arrival transfer that opens the tour (airport, station or border -> hotel). Null when the request has none.',
+        properties: {
+          date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+          time: { type: ['string', 'null'], description: 'HH:MM, 24h — the landing time if that is all that is given' },
+          from: { type: ['string', 'null'], description: 'Where the group is collected: the airport, station or border' },
+          to: { type: ['string', 'null'], description: 'Where they are taken, usually the hotel' },
+          flight: { type: ['string', 'null'] },
+        },
+      },
+      transfer_out: {
+        type: ['object', 'null'],
+        description:
+          'For kind "tour" only: the departure transfer that closes the tour (hotel -> airport, station or border). Null when the request has none.',
+        properties: {
+          date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+          time: { type: ['string', 'null'], description: 'HH:MM, 24h — the pickup time, or the flight time if that is all that is given' },
+          from: { type: ['string', 'null'], description: 'Where the group is collected, usually the hotel' },
+          to: { type: ['string', 'null'], description: 'The airport, station or border' },
+          flight: { type: ['string', 'null'] },
+        },
+      },
+      required_languages: {
+        type: ['array', 'null'],
+        items: { type: 'string', enum: LANGUAGE_CODES },
+        description:
+          'Languages the driver must speak, when the request asks for it: "English-speaking driver" -> ["en"], "русскоговорящий водитель" -> ["ru"].',
       },
       uncertain_fields: {
         type: 'array',
@@ -1162,11 +1237,12 @@ Many requests are chat messages, copied or screenshotted from WhatsApp, Viber, T
 Rules:
 - Only report what the request actually says. If a field is not stated, return null. Never guess a price or a phone number, and never invent a date.
 - Dates are DAY FIRST (15/05/2026 is 15 May 2026), unless the format is clearly YYYY-MM-DD.
-- Today's date in Tbilisi comes with the request. A date written without a year is the next such date on or after today. A relative date — tomorrow, the day after tomorrow, on Saturday; ხვალ, ზეგ, შაბათს; завтра, послезавтра, в субботу — counts from the day the message was sent when the chat shows it, otherwise from today. Whenever you worked a date out instead of reading it in full, name date in uncertain_fields.
+- Today's date in Tbilisi comes with the request. A date written without a year is in the year that puts it nearest to today: a programme that began a few days ago is this year, and "5 January" written in late December is next year. All the dates of one programme belong to one run of days. A relative date — tomorrow, the day after tomorrow, on Saturday; ხვალ, ზეგ, შაბათს; завтра, послезавтра, в субботу — counts from the day the message was sent when the chat shows it, otherwise from today. Whenever you worked a date out instead of reading it in full, name date in uncertain_fields.
 - Times are local Tbilisi time, 24-hour. "At 10", "10-ზე" or "в 10" is 10:00; "7 in the evening" or "საღამოს 7-ზე" is 19:00.
 - Anything else the driver needs to know — child seats, a lot of luggage, an extra stop, waiting time — goes in comment.
 - A PDF whose document mixed fonts can lose punctuation altogether: "0900" is 09:00, and a phone number can arrive without its "+" or glued to the name printed before it. Read the digits for what they plainly are, copy the evidence exactly as it appeared, and name such a field in uncertain_fields so the dispatcher checks it.
-- "ტრანსფერი"/transfer = transfer. A single day of sightseeing = day_tour. Several days = tour, and then fill tour_days.
+- "ტრანსფერი"/transfer = transfer. A single day of sightseeing = day_tour. Sightseeing on several days = tour: one entry per sightseeing day in tour_days, the arrival transfer that opens it in transfer_in and the departure transfer that closes it in transfer_out — never as tour days. The date of a tour is its first sightseeing day.
+- A driver who must speak a language ("English-speaking driver", "ინგლისურენოვანი მძღოლი", "русскоговорящий водитель") goes in required_languages, not in comment.
 - Vehicle words: სედანი/sedan, მინივენი/Vito/Viano = minivan, მიკროავტობუსი/Sprinter = microbus, ავტობუსი = bus.
 - List in uncertain_fields any field you inferred rather than read.
 - Fill evidence with the exact wording you read each field from, copied from the request. A dispatcher checks your reading against it, so copy, never paraphrase.
@@ -1174,17 +1250,16 @@ Rules:
 - Call the submit_booking tool exactly once.`;
 
 /**
- * A tour operator rarely sends one service. The file that lands in a transport
- * company's inbox is a whole programme: an arrival transfer, three days of
- * sightseeing, a departure transfer — five jobs that go to different drivers on
- * different days, arriving as one document. Reading only the first one is how a
- * company ends up typing the other four by hand.
+ * A tour operator's request is often a whole programme: an arrival, three days
+ * of sightseeing, a departure. The transport company books that the way the
+ * app's own form does — ONE tour booking, its days in `tour_days`, the arrival
+ * and departure as its `transfer_in` / `transfer_out` — because one driver and
+ * one car do the whole programme. Read as five separate bookings it became five
+ * jobs, each with a date and no time, no passengers and nothing tying them
+ * together, and the company had to undo it by hand.
  *
- * Telling a programme from a single multi-day tour is the hard part, and it is
- * a judgement about meaning, not layout — which is exactly what the model is
- * for. The rule it is given: separate services are ones that would be
- * dispatched separately. A day-by-day itinerary the same vehicle drives
- * straight through is one service with `tour_days`.
+ * Genuinely separate services still exist — a different car asked for one part,
+ * parts weeks apart, a lone transfer — and the model is told exactly when.
  */
 const PROGRAM_TOOL = {
   name: 'submit_program',
@@ -1205,15 +1280,16 @@ const PROGRAM_TOOL = {
 
 const PROGRAM_PROMPT = `${SYSTEM_PROMPT}
 
-This document may contain MORE THAN ONE service. Return every one of them, in the order they appear.
+This request may contain MORE THAN ONE service. Return every one of them, in the order they appear.
 
-What counts as a separate service — the test is whether a dispatcher would send a different vehicle:
-- An arrival transfer, a departure transfer, and sightseeing days in between are SEPARATE services, even when they are listed in one table and paid for as one package.
-- Services on dates that are not consecutive are SEPARATE.
-- A day-by-day itinerary that one vehicle drives straight through — "Day 1 Tbilisi → Kazbegi, Day 2 Kazbegi → Tbilisi" — is ONE service of kind "tour", with the days in tour_days. Do not split it.
-- If the document really describes only one job, return exactly one service. One is a normal answer.
+This is how the transport company books a programme — follow it exactly:
+- Sightseeing on consecutive days is ONE service of kind "tour", whether the group returns to the same city every evening or moves on each day. Each sightseeing day is one entry in tour_days, with its own date and that day's places in stops. A free day inside the programme does not split it.
+- The arrival transfer that opens such a tour and the departure transfer that closes it belong to that SAME service: they go in its transfer_in and transfer_out — never as separate services, and never as tour days. "Day 1 arrival, days 2-4 sightseeing, day 5 departure" is one tour with three tour days, a transfer_in and a transfer_out.
+- One vehicle and one driver do the whole programme unless the request asks otherwise, so a vehicle or a driver's language stated once applies to all of it.
+- Make separate services only when the request asks for a different vehicle or driver for a part, when parts are more than two days apart, or for a transfer or a single sightseeing day that stands on its own.
+- If the request really describes only one job, return exactly one service. One is a normal answer.
 
-Fill each service completely from the document: its own date, time, route, vehicle, passengers, price and hotel. Details stated once for the whole programme — the passenger's name and phone, the hotel the group stays at — belong on every service they apply to.
+Fill each service completely from the request: its own date, time, route, vehicle, passengers, price and hotel. Details stated once for the whole programme — the vehicle, the driver's language, the passengers, the passenger's name and phone, the hotel — belong on every service they apply to.
 
 Call the submit_program tool exactly once.`;
 
@@ -1446,6 +1522,82 @@ function mergeAi(
     draft.tour_days = normalizeAiTourDays(ai.tour_days);
     sources.tour_days = 'ai';
   }
+
+  // A tour starts on its first day when the model gave no separate date.
+  const firstDay = draft.tour_days?.[0];
+  if (draft.date_display == null && draft.kind === 'tour' && firstDay?.date) {
+    const iso = parseDateTime(firstDay.date, typeof ai.time === 'string' ? ai.time : null);
+    if (iso) {
+      draft.date_display = iso;
+      sources.date_display = 'ai';
+    }
+  }
+
+  // Days the request listed but did not date follow the start, one a day.
+  if (draft.kind === 'tour' && draft.tour_days && draft.date_display) {
+    const startMs = Date.parse(draft.date_display);
+    if (Number.isFinite(startMs)) {
+      const start = new Date(startMs + 4 * 3600 * 1000); // Tbilisi wall clock
+      draft.tour_days = draft.tour_days.map((d, i) => {
+        if (d.date) return d;
+        const day = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + i));
+        return { ...d, date: day.toISOString().slice(0, 10) };
+      });
+    }
+  }
+
+  // Arrival and departure belong to a tour; on any other kind they would be
+  // a second, invisible job inside the first.
+  if (draft.kind === 'tour') {
+    if (draft.transfer_in == null) {
+      const leg = normalizeAiLeg(ai.transfer_in);
+      if (leg) {
+        draft.transfer_in = leg;
+        sources.transfer_in = 'ai';
+      }
+    }
+    if (draft.transfer_out == null) {
+      const leg = normalizeAiLeg(ai.transfer_out);
+      if (leg) {
+        draft.transfer_out = leg;
+        sources.transfer_out = 'ai';
+      }
+    }
+  }
+
+  if (draft.required_languages == null) {
+    const langs = normalizeLanguages(ai.required_languages);
+    if (langs) {
+      draft.required_languages = langs;
+      sources.required_languages = 'ai';
+    }
+  }
+}
+
+/** One transfer leg of a tour, or null when the model gave nothing usable. */
+function normalizeAiLeg(raw: unknown): DraftLeg | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const date = str(r.date);
+  const leg: DraftLeg = {
+    date_display: date ? parseDateTime(date, str(r.time)) : null,
+    from: str(r.from),
+    to: str(r.to),
+    flight: str(r.flight),
+  };
+  return leg.date_display || leg.from || leg.to || leg.flight ? leg : null;
+}
+
+const LANGUAGE_SET = new Set<string>(LANGUAGE_CODES);
+
+/** The app's own language codes only; anything else is dropped, not guessed at. */
+function normalizeLanguages(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const codes = [
+    ...new Set(raw.map((c) => String(c).trim().toLowerCase()).filter((c) => LANGUAGE_SET.has(c))),
+  ];
+  return codes.length > 0 ? codes : null;
 }
 
 function normalizeAiTourDays(raw: unknown): BookingDraft['tour_days'] {
@@ -1613,7 +1765,11 @@ function sanityWarnings(draft: BookingDraft): string[] {
  */
 function timeMissing(draft: BookingDraft): boolean {
   if (!draft.date_display || draft.pickup_time) return false;
-  const t = Date.parse(draft.date_display);
+  return isTbilisiMidnight(draft.date_display);
+}
+
+function isTbilisiMidnight(iso: string): boolean {
+  const t = Date.parse(iso);
   if (!Number.isFinite(t)) return false;
   const local = new Date(t + 4 * 3600 * 1000);
   return local.getUTCHours() === 0 && local.getUTCMinutes() === 0;
@@ -1625,7 +1781,16 @@ function buildWarnings(draft: BookingDraft): string[] {
   if (timeMissing(draft)) w.push('დრო ვერ წავიკითხე — მიუთითე, რომელ საათზე');
   if (!draft.vehicle_type) w.push('ტრანსპორტის ტიპი ვერ წავიკითხე');
   if (!draft.passengers) w.push('მგზავრების რაოდენობა ვერ წავიკითხე');
-  if (!draft.from_location && !draft.route) w.push('აყვანის ადგილი ვერ წავიკითხე');
+  const tourWithDays = draft.kind === 'tour' && (draft.tour_days?.length ?? 0) > 0;
+  if (!draft.from_location && !draft.route && !tourWithDays) w.push('აყვანის ადგილი ვერ წავიკითხე');
+  for (const [leg, name] of [
+    [draft.transfer_in, 'ჩამოსვლის ტრანსფერის'],
+    [draft.transfer_out, 'გამგზავრების ტრანსფერის'],
+  ] as const) {
+    if (!leg) continue;
+    if (!leg.date_display) w.push(`${name} თარიღი ვერ წავიკითხე — მიუთითე`);
+    else if (isTbilisiMidnight(leg.date_display)) w.push(`${name} დრო ვერ წავიკითხე — მიუთითე`);
+  }
 
   if (draft.date_display) {
     const t = Date.parse(draft.date_display);
@@ -1662,7 +1827,9 @@ function draftIsEmpty(d: BookingDraft): boolean {
     !d.passenger_phone &&
     !d.hotel &&
     d.client_price == null &&
-    !(d.tour_days && d.tour_days.length > 0)
+    !(d.tour_days && d.tour_days.length > 0) &&
+    !d.transfer_in &&
+    !d.transfer_out
   );
 }
 
@@ -1688,6 +1855,9 @@ const FIELD_NAMES_KA: Record<string, string> = {
   comment: 'კომენტარი',
   hotel: 'სასტუმრო',
   tour_days: 'ტურის დღეები',
+  transfer_in: 'ჩამოსვლის ტრანსფერი',
+  transfer_out: 'გამგზავრების ტრანსფერი',
+  required_languages: 'მძღოლის ენა',
 };
 
 /** "Check these" for the fields the model worked out rather than read. */
@@ -2014,7 +2184,7 @@ Deno.serve(async (req) => {
 
     const { draft, sources } = chat
       ? { draft: { ...EMPTY_DRAFT }, sources: {} as Partial<Record<keyof BookingDraft, FieldSource>> }
-      : parseTemplate(text, labelBook);
+      : parseTemplate(text, labelBook, { prose: opts.pasted });
 
     /** Warnings about the whole read rather than one service. */
     const generalWarnings: string[] = [];
@@ -2024,9 +2194,10 @@ Deno.serve(async (req) => {
       !draft.date_display || !draft.vehicle_type || !draft.passengers ||
       (!draft.from_location && !draft.route);
 
-    // A chat can settle more than one job between its messages; the model
-    // decides how many there really are, and one is a valid answer.
-    const maybeProgram = chat || looksLikeMultiService(text);
+    // A message is short and often a whole programme, so it is always read as
+    // one: the model decides how many services there really are, and one is a
+    // valid answer. Files keep the cheaper signal.
+    const maybeProgram = opts.pasted || looksLikeMultiService(text);
 
     let usedAi = false;
     let aiFailed = false;

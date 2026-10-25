@@ -2,9 +2,16 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 import i18n from '../src/lib/i18n';
-import type { DbCanonicalKind, InsertBookingInput, TourDayPersisted } from './bookings';
+import type {
+  DbCanonicalKind,
+  InsertBookingInput,
+  TourDayPersisted,
+  TourTransferLeg,
+} from './bookings';
 import { ensureMediaPermission } from './mediaPermissions';
+import { sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
+import { buildTourRouteText, itineraryFromTourDays, tourEndpointsFromDays } from './tourDays';
 
 /**
  * Booking intake: a pasted message, screenshots or photos, or a file.
@@ -43,6 +50,15 @@ export type ImportedTourDay = {
   hotel: string | null;
 };
 
+/** One transfer leg of a tour: the arrival that opens it or the departure that closes it. */
+export type ImportedLeg = {
+  /** ISO instant, like the booking's own date. */
+  date_display: string | null;
+  from: string | null;
+  to: string | null;
+  flight: string | null;
+};
+
 export type ImportedBookingDraft = {
   kind: DbCanonicalKind | null;
   date_display: string | null;
@@ -65,6 +81,12 @@ export type ImportedBookingDraft = {
   /** Hotel the group stays at / is collected from. */
   hotel: string | null;
   tour_days: ImportedTourDay[] | null;
+  /** A tour's arrival transfer — part of the same booking, not a booking of its own. */
+  transfer_in?: ImportedLeg | null;
+  /** A tour's departure transfer. */
+  transfer_out?: ImportedLeg | null;
+  /** Languages the driver must speak. */
+  required_languages?: string[] | null;
 };
 
 /**
@@ -454,24 +476,57 @@ export async function importBookingFromFile(
   return parseBookingFile(file);
 }
 
-function toTourDaysPersisted(days: ImportedTourDay[] | null): TourDayPersisted[] | null {
+/**
+ * The tour's days as the booking form stores them: numbered from one, in date
+ * order, and — like the form — no tourists' hotel on the last day, which ends
+ * with the departure rather than a night.
+ */
+function toTourDaysPersisted(days: ImportedTourDay[] | null | undefined): TourDayPersisted[] | null {
   if (!days?.length) return null;
-  return days
+  const sorted = days
     .slice()
-    .sort((a, b) => a.day - b.day)
-    .map((d) => ({
-      day: d.day,
-      date: d.date ?? '',
-      fromPlace: d.fromPlace ?? '',
-      toPlace: d.toPlace ?? '',
-      stops: d.stops ?? '',
-      // The app has always had a place for this; only the importer never filled it.
-      touristHotel: d.hotel ?? '',
-    })) as unknown as TourDayPersisted[];
+    .sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.day - b.day));
+  const last = sorted.length - 1;
+  return sorted.map((d, i) => ({
+    day: i + 1,
+    date: d.date ?? '',
+    fromPlace: d.fromPlace?.trim() ?? '',
+    toPlace: d.toPlace?.trim() ?? '',
+    stops: d.stops?.trim() ?? '',
+    ...(i < last && d.hotel?.trim() ? { touristHotel: d.hotel.trim() } : {}),
+  }));
+}
+
+/** An arrival goes airport -> hotel, a departure hotel -> airport, as the form stores them. */
+function toLegDb(leg: ImportedLeg | null | undefined, direction: 'in' | 'out'): TourTransferLeg | null {
+  if (!leg?.date_display) return null;
+  const start = leg.from?.trim() || undefined;
+  const end = leg.to?.trim() || undefined;
+  return {
+    date: leg.date_display,
+    ...(direction === 'in' ? { airport: start, hotel: end } : { hotel: start, airport: end }),
+    ...(leg.flight?.trim() ? { flight: leg.flight.trim() } : {}),
+  };
+}
+
+/** A tour begins on its first day; failing that, with its arrival or departure. */
+function tourStartIso(draft: ImportedBookingDraft, days: TourDayPersisted[] | null): string | null {
+  if (draft.date_display) return draft.date_display;
+  const firstDate = days?.find((d) => d.date)?.date;
+  if (firstDate) {
+    // Midnight in Tbilisi, as a date-only start is everywhere else in the app.
+    const t = Date.parse(`${firstDate}T00:00:00+04:00`);
+    if (Number.isFinite(t)) return new Date(t).toISOString();
+  }
+  return draft.transfer_in?.date_display ?? draft.transfer_out?.date_display ?? null;
 }
 
 /**
  * Turn a reviewed draft into the input the normal creation path expects.
+ *
+ * A tour is built the way the new-booking form builds one — days, itinerary,
+ * route line, start and end, arrival and departure legs — so the driver's day
+ * screens and navigation treat an imported tour exactly like a typed one.
  *
  * Deliberately leaves `price_gel`, `commission` and driver selection alone —
  * those are the company's decisions, not the document's.
@@ -480,19 +535,28 @@ export function draftToInsertInput(
   draft: ImportedBookingDraft,
   ctx: { companyUserId: string; companyName: string | null; createdByName?: string | null },
 ): Partial<InsertBookingInput> {
+  const kind = (draft.kind ?? 'transfer') as DbCanonicalKind;
+  const isTour = kind === 'tour';
+  const days = isTour ? toTourDaysPersisted(draft.tour_days) : null;
+  const ends = days ? tourEndpointsFromDays(days) : { from: null, to: null };
+  const dayRoute = days
+    ? buildTourRouteText(days, (day, from, to) => i18n.t('newBooking.dayLine', { day, from, to }))
+    : null;
+  const languages = sanitizeLanguageCodes(draft.required_languages ?? []);
+
   return {
     company_id: ctx.companyUserId,
     company_name: ctx.companyName,
-    kind: (draft.kind ?? 'transfer') as DbCanonicalKind,
-    from_location: draft.from_location,
-    to_location: draft.to_location,
-    route: draft.route,
-    date_display: draft.date_display,
+    kind,
+    from_location: isTour ? ends.from ?? draft.from_location : draft.from_location,
+    to_location: isTour ? ends.to ?? draft.to_location : draft.to_location,
+    route: draft.route ?? dayRoute,
+    date_display: isTour ? tourStartIso(draft, days) : draft.date_display,
     passengers: draft.passengers ?? 1,
     vehicle_type: draft.vehicle_type,
     vehicle_class: draft.vehicle_class,
     flight_number: draft.flight_number,
-    flight_direction: draft.flight_direction,
+    flight_direction: isTour ? null : draft.flight_direction,
     pickup_time: draft.pickup_time,
     passenger_name: draft.passenger_name,
     passenger_phone: draft.passenger_phone,
@@ -502,7 +566,11 @@ export function draftToInsertInput(
     client_price: draft.client_price,
     payment_method: draft.payment_method,
     comment: draft.comment,
-    tour_days: toTourDaysPersisted(draft.tour_days),
+    tour_days: days,
+    itinerary: days ? itineraryFromTourDays(days) : null,
+    transfer_in: isTour ? toLegDb(draft.transfer_in, 'in') : null,
+    transfer_out: isTour ? toLegDb(draft.transfer_out, 'out') : null,
+    required_languages: languages.length > 0 ? languages : null,
     created_by_name: ctx.createdByName ?? null,
   };
 }
@@ -510,9 +578,18 @@ export function draftToInsertInput(
 /** Fields the company must still fill in before this draft can be sent. */
 export function missingRequiredFields(draft: ImportedBookingDraft): string[] {
   const missing: string[] = [];
-  if (!draft.date_display) missing.push('თარიღი');
+  const isTour = draft.kind === 'tour';
+  const days = draft.tour_days ?? [];
+  if (!draft.date_display && !(isTour && days.some((d) => d.date))) missing.push('თარიღი');
   if (!draft.vehicle_type) missing.push('ტრანსპორტის ტიპი');
   if (!draft.passengers || draft.passengers < 1) missing.push('მგზავრების რაოდენობა');
-  if (!draft.from_location && !draft.route) missing.push('აყვანის ადგილი');
+  if (isTour) {
+    if (days.length === 0) missing.push('ტურის დღეები');
+    if (days.some((d) => !d.date)) missing.push('ტურის დღის თარიღი');
+    if (draft.transfer_in && !draft.transfer_in.date_display) missing.push('ჩამოსვლის ტრანსფერის თარიღი');
+    if (draft.transfer_out && !draft.transfer_out.date_display) missing.push('გაცილების ტრანსფერის თარიღი');
+  } else if (!draft.from_location && !draft.route) {
+    missing.push('აყვანის ადგილი');
+  }
   return missing;
 }

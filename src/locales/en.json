@@ -2000,7 +2000,13 @@
     "fileReadFailed": "Could not read the file",
     "fileTooBig": "The file is too large (max 8 MB)",
     "networkError": "Could not connect — check the internet and try again.",
-    "readFailedGeneric": "Could not read it — please try again."
+    "readFailedGeneric": "Could not read it — please try again.",
+    "tourStart": "Tour start",
+    "tourDays": "Tour days",
+    "dayDate": "Date",
+    "addDay": "Add a day",
+    "remove": "Remove",
+    "route": "Route"
   },
   "priceRequest": {
     "title": "Get a price",
