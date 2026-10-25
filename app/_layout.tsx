@@ -18,9 +18,14 @@ import {
 } from '../components/PushNotificationRoot';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../constants/theme';
+import { startRecoveryLinkCapture } from '../lib/passwordResetAuth';
 import { getUserRole } from '../lib/role';
 import { isCurrentRoute } from '../lib/routerPaths';
 import i18n, { initI18n } from '../src/lib/i18n';
+
+// A password-reset link is caught from the very start of the app, before any
+// screen exists to listen for it (see lib/passwordResetAuth).
+void startRecoveryLinkCapture();
 
 function WebRootStyles() {
   useEffect(() => {

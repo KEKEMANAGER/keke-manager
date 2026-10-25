@@ -1,6 +1,5 @@
 import { useRouter } from 'expo-router';
-import * as Linking from 'expo-linking';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,12 +20,16 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import {
   createSessionFromAuthUrl,
-  isPasswordRecoveryUrl,
+  isRecoveryErrorOnly,
+  onPendingRecoveryUrl,
+  startRecoveryLinkCapture,
+  takePendingRecoveryUrl,
 } from '../../lib/passwordResetAuth';
 import { supabase } from '../../lib/supabase';
 import {
   showErrorAlert,
   showValidationAlert,
+  validatePassword,
   validatePasswordConfirm,
 } from '../../lib/validation';
 
@@ -34,7 +37,7 @@ export default function ResetPasswordScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, signOut } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -44,64 +47,83 @@ export default function ResetPasswordScreen() {
   const [saving, setSaving] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const linkReadyRef = useRef(false);
+  const linksInFlight = useRef(0);
 
   const processRecoveryUrl = useCallback(async (url: string) => {
-    if (!isPasswordRecoveryUrl(url)) return;
+    // Tapping the mail link a second time comes back as "already used"; once
+    // the first tap has opened the form, that must not take it away again.
+    if (linkReadyRef.current && isRecoveryErrorOnly(url)) return;
+    linksInFlight.current += 1;
     setResolvingLink(true);
     setLinkError(null);
-    const result = await createSessionFromAuthUrl(url);
-    setResolvingLink(false);
+    let result: { ok: boolean; error?: string };
+    try {
+      result = await createSessionFromAuthUrl(url);
+    } catch (err: unknown) {
+      result = { ok: false, error: getSupabaseErrorMessage(err) };
+    } finally {
+      linksInFlight.current -= 1;
+    }
+    if (linksInFlight.current === 0) setResolvingLink(false);
     if (!result.ok) {
       const message =
-        result.error === 'missing_tokens'
+        result.error === 'missing_tokens' || result.error === 'link_invalid'
           ? t('authScreen.resetInvalidLink')
           : (result.error ?? t('authScreen.resetInvalidLink'));
       setLinkError(message);
+      linkReadyRef.current = false;
       setLinkReady(false);
       return;
     }
+    linkReadyRef.current = true;
     setLinkReady(true);
   }, [t]);
 
+  // The link is caught at app start (see passwordResetAuth) and taken here:
+  // with the app already open when the link is tapped, it arrives before this
+  // screen exists. Each link is used once — the session it carries is
+  // one-time, and re-reading it on every session change used to set the
+  // session again and again, so the form never settled.
   useEffect(() => {
-    let cancelled = false;
-
-    async function bootstrap() {
-      const initial = await Linking.getInitialURL();
-      if (initial && isPasswordRecoveryUrl(initial)) {
-        await processRecoveryUrl(initial);
-        if (!cancelled) return;
-      }
-
-      if (!cancelled) {
-        setResolvingLink(false);
-        if (session) {
-          setLinkReady(true);
-        }
-      }
-    }
-
-    void bootstrap();
-
-    const sub = Linking.addEventListener('url', ({ url }) => {
+    let active = true;
+    const takeWaitingLink = (): boolean => {
+      const url = takePendingRecoveryUrl();
+      if (!url) return false;
       void processRecoveryUrl(url);
+      return true;
+    };
+
+    // A link tapped while this screen is already open.
+    const unsubscribe = onPendingRecoveryUrl(() => {
+      if (active) takeWaitingLink();
+    });
+
+    // The link that brought the user here.
+    void startRecoveryLinkCapture().then(() => {
+      if (!active) return;
+      if (!takeWaitingLink() && linksInFlight.current === 0) {
+        setResolvingLink(false);
+      }
     });
 
     return () => {
-      cancelled = true;
-      sub.remove();
+      active = false;
+      unsubscribe();
     };
-  }, [processRecoveryUrl, session]);
+  }, [processRecoveryUrl]);
 
   useEffect(() => {
     if (authLoading || resolvingLink) return;
     if (session && !linkReady) {
+      linkReadyRef.current = true;
       setLinkReady(true);
     }
   }, [authLoading, resolvingLink, session, linkReady]);
 
   async function handleSavePassword() {
-    const validationError = validatePasswordConfirm(newPassword, confirmPassword);
+    const validationError =
+      validatePassword(newPassword) ?? validatePasswordConfirm(newPassword, confirmPassword);
     if (validationError) {
       setFieldError(validationError);
       showValidationAlert(validationError);
@@ -128,7 +150,10 @@ export default function ResetPasswordScreen() {
         return;
       }
 
-      await supabase.auth.signOut();
+      // Through the app's own sign-out, so this deliberate sign-out is not
+      // taken for an expired session ("your session has ended") on top of the
+      // success message.
+      await signOut();
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.alert(`${t('common.success')}\n\n${t('authScreen.resetSuccess')}`);
       } else {
