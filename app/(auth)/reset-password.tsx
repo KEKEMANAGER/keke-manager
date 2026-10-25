@@ -37,7 +37,7 @@ export default function ResetPasswordScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { session, loading: authLoading, signOut } = useAuth();
+  const { session, loading: authLoading } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -150,16 +150,17 @@ export default function ResetPasswordScreen() {
         return;
       }
 
-      // Through the app's own sign-out, so this deliberate sign-out is not
-      // taken for an expired session ("your session has ended") on top of the
-      // success message.
-      await signOut();
+      // The mail link already signed the user in, and the new password is now
+      // set: stay signed in and go straight into the app. Sending him back to
+      // sign in made him retype, behind dots, a password chosen a moment ago,
+      // and one wrong character was "email or password is incorrect" over and
+      // over. The start screen sends a driver and a company each to their own.
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.alert(`${t('common.success')}\n\n${t('authScreen.resetSuccess')}`);
       } else {
         Alert.alert(t('common.success'), t('authScreen.resetSuccess'));
       }
-      router.replace('/sign-in');
+      router.replace('/');
     } catch (err: unknown) {
       const message = getSupabaseErrorMessage(err);
       setSaveError(message);

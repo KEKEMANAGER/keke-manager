@@ -3,6 +3,7 @@ import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { extractGoogleMapsLink, googleMapsSearchUrl, mapLinkState } from '../lib/googleMapsLink';
+import { pressableSx, sx } from '../lib/sx';
 
 type Props = {
   value: string;
@@ -51,10 +52,7 @@ export function MapLinkField({ value, onChangeText, placeName, compact = false }
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
-        style={[
-          compact ? styles.inputCompact : styles.input,
-          state === 'invalid' ? styles.inputError : null,
-        ]}
+        style={sx(compact ? styles.inputCompact : styles.input, state === 'invalid' ? styles.inputError : null)}
       />
       {state === 'valid' ? (
         <View style={styles.row}>
@@ -78,7 +76,7 @@ export function MapLinkField({ value, onChangeText, placeName, compact = false }
           {searchUrl ? (
             <Pressable
               onPress={() => openUrl(searchUrl)}
-              style={({ pressed }) => [styles.searchBtn, pressed && styles.pressed]}
+              style={pressableSx(styles.searchBtn, (pressed) => pressed && styles.pressed)}
               hitSlop={6}
               accessibilityRole="link"
             >

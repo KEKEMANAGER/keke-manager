@@ -726,6 +726,8 @@
     "tagline": "B2B transport platform",
     "email": "Email",
     "password": "Password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "passwordConfirm": "Repeat password",
     "passwordsMatch": "Passwords match",
     "noAccount": "Don't have an account?",
@@ -1029,7 +1031,7 @@
     "newPassword": "New password",
     "confirmPassword": "Confirm password",
     "savePassword": "Save password",
-    "resetSuccess": "Password updated. You can sign in with your new password.",
+    "resetSuccess": "Your password has been updated. You are signed in.",
     "resetInvalidLink": "This reset link is invalid or expired. Request a new link.",
     "resetSessionRequired": "Open the reset link from your email, then try again.",
     "resetOpenFromEmail": "Open the password reset link from your email to continue on this screen."
