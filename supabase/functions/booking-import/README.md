@@ -1,6 +1,7 @@
 # booking-import
 
-Turns a company's own Word / Excel / text file into a **booking draft**.
+Turns whatever a tour operator sent — a file, a message pasted from WhatsApp /
+Viber / Telegram / email, or screenshots and photos — into a **booking draft**.
 
 ## Why it is built this way
 
@@ -43,8 +44,25 @@ supabase secrets set BOOKING_IMPORT_MODEL=claude-sonnet-4-5
 POST /functions/v1/booking-import
 Authorization: Bearer <the signed-in user's access token>
 
-{ "fileName": "booking.docx", "contentBase64": "UEsDBBQ..." }
+{ "fileName": "booking.docx", "contentBase64": "UEsDBBQ..." }   // a file
+{ "text": "[25/10/2026, 14:03] Nino: ხვალ 10-ზე აეროპორტი…" }    // a pasted message
+{ "images": [{ "base64": "iVBORw0…" }, { "base64": "/9j/4AAQ…" }] } // up to 5 photos, in order
 ```
+
+A pasted **conversation** (two or more `[date, time] Name:` lines) is read by
+the model alone: the template takes the first value under a label, and in a
+chat the answer is the latest message ("5 people, not 4"). The model is told
+that the stamp in front of a message is when it was sent, not the service
+date, and is given today's Tbilisi date for "ხვალ" / "on Saturday" / dates
+without a year.
+
+**Pictures** — photos, screenshots, a picture uploaded as a file, and a PDF
+with no text layer (a scan) — are read by the model as images. Their real
+format is read from the first bytes; HEIC is refused with a message (the app
+already hands over JPEG). Nothing is learned from a picture.
+
+A pasted message or a picture with nothing bookable in it is answered with a
+422 and a plain message rather than an empty form.
 
 ## Response
 
@@ -72,9 +90,10 @@ look hardest at the `ai` ones.
 | `.xlsx` | First three sheets, shared strings resolved |
 | `.txt` `.csv` `.tsv` | Read as UTF-8 |
 | `.doc` | Rejected with "save as .docx" |
-| `.pdf` | Not supported yet |
+| `.pdf` | Text layer read with unpdf; a scan without one goes to the model as a document |
+| `.jpg` `.png` `.webp` | Read as a photo |
 
-Limit: ~4 MB.
+Limits: a file ~8 MB; photos 5 at a time, 9.5 MB of base64 each, 20 MB together.
 
 ## Dates
 

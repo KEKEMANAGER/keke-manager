@@ -1606,7 +1606,7 @@ export default function NewBookingScreen() {
             onPress={() => router.push('/(app)/import-booking')}
           >
             <View style={styles.importIcon}>
-              <Ionicons name="document-attach-outline" size={22} color={COLORS.gold} />
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={COLORS.gold} />
             </View>
             <View style={styles.importTextWrap}>
               <Text style={styles.importTitle}>{t('newBooking.importCard.title')}</Text>

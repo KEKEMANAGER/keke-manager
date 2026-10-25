@@ -1,15 +1,20 @@
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
+import i18n from '../src/lib/i18n';
 import type { DbCanonicalKind, InsertBookingInput, TourDayPersisted } from './bookings';
+import { ensureMediaPermission } from './mediaPermissions';
 import { supabase } from './supabase';
 
 /**
- * PDF / Word / Excel import.
+ * Booking intake: a pasted message, screenshots or photos, or a file.
  *
- * The file goes to the `booking-import` edge function, which reads it with a
- * deterministic template parser first and falls back to the model only for the
- * fields the template could not find. What comes back is a DRAFT — it is never
- * written anywhere. The company reviews it on screen and the ordinary booking
- * creation path does the rest, so every existing validation still applies.
+ * Whatever the company has goes to the `booking-import` edge function. Text is
+ * read with a deterministic template parser first and the model fills what the
+ * template could not find; a picture is read by the model. What comes back is a
+ * DRAFT — it is never written anywhere. The company reviews it on screen and the
+ * ordinary booking creation path does the rest, so every existing validation
+ * still applies.
  */
 
 export const IMPORT_MIME_TYPES = [
@@ -18,6 +23,10 @@ export const IMPORT_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
   'text/plain',
   'text/csv',
+  // A screenshot saved as a file is still a request — read it as a photo.
+  'image/jpeg',
+  'image/png',
+  'image/webp',
 ] as const;
 
 export const IMPORT_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.txt', '.csv'] as const;
@@ -89,7 +98,21 @@ export type BookingImportResult = {
 
 export type BookingImportFailure = { ok: false; error: string };
 
-export type PickedFile = { name: string; base64: string; sizeBytes: number };
+export type PickedFile = {
+  name: string;
+  base64: string;
+  sizeBytes: number;
+  mimeType?: string | null;
+  uri?: string;
+};
+
+/** One photo or screenshot, ready to send. */
+export type PickedImage = { base64: string; mimeType: string | null };
+
+export type PhotoSource = 'library' | 'camera';
+
+/** Screenshots at once — enough for a long chat, few enough to read quickly. */
+export const MAX_IMPORT_PHOTOS = 5;
 
 /**
  * 8 MB of actual file. A typed booking sheet is a few kilobytes, but an
@@ -97,6 +120,14 @@ export type PickedFile = { name: string; base64: string; sizeBytes: number };
  * the company cannot send is worse than a slow upload.
  */
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
+
+/** Per photo after encoding. The reader takes 10 MB, the server stops at 9.5. */
+const MAX_PHOTO_BASE64_CHARS = 9_000_000;
+const MAX_PHOTOS_TOTAL_BASE64_CHARS = 19_000_000;
+
+/** The reader looks at about 1,600 px anyway; more is only a slower upload. */
+const WEB_MAX_EDGE = 2400;
+const WEB_SENDABLE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 function stripDataUrlPrefix(value: string): string {
   const comma = value.indexOf(',');
@@ -113,7 +144,7 @@ async function readAsBase64(uri: string): Promise<string> {
   const blob = await res.blob();
   const dataUrl: string = await new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('ფაილის წაკითხვა ვერ მოხერხდა'));
+    reader.onerror = () => reject(new Error(i18n.t('importBooking.fileReadFailed')));
     reader.onload = () => resolve(String(reader.result ?? ''));
     reader.readAsDataURL(blob);
   });
@@ -134,7 +165,7 @@ export async function pickBookingFile(): Promise<PickedFile | null> {
 
   const size = asset.size ?? 0;
   if (size > MAX_FILE_BYTES) {
-    throw new Error('ფაილი ძალიან დიდია (მაქს. 8 MB)');
+    throw new Error(i18n.t('importBooking.fileTooBig'));
   }
 
   const base64 = await readAsBase64(asset.uri);
@@ -144,6 +175,8 @@ export async function pickBookingFile(): Promise<PickedFile | null> {
     name: asset.name || defaultNameForMime(asset.mimeType),
     base64,
     sizeBytes: size || Math.floor((base64.length * 3) / 4),
+    mimeType: asset.mimeType ?? null,
+    uri: asset.uri,
   };
 }
 
@@ -157,36 +190,188 @@ function defaultNameForMime(mimeType?: string | null): string {
       return 'booking.csv';
     case 'text/plain':
       return 'booking.txt';
+    case 'image/jpeg':
+      return 'booking.jpg';
+    case 'image/png':
+      return 'booking.png';
+    case 'image/webp':
+      return 'booking.webp';
     default:
       return 'booking.docx';
   }
 }
 
-export async function parseBookingFile(
-  file: PickedFile,
-): Promise<BookingImportResult | BookingImportFailure> {
-  const { data, error } = await supabase.functions.invoke('booking-import', {
-    body: { fileName: file.name, contentBase64: file.base64 },
-  });
+function isImageFile(file: PickedFile): boolean {
+  if (file.mimeType?.startsWith('image/')) return true;
+  return /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name);
+}
 
-  if (error) {
-    // The function returns a readable Georgian message in the body even on 4xx.
-    const ctx = (error as { context?: { body?: unknown } }).context?.body;
-    if (typeof ctx === 'string') {
-      try {
-        const parsed = JSON.parse(ctx) as { error?: string };
-        if (parsed.error) return { ok: false, error: parsed.error };
-      } catch {
-        /* fall through to the generic message */
-      }
-    }
-    return { ok: false, error: error.message || 'ფაილის წაკითხვა ვერ მოხერხდა' };
+/**
+ * Redraw a picture in the browser as a JPEG no longer than WEB_MAX_EDGE on its
+ * long side. That shrinks a camera-sized photo to a quick upload and turns a
+ * format the reader cannot open (an iPhone's HEIC, in Safari) into one it can.
+ * Null when the browser cannot decode the picture itself.
+ */
+async function redrawOnCanvas(uri: string): Promise<PickedImage | null> {
+  if (typeof document === 'undefined') return null;
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = document.createElement('img');
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('decode'));
+    el.src = uri;
+  });
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return null;
+  const scale = Math.min(1, WEB_MAX_EDGE / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  // A transparent screenshot would otherwise turn black as a JPEG.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return { base64: stripDataUrlPrefix(canvas.toDataURL('image/jpeg', 0.85)), mimeType: 'image/jpeg' };
+}
+
+/**
+ * A picture as it should be sent. On a phone the picker has already
+ * compressed it. In a browser it arrives exactly as saved, so anything large
+ * or in an unreadable format is redrawn first; an ordinary screenshot goes as is.
+ */
+async function prepareImage(params: {
+  uri: string;
+  base64?: string | null;
+  mimeType?: string | null;
+  width?: number;
+  height?: number;
+}): Promise<PickedImage> {
+  const base64 = params.base64 ? stripDataUrlPrefix(params.base64) : await readAsBase64(params.uri);
+  const mimeType = params.mimeType ?? null;
+  if (Platform.OS !== 'web') return { base64, mimeType };
+
+  const sendable = mimeType ? WEB_SENDABLE_TYPES.has(mimeType) : true;
+  const longEdge = Math.max(params.width ?? 0, params.height ?? 0);
+  if (sendable && base64.length <= 4_000_000 && longEdge <= WEB_MAX_EDGE * 1.2) {
+    return { base64, mimeType };
   }
+  const redrawn = await redrawOnCanvas(params.uri).catch(() => null);
+  return redrawn ?? { base64, mimeType };
+}
+
+function assertPhotoSizes(images: PickedImage[]): void {
+  let total = 0;
+  for (const image of images) {
+    total += image.base64.length;
+    if (image.base64.length > MAX_PHOTO_BASE64_CHARS || total > MAX_PHOTOS_TOTAL_BASE64_CHARS) {
+      throw new Error(i18n.t('importBooking.photoTooBig'));
+    }
+  }
+}
+
+/**
+ * Screenshots from the gallery (up to five, in the order chosen) or one photo
+ * from the camera. Returns null when the user cancels.
+ *
+ * The gallery needs no permission prompt — the system picker runs outside the
+ * app — so only the camera asks.
+ */
+export async function pickBookingPhotos(source: PhotoSource): Promise<PickedImage[] | null> {
+  if (source === 'camera') {
+    const outcome = await ensureMediaPermission('camera', i18n.t('importBooking.cameraPermissionTitle'));
+    // Permanently refused: the helper has already offered the Settings screen.
+    if (outcome === 'denied_permanently') return null;
+    if (outcome !== 'granted') throw new Error(i18n.t('importBooking.cameraDenied'));
+  }
+
+  const res =
+    source === 'camera'
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          base64: true,
+          exif: false,
+          // A page photographed at 60% still reads perfectly, and uploads in seconds.
+          quality: 0.6,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          base64: true,
+          exif: false,
+          quality: 0.8,
+          allowsMultipleSelection: true,
+          selectionLimit: MAX_IMPORT_PHOTOS,
+          orderedSelection: true,
+          // iPhone photos are HEIC, which the reader cannot open; this hands over a JPEG.
+          preferredAssetRepresentationMode:
+            ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+        });
+
+  if (res.canceled || !res.assets?.length) return null;
+
+  const images: PickedImage[] = [];
+  for (const asset of res.assets.slice(0, MAX_IMPORT_PHOTOS)) {
+    images.push(
+      await prepareImage({
+        uri: asset.uri,
+        base64: asset.base64,
+        mimeType: asset.mimeType,
+        width: asset.width,
+        height: asset.height,
+      }),
+    );
+  }
+  assertPhotoSizes(images);
+  return images;
+}
+
+/**
+ * supabase-js answers a 4xx/5xx with the raw Response in `error.context`; the
+ * function always puts a readable message in its body, so read it from there
+ * rather than showing "Edge Function returned a non-2xx status code".
+ */
+async function functionErrorMessage(error: unknown): Promise<string> {
+  const err = error as { name?: string; message?: string; context?: unknown };
+  const ctx = err.context as { json?: () => Promise<unknown>; body?: unknown } | undefined;
+
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = (await ctx.json()) as { error?: unknown };
+      if (typeof body?.error === 'string' && body.error.trim()) return body.error;
+    } catch {
+      /* not JSON — fall through */
+    }
+  } else if (typeof ctx?.body === 'string') {
+    try {
+      const parsed = JSON.parse(ctx.body) as { error?: unknown };
+      if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error;
+    } catch {
+      /* fall through */
+    }
+  }
+
+  if (err.name === 'FunctionsFetchError') return i18n.t('importBooking.networkError');
+  return i18n.t('importBooking.readFailedGeneric');
+}
+
+async function invokeImport(
+  body: Record<string, unknown>,
+): Promise<BookingImportResult | BookingImportFailure> {
+  let data: unknown;
+  let error: unknown;
+  try {
+    ({ data, error } = await supabase.functions.invoke('booking-import', { body }));
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : i18n.t('importBooking.networkError') };
+  }
+
+  if (error) return { ok: false, error: await functionErrorMessage(error) };
 
   if (!data || (data as { ok?: boolean }).ok !== true) {
     return {
       ok: false,
-      error: (data as { error?: string })?.error || 'ფაილის წაკითხვა ვერ მოხერხდა',
+      error: (data as { error?: string })?.error || i18n.t('importBooking.readFailedGeneric'),
     };
   }
 
@@ -206,10 +391,47 @@ export async function parseBookingFile(
   return result;
 }
 
+export function parseBookingFile(
+  file: PickedFile,
+): Promise<BookingImportResult | BookingImportFailure> {
+  return invokeImport({ fileName: file.name, contentBase64: file.base64 });
+}
+
+/** A message pasted from WhatsApp, Viber, Telegram or an email. */
+export function parseBookingText(text: string): Promise<BookingImportResult | BookingImportFailure> {
+  return invokeImport({ text });
+}
+
+/** Screenshots or photos of one request, in order. */
+export function parseBookingPhotos(
+  images: PickedImage[],
+): Promise<BookingImportResult | BookingImportFailure> {
+  return invokeImport({
+    images: images.map((image) => ({ base64: image.base64, mimeType: image.mimeType })),
+  });
+}
+
 /** Pick and parse in one step. Returns null when the user cancels. */
-export async function importBookingFromFile(): Promise<
-  BookingImportResult | BookingImportFailure | null
-> {
+export async function importBookingFromPhotos(
+  source: PhotoSource,
+): Promise<BookingImportResult | BookingImportFailure | null> {
+  let images: PickedImage[] | null;
+  try {
+    images = await pickBookingPhotos(source);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  if (!images) return null;
+  return parseBookingPhotos(images);
+}
+
+/**
+ * Pick and parse in one step. Returns null when the user cancels.
+ * `onPicked` fires once the file is chosen, before the slow read starts.
+ */
+export async function importBookingFromFile(
+  onPicked?: (file: PickedFile) => void,
+): Promise<BookingImportResult | BookingImportFailure | null> {
   let file: PickedFile | null;
   try {
     file = await pickBookingFile();
@@ -217,6 +439,18 @@ export async function importBookingFromFile(): Promise<
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
   if (!file) return null;
+  onPicked?.(file);
+
+  // A screenshot picked as a file goes the photo way, shrunk in a browser.
+  if (isImageFile(file)) {
+    try {
+      const image = await prepareImage({ uri: file.uri ?? '', base64: file.base64, mimeType: file.mimeType });
+      assertPhotoSizes([image]);
+      return parseBookingPhotos([image]);
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
   return parseBookingFile(file);
 }
 

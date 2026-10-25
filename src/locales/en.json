@@ -328,8 +328,8 @@
     "stepDetails": "Details",
     "stepSummary": "Summary & payment",
     "importCard": {
-      "title": "Fill from a file",
-      "subtitle": "Upload a PDF, Word or Excel file — the form fills itself."
+      "title": "Fill in from a message",
+      "subtitle": "Paste a WhatsApp or email message, a screenshot or a file — the form fills itself."
     },
     "pickService": "Choose a service type above, then continue.",
     "serviceKind": "Service type",
@@ -774,7 +774,7 @@
     "noRatings": "— (no reviews)",
     "experienceYears": "{{years}} years of experience",
     "driverInfoNotFound": "Driver info not found",
-    "importBookingLink": "From a file"
+    "importBookingLink": "From a message"
   },
   "companyOnboarding": {
     "skip": "Skip",
@@ -1922,12 +1922,12 @@
     "notFound": "Tour not found"
   },
   "importBooking": {
-    "title": "Booking from a file",
-    "subtitle": "Upload the company’s PDF, Word or Excel file — the app reads it and fills the form for you. You check everything before it is sent.",
+    "title": "Booking from a message",
+    "subtitle": "Paste the tour operator's message, or add a screenshot or a file — the app reads it and fills in the booking for you. You check everything before it is sent.",
     "pick": "Upload a file",
     "pickAnother": "Upload another file",
-    "formatsHint": "Works with .pdf, .docx, .xlsx, .txt and .csv. A scanned or photographed PDF cannot be read — send the original.",
-    "readFailed": "Could not read the file",
+    "formatsHint": "PDF (scanned too), Word (.docx), Excel (.xlsx), .txt, .csv or a picture — up to 8 MB.",
+    "readFailed": "Could not read it",
     "templateUsed": "From template",
     "aiUsed": "AI assisted",
     "aiGuessed": "AI guess",
@@ -1972,7 +1972,35 @@
     "serviceLabel": "Service",
     "createAll": "Create all ({{count}})",
     "createdMany": "{{count}} bookings created",
-    "createdSome": "{{count}} bookings created, the rest failed"
+    "createdSome": "{{count}} bookings created, the rest failed",
+    "modes": {
+      "text": "Text",
+      "photo": "Photo",
+      "file": "File"
+    },
+    "textLabel": "Message",
+    "textPlaceholder": "Paste a WhatsApp, Viber, Telegram or email message here.\n\nFor example: 27 October, 10:00 — airport to Rooms Hotel, 4 passengers, minivan",
+    "clear": "Clear",
+    "readText": "Read and fill in",
+    "textHint": "You can paste a whole conversation — the date, time, places and passengers are found for you. Message times and sender names are not taken into the booking.",
+    "textTooShort": "Paste the message text — the part with the date, place and passengers.",
+    "photoLibrary": "Screenshot or photo from the gallery",
+    "photoLibrarySub": "Pick up to {{count}} at once — a long chat over several screenshots, for example.",
+    "photoCamera": "Take a photo",
+    "photoCameraSub": "Photograph a printed programme or a screen.",
+    "photoHint": "The photo must be sharp enough to read the text.",
+    "cameraPermissionTitle": "Camera access",
+    "cameraDenied": "No access to the camera. Turn it on in Settings, or pick a screenshot from the gallery.",
+    "photoTooBig": "The photo is too large. Try a screenshot, or fewer photos at once.",
+    "reading": "Reading… usually 10–30 seconds",
+    "sourceText": "Pasted message",
+    "sourcePhotos": "Photos: {{count}}",
+    "change": "Change",
+    "datePlaceholder": "Pick the date and time",
+    "fileReadFailed": "Could not read the file",
+    "fileTooBig": "The file is too large (max 8 MB)",
+    "networkError": "Could not connect — check the internet and try again.",
+    "readFailedGeneric": "Could not read it — please try again."
   },
   "priceRequest": {
     "title": "Get a price",

@@ -573,7 +573,7 @@ export default function CompanyDashboardScreen() {
             onPress={() => router.push('/(app)/import-booking')}
             style={({ pressed }) => [styles.headChip, pressed && styles.headChipPressed]}
           >
-            <Ionicons name="document-attach-outline" size={15} color={COLORS.gold} />
+            <Ionicons name="chatbubble-ellipses-outline" size={15} color={COLORS.gold} />
             <Text style={styles.headChipText}>{t('company.importBookingLink')}</Text>
           </Pressable>
           <View ref={newBookingLinkRef} collapsable={false}>

@@ -1,6 +1,17 @@
 // deno-lint-ignore-file no-explicit-any
 //
-// booking-import — turn a company's own PDF/Word/Excel/text file into a booking draft.
+// booking-import — turn a tour operator's request into a booking draft.
+//
+// The request arrives in one of three shapes, and every shape ends in the same
+// draft and the same review screen:
+//
+//   { fileName, contentBase64 }  a PDF / Word / Excel / text file. A scanned PDF
+//                                with no text layer, or a picture uploaded as
+//                                a file, is read by the model as an image.
+//   { text }                     a message pasted from WhatsApp, Viber,
+//                                Telegram or an email.
+//   { images: [{ base64 }] }     up to five photos or screenshots of a chat,
+//                                an email or a printed page, in order.
 //
 // Design rules, in order of importance:
 //
@@ -49,6 +60,21 @@ const CORS = {
  */
 const MAX_BASE64_CHARS = 11 * 1024 * 1024;
 const MAX_TEXT_CHARS = 60_000;
+
+/**
+ * Photos and screenshots. The model takes up to 10 MB of base64 per image and
+ * 32 MB per request; these stay well clear of both, and of the function's own
+ * memory, while still fitting a long chat spread over several screenshots.
+ */
+const MAX_IMAGES = 5;
+const MAX_IMAGE_BASE64_CHARS = 9_500_000;
+const MAX_IMAGES_TOTAL_BASE64_CHARS = 20_000_000;
+
+/** What the import log and the review screen call a pasted message. */
+const PASTED_TEXT_NAME = 'ჩასმული ტექსტი';
+
+/** Picture formats a file upload may carry instead of a document. */
+const IMAGE_FILE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']);
 
 const ANTHROPIC_MODEL = Deno.env.get('BOOKING_IMPORT_MODEL') ?? 'claude-sonnet-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -303,11 +329,11 @@ type PdfTextItem = {
  * the line under a label is that label's value. A line carrying a mark is
  * still read as a label or a value in its own right.
  */
-const SMALL_PRINT = '\u0000';
-const BLOCK_BREAK = '\u0001';
+const SMALL_PRINT = String.fromCharCode(0);
+const BLOCK_BREAK = String.fromCharCode(1);
 
 function stripMarks(line: string): string {
-  return line.replace(/^[\u0000\u0001]+/, '');
+  return line.replace(/^[\x00\x01]+/, '');
 }
 
 /**
@@ -1125,17 +1151,25 @@ const EXTRACT_TOOL = {
 
 const SYSTEM_PROMPT = `You read transport booking requests that Georgian tour operators send to a transport company, and turn them into structured data.
 
-The documents arrive in whatever language the operator works in — most often Georgian, English or Russian, sometimes Turkish, Armenian or a European language — and follow no fixed format: they may be a table, a paragraph, an email pasted into Word, a PDF order form, or a day-by-day itinerary. Text taken from a PDF may have lost some of its layout; read it for meaning rather than position.
+The requests arrive in whatever language the operator works in — most often Georgian, English or Russian, sometimes Turkish, Armenian or a European language — and follow no fixed format: a table, a paragraph, an email, a PDF order form, a day-by-day itinerary, or a chat. Text taken from a PDF may have lost some of its layout; read it for meaning rather than position.
+
+Many requests are chat messages, copied or screenshotted from WhatsApp, Viber, Telegram or Messenger, or emails. In those:
+- A timestamp and a name in front of a message — "[25/10/2026, 14:03] Nino:" or "25.10.26, 14:03 - Nino:" — say when that message was SENT and who sent it. They are never the service date, the pickup time or the passenger. The sender is usually the tour operator, not the traveller.
+- On a screenshot, ignore the phone itself: the clock and battery at the top, the chat's contact name and phone number, the times and ticks under each message, "typing…", buttons and the keyboard. The number at the top of a chat belongs to whoever is writing, not to the passenger.
+- Later messages win. When the chat changes the date, time, passengers, vehicle or route ("sorry, 5 people, not 4"), use the latest value and name that field in uncertain_fields so the dispatcher looks at it.
+- Replies from the transport company itself — questions, prices it quoted, "ok", "confirmed" — are context, not part of the request.
 
 Rules:
-- Only report what the document actually says. If a field is not stated, return null. Never guess a price, a phone number or a date.
-- Dates in these documents are DAY FIRST (15/05/2026 is 15 May 2026), unless the format is clearly YYYY-MM-DD.
-- Times are local Tbilisi time, 24-hour.
+- Only report what the request actually says. If a field is not stated, return null. Never guess a price or a phone number, and never invent a date.
+- Dates are DAY FIRST (15/05/2026 is 15 May 2026), unless the format is clearly YYYY-MM-DD.
+- Today's date in Tbilisi comes with the request. A date written without a year is the next such date on or after today. A relative date — tomorrow, the day after tomorrow, on Saturday; ხვალ, ზეგ, შაბათს; завтра, послезавтра, в субботу — counts from the day the message was sent when the chat shows it, otherwise from today. Whenever you worked a date out instead of reading it in full, name date in uncertain_fields.
+- Times are local Tbilisi time, 24-hour. "At 10", "10-ზე" or "в 10" is 10:00; "7 in the evening" or "საღამოს 7-ზე" is 19:00.
+- Anything else the driver needs to know — child seats, a lot of luggage, an extra stop, waiting time — goes in comment.
 - A PDF whose document mixed fonts can lose punctuation altogether: "0900" is 09:00, and a phone number can arrive without its "+" or glued to the name printed before it. Read the digits for what they plainly are, copy the evidence exactly as it appeared, and name such a field in uncertain_fields so the dispatcher checks it.
 - "ტრანსფერი"/transfer = transfer. A single day of sightseeing = day_tour. Several days = tour, and then fill tour_days.
 - Vehicle words: სედანი/sedan, მინივენი/Vito/Viano = minivan, მიკროავტობუსი/Sprinter = microbus, ავტობუსი = bus.
 - List in uncertain_fields any field you inferred rather than read.
-- Fill evidence with the exact wording you read each field from, copied from the document. A dispatcher checks your reading against it, so copy, never paraphrase.
+- Fill evidence with the exact wording you read each field from, copied from the request. A dispatcher checks your reading against it, so copy, never paraphrase.
 - Fill field_labels with the document's own printed heading for each field — the label, not the value. This operator will send files in this same layout again, and their wording is remembered so the next one is read without a model. Leave out any field the document does not label.
 - Call the submit_booking tool exactly once.`;
 
@@ -1185,7 +1219,7 @@ Call the submit_program tool exactly once.`;
 
 /** Dates and service words, as a cheap signal that the file may hold a programme. */
 function looksLikeMultiService(text: string): boolean {
-  const body = text.replace(/[\u0000\u0001]/g, '');
+  const body = text.replace(/[\x00\x01]/g, '');
 
   const dates = new Set<string>();
   const dmy = body.match(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/g) ?? [];
@@ -1203,8 +1237,90 @@ function looksLikeMultiService(text: string): boolean {
   return dates.size >= 2 || serviceWords.length >= 2;
 }
 
+/**
+ * The line a chat app puts in front of every message when several are copied
+ * or exported together — when it was sent, and by whom.
+ */
+const CHAT_HEADER_PATTERNS = [
+  // WhatsApp on an iPhone: "[25/10/2026, 14:03:12] Nino: …"
+  /^\[\d{1,2}[./-]\d{1,2}[./-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp]\.?\s?[Mm]\.?)?\]\s*[^:\n]{1,80}:/,
+  // WhatsApp on Android: "25/10/2026, 14:03 - Nino: …"
+  /^\d{1,2}[./-]\d{1,2}[./-]\d{2,4},?\s+\d{1,2}:\d{2}(?:\s?[AaPp]\.?\s?[Mm]\.?)?\s+[-–]\s+[^:\n]{1,80}:/,
+  // Telegram on a computer: "Nino, [25.10.2026 14:03]"
+  /^[^[\]\n]{1,80},\s*\[\d{1,2}[./-]\d{1,2}[./-]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\]$/,
+];
+
+/**
+ * A pasted conversation rather than one message or an email.
+ *
+ * It changes how the text is read. The template parser takes the first value
+ * it finds under a label, which is right for a form and wrong for a chat, where
+ * "5 people, not 4" two messages later is the answer. A chat therefore goes to
+ * the model alone, which is told that later messages win and that the stamp in
+ * front of each message is not the service date.
+ */
+function looksLikeChat(text: string): boolean {
+  let headers = 0;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (CHAT_HEADER_PATTERNS.some((re) => re.test(line))) {
+      headers += 1;
+      if (headers >= 2) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Pasted text as the model and the parser should see it: no direction marks
+ * (WhatsApp sprinkles them through copied messages), one kind of line break,
+ * and never the parser's own internal marks.
+ */
+function cleanPastedText(raw: string): string {
+  return raw
+    .replace(/[\x00\x01]/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\p{Cf}/gu, '')
+    .trim();
+}
+
+type AiBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+  | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } };
+
+/** What the model is asked to read: extracted text, or pictures of the request. */
+type AiInput = string | AiBlock[];
+
+/**
+ * Today's date in Tbilisi (UTC+4 all year), for "tomorrow", "on Saturday" and
+ * dates written without a year — the way requests are usually written in a chat.
+ */
+function tbilisiToday(): string {
+  const now = new Date(Date.now() + 4 * 3600 * 1000);
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return `${now.toISOString().slice(0, 10)}, ${days[now.getUTCDay()]}`;
+}
+
+function aiUserContent(input: AiInput): string | AiBlock[] {
+  const today = `Today in Tbilisi: ${tbilisiToday()}.`;
+  if (typeof input === 'string') {
+    // The hint marks are an internal signal for the template parser; the
+    // model sees the document as printed.
+    return `${today}\n\n<document>\n${input.replace(/[\x00\x01]/g, '').slice(0, MAX_TEXT_CHARS)}\n</document>`;
+  }
+  const images = input.filter((b) => b.type === 'image').length;
+  const what = input.some((b) => b.type === 'document')
+    ? 'The PDF above is a scanned or photographed transport request.'
+    : images > 1
+      ? `The ${images} images above are one transport request — screenshots or photos of a chat, an email or a printed page. They are consecutive parts of the same conversation or document, in the order given.`
+      : 'The image above is a transport request — a screenshot or photo of a chat, an email or a printed page.';
+  return [...input, { type: 'text', text: `${today}\n\n${what} Read the request from it.` }];
+}
+
 async function aiExtractProgram(
-  text: string,
+  input: AiInput,
   apiKey: string,
 ): Promise<{ services: any[]; warning: string | null }> {
   try {
@@ -1221,12 +1337,7 @@ async function aiExtractProgram(
         system: PROGRAM_PROMPT,
         tools: [PROGRAM_TOOL],
         tool_choice: { type: 'tool', name: 'submit_program' },
-        messages: [
-          {
-            role: 'user',
-            content: `<document>\n${text.replace(/[\u0000\u0001]/g, '').slice(0, MAX_TEXT_CHARS)}\n</document>`,
-          },
-        ],
+        messages: [{ role: 'user', content: aiUserContent(input) }],
       }),
     });
 
@@ -1252,7 +1363,7 @@ async function aiExtractProgram(
 }
 
 async function aiExtract(
-  text: string,
+  input: AiInput,
   apiKey: string,
 ): Promise<{ data: any | null; warning: string | null }> {
   try {
@@ -1269,14 +1380,7 @@ async function aiExtract(
         system: SYSTEM_PROMPT,
         tools: [EXTRACT_TOOL],
         tool_choice: { type: 'tool', name: 'submit_booking' },
-        messages: [
-          {
-            role: 'user',
-            // The hint marks are an internal signal for the template parser;
-            // the model sees the document as printed.
-            content: `<document>\n${text.replace(/[\u0000\u0001]/g, '').slice(0, MAX_TEXT_CHARS)}\n</document>`,
-          },
-        ],
+        messages: [{ role: 'user', content: aiUserContent(input) }],
       }),
     });
 
@@ -1502,9 +1606,23 @@ function sanityWarnings(draft: BookingDraft): string[] {
   return w;
 }
 
+/**
+ * Midnight in Tbilisi with no separate pickup time is how a date that came
+ * without a time is stored. A real 00:00 pickup is rare enough that asking is
+ * the right default — a driver sent at midnight for a noon arrival is not.
+ */
+function timeMissing(draft: BookingDraft): boolean {
+  if (!draft.date_display || draft.pickup_time) return false;
+  const t = Date.parse(draft.date_display);
+  if (!Number.isFinite(t)) return false;
+  const local = new Date(t + 4 * 3600 * 1000);
+  return local.getUTCHours() === 0 && local.getUTCMinutes() === 0;
+}
+
 function buildWarnings(draft: BookingDraft): string[] {
   const w: string[] = [];
   if (!draft.date_display) w.push('თარიღი ვერ წავიკითხე — ხელით მიუთითე');
+  if (timeMissing(draft)) w.push('დრო ვერ წავიკითხე — მიუთითე, რომელ საათზე');
   if (!draft.vehicle_type) w.push('ტრანსპორტის ტიპი ვერ წავიკითხე');
   if (!draft.passengers) w.push('მგზავრების რაოდენობა ვერ წავიკითხე');
   if (!draft.from_location && !draft.route) w.push('აყვანის ადგილი ვერ წავიკითხე');
@@ -1528,6 +1646,103 @@ function buildWarnings(draft: BookingDraft): string[] {
   }
   w.push(...sanityWarnings(draft));
   return w;
+}
+
+/** Nothing a booking could be made from — no date, no place, no people, no car. */
+function draftIsEmpty(d: BookingDraft): boolean {
+  return (
+    !d.date_display &&
+    !d.from_location &&
+    !d.to_location &&
+    !d.route &&
+    d.passengers == null &&
+    !d.vehicle_type &&
+    !d.flight_number &&
+    !d.passenger_name &&
+    !d.passenger_phone &&
+    !d.hotel &&
+    d.client_price == null &&
+    !(d.tour_days && d.tour_days.length > 0)
+  );
+}
+
+/** The model's field names, as the review screen calls them. */
+const FIELD_NAMES_KA: Record<string, string> = {
+  kind: 'სერვისი',
+  date: 'თარიღი',
+  time: 'დრო',
+  from_location: 'საიდან',
+  to_location: 'სად',
+  route: 'მარშრუტი',
+  passengers: 'მგზავრები',
+  vehicle_type: 'ტრანსპორტი',
+  vehicle_class: 'კლასი',
+  flight_number: 'რეისი',
+  flight_direction: 'ჩამოფრენა / გაფრენა',
+  passenger_name: 'მგზავრის სახელი',
+  passenger_phone: 'ტელეფონი',
+  meet_greet: 'შეხვედრა ტაბლოთი',
+  sign_text: 'ტაბლოს ტექსტი',
+  client_price: 'ფასი',
+  payment_method: 'გადახდა',
+  comment: 'კომენტარი',
+  hotel: 'სასტუმრო',
+  tour_days: 'ტურის დღეები',
+};
+
+/** "Check these" for the fields the model worked out rather than read. */
+function uncertainNote(raw: unknown): string | null {
+  if (!Array.isArray(raw)) return null;
+  const names = [
+    ...new Set(
+      raw
+        .map((f) => String(f).trim())
+        .filter(Boolean)
+        .map((f) => FIELD_NAMES_KA[f] ?? f),
+    ),
+  ];
+  return names.length > 0 ? `ეს ველები AI-მ დაასკვნა, პირდაპირ არ ეწერა — გადაამოწმე: ${names.join(', ')}` : null;
+}
+
+/** Base64 without a data-URL prefix or line breaks, as the model expects it. */
+function cleanBase64(raw: string): string {
+  const body = raw.includes(',') ? raw.slice(raw.indexOf(',') + 1) : raw;
+  return /\s/.test(body) ? body.replace(/\s+/g, '') : body;
+}
+
+/**
+ * The picture's real format, read from its first bytes. A phone's own label is
+ * not trusted: a PNG screenshot saved as .jpg is common, and the model refuses
+ * an image whose declared type does not match its content.
+ */
+function sniffImageType(b64: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' | 'unsupported' | null {
+  let head: string;
+  try {
+    head = atob(b64.slice(0, 32));
+  } catch {
+    return null;
+  }
+  const byte = (i: number) => head.charCodeAt(i);
+  if (byte(0) === 0xff && byte(1) === 0xd8 && byte(2) === 0xff) return 'image/jpeg';
+  if (head.startsWith('\x89PNG')) return 'image/png';
+  if (head.startsWith('GIF8')) return 'image/gif';
+  if (head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP') return 'image/webp';
+  // HEIC / HEIF / AVIF — an iPhone's own photo format, which the model cannot open.
+  if (/^ftyp(heic|heix|hevc|hevx|heim|heis|mif1|msf1|avif)/.test(head.slice(4, 12))) return 'unsupported';
+  return null;
+}
+
+const IMAGE_FORMAT_ERROR =
+  'ამ ფორმატის ფოტო ვერ იკითხება. გადაიღე სქრინშოტი ან აირჩიე JPG / PNG ფოტო.';
+const IMAGE_TOO_BIG_ERROR =
+  'ფოტო ძალიან დიდია. სცადე სქრინშოტი ან ნაკლები ფოტო ერთად.';
+
+/** One picture for the model, or the reason it cannot be one. */
+function imageBlock(b64: string): { block: AiBlock } | { error: string } {
+  if (b64.length > MAX_IMAGE_BASE64_CHARS) return { error: IMAGE_TOO_BIG_ERROR };
+  const type = sniffImageType(b64);
+  if (type === null || type === 'unsupported') return { error: IMAGE_FORMAT_ERROR };
+  return { block: { type: 'image', source: { type: 'base64', media_type: type, data: b64 } } };
 }
 
 function friendlyExtractError(code: string): string {
@@ -1762,15 +1977,269 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: message }, httpStatus);
   }
 
-  let payload: { fileName?: string; contentBase64?: string };
+  let payload: {
+    fileName?: unknown;
+    contentBase64?: unknown;
+    text?: unknown;
+    images?: unknown;
+  };
   try {
     payload = await req.json();
   } catch {
     return await failWith('error', 400, 'არასწორი მოთხოვნა');
   }
 
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+
+  type ServiceOut = {
+    draft: BookingDraft;
+    sources: Partial<Record<keyof BookingDraft, FieldSource>>;
+    evidence: Record<string, string> | null;
+    warnings: string[];
+  };
+
+  /**
+   * Text — from a file or pasted from a chat — goes through both readers: the
+   * template parser for labelled forms, then the model.
+   */
+  async function answerFromText(
+    text: string,
+    opts: { fileName: string; pasted: boolean },
+  ): Promise<Response> {
+    // A conversation is read by the model alone — see looksLikeChat.
+    const chat = opts.pasted && looksLikeChat(text);
+
+    // Built-in labels plus whatever this company's earlier files have taught us.
+    const labelBook = chat ? BUILTIN_LABELS : labelBookWith(await loadLearnedLabels());
+
+    const { draft, sources } = chat
+      ? { draft: { ...EMPTY_DRAFT }, sources: {} as Partial<Record<keyof BookingDraft, FieldSource>> }
+      : parseTemplate(text, labelBook);
+
+    /** Warnings about the whole read rather than one service. */
+    const generalWarnings: string[] = [];
+
+    // The template is authoritative. The model only fills what is still missing.
+    const missingCore =
+      !draft.date_display || !draft.vehicle_type || !draft.passengers ||
+      (!draft.from_location && !draft.route);
+
+    // A chat can settle more than one job between its messages; the model
+    // decides how many there really are, and one is a valid answer.
+    const maybeProgram = chat || looksLikeMultiService(text);
+
+    let usedAi = false;
+    let aiFailed = false;
+    /** Services 2..n of a programme. The first one is `draft` itself. */
+    let extraServices: ServiceOut[] = [];
+    let evidence: Record<string, string> | null = null;
+    let firstGuessed: string | null = null;
+    const crossWarnings: string[] = [];
+
+    /**
+     * The model runs on every document now, not only when the template came up
+     * short. Two readers of the same page is what lets the importer catch itself:
+     * where they agree the value is almost certainly right, and where they differ
+     * the company is told to look. A silent misreading is the one failure this
+     * feature cannot afford, and it is worth a few tetri per file to prevent.
+     */
+    if (!apiKey) {
+      if (missingCore || maybeProgram) {
+        generalWarnings.push(
+          'ფაილი შაბლონს არ ემთხვევა და AI წაკითხვა გამორთულია (ANTHROPIC_API_KEY არ არის დაყენებული).',
+        );
+      }
+    } else if (maybeProgram) {
+      // Looks like it holds more than one job. Ask for all of them — the model
+      // decides how many there really are, and one is a valid answer.
+      const { services: found, warning } = await aiExtractProgram(text, apiKey);
+      if (warning) {
+        generalWarnings.push(warning);
+        aiFailed = true;
+      }
+      if (found.length > 0) {
+        usedAi = true;
+        crossWarnings.push(...disagreementWarnings(draft, sources, found[0]));
+        // The template read the first service off the actual layout, so it wins.
+        mergeAi(draft, sources, found[0]);
+        evidence = normalizeEvidence(found[0]?.evidence);
+        firstGuessed = uncertainNote(found[0]?.uncertain_fields);
+        extraServices = found.slice(1).map((ai) => {
+          const s = draftFromAi(ai);
+          const guessed = uncertainNote(ai?.uncertain_fields);
+          return { ...s, warnings: [...(guessed ? [guessed] : []), ...buildWarnings(s.draft)] };
+        });
+
+        // Every service in a programme shares the document's layout, so the
+        // first one carries all the vocabulary there is to learn. A chat has
+        // no layout to learn.
+        if (!chat) rememberLabels(found[0]?.field_labels, found[0]?.uncertain_fields);
+      }
+    } else {
+      const { data, warning } = await aiExtract(text, apiKey);
+      if (warning) {
+        generalWarnings.push(warning);
+        aiFailed = true;
+      }
+      if (data) {
+        usedAi = true;
+        crossWarnings.push(...disagreementWarnings(draft, sources, data));
+        mergeAi(draft, sources, data);
+        evidence = normalizeEvidence(data.evidence);
+        firstGuessed = uncertainNote(data.uncertain_fields);
+        rememberLabels(data.field_labels, data.uncertain_fields);
+      }
+    }
+
+    const services: ServiceOut[] = [
+      {
+        draft,
+        sources,
+        evidence,
+        warnings: [...(firstGuessed ? [firstGuessed] : []), ...crossWarnings, ...buildWarnings(draft)],
+      },
+      ...extraServices,
+    ];
+
+    // A pasted message with nothing in it to book is a wrong paste or a failed
+    // read, and an empty form would only hide which.
+    if (opts.pasted && services.every((s) => draftIsEmpty(s.draft))) {
+      return await failWith(
+        'empty',
+        422,
+        aiFailed || !apiKey
+          ? 'შეტყობინების წაკითხვა ახლა ვერ მოხერხდა — სცადე ხელახლა.'
+          : 'ამ ტექსტში ჯავშნის დეტალები ვერ ვიპოვე — თარიღი, ადგილი ან მგზავრები. შეამოწმე, სწორი შეტყობინება ჩასვი თუ არა.',
+      );
+    }
+
+    const warnings = [
+      ...(services.length > 1
+        ? [`${opts.pasted ? 'შეტყობინებაში' : 'ფაილში'} ${services.length} სერვისი ვიპოვე — ყველა ქვემოთ ჩანს.`]
+        : []),
+      ...generalWarnings,
+      ...services[0].warnings,
+    ];
+
+    await logImport('ok', { usedAi, services: services.length, warnings });
+
+    return json({
+      ok: true,
+      // `draft` stays the first service so older app builds keep working unchanged.
+      draft,
+      sources,
+      warnings,
+      usedAi,
+      /** Every service the request asks for. Always at least one. */
+      services,
+      fileName: opts.fileName,
+      textPreview: text.replace(/[\x00\x01]/g, '').slice(0, 1500),
+    });
+  }
+
+  /**
+   * A photo, a screenshot or a scanned page has no text for the template, so
+   * the model reads the picture itself. It is always asked for a programme: a
+   * photographed itinerary is as likely to hold five jobs as one. Nothing is
+   * learned from a picture — the lessons come from text the parser can check.
+   */
+  async function answerFromVisual(blocks: AiBlock[], fileName: string): Promise<Response> {
+    if (!apiKey) {
+      return await failWith(
+        'error',
+        503,
+        'ფოტოს წაკითხვა ახლა მიუწვდომელია. ჩასვი შეტყობინების ტექსტი ან შეავსე ჯავშანი ხელით.',
+      );
+    }
+
+    const { services: found, warning } = await aiExtractProgram(blocks, apiKey);
+    if (found.length === 0) {
+      if (warning) console.error('booking-import: picture read failed', warning);
+      return await failWith('error', 502, 'წაკითხვა ვერ მოხერხდა — სცადე ხელახლა.');
+    }
+
+    const services: ServiceOut[] = found.map((ai) => {
+      const s = draftFromAi(ai);
+      const guessed = uncertainNote(ai?.uncertain_fields);
+      return { ...s, warnings: [...(guessed ? [guessed] : []), ...buildWarnings(s.draft)] };
+    });
+
+    if (services.every((s) => draftIsEmpty(s.draft))) {
+      return await failWith(
+        'empty',
+        422,
+        'ჯავშნის დეტალები ვერ ვიპოვე — სცადე უფრო მკაფიო ფოტო, ან ჩასვი შეტყობინების ტექსტი.',
+      );
+    }
+
+    const warnings = [
+      ...(services.length > 1 ? [`${services.length} სერვისი ვიპოვე — ყველა ქვემოთ ჩანს.`] : []),
+      ...services[0].warnings,
+    ];
+
+    await logImport('ok', { usedAi: true, services: services.length, warnings });
+
+    return json({
+      ok: true,
+      draft: services[0].draft,
+      sources: services[0].sources,
+      warnings,
+      usedAi: true,
+      services,
+      fileName,
+      textPreview: '',
+    });
+  }
+
+  // ------------------------------------------------- photos and screenshots
+
+  if (Array.isArray(payload.images) && payload.images.length > 0) {
+    const images = payload.images as { base64?: unknown }[];
+    logFileName = images.length === 1 ? 'ფოტო' : `ფოტო ×${images.length}`;
+    if (images.length > MAX_IMAGES) {
+      return await failWith('error', 413, `ერთად მაქსიმუმ ${MAX_IMAGES} ფოტო აირჩიე.`);
+    }
+
+    const blocks: AiBlock[] = [];
+    let total = 0;
+    for (const image of images) {
+      const b64 = cleanBase64(String(image?.base64 ?? ''));
+      if (!b64) return await failWith('error', 400, 'ფოტო ცარიელია — აირჩიე თავიდან.');
+      total += b64.length;
+      if (total > MAX_IMAGES_TOTAL_BASE64_CHARS) {
+        return await failWith('error', 413, IMAGE_TOO_BIG_ERROR);
+      }
+      const read = imageBlock(b64);
+      if ('error' in read) return await failWith('error', 415, read.error);
+      blocks.push(read.block);
+    }
+    logBytes = Math.round((total * 3) / 4);
+    return await answerFromVisual(blocks, logFileName);
+  }
+
+  // ---------------------------------------------------------- pasted text
+
+  if (typeof payload.text === 'string') {
+    const pasted = cleanPastedText(payload.text);
+    logFileName = PASTED_TEXT_NAME;
+    logBytes = new TextEncoder().encode(pasted).length;
+    if (pasted.replace(/\s/g, '').length < 8) {
+      return await failWith('empty', 422, 'ჩასვი შეტყობინების ტექსტი.');
+    }
+    if (pasted.length > MAX_TEXT_CHARS) {
+      return await failWith(
+        'error',
+        413,
+        'ტექსტი ძალიან გრძელია — ჩასვი მხოლოდ ის შეტყობინებები, სადაც ჯავშანია.',
+      );
+    }
+    return await answerFromText(pasted, { fileName: PASTED_TEXT_NAME, pasted: true });
+  }
+
+  // ----------------------------------------------------------------- file
+
   const fileName = String(payload.fileName ?? '').trim();
-  const b64 = String(payload.contentBase64 ?? '');
+  const b64 = cleanBase64(String(payload.contentBase64 ?? ''));
   logFileName = fileName;
   // Base64 carries a third more than the bytes it encodes.
   logBytes = Math.round((b64.length * 3) / 4);
@@ -1781,9 +2250,17 @@ Deno.serve(async (req) => {
     return await failWith('error', 413, 'ფაილი ძალიან დიდია (მაქს. ~8 MB)');
   }
 
+  // A photo picked as a file is still a photo.
+  const ext = (fileName.split('.').pop() ?? '').toLowerCase();
+  if (IMAGE_FILE_EXTENSIONS.has(ext)) {
+    const read = imageBlock(b64);
+    if ('error' in read) return await failWith('error', 415, read.error);
+    return await answerFromVisual([read.block], fileName);
+  }
+
   let bytes: Uint8Array;
   try {
-    const bin = atob(b64.includes(',') ? b64.slice(b64.indexOf(',') + 1) : b64);
+    const bin = atob(b64);
     bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   } catch {
@@ -1795,113 +2272,21 @@ Deno.serve(async (req) => {
   try {
     text = await extractText(fileName, bytes);
   } catch (e) {
-    return await failWith('error', 415, friendlyExtractError(String((e as Error).message)));
+    const code = String((e as Error).message);
+    // A scanned or photographed PDF has no text layer, but the model reads the
+    // page itself — so the one file that used to be refused outright is read.
+    if (code === 'PDF_NO_TEXT' && apiKey) {
+      return await answerFromVisual(
+        [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }],
+        fileName,
+      );
+    }
+    return await failWith('error', 415, friendlyExtractError(code));
   }
 
   if (!text.trim()) {
     return await failWith('empty', 422, 'ფაილში ტექსტი ვერ ვიპოვე');
   }
 
-  // Built-in labels plus whatever this company's earlier files have taught us.
-  const labelBook = labelBookWith(await loadLearnedLabels());
-
-  const { draft, sources } = parseTemplate(text, labelBook);
-  const warnings: string[] = [];
-
-  // The template is authoritative. The model only fills what is still missing.
-  const missingCore =
-    !draft.date_display || !draft.vehicle_type || !draft.passengers ||
-    (!draft.from_location && !draft.route);
-
-  const maybeProgram = looksLikeMultiService(text);
-
-  let usedAi = false;
-  /** Services 2..n of a programme. The first one is `draft` itself. */
-  let extraServices: {
-    draft: BookingDraft;
-    sources: Partial<Record<keyof BookingDraft, FieldSource>>;
-    evidence: Record<string, string> | null;
-  }[] = [];
-  let evidence: Record<string, string> | null = null;
-  const crossWarnings: string[] = [];
-
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-
-  /**
-   * The model runs on every document now, not only when the template came up
-   * short. Two readers of the same page is what lets the importer catch itself:
-   * where they agree the value is almost certainly right, and where they differ
-   * the company is told to look. A silent misreading is the one failure this
-   * feature cannot afford, and it is worth a few tetri per file to prevent.
-   */
-  if (!apiKey) {
-    if (missingCore || maybeProgram) {
-      warnings.push(
-        'ფაილი შაბლონს არ ემთხვევა და AI წაკითხვა გამორთულია (ANTHROPIC_API_KEY არ არის დაყენებული).',
-      );
-    }
-  } else if (maybeProgram) {
-    // Looks like it holds more than one job. Ask for all of them — the model
-    // decides how many there really are, and one is a valid answer.
-    const { services: found, warning } = await aiExtractProgram(text, apiKey);
-    if (warning) warnings.push(warning);
-    if (found.length > 0) {
-      usedAi = true;
-      crossWarnings.push(...disagreementWarnings(draft, sources, found[0]));
-      // The template read the first service off the actual layout, so it wins.
-      mergeAi(draft, sources, found[0]);
-      evidence = normalizeEvidence(found[0]?.evidence);
-      extraServices = found.slice(1).map(draftFromAi);
-
-      // Every service in a programme shares the document's layout, so the
-      // first one carries all the vocabulary there is to learn.
-      rememberLabels(found[0]?.field_labels, found[0]?.uncertain_fields);
-
-      const uncertain = found[0]?.uncertain_fields;
-      if (Array.isArray(uncertain) && uncertain.length > 0) {
-        warnings.push(`ეს ველები AI-მ დაასკვნა, არ ეწერა პირდაპირ: ${uncertain.join(', ')}`);
-      }
-    }
-  } else {
-    const { data, warning } = await aiExtract(text, apiKey);
-    if (warning) warnings.push(warning);
-    if (data) {
-      usedAi = true;
-      crossWarnings.push(...disagreementWarnings(draft, sources, data));
-      mergeAi(draft, sources, data);
-      evidence = normalizeEvidence(data.evidence);
-      rememberLabels(data.field_labels, data.uncertain_fields);
-      if (Array.isArray(data.uncertain_fields) && data.uncertain_fields.length > 0) {
-        warnings.push(
-          `ეს ველები AI-მ დაასკვნა, არ ეწერა პირდაპირ: ${data.uncertain_fields.join(', ')}`,
-        );
-      }
-    }
-  }
-
-  warnings.push(...crossWarnings, ...buildWarnings(draft));
-
-  const services = [
-    { draft, sources, evidence, warnings: [...crossWarnings, ...buildWarnings(draft)] },
-    ...extraServices.map((s) => ({ ...s, warnings: buildWarnings(s.draft) })),
-  ];
-
-  if (services.length > 1) {
-    warnings.unshift(`ფაილში ${services.length} სერვისი ვიპოვე — ყველა ქვემოთ ჩანს.`);
-  }
-
-  await logImport('ok', { usedAi, services: services.length, warnings });
-
-  return json({
-    ok: true,
-    // `draft` stays the first service so older app builds keep working unchanged.
-    draft,
-    sources,
-    warnings,
-    usedAi,
-    /** Every service the document asks for. Always at least one. */
-    services,
-    fileName,
-    textPreview: text.replace(/[\u0000\u0001]/g, '').slice(0, 1500),
-  });
+  return await answerFromText(text, { fileName, pasted: false });
 });
