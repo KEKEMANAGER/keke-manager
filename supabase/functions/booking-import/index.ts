@@ -2127,8 +2127,9 @@ function disagreementWarnings(
   }
 
   if (fromTemplate('date_display') && typeof ai.date === 'string' && draft.date_display) {
-    const template = draft.date_display.slice(0, 10);
-    const model = parseDateTime(ai.date, null)?.slice(0, 10) ?? null;
+    // Calendar days in Tbilisi: a midnight date is the 27th there, not the 26th in UTC.
+    const template = tbilisiDate(draft.date_display);
+    const model = tbilisiDate(parseDateTime(ai.date, null));
     if (model && model !== template) {
       w.push(
         `თარიღი გადაამოწმე: ფაილის სტრუქტურამ ${template} აჩვენა, ტექსტის წაკითხვამ — ${model}`,
