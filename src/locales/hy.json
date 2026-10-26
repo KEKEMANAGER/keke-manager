@@ -516,7 +516,8 @@
       "passengers": "Enter number of passengers",
       "session": "Session not found. Please sign in again",
       "operator": "Select an operator",
-      "mapLink": "The Google Maps link is not valid. Paste a link from Google Maps (Share → Copy link) or leave the field empty."
+      "mapLink": "The Google Maps link is not valid. Paste a link from Google Maps (Share → Copy link) or leave the field empty.",
+      "offeredPrice": "Նշեք գինը (₾)՝ զրոյից մեծ"
     },
     "dayLine": "Day {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -1926,7 +1927,7 @@
     "subtitle": "Տեղադրեք տուրօպերատորի հաղորդագրությունը, սքրինշոթ կամ ֆայլ — հավելվածը կկարդա այն և ինքը կլրացնի ամրագրումը։ Ուղարկելուց առաջ ամեն ինչ դուք եք ստուգում։",
     "pick": "Վերբեռնել ֆայլ",
     "pickAnother": "Վերբեռնել այլ ֆայլ",
-    "formatsHint": "PDF (նաև սկանավորված), Word (.docx), Excel (.xlsx), .txt, .csv կամ նկար — մինչև 8 ՄԲ։",
+    "formatsHint": "PDF (նաև սկանավորված), Word (.docx), Excel (.xlsx), .txt, .csv, WhatsApp-ի զրույցի արտահանում (.txt կամ .zip) կամ նկար — մինչև 8 ՄԲ։",
     "readFailed": "Չհաջողվեց կարդալ",
     "templateUsed": "Ըստ ձևանմուշի",
     "aiUsed": "AI-ի օգնությամբ",
@@ -2006,7 +2007,27 @@
     "dayDate": "Ամսաթիվ",
     "addDay": "Ավելացնել օր",
     "remove": "Հեռացնել",
-    "route": "Երթուղի"
+    "route": "Երթուղի",
+    "direction": "Ժամանում, թե մեկնում",
+    "time": "Ժամ",
+    "timeArrival": "Ժամանման ժամ",
+    "timePickup": "Վերցնելու ժամ",
+    "timeRequired": "Նշեք ժամը — հաղորդագրության մեջ միայն ամսաթիվն էր",
+    "timePlaceholder": "Ընտրեք ժամը",
+    "flightAt": "✈️ Չվերթի մեկնում՝ {{time}}",
+    "flightAtNote": "✈️ Չվերթի մեկնում՝ {{time}}",
+    "pickupHint": "Նշեք վերցնելու ժամը — սովորաբար չվերթից 2–3 ժամ առաջ։",
+    "pickupAfterFlight": "Վերցնելը չվերթից հետո է — ստուգեք ամսաթիվը (հավանաբար նախորդ օրն է)։",
+    "pickupEarly": "Վերցնելը չվերթից {{hours}} ժամ առաջ է — ստուգեք։",
+    "tourSummary": "📅 {{start}} – {{end}} · {{days}} օր · {{nights}} գիշեր",
+    "priceRequired": "Գինը պարտադիր է — վարորդը տեսնում է այս գինը։",
+    "dropHere": "Գցեք այստեղ — PDF, Word, Excel, WhatsApp-ի զրույց կամ սքրինշոթ",
+    "dropHint": "Համակարգչում՝ քաշեք ֆայլը այս պատուհան կամ սքրինշոթը տեղադրեք Ctrl+V-ով։",
+    "missing": {
+      "time": "Նշեք ժամը — հաղորդագրության մեջ միայն ամսաթիվն էր",
+      "dayDate": "Տուրի յուրաքանչյուր օր ամսաթիվ է պահանջում",
+      "pickupAfterFlight": "Վերցնելը չվերթից հետո է — ուղղեք ամսաթիվը կամ ժամը"
+    }
   },
   "priceRequest": {
     "title": "Իմանալ գինը",

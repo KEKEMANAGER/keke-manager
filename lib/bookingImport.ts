@@ -5,13 +5,27 @@ import i18n from '../src/lib/i18n';
 import type {
   DbCanonicalKind,
   InsertBookingInput,
+  ItineraryDay,
   TourDayPersisted,
   TourTransferLeg,
 } from './bookings';
+import {
+  AIRPORT_OPTIONS,
+  isLocationType,
+  locationMapLinkIsInvalid,
+  locationValueIsComplete,
+  persistLocationFields,
+  persistLocationLink,
+  TRAIN_STATION_OPTIONS,
+  type LocationType,
+  type LocationValue,
+} from './bookingLocations';
+import { extractGoogleMapsLink, locationTypeTakesMapLink, mapLinkState } from './googleMapsLink';
 import { ensureMediaPermission } from './mediaPermissions';
 import { sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
 import { buildTourRouteText, itineraryFromTourDays, tourEndpointsFromDays } from './tourDays';
+import { normalizeVehicleClass, normalizeVehicleType } from './vehicleCatalog';
 
 /**
  * Booking intake: a pasted message, screenshots or photos, or a file.
@@ -30,13 +44,16 @@ export const IMPORT_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
   'text/plain',
   'text/csv',
+  // WhatsApp's "Export chat" on an iPhone is always a zip.
+  'application/zip',
+  'application/x-zip-compressed',
   // A screenshot saved as a file is still a request — read it as a photo.
   'image/jpeg',
   'image/png',
   'image/webp',
 ] as const;
 
-export const IMPORT_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.txt', '.csv'] as const;
+export const IMPORT_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.txt', '.csv', '.zip'] as const;
 
 export type ImportFieldSource = 'template' | 'ai' | 'none';
 
@@ -48,15 +65,30 @@ export type ImportedTourDay = {
   stops: string | null;
   /** Where the group sleeps that night, as the operator wrote it. */
   hotel: string | null;
+  /** That hotel's Google Maps link, when the request carried one or the company pasted it. */
+  hotel_link?: string | null;
+  /** Where the driver sleeps that night — the company's to fill, as on the form. */
+  driver_overnight?: string | null;
 };
 
 /** One transfer leg of a tour: the arrival that opens it or the departure that closes it. */
 export type ImportedLeg = {
   /** ISO instant, like the booking's own date. */
   date_display: string | null;
+  /**
+   * HH:MM when the leg's clock time was read or set. Null with a date-only
+   * start, which is stored at midnight and is not a time anyone asked for.
+   */
+  pickup_time?: string | null;
   from: string | null;
+  from_type?: LocationType | null;
+  from_link?: string | null;
   to: string | null;
+  to_type?: LocationType | null;
+  to_link?: string | null;
   flight: string | null;
+  /** A departure's flight time (ISO instant) — context for the pickup, never the pickup. */
+  flight_at?: string | null;
 };
 
 export type ImportedBookingDraft = {
@@ -64,12 +96,20 @@ export type ImportedBookingDraft = {
   date_display: string | null;
   from_location: string | null;
   to_location: string | null;
+  /** The form's place kind for each end. */
+  from_location_type?: LocationType | null;
+  to_location_type?: LocationType | null;
+  /** Google Maps links, as the form stores them for a hotel or an address. */
+  from_location_link?: string | null;
+  to_location_link?: string | null;
   route: string | null;
   passengers: number | null;
   vehicle_type: string | null;
   vehicle_class: string | null;
   flight_number: string | null;
   flight_direction: 'arrival' | 'departure' | null;
+  /** A departure flight's own time (ISO instant). The pickup is `date_display`. */
+  flight_at?: string | null;
   pickup_time: string | null;
   passenger_name: string | null;
   passenger_phone: string | null;
@@ -87,6 +127,12 @@ export type ImportedBookingDraft = {
   transfer_out?: ImportedLeg | null;
   /** Languages the driver must speak. */
   required_languages?: string[] | null;
+  /**
+   * The form's own choices, which no request carries. They start at the form's
+   * defaults and the company can change them on the review screen.
+   */
+  price_includes_fuel?: boolean | null;
+  driver_overnight_by?: 'keke' | 'company' | null;
 };
 
 /**
@@ -218,6 +264,9 @@ function defaultNameForMime(mimeType?: string | null): string {
       return 'booking.png';
     case 'image/webp':
       return 'booking.webp';
+    case 'application/zip':
+    case 'application/x-zip-compressed':
+      return 'chat.zip';
     default:
       return 'booking.docx';
   }
@@ -433,6 +482,60 @@ export function parseBookingPhotos(
   });
 }
 
+/** A file dropped on the page or pasted from the clipboard (browser only), read for sending. */
+async function pickedFileFromWebFile(file: File): Promise<PickedFile> {
+  if (file.size > MAX_FILE_BYTES) throw new Error(i18n.t('importBooking.fileTooBig'));
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(i18n.t('importBooking.fileReadFailed')));
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.readAsDataURL(file);
+  });
+  return {
+    name: file.name || defaultNameForMime(file.type),
+    base64: stripDataUrlPrefix(dataUrl),
+    sizeBytes: file.size,
+    mimeType: file.type || null,
+  };
+}
+
+function isPictureFile(file: File): boolean {
+  return file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name);
+}
+
+/** What a drop or a paste turned into: pictures of a request, or one file. */
+export type DroppedInput =
+  | { kind: 'photos'; images: PickedImage[] }
+  | { kind: 'file'; file: PickedFile };
+
+/**
+ * Files dropped on the import screen or pasted into it in a browser — a PDF
+ * dragged from the desktop, a screenshot straight from the clipboard. A
+ * document wins over pictures and is read on its own; otherwise up to five
+ * pictures go together, in order, the same way the gallery sends them.
+ */
+export async function prepareDroppedFiles(files: File[]): Promise<DroppedInput | null> {
+  const list = files.filter((f) => f && f.size > 0);
+  if (list.length === 0) return null;
+
+  const docFile = list.find((f) => !isPictureFile(f));
+  if (docFile) return { kind: 'file', file: await pickedFileFromWebFile(docFile) };
+
+  const images: PickedImage[] = [];
+  for (const picture of list.slice(0, MAX_IMPORT_PHOTOS)) {
+    const picked = await pickedFileFromWebFile(picture);
+    // Redrawing needs a URL the browser can decode; it is let go straight after.
+    const uri = typeof URL !== 'undefined' ? URL.createObjectURL(picture) : '';
+    try {
+      images.push(await prepareImage({ uri, base64: picked.base64, mimeType: picked.mimeType }));
+    } finally {
+      if (uri) URL.revokeObjectURL(uri);
+    }
+  }
+  assertPhotoSizes(images);
+  return { kind: 'photos', images };
+}
+
 /** Pick and parse in one step. Returns null when the user cancels. */
 export async function importBookingFromPhotos(
   source: PhotoSource,
@@ -476,6 +579,160 @@ export async function importBookingFromFile(
   return parseBookingFile(file);
 }
 
+// ------------------------------------------------------------------ places
+
+const AIRPORT_PRESETS: [RegExp, string][] = [
+  [/tbilisi|tiflis|თბილის|тбилис|\bTBS\b/i, AIRPORT_OPTIONS[0]],
+  [/batumi|ბათუმ|батум/i, AIRPORT_OPTIONS[1]],
+  [/kutaisi|ქუთაის|кутаис|\bKUT\b/i, AIRPORT_OPTIONS[2]],
+];
+
+const STATION_PRESETS: [RegExp, string][] = [
+  [/tbilisi|თბილის|тбилис/i, TRAIN_STATION_OPTIONS[0]],
+  [/batumi|ბათუმ|батум/i, TRAIN_STATION_OPTIONS[1]],
+  [/kutaisi|ქუთაის|кутаис/i, TRAIN_STATION_OPTIONS[2]],
+];
+
+/**
+ * The form's own name for one of Georgia's airports or stations, so an imported
+ * "Tbilisi International Airport" is the same choice the form offers — and reads
+ * to the driver exactly like a typed booking.
+ */
+export function presetPlaceName(type: LocationType | null, name: string): string {
+  const presets = type === 'airport' ? AIRPORT_PRESETS : type === 'train_station' ? STATION_PRESETS : null;
+  const hit = presets?.find(([re]) => re.test(name));
+  return hit ? hit[1] : name;
+}
+
+/**
+ * A place from the draft, as the form's place picker holds it. A name the reader
+ * found always stays in view: with no type the picker would hide it behind
+ * "choose a type", so a name without one is shown — and saved — as an address
+ * until the company picks otherwise. An empty end starts on the form's own
+ * default, like the airport side of a transfer.
+ */
+export function draftPlace(
+  name: string | null | undefined,
+  type: string | null | undefined,
+  link?: string | null,
+  emptyType: LocationType | null = null,
+): LocationValue {
+  const trimmed = name?.trim() ?? '';
+  const kind: LocationType | null = isLocationType(type) ? type : trimmed ? 'address' : emptyType;
+  const value: LocationValue = { type: kind, name: trimmed ? presetPlaceName(kind, trimmed) : '' };
+  const typedLink = link?.trim();
+  if (typedLink && locationTypeTakesMapLink(kind)) value.link = typedLink;
+  return value;
+}
+
+/** What a place picker writes back into the draft. */
+export function placeFields(value: LocationValue): {
+  name: string | null;
+  type: LocationType | null;
+  link: string | null;
+} {
+  return {
+    name: value.name.trim() || null,
+    type: value.type,
+    link: locationTypeTakesMapLink(value.type) ? value.link?.trim() || null : null,
+  };
+}
+
+/** The form's starting type for each end: the airport side of an arrival or a departure. */
+export function transferEndDefaults(direction: ImportedBookingDraft['flight_direction']): {
+  from: LocationType | null;
+  to: LocationType | null;
+} {
+  if (direction === 'arrival') return { from: 'airport', to: null };
+  if (direction === 'departure') return { from: null, to: 'airport' };
+  return { from: null, to: null };
+}
+
+/** A transfer's two ends, as the picker shows them. */
+export function transferPlaces(draft: ImportedBookingDraft): { from: LocationValue; to: LocationValue } {
+  const defaults = transferEndDefaults(draft.flight_direction);
+  return {
+    from: draftPlace(draft.from_location, draft.from_location_type, draft.from_location_link, defaults.from),
+    to: draftPlace(draft.to_location, draft.to_location_type, draft.to_location_link, defaults.to),
+  };
+}
+
+/** A tour leg's two ends: an arrival comes from the airport, a departure goes to it. */
+export function legPlaces(
+  leg: ImportedLeg,
+  key: 'transfer_in' | 'transfer_out',
+): { from: LocationValue; to: LocationValue } {
+  return {
+    from: draftPlace(leg.from, leg.from_type, leg.from_link, key === 'transfer_in' ? 'airport' : null),
+    to: draftPlace(leg.to, leg.to_type, leg.to_link, key === 'transfer_out' ? 'airport' : null),
+  };
+}
+
+// ------------------------------------------------------------------- times
+
+function isTbilisiMidnight(iso: string): boolean {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return false;
+  const local = new Date(t + 4 * 3600 * 1000);
+  return local.getUTCHours() === 0 && local.getUTCMinutes() === 0;
+}
+
+/**
+ * A date read without its clock time. The reader stores such a date at
+ * midnight in Tbilisi, which no one asked for; a time the company set — even a
+ * real 00:00 — comes with `pickupTime`.
+ */
+export function draftTimeMissing(iso: string | null | undefined, pickupTime: string | null | undefined): boolean {
+  return !!iso && !pickupTime && isTbilisiMidnight(iso);
+}
+
+export function clockOf(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** "01:30", or "01:30 (28.10)" when the flight is not on the pickup's own day. */
+export function flightTimeLabel(flightAt: string, pickupIso: string | null | undefined): string {
+  const f = new Date(Date.parse(flightAt));
+  if (Number.isNaN(f.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const time = clockOf(f);
+  const p = pickupIso ? new Date(Date.parse(pickupIso)) : null;
+  const sameDay =
+    !!p &&
+    !Number.isNaN(p.getTime()) &&
+    p.getFullYear() === f.getFullYear() &&
+    p.getMonth() === f.getMonth() &&
+    p.getDate() === f.getDate();
+  return sameDay ? time : `${time} (${pad(f.getDate())}.${pad(f.getMonth() + 1)})`;
+}
+
+/**
+ * A departure's pickup against its flight. After the flight is impossible — a
+ * 01:30 flight with the pickup put on the same calendar day at 22:30 is the
+ * classic slip. Half a day early is possible, but worth a second look.
+ */
+export function pickupFlightProblem(
+  pickupIso: string | null | undefined,
+  flightAt: string | null | undefined,
+): 'after' | 'early' | null {
+  if (!pickupIso || !flightAt) return null;
+  const p = Date.parse(pickupIso);
+  const f = Date.parse(flightAt);
+  if (!Number.isFinite(p) || !Number.isFinite(f)) return null;
+  if (p >= f) return 'after';
+  if (f - p > 12 * 3600 * 1000) return 'early';
+  return null;
+}
+
+/** The line a departure's flight time leaves in the booking, so the driver sees it. */
+function flightNote(flightAt: string | null | undefined, pickupIso: string | null | undefined): string | null {
+  if (!flightAt) return null;
+  const when = flightTimeLabel(flightAt, pickupIso);
+  return when ? i18n.t('importBooking.flightAtNote', { time: when }) : null;
+}
+
+// --------------------------------------------------------------- the booking
+
 /**
  * The tour's days as the booking form stores them: numbered from one, in date
  * order, and — like the form — no tourists' hotel on the last day, which ends
@@ -487,25 +744,46 @@ function toTourDaysPersisted(days: ImportedTourDay[] | null | undefined): TourDa
     .slice()
     .sort((a, b) => (a.date && b.date ? a.date.localeCompare(b.date) : a.day - b.day));
   const last = sorted.length - 1;
-  return sorted.map((d, i) => ({
-    day: i + 1,
-    date: d.date ?? '',
-    fromPlace: d.fromPlace?.trim() ?? '',
-    toPlace: d.toPlace?.trim() ?? '',
-    stops: d.stops?.trim() ?? '',
-    ...(i < last && d.hotel?.trim() ? { touristHotel: d.hotel.trim() } : {}),
-  }));
+  return sorted.map((d, i) => {
+    const hotel = d.hotel?.trim();
+    const hotelLink = hotel ? extractGoogleMapsLink(d.hotel_link) : null;
+    const overnight = d.driver_overnight?.trim();
+    return {
+      day: i + 1,
+      date: d.date ?? '',
+      fromPlace: d.fromPlace?.trim() ?? '',
+      toPlace: d.toPlace?.trim() ?? '',
+      stops: d.stops?.trim() ?? '',
+      ...(i < last && hotel ? { touristHotel: hotel } : {}),
+      ...(i < last && hotelLink ? { touristHotelLink: hotelLink } : {}),
+      ...(i < last && overnight ? { driverOvernight: overnight } : {}),
+    };
+  });
 }
 
-/** An arrival goes airport -> hotel, a departure hotel -> airport, as the form stores them. */
-function toLegDb(leg: ImportedLeg | null | undefined, direction: 'in' | 'out'): TourTransferLeg | null {
+/**
+ * An arrival goes airport -> hotel, a departure hotel -> airport, stored with
+ * their types and links exactly as the form stores them. A departure's flight
+ * time rides on its flight line, where the driver looks for it.
+ */
+function toLegDb(leg: ImportedLeg | null | undefined, key: 'transfer_in' | 'transfer_out'): TourTransferLeg | null {
   if (!leg?.date_display) return null;
-  const start = leg.from?.trim() || undefined;
-  const end = leg.to?.trim() || undefined;
+  const { from, to } = legPlaces(leg, key);
+  const [airportEnd, hotelEnd] = key === 'transfer_in' ? [from, to] : [to, from];
+  const airport = persistLocationFields(airportEnd);
+  const hotel = persistLocationFields(hotelEnd);
+  const airportLink = persistLocationLink(airportEnd);
+  const hotelLink = persistLocationLink(hotelEnd);
+  const flight = [leg.flight?.trim(), key === 'transfer_out' ? flightNote(leg.flight_at, leg.date_display) : null]
+    .filter(Boolean)
+    .join(' · ');
   return {
     date: leg.date_display,
-    ...(direction === 'in' ? { airport: start, hotel: end } : { hotel: start, airport: end }),
-    ...(leg.flight?.trim() ? { flight: leg.flight.trim() } : {}),
+    ...(airport.name ? { airport: airport.name, airport_type: airport.type } : {}),
+    ...(hotel.name ? { hotel: hotel.name, hotel_type: hotel.type } : {}),
+    ...(airportLink ? { airport_link: airportLink } : {}),
+    ...(hotelLink ? { hotel_link: hotelLink } : {}),
+    ...(flight ? { flight } : {}),
   };
 }
 
@@ -521,75 +799,204 @@ function tourStartIso(draft: ImportedBookingDraft, days: TourDayPersisted[] | nu
   return draft.transfer_in?.date_display ?? draft.transfer_out?.date_display ?? null;
 }
 
+function dayLine(day: number, from: string, to: string): string {
+  return i18n.t('newBooking.dayLine', { day, from, to });
+}
+
+/** Nights in a tour, as the form counts them: one fewer than its days. */
+export function tourNights(draft: ImportedBookingDraft): number {
+  return Math.max(0, (draft.tour_days?.length ?? 0) - 1);
+}
+
 /**
- * Turn a reviewed draft into the input the normal creation path expects.
+ * Turn a reviewed draft into the input the normal creation path expects —
+ * field for field what the new-booking form sends for the same booking, so a
+ * driver, a voucher and every report treat an imported booking exactly like a
+ * typed one.
  *
- * A tour is built the way the new-booking form builds one — days, itinerary,
- * route line, start and end, arrival and departure legs — so the driver's day
- * screens and navigation treat an imported tour exactly like a typed one.
+ *  - a transfer: both ends with their types and map links, arrival or
+ *    departure, the pickup as its date and time, the flight;
+ *  - a day tour: one itinerary day (from, to, the places visited) and the
+ *    route line built from it, as the form builds it;
+ *  - a tour: its days, itinerary, start and end, the arrival and departure
+ *    legs with their types and links.
  *
- * Deliberately leaves `price_gel`, `commission` and driver selection alone —
- * those are the company's decisions, not the document's.
+ * The price offered is the price entered, as on the form. Driver selection
+ * stays the company's, as does who is booking it (`createdByName`).
  */
 export function draftToInsertInput(
   draft: ImportedBookingDraft,
   ctx: { companyUserId: string; companyName: string | null; createdByName?: string | null },
-): Partial<InsertBookingInput> {
+): InsertBookingInput {
   const kind = (draft.kind ?? 'transfer') as DbCanonicalKind;
   const isTour = kind === 'tour';
-  const days = isTour ? toTourDaysPersisted(draft.tour_days) : null;
-  const ends = days ? tourEndpointsFromDays(days) : { from: null, to: null };
-  const dayRoute = days
-    ? buildTourRouteText(days, (day, from, to) => i18n.t('newBooking.dayLine', { day, from, to }))
-    : null;
+  const isDayTour = kind === 'day_tour';
+  const isTransfer = !isTour && !isDayTour;
   const languages = sanitizeLanguageCodes(draft.required_languages ?? []);
+  const price = draft.client_price != null && draft.client_price > 0 ? draft.client_price : 0;
+  const comment = draft.comment?.trim() || null;
+
+  let from: { name: string | null; type: string | null; link: string | null } = { name: null, type: null, link: null };
+  let to: { name: string | null; type: string | null; link: string | null } = { name: null, type: null, link: null };
+  let route: string | null = null;
+  let days: TourDayPersisted[] | null = null;
+  let itinerary: ItineraryDay[] | null = null;
+  let dateDisplay = draft.date_display;
+  let bookingComment = comment;
+
+  if (isTransfer) {
+    const places = transferPlaces(draft);
+    from = { ...persistLocationFields(places.from), link: persistLocationLink(places.from) };
+    to = { ...persistLocationFields(places.to), link: persistLocationLink(places.to) };
+    // The flight's own time, which has no column of its own, is kept where the
+    // driver reads it.
+    const note = draft.flight_direction !== 'arrival' ? flightNote(draft.flight_at, draft.date_display) : null;
+    bookingComment = [note, comment].filter(Boolean).join('\n') || null;
+  } else if (isDayTour) {
+    const start = draft.from_location?.trim() ?? '';
+    const end = draft.to_location?.trim() ?? '';
+    const places = draft.route?.trim() ?? '';
+    itinerary = [{ day: 1, from: start, to: end, stops: places }];
+    from = { name: start || null, type: null, link: null };
+    to = { name: end || null, type: null, link: null };
+    const line = start || end ? dayLine(1, start || '—', end || '—') : null;
+    route = [places, line].filter(Boolean).join('\n\n') || null;
+  } else {
+    days = toTourDaysPersisted(draft.tour_days);
+    itinerary = days ? itineraryFromTourDays(days) : null;
+    const ends = days ? tourEndpointsFromDays(days) : { from: null, to: null };
+    from = { name: ends.from ?? draft.from_location ?? null, type: null, link: null };
+    to = { name: ends.to ?? draft.to_location ?? null, type: null, link: null };
+    route = draft.route?.trim() || (days ? buildTourRouteText(days, dayLine) : null);
+    dateDisplay = tourStartIso(draft, days);
+  }
+
+  const meetGreet = draft.meet_greet === true;
 
   return {
     company_id: ctx.companyUserId,
     company_name: ctx.companyName,
     kind,
-    from_location: isTour ? ends.from ?? draft.from_location : draft.from_location,
-    to_location: isTour ? ends.to ?? draft.to_location : draft.to_location,
-    route: draft.route ?? dayRoute,
-    date_display: isTour ? tourStartIso(draft, days) : draft.date_display,
-    passengers: draft.passengers ?? 1,
+    from_location: from.name,
+    from_location_type: from.type,
+    from_location_link: from.link,
+    to_location: to.name,
+    to_location_type: to.type,
+    to_location_link: to.link,
+    route,
+    date_display: dateDisplay,
+    passengers: draft.passengers != null && draft.passengers > 0 ? draft.passengers : 1,
     vehicle_type: draft.vehicle_type,
-    vehicle_class: draft.vehicle_class,
-    flight_number: draft.flight_number,
-    flight_direction: isTour ? null : draft.flight_direction,
+    vehicle_class: draft.vehicle_class ?? 'comfort',
+    flight_number: draft.flight_number?.trim() || null,
+    flight_direction: isTransfer ? draft.flight_direction : null,
     pickup_time: draft.pickup_time,
-    passenger_name: draft.passenger_name,
-    passenger_phone: draft.passenger_phone,
-    meet_greet: draft.meet_greet ?? false,
-    sign_text: draft.sign_text,
-    hotel: draft.hotel,
-    client_price: draft.client_price,
-    payment_method: draft.payment_method,
-    comment: draft.comment,
+    passenger_name: draft.passenger_name?.trim() || null,
+    passenger_phone: draft.passenger_phone?.trim() || null,
+    meet_greet: meetGreet,
+    sign_text: meetGreet ? draft.sign_text?.trim() || null : null,
+    hotel: draft.hotel?.trim() || null,
+    client_price: price,
+    price_gel: price,
+    commission: null,
+    price_includes_fuel: isTransfer ? null : draft.price_includes_fuel ?? true,
+    driver_overnight_by: isTour && tourNights(draft) > 0 ? draft.driver_overnight_by ?? 'keke' : null,
+    // The company pays either way and the driver's IBAN is on the voucher —
+    // the form stopped asking, and so does this.
+    payment_method: null,
+    comment: bookingComment,
     tour_days: days,
-    itinerary: days ? itineraryFromTourDays(days) : null,
-    transfer_in: isTour ? toLegDb(draft.transfer_in, 'in') : null,
-    transfer_out: isTour ? toLegDb(draft.transfer_out, 'out') : null,
+    itinerary,
+    transfer_in: isTour ? toLegDb(draft.transfer_in, 'transfer_in') : null,
+    transfer_out: isTour ? toLegDb(draft.transfer_out, 'transfer_out') : null,
     required_languages: languages.length > 0 ? languages : null,
     created_by_name: ctx.createdByName ?? null,
   };
 }
 
-/** Fields the company must still fill in before this draft can be sent. */
-export function missingRequiredFields(draft: ImportedBookingDraft): string[] {
-  const missing: string[] = [];
-  const isTour = draft.kind === 'tour';
-  const days = draft.tour_days ?? [];
-  if (!draft.date_display && !(isTour && days.some((d) => d.date))) missing.push('თარიღი');
-  if (!draft.vehicle_type) missing.push('ტრანსპორტის ტიპი');
-  if (!draft.passengers || draft.passengers < 1) missing.push('მგზავრების რაოდენობა');
-  if (isTour) {
-    if (days.length === 0) missing.push('ტურის დღეები');
-    if (days.some((d) => !d.date)) missing.push('ტურის დღის თარიღი');
-    if (draft.transfer_in && !draft.transfer_in.date_display) missing.push('ჩამოსვლის ტრანსფერის თარიღი');
-    if (draft.transfer_out && !draft.transfer_out.date_display) missing.push('გაცილების ტრანსფერის თარიღი');
-  } else if (!draft.from_location && !draft.route) {
-    missing.push('აყვანის ადგილი');
+/** A pasted link that is not a Google Maps one would send the driver nowhere. */
+function mapLinksInvalid(draft: ImportedBookingDraft): boolean {
+  const places: LocationValue[] = [];
+  if ((draft.kind ?? 'transfer') === 'transfer') {
+    const t = transferPlaces(draft);
+    places.push(t.from, t.to);
   }
+  if (draft.kind === 'tour') {
+    for (const key of ['transfer_in', 'transfer_out'] as const) {
+      const leg = draft[key];
+      if (!leg) continue;
+      const p = legPlaces(leg, key);
+      places.push(p.from, p.to);
+    }
+    const days = draft.tour_days ?? [];
+    if (days.some((d, i) => i < days.length - 1 && mapLinkState(d.hotel_link) === 'invalid')) return true;
+  }
+  return places.some((p) => locationMapLinkIsInvalid(p));
+}
+
+/**
+ * What the company must still fill in before this draft can be sent — the
+ * booking form's own rules, in the form's own words, plus the two checks only
+ * a read request needs: a date that came without its time, and a departure
+ * pickup put after its flight.
+ */
+export function missingRequiredFields(draft: ImportedBookingDraft): string[] {
+  const t = (key: string) => i18n.t(key);
+  const missing: string[] = [];
+  const kind = draft.kind ?? 'transfer';
+  const days = draft.tour_days ?? [];
+
+  if (kind === 'tour') {
+    if (!draft.date_display && !days.some((d) => d.date)) missing.push(t('newBooking.validation.tourDates'));
+    if (days.length === 0 || !days.some((d) => d.fromPlace?.trim())) missing.push(t('newBooking.validation.tourDays'));
+    if (days.some((d) => !d.date)) missing.push(t('importBooking.missing.dayDate'));
+    for (const key of ['transfer_in', 'transfer_out'] as const) {
+      const leg = draft[key];
+      if (!leg) continue;
+      const name = t(key === 'transfer_in' ? 'newBooking.form.transferArrivalSection' : 'newBooking.form.transferDepartureSection');
+      if (!leg.date_display) missing.push(`${name}: ${t('newBooking.validation.dateTime')}`);
+      else if (draftTimeMissing(leg.date_display, leg.pickup_time)) missing.push(`${name}: ${t('importBooking.missing.time')}`);
+      const places = legPlaces(leg, key);
+      if (!locationValueIsComplete(places.from)) missing.push(`${name}: ${t('newBooking.validation.locationFrom')}`);
+      if (!locationValueIsComplete(places.to)) missing.push(`${name}: ${t('newBooking.validation.locationTo')}`);
+      if (key === 'transfer_out' && pickupFlightProblem(leg.date_display, leg.flight_at) === 'after') {
+        missing.push(`${name}: ${t('importBooking.missing.pickupAfterFlight')}`);
+      }
+    }
+  } else {
+    if (!draft.date_display) missing.push(t('newBooking.validation.dateTime'));
+    else if (draftTimeMissing(draft.date_display, draft.pickup_time)) missing.push(t('importBooking.missing.time'));
+    if (kind === 'transfer') {
+      const places = transferPlaces(draft);
+      if (!locationValueIsComplete(places.from)) missing.push(t('newBooking.validation.locationFrom'));
+      if (!locationValueIsComplete(places.to)) missing.push(t('newBooking.validation.locationTo'));
+      if (draft.flight_direction !== 'arrival' && pickupFlightProblem(draft.date_display, draft.flight_at) === 'after') {
+        missing.push(t('importBooking.missing.pickupAfterFlight'));
+      }
+    } else if (!draft.route?.trim() && !draft.from_location?.trim()) {
+      missing.push(t('newBooking.validation.tourRoute'));
+    }
+  }
+
+  if (!normalizeVehicleType(draft.vehicle_type)) missing.push(t('newBooking.validation.vehicleType'));
+  if (!normalizeVehicleClass(draft.vehicle_class)) missing.push(t('newBooking.validation.vehicleClass'));
+  if (!draft.passengers || draft.passengers < 1) missing.push(t('newBooking.validation.passengers'));
+  if (!(draft.client_price != null && draft.client_price > 0)) missing.push(t('newBooking.validation.offeredPrice'));
+  if (mapLinksInvalid(draft)) missing.push(t('newBooking.validation.mapLink'));
   return missing;
+}
+
+/**
+ * A freshly read draft with the form's own defaults where the request said
+ * nothing: comfort class, fuel included, KEKE arranging the driver's nights.
+ * The company sees and can change every one of them before sending.
+ */
+export function withFormDefaults(draft: ImportedBookingDraft): ImportedBookingDraft {
+  const kind = draft.kind ?? 'transfer';
+  return {
+    ...draft,
+    vehicle_class: normalizeVehicleClass(draft.vehicle_class) ?? 'comfort',
+    price_includes_fuel: kind === 'transfer' ? null : draft.price_includes_fuel ?? true,
+    driver_overnight_by: kind === 'tour' ? draft.driver_overnight_by ?? 'keke' : null,
+  };
 }

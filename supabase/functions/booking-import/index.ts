@@ -5,9 +5,13 @@
 // The request arrives in one of three shapes, and every shape ends in the same
 // draft and the same review screen:
 //
-//   { fileName, contentBase64 }  a PDF / Word / Excel / text file. A scanned PDF
-//                                with no text layer, or a picture uploaded as
-//                                a file, is read by the model as an image.
+//   { fileName, contentBase64 }  a PDF / Word / Excel / text file, or a chat
+//                                exported from WhatsApp (.txt, or the .zip an
+//                                iPhone makes). A PDF is read by the model as
+//                                the page itself — tables, columns, stamps —
+//                                with its text as the fallback; a scanned PDF
+//                                or a picture uploaded as a file is read as an
+//                                image.
 //   { text }                     a message pasted from WhatsApp, Viber,
 //                                Telegram or an email.
 //   { images: [{ base64 }] }     up to five photos or screenshots of a chat,
@@ -62,6 +66,34 @@ const MAX_BASE64_CHARS = 11 * 1024 * 1024;
 const MAX_TEXT_CHARS = 60_000;
 
 /**
+ * A chat is read from its END: an exported or long-pasted conversation can run
+ * for months, and the request being booked is the latest one. This much of the
+ * end is plenty for a whole programme negotiated over a week of messages.
+ */
+const MAX_CHAT_CHARS = 24_000;
+
+/**
+ * A PDF the model reads as the page itself. Past these it is read as its text
+ * only — a brochure of fifty pages is not a booking request, and the page
+ * pictures of a long one would only make the answer slower and dearer.
+ */
+const MAX_PDF_DOCUMENT_PAGES = 30;
+
+/** A zip is only ever a chat export here; anything that unpacks past this is not one. */
+const MAX_ZIP_ENTRY_BYTES = 20 * 1024 * 1024;
+
+/**
+ * How long the model may take. The platform ends a request that has not
+ * answered in 150 s, so every call is given what is left of a 140 s budget —
+ * never more than AI_TIMEOUT_MS — and a slow read gives up in time for the
+ * template's result to still reach the company. A fallback read only starts
+ * when there is enough of the budget left for it to finish.
+ */
+const REQUEST_BUDGET_MS = 140_000;
+const AI_TIMEOUT_MS = 100_000;
+const MIN_FALLBACK_MS = 25_000;
+
+/**
  * Photos and screenshots. The model takes up to 10 MB of base64 per image and
  * 32 MB per request; these stay well clear of both, and of the function's own
  * memory, while still fitting a long chat spread over several screenshots.
@@ -86,12 +118,27 @@ type BookingDraft = {
   date_display: string | null;
   from_location: string | null;
   to_location: string | null;
+  /** What kind of place each end is, as the booking form records it. */
+  from_location_type: PlaceType | null;
+  to_location_type: PlaceType | null;
+  /**
+   * A Google Maps link for each end — only one the request itself carries,
+   * checked to appear in it character for character. Never built or guessed.
+   */
+  from_location_link: string | null;
+  to_location_link: string | null;
   route: string | null;
   passengers: number | null;
   vehicle_type: string | null;
   vehicle_class: string | null;
   flight_number: string | null;
   flight_direction: 'arrival' | 'departure' | null;
+  /**
+   * A departure flight's own date and time, as an ISO instant. It is context
+   * for the pickup and never the pickup itself: a driver sent to the hotel at
+   * the time the plane leaves has already missed it.
+   */
+  flight_at: string | null;
   pickup_time: string | null;
   passenger_name: string | null;
   passenger_phone: string | null;
@@ -109,6 +156,8 @@ type BookingDraft = {
     toPlace: string | null;
     stops: string | null;
     hotel: string | null;
+    /** The hotel's Google Maps link, when the request carries one. */
+    hotel_link: string | null;
   }[] | null;
   /** A tour's arrival transfer (airport -> hotel), part of the same booking. */
   transfer_in: DraftLeg | null;
@@ -118,13 +167,28 @@ type BookingDraft = {
   required_languages: string[] | null;
 };
 
-/** One transfer leg of a tour. `date_display` is an ISO instant like the booking's own. */
+/**
+ * One transfer leg of a tour. `date_display` is an ISO instant like the
+ * booking's own, and `pickup_time` says whether its clock time was actually
+ * read — a leg dated without a time is stored at midnight, which is not a time.
+ */
 type DraftLeg = {
   date_display: string | null;
+  pickup_time: string | null;
   from: string | null;
+  from_type: PlaceType | null;
+  from_link: string | null;
   to: string | null;
+  to_type: PlaceType | null;
+  to_link: string | null;
   flight: string | null;
+  /** A departure leg's flight time (ISO instant) — context for the pickup, never the pickup. */
+  flight_at: string | null;
 };
+
+/** The booking form's place kinds (lib/bookingLocations.ts LocationType). */
+const PLACE_TYPES = ['airport', 'train_station', 'hotel', 'address'] as const;
+type PlaceType = (typeof PLACE_TYPES)[number];
 
 /** The app's language codes (lib/spokenLanguages.ts SPOKEN_LANGUAGE_CODES). */
 const LANGUAGE_CODES = [
@@ -137,12 +201,17 @@ const EMPTY_DRAFT: BookingDraft = {
   date_display: null,
   from_location: null,
   to_location: null,
+  from_location_type: null,
+  to_location_type: null,
+  from_location_link: null,
+  to_location_link: null,
   route: null,
   passengers: null,
   vehicle_type: null,
   vehicle_class: null,
   flight_number: null,
   flight_direction: null,
+  flight_at: null,
   pickup_time: null,
   passenger_name: null,
   passenger_phone: null,
@@ -264,12 +333,46 @@ function sheetXmlToText(xml: string, shared: string[]): string {
   return lines.join('\n');
 }
 
-async function extractText(fileName: string, bytes: Uint8Array): Promise<string> {
+/**
+ * The chat text inside a WhatsApp export. An iPhone always zips the export —
+ * "_chat.txt", plus the photos when media was included — and the photos are
+ * left alone: the request is in the messages.
+ */
+async function chatTextFromZip(bytes: Uint8Array): Promise<string> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(bytes);
+  } catch {
+    throw new Error('ZIP_BROKEN');
+  }
+  const texts = Object.values(zip.files).filter(
+    (f) => !f.dir && /\.txt$/i.test(f.name) && !/(^|\/)__MACOSX\//.test(f.name),
+  );
+  if (texts.length === 0) throw new Error('ZIP_NO_CHAT');
+
+  // The size the entry unpacks to, read before unpacking it: a small archive
+  // can hold gigabytes, and this one is not allowed to try.
+  const sizeOf = (f: JSZip.JSZipObject) => Number((f as any)._data?.uncompressedSize ?? 0);
+  const named =
+    texts.find((f) => /(^|\/)_chat\.txt$/i.test(f.name)) ??
+    texts.find((f) => /whatsapp/i.test(f.name)) ??
+    texts.slice().sort((a, b) => sizeOf(b) - sizeOf(a))[0];
+  if (sizeOf(named) > MAX_ZIP_ENTRY_BYTES) throw new Error('ZIP_TOO_BIG');
+  return await named.async('string');
+}
+
+async function extractText(
+  fileName: string,
+  bytes: Uint8Array,
+  info: { pdfPages?: number } = {},
+): Promise<string> {
   const ext = (fileName.split('.').pop() ?? '').toLowerCase();
 
   if (ext === 'txt' || ext === 'md' || ext === 'csv' || ext === 'tsv') {
     return new TextDecoder('utf-8').decode(bytes);
   }
+
+  if (ext === 'zip') return await chatTextFromZip(bytes);
 
   if (ext === 'docx' || ext === 'dotx') {
     const zip = await JSZip.loadAsync(bytes);
@@ -319,7 +422,7 @@ async function extractText(fileName: string, bytes: Uint8Array): Promise<string>
     return out.join('\n\n');
   }
 
-  if (ext === 'pdf') return await pdfToText(bytes);
+  if (ext === 'pdf') return await pdfToText(bytes, info);
 
   if (ext === 'doc') throw new Error('OLD_DOC');
   throw new Error('UNSUPPORTED_TYPE');
@@ -520,7 +623,7 @@ function pdfItemsToText(pages: PdfTextItem[][]): string {
   return out.join('\n');
 }
 
-async function pdfToText(bytes: Uint8Array): Promise<string> {
+async function pdfToText(bytes: Uint8Array, info: { pdfPages?: number } = {}): Promise<string> {
   let extractTextItems: (
     data: Uint8Array,
   ) => Promise<{ totalPages: number; items: PdfTextItem[][] }>;
@@ -550,6 +653,7 @@ async function pdfToText(bytes: Uint8Array): Promise<string> {
     throw new Error('PDF_BROKEN');
   }
 
+  info.pdfPages = pages.length;
   const text = pdfItemsToText(pages);
   // A photographed or scanned request has no text layer at all. That is a
   // different problem from a broken file and deserves its own message.
@@ -1108,15 +1212,37 @@ const EXTRACT_TOOL = {
     properties: {
       kind: { type: ['string', 'null'], enum: ['transfer', 'tour', 'day_tour', null] },
       date: { type: ['string', 'null'], description: 'Service start date as YYYY-MM-DD' },
-      time: { type: ['string', 'null'], description: 'Pickup time as HH:MM, 24h' },
+      time: {
+        type: ['string', 'null'],
+        description:
+          'Pickup time as HH:MM, 24h: when the driver collects the group. For an arrival that is the landing time. For a departure it is never the flight time.',
+      },
       from_location: { type: ['string', 'null'] },
+      from_location_type: { type: ['string', 'null'], enum: [...PLACE_TYPES, null] },
+      from_location_link: {
+        type: ['string', 'null'],
+        description: 'A Google Maps link for from_location, copied exactly, only if the request contains one.',
+      },
       to_location: { type: ['string', 'null'] },
-      route: { type: ['string', 'null'], description: 'Free-text route if given as one line' },
+      to_location_type: { type: ['string', 'null'], enum: [...PLACE_TYPES, null] },
+      to_location_link: {
+        type: ['string', 'null'],
+        description: 'A Google Maps link for to_location, copied exactly, only if the request contains one.',
+      },
+      route: {
+        type: ['string', 'null'],
+        description: 'Free-text route if given as one line; for a day_tour, the places visited, as written.',
+      },
       passengers: { type: ['integer', 'null'] },
       vehicle_type: { type: ['string', 'null'], enum: ['sedan', 'minivan', 'microbus', 'bus', 'suv', null] },
       vehicle_class: { type: ['string', 'null'], enum: ['economy', 'comfort', 'vip', null] },
       flight_number: { type: ['string', 'null'] },
       flight_direction: { type: ['string', 'null'], enum: ['arrival', 'departure', null] },
+      flight_time: {
+        type: ['string', 'null'],
+        description:
+          "For a departure: the flight's own departure time as HH:MM, when the request gives it. Not the pickup time.",
+      },
       passenger_name: { type: ['string', 'null'] },
       passenger_phone: { type: ['string', 'null'] },
       meet_greet: { type: ['boolean', 'null'] },
@@ -1144,6 +1270,10 @@ const EXTRACT_TOOL = {
               description: 'The places visited that day, as written ("Sighnaghi - Bodbe", "Tbilisi City tour").',
             },
             hotel: { type: ['string', 'null'], description: 'Where the group sleeps that night.' },
+            hotel_link: {
+              type: ['string', 'null'],
+              description: "A Google Maps link for that night's hotel, copied exactly, only if the request contains one.",
+            },
           },
           required: ['day'],
         },
@@ -1154,9 +1284,13 @@ const EXTRACT_TOOL = {
           'For kind "tour" only: the arrival transfer that opens the tour (airport, station or border -> hotel). Null when the request has none.',
         properties: {
           date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
-          time: { type: ['string', 'null'], description: 'HH:MM, 24h — the landing time if that is all that is given' },
+          time: { type: ['string', 'null'], description: 'HH:MM, 24h — the landing time: the driver waits at arrivals' },
           from: { type: ['string', 'null'], description: 'Where the group is collected: the airport, station or border' },
+          from_type: { type: ['string', 'null'], enum: [...PLACE_TYPES, null] },
+          from_link: { type: ['string', 'null'], description: 'A Google Maps link for from, copied exactly, if the request has one' },
           to: { type: ['string', 'null'], description: 'Where they are taken, usually the hotel' },
+          to_type: { type: ['string', 'null'], enum: [...PLACE_TYPES, null] },
+          to_link: { type: ['string', 'null'], description: 'A Google Maps link for to, copied exactly, if the request has one' },
           flight: { type: ['string', 'null'] },
         },
       },
@@ -1166,9 +1300,20 @@ const EXTRACT_TOOL = {
           'For kind "tour" only: the departure transfer that closes the tour (hotel -> airport, station or border). Null when the request has none.',
         properties: {
           date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
-          time: { type: ['string', 'null'], description: 'HH:MM, 24h — the pickup time, or the flight time if that is all that is given' },
+          time: {
+            type: ['string', 'null'],
+            description: 'HH:MM, 24h — the pickup time at the hotel. Null when the request gives only the flight time.',
+          },
+          flight_time: {
+            type: ['string', 'null'],
+            description: "HH:MM, 24h — the flight's own departure time, when the request gives it.",
+          },
           from: { type: ['string', 'null'], description: 'Where the group is collected, usually the hotel' },
+          from_type: { type: ['string', 'null'], enum: [...PLACE_TYPES, null] },
+          from_link: { type: ['string', 'null'], description: 'A Google Maps link for from, copied exactly, if the request has one' },
           to: { type: ['string', 'null'], description: 'The airport, station or border' },
+          to_type: { type: ['string', 'null'], enum: [...PLACE_TYPES, null] },
+          to_link: { type: ['string', 'null'], description: 'A Google Maps link for to, copied exactly, if the request has one' },
           flight: { type: ['string', 'null'] },
         },
       },
@@ -1233,15 +1378,19 @@ Many requests are chat messages, copied or screenshotted from WhatsApp, Viber, T
 - On a screenshot, ignore the phone itself: the clock and battery at the top, the chat's contact name and phone number, the times and ticks under each message, "typing…", buttons and the keyboard. The number at the top of a chat belongs to whoever is writing, not to the passenger.
 - Later messages win. When the chat changes the date, time, passengers, vehicle or route ("sorry, 5 people, not 4"), use the latest value and name that field in uncertain_fields so the dispatcher looks at it.
 - Replies from the transport company itself — questions, prices it quoted, "ok", "confirmed" — are context, not part of the request.
+- A long chat can hold several requests over weeks. Book the one the latest messages are about. A service earlier in the conversation that has already taken place — dated before today — is history, not part of this request.
 
 Rules:
 - Only report what the request actually says. If a field is not stated, return null. Never guess a price or a phone number, and never invent a date.
 - Dates are DAY FIRST (15/05/2026 is 15 May 2026), unless the format is clearly YYYY-MM-DD.
 - Today's date in Tbilisi comes with the request. A date written without a year is in the year that puts it nearest to today: a programme that began a few days ago is this year, and "5 January" written in late December is next year. All the dates of one programme belong to one run of days. A relative date — tomorrow, the day after tomorrow, on Saturday; ხვალ, ზეგ, შაბათს; завтра, послезавтра, в субботу — counts from the day the message was sent when the chat shows it, otherwise from today. Whenever you worked a date out instead of reading it in full, name date in uncertain_fields.
 - Times are local Tbilisi time, 24-hour. "At 10", "10-ზე" or "в 10" is 10:00; "7 in the evening" or "საღამოს 7-ზე" is 19:00.
+- time is the PICKUP: when the driver collects the group. On an arrival that is the landing time — the driver waits at arrivals. On a departure the pickup comes hours before the flight, so the flight's own time goes in flight_time and never in time; when a departure gives only the flight's time, leave time null and the dispatcher sets the pickup. The same holds for transfer_in and transfer_out.
+- Give each place its type: airport; train_station; hotel for a hotel, guesthouse or apartment the group stays in; address for anything else — a street, a restaurant, a city, a border crossing.
+- A Google Maps link (maps.app.goo.gl, goo.gl/maps, google.com/maps) given for a place goes in that place's link field, copied character for character. Never build, shorten or guess a link.
 - Anything else the driver needs to know — child seats, a lot of luggage, an extra stop, waiting time — goes in comment.
 - A PDF whose document mixed fonts can lose punctuation altogether: "0900" is 09:00, and a phone number can arrive without its "+" or glued to the name printed before it. Read the digits for what they plainly are, copy the evidence exactly as it appeared, and name such a field in uncertain_fields so the dispatcher checks it.
-- "ტრანსფერი"/transfer = transfer. A single day of sightseeing = day_tour. Sightseeing on several days = tour: one entry per sightseeing day in tour_days, the arrival transfer that opens it in transfer_in and the departure transfer that closes it in transfer_out — never as tour days. The date of a tour is its first sightseeing day.
+- "ტრანსფერი"/transfer = transfer. A single day of sightseeing = day_tour: from_location is where the day starts (the hotel or the city), to_location where it ends, route the places visited as written. Sightseeing on several days = tour: one entry per sightseeing day in tour_days, the arrival transfer that opens it in transfer_in and the departure transfer that closes it in transfer_out — never as tour days. The date of a tour is its first sightseeing day.
 - A driver who must speak a language ("English-speaking driver", "ინგლისურენოვანი მძღოლი", "русскоговорящий водитель") goes in required_languages, not in comment.
 - Vehicle words: სედანი/sedan, მინივენი/Vito/Viano = minivan, მიკროავტობუსი/Sprinter = microbus, ავტობუსი = bus.
 - List in uncertain_fields any field you inferred rather than read.
@@ -1349,6 +1498,29 @@ function looksLikeChat(text: string): boolean {
 }
 
 /**
+ * The end of a long conversation: the latest messages, starting cleanly at the
+ * first message header inside the kept part, so the model never reads half a
+ * message out of context. `trimmed` tells the caller to say so.
+ */
+function trimChat(text: string, max = MAX_CHAT_CHARS): { text: string; trimmed: boolean } {
+  if (text.length <= max) return { text, trimmed: false };
+  const tail = text.slice(text.length - max);
+  const lines = tail.split('\n');
+  // The first line is almost always cut through; start at a real message.
+  let start = 1;
+  for (let i = 1; i < Math.min(lines.length, 400); i += 1) {
+    if (CHAT_HEADER_PATTERNS.some((re) => re.test(lines[i].trim()))) {
+      start = i;
+      break;
+    }
+  }
+  return {
+    text: `[… earlier messages of this conversation are left out …]\n${lines.slice(start).join('\n')}`,
+    trimmed: true,
+  };
+}
+
+/**
  * Pasted text as the model and the parser should see it: no direction marks
  * (WhatsApp sprinkles them through copied messages), one kind of line break,
  * and never the parser's own internal marks.
@@ -1379,7 +1551,13 @@ function tbilisiToday(): string {
   return `${now.toISOString().slice(0, 10)}, ${days[now.getUTCDay()]}`;
 }
 
-function aiUserContent(input: AiInput): string | AiBlock[] {
+/**
+ * What a PDF handed to the model is: a scan, which is only a picture, or a
+ * PDF with its own text, where the page is read for its layout as well.
+ */
+type DocumentKind = 'scan' | 'pdf';
+
+function aiUserContent(input: AiInput, documentKind: DocumentKind = 'scan'): string | AiBlock[] {
   const today = `Today in Tbilisi: ${tbilisiToday()}.`;
   if (typeof input === 'string') {
     // The hint marks are an internal signal for the template parser; the
@@ -1388,17 +1566,30 @@ function aiUserContent(input: AiInput): string | AiBlock[] {
   }
   const images = input.filter((b) => b.type === 'image').length;
   const what = input.some((b) => b.type === 'document')
-    ? 'The PDF above is a scanned or photographed transport request.'
+    ? documentKind === 'pdf'
+      ? 'The PDF above is a transport request — an order form, an itinerary or an email saved as a PDF. Read it as it is laid out on the page: a table row by row, columns side by side, each heading with what is printed under it.'
+      : 'The PDF above is a scanned or photographed transport request.'
     : images > 1
       ? `The ${images} images above are one transport request — screenshots or photos of a chat, an email or a printed page. They are consecutive parts of the same conversation or document, in the order given.`
       : 'The image above is a transport request — a screenshot or photo of a chat, an email or a printed page.';
   return [...input, { type: 'text', text: `${today}\n\n${what} Read the request from it.` }];
 }
 
-async function aiExtractProgram(
-  input: AiInput,
+/** Why a model call gave nothing: too slow, refused, no usable answer, or it never got there. */
+type AiFailure = 'timeout' | 'rejected' | 'empty' | 'error';
+
+type AiCallOptions = { timeoutMs?: number; documentKind?: DocumentKind };
+
+/**
+ * One call to the model, never longer than its deadline. A request the
+ * platform ends at 150 s loses the template's answer along with the model's,
+ * so a slow read is cut off and the company gets what was already read.
+ */
+async function callModel(
   apiKey: string,
-): Promise<{ services: any[]; warning: string | null }> {
+  body: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<{ json: any | null; warning: string | null; failure: AiFailure | null }> {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -1407,82 +1598,199 @@ async function aiExtractProgram(
         'x-api-key': apiKey,
         'anthropic-version': ANTHROPIC_VERSION,
       },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 8192,
-        system: PROGRAM_PROMPT,
-        tools: [PROGRAM_TOOL],
-        tool_choice: { type: 'tool', name: 'submit_program' },
-        messages: [{ role: 'user', content: aiUserContent(input) }],
-      }),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
     });
-
     if (!res.ok) {
-      const body = await res.text();
+      const text = await res.text();
       return {
-        services: [],
-        warning: `AI წაკითხვა ვერ მოხერხდა (${res.status}). შაბლონით წაკითხული ველები დარჩა. ${body.slice(0, 200)}`,
+        json: null,
+        warning: `AI წაკითხვა ვერ მოხერხდა (${res.status}). შაბლონით წაკითხული ველები დარჩა. ${text.slice(0, 200)}`,
+        failure: 'rejected',
       };
     }
-
-    const json = await res.json();
-    const block = (json.content ?? []).find((c: any) => c.type === 'tool_use');
-    const services = block?.input?.services;
-    if (!Array.isArray(services) || services.length === 0) {
-      return { services: [], warning: 'AI-მ სტრუქტურირებული პასუხი არ დააბრუნა.' };
-    }
-    // A document that produced dozens of "services" was misread, not rich.
-    return { services: services.slice(0, 25), warning: null };
+    return { json: await res.json(), warning: null, failure: null };
   } catch (e) {
-    return { services: [], warning: `AI წაკითხვა ვერ მოხერხდა: ${String(e).slice(0, 200)}` };
+    const name = (e as { name?: string })?.name;
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      return {
+        json: null,
+        warning: 'AI წაკითხვამ ძალიან დიდხანს გასტანა — შაბლონით წაკითხული ველები დარჩა.',
+        failure: 'timeout',
+      };
+    }
+    return { json: null, warning: `AI წაკითხვა ვერ მოხერხდა: ${String(e).slice(0, 200)}`, failure: 'error' };
   }
+}
+
+async function aiExtractProgram(
+  input: AiInput,
+  apiKey: string,
+  opts: AiCallOptions = {},
+): Promise<{ services: any[]; warning: string | null; failure: AiFailure | null }> {
+  const { json, warning, failure } = await callModel(
+    apiKey,
+    {
+      model: ANTHROPIC_MODEL,
+      max_tokens: 8192,
+      system: PROGRAM_PROMPT,
+      tools: [PROGRAM_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_program' },
+      messages: [{ role: 'user', content: aiUserContent(input, opts.documentKind) }],
+    },
+    opts.timeoutMs ?? AI_TIMEOUT_MS,
+  );
+  if (!json) return { services: [], warning, failure };
+
+  const block = (json.content ?? []).find((c: any) => c.type === 'tool_use');
+  const services = block?.input?.services;
+  if (!Array.isArray(services) || services.length === 0) {
+    return { services: [], warning: 'AI-მ სტრუქტურირებული პასუხი არ დააბრუნა.', failure: 'empty' };
+  }
+  // A document that produced dozens of "services" was misread, not rich.
+  return { services: services.slice(0, 25), warning: null, failure: null };
 }
 
 async function aiExtract(
   input: AiInput,
   apiKey: string,
-): Promise<{ data: any | null; warning: string | null }> {
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 2048,
-        system: SYSTEM_PROMPT,
-        tools: [EXTRACT_TOOL],
-        tool_choice: { type: 'tool', name: 'submit_booking' },
-        messages: [{ role: 'user', content: aiUserContent(input) }],
-      }),
-    });
+  opts: AiCallOptions = {},
+): Promise<{ data: any | null; warning: string | null; failure: AiFailure | null }> {
+  const { json, warning, failure } = await callModel(
+    apiKey,
+    {
+      model: ANTHROPIC_MODEL,
+      max_tokens: 2048,
+      system: SYSTEM_PROMPT,
+      tools: [EXTRACT_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_booking' },
+      messages: [{ role: 'user', content: aiUserContent(input, opts.documentKind) }],
+    },
+    opts.timeoutMs ?? AI_TIMEOUT_MS,
+  );
+  if (!json) return { data: null, warning, failure };
 
-    if (!res.ok) {
-      const body = await res.text();
-      return {
-        data: null,
-        warning: `AI წაკითხვა ვერ მოხერხდა (${res.status}). შაბლონით წაკითხული ველები დარჩა. ${body.slice(0, 200)}`,
-      };
-    }
-
-    const json = await res.json();
-    const block = (json.content ?? []).find((c: any) => c.type === 'tool_use');
-    if (!block?.input) {
-      return { data: null, warning: 'AI-მ სტრუქტურირებული პასუხი არ დააბრუნა.' };
-    }
-    return { data: block.input, warning: null };
-  } catch (e) {
-    return { data: null, warning: `AI წაკითხვა ვერ მოხერხდა: ${String(e).slice(0, 200)}` };
+  const block = (json.content ?? []).find((c: any) => c.type === 'tool_use');
+  if (!block?.input) {
+    return { data: null, warning: 'AI-მ სტრუქტურირებული პასუხი არ დააბრუნა.', failure: 'empty' };
   }
+  return { data: block.input, warning: null, failure: null };
+}
+
+/** What the model's answer is checked against: the text it read, when it read text. */
+type MergeContext = { sourceText: string | null };
+
+const NO_SOURCE: MergeContext = { sourceText: null };
+
+const PLACE_TYPE_SET = new Set<string>(PLACE_TYPES);
+
+function placeType(v: unknown): PlaceType | null {
+  return typeof v === 'string' && PLACE_TYPE_SET.has(v) ? (v as PlaceType) : null;
+}
+
+/**
+ * A place's kind from its own name, for when the model named none. Only the
+ * unmistakable words count: a wrong guess puts an airport where a hotel is.
+ */
+function inferPlaceType(name: string | null | undefined): PlaceType | null {
+  const raw = String(name ?? '');
+  const s = raw.toLowerCase();
+  if (!s.trim()) return null;
+  // A bus station is a street address to a driver, not a railway station.
+  if (/bus station|ავტოსადგურ|автовокзал|автостанц|otogar/.test(s)) return 'address';
+  if (
+    /airport|აეროპორტ|аэропорт|havaliman|օդանավակայան|flughafen|aeropuerto|aeroporto|a[ée]roport/.test(s) ||
+    /\b(TBS|KUT)\b/.test(raw)
+  ) {
+    return 'airport';
+  }
+  if (/railway|train station|სადგურ|вокзал|железнодорож|bahnhof/.test(s)) return 'train_station';
+  if (/hotel|სასტუმრო|отель|гостиниц|\botel\b|hostel|guest ?house|resort|apartment|აპარტამენტ|апартамент/.test(s)) {
+    return 'hotel';
+  }
+  return null;
+}
+
+/** True for a link that opens Google Maps itself — lib/googleMapsLink.ts isGoogleMapsUrl. */
+function isGoogleMapsUrl(url: string): boolean {
+  const m = /^https:\/\/([^/?#]+)([^?#]*)/i.exec(url);
+  if (!m) return false;
+  const host = m[1].toLowerCase();
+  const path = m[2] || '/';
+  if (host.includes('@') || host.includes(':')) return false;
+  if (host === 'maps.app.goo.gl') return path.length > 1;
+  if (host === 'goo.gl') return /^\/maps\/./i.test(path);
+  if (/^maps\.google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(host)) return true;
+  if (/^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(host)) return /^\/maps(\/|$)/i.test(path);
+  return false;
+}
+
+/**
+ * A Google Maps link the model reported — kept only when it really opens
+ * Google Maps AND appears in the request exactly as reported. A link cannot be
+ * read off a picture reliably, where one wrong letter is another place, so
+ * with no text to check it against none is kept.
+ */
+function verifiedMapsLink(raw: unknown, sourceText: string | null): string | null {
+  if (typeof raw !== 'string' || !sourceText) return null;
+  const link = raw.trim().replace(/[).,;:!?\]}'"»]+$/u, '');
+  if (!link || link.length > 2048) return null;
+  const withoutScheme = link.replace(/^https?:\/\//i, '');
+  if (!sourceText.includes(link) && !sourceText.includes(withoutScheme)) return null;
+  const url = `https://${withoutScheme}`;
+  return isGoogleMapsUrl(url) ? url : null;
+}
+
+/** "9:05", "09.05", "0905" → "09:05". Anything else is not a time. */
+function hhmm(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const m = /^\s*(\d{1,2})[:.]?(\d{2})\s*$/.exec(v);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+}
+
+/** The Tbilisi calendar date of an instant, YYYY-MM-DD. */
+function tbilisiDate(iso: string | null | undefined): string | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return null;
+  return new Date(t + 4 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** The Tbilisi wall-clock time of an instant, HH:MM. */
+function tbilisiClock(iso: string | null | undefined): string | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return null;
+  return new Date(t + 4 * 3600 * 1000).toISOString().slice(11, 16);
+}
+
+/**
+ * When a departure's plane leaves. A flight always leaves after its pickup, so
+ * one that reads earlier than a known pickup on the same date is the next day's:
+ * a 22:30 pickup for a 01:30 flight.
+ */
+function flightInstant(
+  date: string | null,
+  flightTime: string | null,
+  pickupIso: string | null,
+  pickupKnown: boolean,
+): string | null {
+  if (!date || !flightTime) return null;
+  const at = parseDateTime(date, flightTime);
+  if (!at) return null;
+  if (pickupKnown && pickupIso && Date.parse(at) <= Date.parse(pickupIso)) {
+    return new Date(Date.parse(at) + 86_400_000).toISOString();
+  }
+  return at;
 }
 
 function mergeAi(
   draft: BookingDraft,
   sources: Partial<Record<keyof BookingDraft, FieldSource>>,
   ai: any,
+  ctx: MergeContext = NO_SOURCE,
 ): void {
   const setIfEmpty = (key: keyof BookingDraft, value: unknown) => {
     if (value === null || value === undefined || value === '') return;
@@ -1491,9 +1799,22 @@ function mergeAi(
     sources[key] = 'ai';
   };
 
+  // A "Service: transfer" heading over a whole programme names its first part,
+  // not the job. Several sightseeing days, each with its own date, are a tour —
+  // and booked as a transfer the days would silently vanish.
+  const aiDayCount = Array.isArray(ai.tour_days) ? ai.tour_days.length : 0;
+  if (sources.kind === 'template' && draft.kind !== 'tour' && ai.kind === 'tour' && aiDayCount >= 2) {
+    draft.kind = 'tour';
+    sources.kind = 'ai';
+  }
+
   setIfEmpty('kind', ai.kind ?? null);
   setIfEmpty('from_location', ai.from_location ?? null);
   setIfEmpty('to_location', ai.to_location ?? null);
+  setIfEmpty('from_location_type', placeType(ai.from_location_type));
+  setIfEmpty('to_location_type', placeType(ai.to_location_type));
+  setIfEmpty('from_location_link', verifiedMapsLink(ai.from_location_link, ctx.sourceText));
+  setIfEmpty('to_location_link', verifiedMapsLink(ai.to_location_link, ctx.sourceText));
   setIfEmpty('route', ai.route ?? null);
   setIfEmpty('passengers', typeof ai.passengers === 'number' ? Math.round(ai.passengers) : null);
   setIfEmpty('vehicle_type', ai.vehicle_type ?? null);
@@ -1508,25 +1829,71 @@ function mergeAi(
   setIfEmpty('payment_method', ai.payment_method ?? null);
   setIfEmpty('comment', ai.comment ?? null);
   setIfEmpty('hotel', ai.hotel ?? null);
-  setIfEmpty('pickup_time', typeof ai.time === 'string' ? ai.time : null);
+
+  // The kind of each end, from its name where the model gave none.
+  if (draft.from_location && !draft.from_location_type) {
+    draft.from_location_type = inferPlaceType(draft.from_location);
+  }
+  if (draft.to_location && !draft.to_location_type) {
+    draft.to_location_type = inferPlaceType(draft.to_location);
+  }
+
+  const isTransfer = draft.kind === 'transfer' || draft.kind == null;
+  const fromTerminal = draft.from_location_type === 'airport' || draft.from_location_type === 'train_station';
+  const toTerminal = draft.to_location_type === 'airport' || draft.to_location_type === 'train_station';
+  // The form books every transfer as an arrival or a departure; an airport at
+  // one end says which, when the request did not.
+  if (isTransfer && !draft.flight_direction && fromTerminal !== toTerminal) {
+    draft.flight_direction = fromTerminal ? 'arrival' : 'departure';
+    sources.flight_direction = 'ai';
+  }
+
+  let aiTime = hhmm(ai.time);
+  let aiFlightTime = isTransfer ? hhmm(ai.flight_time) : null;
+  // The driver meets an arrival at the gate: its landing time IS the pickup.
+  if (draft.flight_direction === 'arrival') {
+    if (!aiTime && aiFlightTime) aiTime = aiFlightTime;
+    aiFlightTime = null;
+  }
+
+  setIfEmpty('pickup_time', aiTime);
 
   if (draft.date_display == null && typeof ai.date === 'string') {
-    const iso = parseDateTime(ai.date, ai.time ?? draft.pickup_time ?? null);
+    const iso = parseDateTime(ai.date, aiTime ?? draft.pickup_time ?? null);
     if (iso) {
       draft.date_display = iso;
       sources.date_display = 'ai';
     }
   }
 
+  // A departure's flight time is context for the pickup, never the pickup:
+  // a driver at the hotel when the plane leaves has missed it. Whatever put
+  // the flight's own clock on the booking — the model, or a form's
+  // "Departure time" heading — the pickup is then simply not known yet.
+  if (aiFlightTime) {
+    const bookingClock =
+      draft.date_display && !isTbilisiMidnight(draft.date_display) ? tbilisiClock(draft.date_display) : null;
+    if ((bookingClock ?? draft.pickup_time) === aiFlightTime) {
+      const day = tbilisiDate(draft.date_display);
+      draft.date_display = day ? parseDateTime(day, null) : draft.date_display;
+      draft.pickup_time = null;
+      delete sources.pickup_time;
+    }
+    const pickupKnown = !!draft.date_display && (!isTbilisiMidnight(draft.date_display) || !!draft.pickup_time);
+    const baseDate = typeof ai.date === 'string' ? ai.date : tbilisiDate(draft.date_display);
+    draft.flight_at = flightInstant(baseDate, aiFlightTime, draft.date_display, pickupKnown);
+    if (draft.flight_at) sources.flight_at = 'ai';
+  }
+
   if (draft.tour_days == null && Array.isArray(ai.tour_days) && ai.tour_days.length > 0) {
-    draft.tour_days = normalizeAiTourDays(ai.tour_days);
+    draft.tour_days = normalizeAiTourDays(ai.tour_days, ctx);
     sources.tour_days = 'ai';
   }
 
   // A tour starts on its first day when the model gave no separate date.
   const firstDay = draft.tour_days?.[0];
   if (draft.date_display == null && draft.kind === 'tour' && firstDay?.date) {
-    const iso = parseDateTime(firstDay.date, typeof ai.time === 'string' ? ai.time : null);
+    const iso = parseDateTime(firstDay.date, aiTime);
     if (iso) {
       draft.date_display = iso;
       sources.date_display = 'ai';
@@ -1550,18 +1917,28 @@ function mergeAi(
   // a second, invisible job inside the first.
   if (draft.kind === 'tour') {
     if (draft.transfer_in == null) {
-      const leg = normalizeAiLeg(ai.transfer_in);
+      const leg = normalizeAiLeg(ai.transfer_in, 'in', ctx);
       if (leg) {
         draft.transfer_in = leg;
         sources.transfer_in = 'ai';
       }
     }
     if (draft.transfer_out == null) {
-      const leg = normalizeAiLeg(ai.transfer_out);
+      const leg = normalizeAiLeg(ai.transfer_out, 'out', ctx);
       if (leg) {
         draft.transfer_out = leg;
         sources.transfer_out = 'ai';
       }
+    }
+    fillLegHotels(draft);
+
+    // A flight read once for the whole programme and again on its leg is one
+    // flight, shown where it belongs: on the arrival or the departure.
+    const norm = (f: string | null | undefined) => String(f ?? '').replace(/\s+/g, '').toUpperCase();
+    const own = norm(draft.flight_number);
+    if (own && (norm(draft.transfer_in?.flight) === own || norm(draft.transfer_out?.flight) === own)) {
+      draft.flight_number = null;
+      delete sources.flight_number;
     }
   }
 
@@ -1574,19 +1951,68 @@ function mergeAi(
   }
 }
 
-/** One transfer leg of a tour, or null when the model gave nothing usable. */
-function normalizeAiLeg(raw: unknown): DraftLeg | null {
+/**
+ * The hotel end of a tour's arrival and departure, when the request named the
+ * group's hotel but not on the transfer itself. Only when there is exactly ONE
+ * hotel in the programme: a tour that moves from Tbilisi to Kazbegi has two,
+ * and picking one of them would send the driver to the wrong door.
+ */
+function fillLegHotels(draft: BookingDraft): void {
+  const named = [draft.hotel, ...(draft.tour_days ?? []).map((d) => d.hotel)]
+    .map((h) => h?.trim())
+    .filter((h): h is string => !!h);
+  const distinct = [...new Set(named.map((h) => h.toLowerCase()))];
+  if (distinct.length !== 1) return;
+  const hotel = named[0];
+  const link = (draft.tour_days ?? []).find((d) => d.hotel?.trim().toLowerCase() === distinct[0])?.hotel_link ?? null;
+
+  const leg = (l: DraftLeg | null, end: 'from' | 'to'): DraftLeg | null => {
+    if (!l || l[end]) return l;
+    return end === 'to'
+      ? { ...l, to: hotel, to_type: 'hotel', to_link: l.to_link ?? link }
+      : { ...l, from: hotel, from_type: 'hotel', from_link: l.from_link ?? link };
+  };
+  draft.transfer_in = leg(draft.transfer_in, 'to');
+  draft.transfer_out = leg(draft.transfer_out, 'from');
+}
+
+/**
+ * One transfer leg of a tour, or null when the model gave nothing usable. The
+ * arrival is timed by its landing; the departure by its pickup, with the
+ * flight's own time kept beside it — the same rules as a single transfer.
+ */
+function normalizeAiLeg(raw: unknown, direction: 'in' | 'out', ctx: MergeContext = NO_SOURCE): DraftLeg | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const date = str(r.date);
+
+  let pickup = hhmm(r.time);
+  let flightTime = hhmm(r.flight_time);
+  if (direction === 'in') {
+    if (!pickup && flightTime) pickup = flightTime;
+    flightTime = null;
+  } else if (flightTime && pickup === flightTime) {
+    // The flight's own time put in both: the pickup is not known yet.
+    pickup = null;
+  }
+
+  const dateDisplay = date ? parseDateTime(date, pickup) : null;
+  const from = str(r.from);
+  const to = str(r.to);
   const leg: DraftLeg = {
-    date_display: date ? parseDateTime(date, str(r.time)) : null,
-    from: str(r.from),
-    to: str(r.to),
+    date_display: dateDisplay,
+    pickup_time: dateDisplay ? pickup : null,
+    from,
+    from_type: placeType(r.from_type) ?? inferPlaceType(from),
+    from_link: verifiedMapsLink(r.from_link, ctx.sourceText),
+    to,
+    to_type: placeType(r.to_type) ?? inferPlaceType(to),
+    to_link: verifiedMapsLink(r.to_link, ctx.sourceText),
     flight: str(r.flight),
+    flight_at: direction === 'out' ? flightInstant(date, flightTime, dateDisplay, !!pickup) : null,
   };
-  return leg.date_display || leg.from || leg.to || leg.flight ? leg : null;
+  return leg.date_display || leg.from || leg.to || leg.flight || leg.flight_at ? leg : null;
 }
 
 const LANGUAGE_SET = new Set<string>(LANGUAGE_CODES);
@@ -1600,17 +2026,20 @@ function normalizeLanguages(raw: unknown): string[] | null {
   return codes.length > 0 ? codes : null;
 }
 
-function normalizeAiTourDays(raw: unknown): BookingDraft['tour_days'] {
+function normalizeAiTourDays(raw: unknown, ctx: MergeContext = NO_SOURCE): BookingDraft['tour_days'] {
   if (!Array.isArray(raw)) return null;
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const days = raw
     .filter((d: any) => d && typeof d.day === 'number')
     .map((d: any) => ({
       day: d.day,
-      date: typeof d.date === 'string' ? d.date : null,
-      fromPlace: d.fromPlace ?? null,
-      toPlace: d.toPlace ?? null,
-      stops: d.stops ?? null,
-      hotel: typeof d.hotel === 'string' && d.hotel.trim() ? d.hotel.trim() : null,
+      // A calendar date only — "2026-10-22" — whatever way the model wrote it.
+      date: typeof d.date === 'string' ? tbilisiDate(parseDateTime(d.date, null)) : null,
+      fromPlace: text(d.fromPlace),
+      toPlace: text(d.toPlace),
+      stops: text(d.stops),
+      hotel: text(d.hotel),
+      hotel_link: verifiedMapsLink(d.hotel_link, ctx.sourceText),
     }));
   return days.length > 0 ? days : null;
 }
@@ -1620,14 +2049,14 @@ function normalizeAiTourDays(raw: unknown): BookingDraft['tour_days'] {
  * was read from the template for these — the model is the only source, so every
  * field is marked as such and the review screen can show that.
  */
-function draftFromAi(ai: any): {
+function draftFromAi(ai: any, ctx: MergeContext = NO_SOURCE): {
   draft: BookingDraft;
   sources: Partial<Record<keyof BookingDraft, FieldSource>>;
   evidence: Record<string, string> | null;
 } {
   const draft: BookingDraft = { ...EMPTY_DRAFT };
   const sources: Partial<Record<keyof BookingDraft, FieldSource>> = {};
-  mergeAi(draft, sources, ai);
+  mergeAi(draft, sources, ai ?? {}, ctx);
   return { draft, sources, evidence: normalizeEvidence(ai?.evidence) };
 }
 
@@ -1685,6 +2114,17 @@ function disagreementWarnings(
   if (!ai) return w;
 
   const fromTemplate = (k: keyof BookingDraft) => sources[k] === 'template';
+
+  const KIND_KA: Record<string, string> = {
+    transfer: 'ტრანსფერი',
+    day_tour: 'ერთდღიანი ტური',
+    tour: 'მრავალდღიანი ტური',
+  };
+  if (fromTemplate('kind') && typeof ai.kind === 'string' && draft.kind && ai.kind !== draft.kind) {
+    w.push(
+      `სერვისის ტიპი გადაამოწმე: ${KIND_KA[draft.kind] ?? draft.kind} თუ ${KIND_KA[ai.kind] ?? ai.kind}?`,
+    );
+  }
 
   if (fromTemplate('date_display') && typeof ai.date === 'string' && draft.date_display) {
     const template = draft.date_display.slice(0, 10);
@@ -1765,7 +2205,16 @@ function sanityWarnings(draft: BookingDraft): string[] {
  */
 function timeMissing(draft: BookingDraft): boolean {
   if (!draft.date_display || draft.pickup_time) return false;
+  // A tour's start is a date, as on the booking form; its clock times belong
+  // to its arrival and departure, which are asked about on their own.
+  if (draft.kind === 'tour') return false;
   return isTbilisiMidnight(draft.date_display);
+}
+
+/** "28.10 01:30" in Tbilisi time, for a sentence about a flight. */
+function shortTbilisi(iso: string): string {
+  const day = tbilisiDate(iso) ?? '';
+  return `${day.slice(8, 10)}.${day.slice(5, 7)} ${tbilisiClock(iso) ?? ''}`.trim();
 }
 
 function isTbilisiMidnight(iso: string): boolean {
@@ -1778,7 +2227,13 @@ function isTbilisiMidnight(iso: string): boolean {
 function buildWarnings(draft: BookingDraft): string[] {
   const w: string[] = [];
   if (!draft.date_display) w.push('თარიღი ვერ წავიკითხე — ხელით მიუთითე');
-  if (timeMissing(draft)) w.push('დრო ვერ წავიკითხე — მიუთითე, რომელ საათზე');
+  if (timeMissing(draft)) {
+    w.push(
+      draft.flight_at
+        ? `აყვანის დრო მიუთითე — რეისი ${shortTbilisi(draft.flight_at)}-ზეა`
+        : 'დრო ვერ წავიკითხე — მიუთითე, რომელ საათზე',
+    );
+  }
   if (!draft.vehicle_type) w.push('ტრანსპორტის ტიპი ვერ წავიკითხე');
   if (!draft.passengers) w.push('მგზავრების რაოდენობა ვერ წავიკითხე');
   const tourWithDays = draft.kind === 'tour' && (draft.tour_days?.length ?? 0) > 0;
@@ -1789,7 +2244,27 @@ function buildWarnings(draft: BookingDraft): string[] {
   ] as const) {
     if (!leg) continue;
     if (!leg.date_display) w.push(`${name} თარიღი ვერ წავიკითხე — მიუთითე`);
-    else if (isTbilisiMidnight(leg.date_display)) w.push(`${name} დრო ვერ წავიკითხე — მიუთითე`);
+    else if (isTbilisiMidnight(leg.date_display) && !leg.pickup_time) {
+      w.push(
+        leg.flight_at
+          ? `${name} აყვანის დრო მიუთითე — რეისი ${shortTbilisi(leg.flight_at)}-ზეა`
+          : `${name} დრო ვერ წავიკითხე — მიუთითე`,
+      );
+    }
+  }
+
+  // The arrival opens the tour and the departure closes it. A leg on the other
+  // side of the days was read against the wrong day somewhere.
+  const dayDates = (draft.tour_days ?? []).map((d) => d.date).filter((d): d is string => !!d).sort();
+  if (draft.kind === 'tour' && dayDates.length > 0) {
+    const inDay = tbilisiDate(draft.transfer_in?.date_display);
+    const outDay = tbilisiDate(draft.transfer_out?.date_display);
+    if (inDay && inDay > dayDates[0]) {
+      w.push('ჩამოსვლის ტრანსფერი ტურის პირველი დღის შემდეგაა — თარიღები შეამოწმე');
+    }
+    if (outDay && outDay < dayDates[dayDates.length - 1]) {
+      w.push('გამგზავრების ტრანსფერი ტურის ბოლო დღემდეა — თარიღები შეამოწმე');
+    }
   }
 
   if (draft.date_display) {
@@ -1840,6 +2315,11 @@ const FIELD_NAMES_KA: Record<string, string> = {
   time: 'დრო',
   from_location: 'საიდან',
   to_location: 'სად',
+  from_location_type: 'საიდან (ტიპი)',
+  to_location_type: 'სად (ტიპი)',
+  from_location_link: 'საიდან (რუკის ბმული)',
+  to_location_link: 'სად (რუკის ბმული)',
+  flight_time: 'გაფრენის დრო',
   route: 'მარშრუტი',
   passengers: 'მგზავრები',
   vehicle_type: 'ტრანსპორტი',
@@ -1927,9 +2407,14 @@ function friendlyExtractError(code: string): string {
       return 'PDF-ის წამკითხველი დროებით მიუწვდომელია. სცადე ხელახლა, ან გამოგვიგზავნე .docx.';
     case 'EMPTY_DOCX':
     case 'EMPTY_XLSX':
+    case 'ZIP_BROKEN':
       return 'ფაილი ცარიელია ან დაზიანებულია.';
+    case 'ZIP_NO_CHAT':
+      return 'ამ არქივში ჩატის ტექსტი ვერ ვიპოვე. WhatsApp-ში აირჩიე „ჩატის ექსპორტი“ → „მედიის გარეშე“ და ატვირთე ის ფაილი, ან უბრალოდ ჩასვი შეტყობინებები.';
+    case 'ZIP_TOO_BIG':
+      return 'არქივი ძალიან დიდია. WhatsApp-ში ჩატი „მედიის გარეშე“ გამოიტანე.';
     default:
-      return 'ეს ფორმატი არ იკითხება. ატვირთე PDF, .docx, .xlsx ან .txt.';
+      return 'ეს ფორმატი არ იკითხება. ატვირთე PDF, .docx, .xlsx, .txt ან WhatsApp-ის ჩატი.';
   }
 }
 
@@ -1964,6 +2449,13 @@ Deno.serve(async (req) => {
 
   const startedAt = Date.now();
   const companyId = userData.user.id;
+
+  /**
+   * What a model call may still spend: the rest of the request's budget, less
+   * room to log and answer, and never more than one call's own cap.
+   */
+  const aiTimeLeft = () =>
+    Math.max(5_000, Math.min(AI_TIMEOUT_MS, REQUEST_BUDGET_MS - (Date.now() - startedAt) - 6_000));
   let logFileName = '';
   let logBytes = 0;
 
@@ -2173,11 +2665,14 @@ Deno.serve(async (req) => {
    * template parser for labelled forms, then the model.
    */
   async function answerFromText(
-    text: string,
-    opts: { fileName: string; pasted: boolean },
+    fullText: string,
+    opts: { fileName: string; pasted: boolean; pdfBase64?: string | null },
   ): Promise<Response> {
-    // A conversation is read by the model alone — see looksLikeChat.
-    const chat = opts.pasted && looksLikeChat(text);
+    // A conversation is read by the model alone — see looksLikeChat. That is a
+    // pasted chat or an exported one: WhatsApp's "Export chat" is a .txt file.
+    const chat = looksLikeChat(fullText);
+    // ...and from its end, where the request being booked is.
+    const { text, trimmed } = chat ? trimChat(fullText) : { text: fullText, trimmed: false };
 
     // Built-in labels plus whatever this company's earlier files have taught us.
     const labelBook = chat ? BUILTIN_LABELS : labelBookWith(await loadLearnedLabels());
@@ -2188,16 +2683,30 @@ Deno.serve(async (req) => {
 
     /** Warnings about the whole read rather than one service. */
     const generalWarnings: string[] = [];
+    if (trimmed) generalWarnings.push('ჩატი გრძელია — წავიკითხე ბოლო შეტყობინებები, სადაც ჯავშანია.');
+
+    // The model's links are kept only where they appear in what it read.
+    const ctx: MergeContext = { sourceText: text };
 
     // The template is authoritative. The model only fills what is still missing.
     const missingCore =
       !draft.date_display || !draft.vehicle_type || !draft.passengers ||
       (!draft.from_location && !draft.route);
 
-    // A message is short and often a whole programme, so it is always read as
-    // one: the model decides how many services there really are, and one is a
-    // valid answer. Files keep the cheaper signal.
-    const maybeProgram = opts.pasted || looksLikeMultiService(text);
+    // A message or a chat is short and often a whole programme, so it is always
+    // read as one: the model decides how many services there really are, and
+    // one is a valid answer. Files keep the cheaper signal.
+    const maybeProgram = opts.pasted || chat || looksLikeMultiService(text);
+
+    /**
+     * What the model reads. A PDF is handed over as the page itself — the model
+     * sees the table, the columns and the stamp as printed, which its flattened
+     * text cannot carry — and if that read fails outright, the text is read
+     * instead. A read that timed out is not repeated: there is no time left.
+     */
+    const pdfInput: AiBlock[] | null = opts.pdfBase64
+      ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: opts.pdfBase64 } }]
+      : null;
 
     let usedAi = false;
     let aiFailed = false;
@@ -2223,7 +2732,14 @@ Deno.serve(async (req) => {
     } else if (maybeProgram) {
       // Looks like it holds more than one job. Ask for all of them — the model
       // decides how many there really are, and one is a valid answer.
-      const { services: found, warning } = await aiExtractProgram(text, apiKey);
+      let read = pdfInput
+        ? await aiExtractProgram(pdfInput, apiKey, { documentKind: 'pdf', timeoutMs: aiTimeLeft() })
+        : await aiExtractProgram(text, apiKey, { timeoutMs: aiTimeLeft() });
+      if (pdfInput && read.services.length === 0 && read.failure !== 'timeout' && aiTimeLeft() >= MIN_FALLBACK_MS) {
+        console.error('booking-import: pdf page read failed, reading its text', read.warning);
+        read = await aiExtractProgram(text, apiKey, { timeoutMs: aiTimeLeft() });
+      }
+      const { services: found, warning } = read;
       if (warning) {
         generalWarnings.push(warning);
         aiFailed = true;
@@ -2232,11 +2748,11 @@ Deno.serve(async (req) => {
         usedAi = true;
         crossWarnings.push(...disagreementWarnings(draft, sources, found[0]));
         // The template read the first service off the actual layout, so it wins.
-        mergeAi(draft, sources, found[0]);
+        mergeAi(draft, sources, found[0] ?? {}, ctx);
         evidence = normalizeEvidence(found[0]?.evidence);
         firstGuessed = uncertainNote(found[0]?.uncertain_fields);
         extraServices = found.slice(1).map((ai) => {
-          const s = draftFromAi(ai);
+          const s = draftFromAi(ai, ctx);
           const guessed = uncertainNote(ai?.uncertain_fields);
           return { ...s, warnings: [...(guessed ? [guessed] : []), ...buildWarnings(s.draft)] };
         });
@@ -2247,7 +2763,14 @@ Deno.serve(async (req) => {
         if (!chat) rememberLabels(found[0]?.field_labels, found[0]?.uncertain_fields);
       }
     } else {
-      const { data, warning } = await aiExtract(text, apiKey);
+      let read = pdfInput
+        ? await aiExtract(pdfInput, apiKey, { documentKind: 'pdf', timeoutMs: aiTimeLeft() })
+        : await aiExtract(text, apiKey, { timeoutMs: aiTimeLeft() });
+      if (pdfInput && !read.data && read.failure !== 'timeout' && aiTimeLeft() >= MIN_FALLBACK_MS) {
+        console.error('booking-import: pdf page read failed, reading its text', read.warning);
+        read = await aiExtract(text, apiKey, { timeoutMs: aiTimeLeft() });
+      }
+      const { data, warning } = read;
       if (warning) {
         generalWarnings.push(warning);
         aiFailed = true;
@@ -2255,7 +2778,7 @@ Deno.serve(async (req) => {
       if (data) {
         usedAi = true;
         crossWarnings.push(...disagreementWarnings(draft, sources, data));
-        mergeAi(draft, sources, data);
+        mergeAi(draft, sources, data, ctx);
         evidence = normalizeEvidence(data.evidence);
         firstGuessed = uncertainNote(data.uncertain_fields);
         rememberLabels(data.field_labels, data.uncertain_fields);
@@ -2314,23 +2837,32 @@ Deno.serve(async (req) => {
    * photographed itinerary is as likely to hold five jobs as one. Nothing is
    * learned from a picture — the lessons come from text the parser can check.
    */
-  async function answerFromVisual(blocks: AiBlock[], fileName: string): Promise<Response> {
+  async function answerFromVisual(
+    blocks: AiBlock[],
+    fileName: string,
+    opts: { documentKind?: DocumentKind; failMessage?: string } = {},
+  ): Promise<Response> {
     if (!apiKey) {
       return await failWith(
         'error',
         503,
-        'ფოტოს წაკითხვა ახლა მიუწვდომელია. ჩასვი შეტყობინების ტექსტი ან შეავსე ჯავშანი ხელით.',
+        opts.failMessage ??
+          'ფოტოს წაკითხვა ახლა მიუწვდომელია. ჩასვი შეტყობინების ტექსტი ან შეავსე ჯავშანი ხელით.',
       );
     }
 
-    const { services: found, warning } = await aiExtractProgram(blocks, apiKey);
+    const { services: found, warning } = await aiExtractProgram(blocks, apiKey, {
+      documentKind: opts.documentKind,
+      timeoutMs: aiTimeLeft(),
+    });
     if (found.length === 0) {
       if (warning) console.error('booking-import: picture read failed', warning);
-      return await failWith('error', 502, 'წაკითხვა ვერ მოხერხდა — სცადე ხელახლა.');
+      return await failWith('error', 502, opts.failMessage ?? 'წაკითხვა ვერ მოხერხდა — სცადე ხელახლა.');
     }
 
     const services: ServiceOut[] = found.map((ai) => {
-      const s = draftFromAi(ai);
+      // Nothing to check a link against on a picture, so none is kept.
+      const s = draftFromAi(ai, NO_SOURCE);
       const guessed = uncertainNote(ai?.uncertain_fields);
       return { ...s, warnings: [...(guessed ? [guessed] : []), ...buildWarnings(s.draft)] };
     });
@@ -2397,7 +2929,9 @@ Deno.serve(async (req) => {
     if (pasted.replace(/\s/g, '').length < 8) {
       return await failWith('empty', 422, 'ჩასვი შეტყობინების ტექსტი.');
     }
-    if (pasted.length > MAX_TEXT_CHARS) {
+    // A long conversation is fine — it is read from its end. A long anything
+    // else is not a booking request.
+    if (pasted.length > MAX_TEXT_CHARS && !looksLikeChat(pasted)) {
       return await failWith(
         'error',
         413,
@@ -2440,17 +2974,27 @@ Deno.serve(async (req) => {
   logBytes = bytes.length;
 
   let text: string;
+  const fileInfo: { pdfPages?: number } = {};
   try {
-    text = await extractText(fileName, bytes);
+    text = await extractText(fileName, bytes, fileInfo);
   } catch (e) {
     const code = String((e as Error).message);
+    const pdfBlock: AiBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: b64 },
+    };
     // A scanned or photographed PDF has no text layer, but the model reads the
     // page itself — so the one file that used to be refused outright is read.
     if (code === 'PDF_NO_TEXT' && apiKey) {
-      return await answerFromVisual(
-        [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }],
-        fileName,
-      );
+      return await answerFromVisual([pdfBlock], fileName, { documentKind: 'scan' });
+    }
+    // The text reader could not open it, but the model may: it reads PDFs
+    // itself. Only if that fails too does the company hear why.
+    if ((code === 'PDF_ENGINE' || code === 'PDF_BROKEN') && apiKey) {
+      return await answerFromVisual([pdfBlock], fileName, {
+        documentKind: 'pdf',
+        failMessage: friendlyExtractError(code),
+      });
     }
     return await failWith('error', 415, friendlyExtractError(code));
   }
@@ -2459,5 +3003,11 @@ Deno.serve(async (req) => {
     return await failWith('empty', 422, 'ფაილში ტექსტი ვერ ვიპოვე');
   }
 
-  return await answerFromText(text, { fileName, pasted: false });
+  // A PDF with text is still read by the model as the page itself, which is
+  // where its tables and columns are; its text stays the template's to read,
+  // and the fallback if the page read fails.
+  const isPdf = (fileName.split('.').pop() ?? '').toLowerCase() === 'pdf';
+  const readPage = isPdf && !!apiKey && (fileInfo.pdfPages ?? 0) <= MAX_PDF_DOCUMENT_PAGES;
+
+  return await answerFromText(text, { fileName, pasted: false, pdfBase64: readPage ? b64 : null });
 });

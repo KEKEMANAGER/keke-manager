@@ -516,7 +516,8 @@
       "passengers": "Enter number of passengers",
       "session": "Session not found. Please sign in again",
       "operator": "Select an operator",
-      "mapLink": "The Google Maps link is not valid. Paste a link from Google Maps (Share → Copy link) or leave the field empty."
+      "mapLink": "The Google Maps link is not valid. Paste a link from Google Maps (Share → Copy link) or leave the field empty.",
+      "offeredPrice": "Enter a price (₾) greater than zero"
     },
     "dayLine": "Day {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -1926,7 +1927,7 @@
     "subtitle": "Paste the tour operator's message, or add a screenshot or a file — the app reads it and fills in the booking for you. You check everything before it is sent.",
     "pick": "Upload a file",
     "pickAnother": "Upload another file",
-    "formatsHint": "PDF (scanned too), Word (.docx), Excel (.xlsx), .txt, .csv or a picture — up to 8 MB.",
+    "formatsHint": "PDF (scanned too), Word (.docx), Excel (.xlsx), .txt, .csv, a WhatsApp chat export (.txt or .zip) or a picture — up to 8 MB.",
     "readFailed": "Could not read it",
     "templateUsed": "From template",
     "aiUsed": "AI assisted",
@@ -2006,7 +2007,27 @@
     "dayDate": "Date",
     "addDay": "Add a day",
     "remove": "Remove",
-    "route": "Route"
+    "route": "Route",
+    "direction": "Arrival or departure",
+    "time": "Time",
+    "timeArrival": "Arrival time",
+    "timePickup": "Pickup time",
+    "timeRequired": "Set the time — the message only gave the date",
+    "timePlaceholder": "Choose a time",
+    "flightAt": "✈️ Flight departs: {{time}}",
+    "flightAtNote": "✈️ Flight departs: {{time}}",
+    "pickupHint": "Set the pickup time — usually 2–3 hours before the flight.",
+    "pickupAfterFlight": "The pickup is after the flight — check the date (probably the day before).",
+    "pickupEarly": "The pickup is {{hours}} hours before the flight — please check.",
+    "tourSummary": "📅 {{start}} – {{end}} · {{days}} days · {{nights}} nights",
+    "priceRequired": "A price is required — the driver sees this price.",
+    "dropHere": "Drop it here — a PDF, Word, Excel, WhatsApp chat or screenshot",
+    "dropHint": "On a computer: drag a file into this window, or paste a screenshot with Ctrl+V.",
+    "missing": {
+      "time": "Set the time — the message only gave the date",
+      "dayDate": "Every tour day needs a date",
+      "pickupAfterFlight": "The pickup is after the flight — fix the date or time"
+    }
   },
   "priceRequest": {
     "title": "Get a price",
