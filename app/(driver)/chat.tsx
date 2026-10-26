@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,7 +32,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { notifyChatUnreadMayHaveChanged } from '../../lib/useChatUnreadCount';
 import { SUPPORT_THREAD_TYPE } from '../../lib/supportChat';
-import { setActiveChatPeerId } from '../../lib/webChatAlerts';
+import { clearOpenChat, setOpenChat } from '../../lib/chatFocus';
 
 function formatMsgTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -132,11 +132,19 @@ export default function DriverChatScreen() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !otherUserId) return;
-    setActiveChatPeerId(otherUserId);
-    return () => setActiveChatPeerId(null);
-  }, [otherUserId]);
+  // While this conversation is on screen, its messages are not announced on
+  // top of it — no banner, sound or dialog on the phone, no popup in the
+  // browser. Focus and blur rather than mount: this screen is a hidden tab and
+  // stays mounted after you leave it, which used to keep the person "open".
+  const openThreadType = threadOpts?.threadType ?? null;
+  const openBookingId = threadOpts && 'bookingId' in threadOpts ? threadOpts.bookingId : null;
+  useFocusEffect(
+    useCallback(() => {
+      if (!otherUserId) return;
+      setOpenChat(otherUserId, { threadType: openThreadType, bookingId: openBookingId });
+      return () => clearOpenChat(otherUserId);
+    }, [otherUserId, openThreadType, openBookingId]),
+  );
 
   useEffect(() => {
     // Clear the previous person BEFORE fetching the new one. This screen is

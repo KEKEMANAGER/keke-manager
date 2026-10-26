@@ -69,6 +69,8 @@ export function AdminSupportInbox() {
       params: {
         uid: row.user_id,
         name: row.user_name ?? row.user_email ?? '',
+        // The conversation opens with the same face the list showed.
+        avatar: row.user_avatar_url ?? '',
         threadType: 'support',
         adminTab: 'chats',
       },
@@ -108,7 +110,7 @@ export function AdminSupportInbox() {
           style={({ pressed }) => [adminStyles.card, pressed && { opacity: 0.9 }]}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.md }}>
-            <UserAvatar name={row.user_name} uri={null} />
+            <UserAvatar name={row.user_name} uri={row.user_avatar_url} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
                 <Text style={adminStyles.cardTitle} numberOfLines={1}>

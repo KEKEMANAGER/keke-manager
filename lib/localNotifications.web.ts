@@ -5,6 +5,7 @@ import {
   showWebBrowserChatNotification,
 } from './webChatAlerts';
 import i18n from '../src/lib/i18n';
+import { isInOpenChat } from './chatFocus';
 import { isSupportThreadType } from './supportChat';
 
 let lastChatWebNotifyAt = 0;
@@ -15,7 +16,16 @@ export async function notifyIncomingChatMessageLocally(params: {
   senderName?: string | null;
   text: string;
   threadType?: string | null;
+  bookingId?: string | null;
 }): Promise<void> {
+  const msg = {
+    sender_id: params.senderUserId,
+    thread_type: params.threadType ?? null,
+    booking_id: params.bookingId ?? null,
+  };
+  // Already on screen in a visible tab — nothing to announce.
+  if (isInOpenChat(msg) && typeof document !== 'undefined' && !document.hidden) return;
+
   const now = Date.now();
   if (now - lastChatWebNotifyAt < 1500) return;
   lastChatWebNotifyAt = now;
@@ -39,7 +49,7 @@ export async function notifyIncomingChatMessageLocally(params: {
 
   const { title, body } = getChatMessageNotificationContent(name, params.text);
   await ensureWebNotificationPermission();
-  showWebBrowserChatNotification(title, body, params.senderUserId);
+  showWebBrowserChatNotification(title, body, msg);
 }
 
 export async function notifyBookingConfirmed(): Promise<void> {

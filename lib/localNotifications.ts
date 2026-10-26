@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { isReadingChat } from './chatFocus';
 import { fleetAssignedVehicleMatchesBooking } from './fleet';
 import { driverProfileMatchesBooking } from './profiles';
 import {
@@ -119,8 +120,16 @@ export async function notifyIncomingChatMessageLocally(params: {
   senderName?: string | null;
   text: string;
   threadType?: string | null;
+  bookingId?: string | null;
 }): Promise<void> {
   if (isWeb) return;
+  const ref = {
+    sender_id: String(params.senderUserId ?? ''),
+    thread_type: params.threadType ?? null,
+    booking_id: params.bookingId ?? null,
+  };
+  // The conversation is open in front of them: the message is already on screen.
+  if (isReadingChat(ref)) return;
   const now = Date.now();
   if (now - lastChatLocalNotifyAt < 1500) return;
   lastChatLocalNotifyAt = now;
@@ -145,7 +154,14 @@ export async function notifyIncomingChatMessageLocally(params: {
       body,
       sound: 'default',
       priority: Notifications.AndroidNotificationPriority.MAX,
-      data: { type: 'chat_message', sender_id: String(params.senderUserId ?? '') },
+      // Where it belongs, like the push carries, so the copy of the same
+      // message that arrives as a push is recognised and not shown again.
+      data: {
+        type: 'chat_message',
+        sender_id: ref.sender_id,
+        ...(ref.thread_type ? { thread_type: ref.thread_type } : {}),
+        ...(ref.booking_id ? { booking_id: ref.booking_id } : {}),
+      },
       ...androidChannel(),
     },
     trigger: null,

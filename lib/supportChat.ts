@@ -17,6 +17,8 @@ export type SupportInboxRow = {
   user_id: string;
   user_name: string | null;
   user_email: string | null;
+  /** The person's own profile photo, when they have one. */
+  user_avatar_url: string | null;
   last_text: string;
   last_at: string;
   unread_count: number;
@@ -145,10 +147,15 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
 
   const { data: users } = await supabase
     .from('users')
-    .select('id, full_name, email')
+    .select('id, full_name, email, avatar_url')
     .in('id', userIds);
 
-  type UserRow = { id: string; full_name: string | null; email: string | null };
+  type UserRow = {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+  };
   const userMap = new Map<string, UserRow>(
     ((users ?? []) as UserRow[]).map((u) => [u.id, u]),
   );
@@ -161,6 +168,7 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
         user_id: userId,
         user_name: u?.full_name?.trim() || u?.email?.trim() || null,
         user_email: u?.email?.trim() || null,
+        user_avatar_url: u?.avatar_url?.trim() || null,
         ...c,
       };
     })

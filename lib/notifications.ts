@@ -18,6 +18,7 @@ import {
   resolveBookingRegions,
   type GeorgiaRegionCode,
 } from './georgiaRegions';
+import { firstChatAnnouncement, isReadingChat } from './chatFocus';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
 import { sendBroadcastPushInRatingWaves } from './dispatchPushWaves';
 import { markRecipientsFinishingNearPickup } from './emptyLegChaining';
@@ -59,13 +60,30 @@ export function configureNotificationHandler(): void {
   handlerConfigured = true;
 
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      priority: Notifications.AndroidNotificationPriority.MAX,
-    }),
+    handleNotification: async (notification) => {
+      const data = notification.request.content.data as Record<string, unknown> | undefined;
+      // A chat message is shown once, and not at all to someone reading that
+      // very conversation. It reaches an open app twice — the sender's push and
+      // this app's own banner from the realtime insert — and both used to sound.
+      if (
+        data?.type === 'chat_message' &&
+        (isReadingChat(data) || !firstChatAnnouncement('banner', data))
+      ) {
+        return {
+          shouldShowBanner: false,
+          shouldShowList: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        };
+      }
+      return {
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        priority: Notifications.AndroidNotificationPriority.MAX,
+      };
+    },
   });
 }
 

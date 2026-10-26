@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import '../lib/backgroundLocation';
+import { firstChatAnnouncement, isReadingChat } from '../lib/chatFocus';
 import {
   configureNotificationHandler,
   ensureAndroidNotificationChannel,
@@ -208,6 +209,9 @@ export function PushNotificationListeners() {
         const data = notification.request.content.data as BookingPushTapPayload | undefined;
 
         if (isChatTapPayload(data)) {
+          // Reading that conversation already, or this is the second copy of
+          // a message just announced (push + realtime): no dialog on top.
+          if (isReadingChat(data) || !firstChatAnnouncement('alert', data)) return;
           const senderId = String(data.sender_id ?? '').trim();
           const threadType = typeof data.thread_type === 'string' ? data.thread_type.trim() : '';
           Alert.alert(title, body, [
