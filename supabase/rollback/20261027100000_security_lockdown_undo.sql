@@ -88,3 +88,6 @@ drop function if exists public.document_path_is_mine(text);
 grant select on public.profiles to anon, authenticated;
 drop function if exists public.set_my_birth_date(date);
 drop function if exists public.my_birth_date();
+-- 20261027100100_documents_move_helpers
+drop function if exists public.rewrite_moved_document_refs();
+delete from public.app_settings where key = 'documents_move_secret';

@@ -109,6 +109,10 @@ Deno.serve(async (req) => {
     }
   }
 
+  // The moved files' stored addresses now point at the private bucket
+  // (public.rewrite_moved_document_refs: only where the file is really there).
+  const { data: rewritten, error: rewriteErr } = await admin.rpc('rewrite_moved_document_refs');
+
   const count = (r: string) => results.filter((x) => x.result === r).length;
   console.log(
     `move-documents: ${names.length} names, moved ${count('moved')}, copied ${count('copied')}, already ${count('already')}, failed ${count('failed')}`,
@@ -120,5 +124,6 @@ Deno.serve(async (req) => {
     copied: count('copied'),
     already: count('already'),
     failed: results.filter((r) => r.result === 'failed'),
+    rewritten: rewriteErr ? { error: rewriteErr.message } : rewritten,
   });
 });
