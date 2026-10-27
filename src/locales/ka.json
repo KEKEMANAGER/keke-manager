@@ -2105,5 +2105,22 @@
     "adminSaveFailed": "ვერ შეინახა. სცადე თავიდან.",
     "driverTitle": "თქვენ KEKE Certified მძღოლი ხართ",
     "driverHint": "ახალ ჯავშნებს პირველ ტალღაში იღებთ, კომპანიები კი თქვენს სახელთან ამ ნიშანს ხედავენ."
+  },
+  "pushHealth": {
+    "updateTitle": "განაახლეთ აპი",
+    "updateBody": "ახალი შეკვეთების შეტყობინებები რომ ტელეფონზე მოგივიდეთ, Google Play-დან დააყენეთ KEKE Manager-ის ახალი ვერსია.",
+    "updateButton": "განახლება Google Play-ზე",
+    "permissionTitle": "შეტყობინებები გამორთულია",
+    "permissionBody": "ახალი შეკვეთის შესახებ დროულად რომ გაიგოთ, ჩართეთ KEKE Manager-ის შეტყობინებები.",
+    "permissionButton": "ჩართვა პარამეტრებში",
+    "getAppTitle": "დააყენეთ KEKE Manager-ის აპი",
+    "getAppBody": "ახალი შეკვეთის შეტყობინება ტელეფონზე ყველაზე საიმედოდ აპით მოდის.",
+    "googlePlay": "Google Play",
+    "appStore": "App Store",
+    "close": "დახურვა"
+  },
+  "mapFullScreen": {
+    "open": "სრულ ეკრანზე",
+    "back": "უკან"
   }
 }

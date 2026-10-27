@@ -64,6 +64,7 @@ import type { VehicleRow } from '../../lib/vehicles';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchActiveAds, type AdCard } from '../../lib/ads';
 import { PartnersAdsSection } from '../../components/PartnersAdsSection';
+import { PushHealthBanner } from '../../components/PushHealthBanner';
 import { HiredDriverActivePanel } from '../../components/HiredDriverActivePanel';
 import { supabase } from '../../lib/supabase';
 import { useDailyMotivation } from '../../lib/dailyMotivation';
@@ -444,6 +445,8 @@ export default function DriverDashboardScreen() {
           <Text style={styles.balanceValue}>{formatGel(earnings)}</Text>
         </View>
       </View>
+
+      <PushHealthBanner userId={userId} />
 
       {!isHired && !isFleetSub ? (
         <DriverAvailabilityPanel

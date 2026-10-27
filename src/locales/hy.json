@@ -2105,5 +2105,22 @@
     "adminSaveFailed": "Չհաջողվեց պահպանել։ Փորձեք կրկին։",
     "driverTitle": "Դուք KEKE Certified վարորդ եք",
     "driverHint": "Նոր պատվերները ստանում եք առաջին ալիքում, իսկ ընկերությունները տեսնում են այս նշանը ձեր անվան կողքին։"
+  },
+  "pushHealth": {
+    "updateTitle": "Թարմացրեք հավելվածը",
+    "updateBody": "Որպեսզի նոր պատվերների ծանուցումները գան ձեր հեռախոսին, Google Play-ից տեղադրեք KEKE Manager-ի նոր տարբերակը։",
+    "updateButton": "Թարմացնել Google Play-ում",
+    "permissionTitle": "Ծանուցումներն անջատված են",
+    "permissionBody": "Միացրեք KEKE Manager-ի ծանուցումները, որպեսզի ժամանակին իմանաք նոր պատվերների մասին։",
+    "permissionButton": "Միացնել կարգավորումներում",
+    "getAppTitle": "Տեղադրեք KEKE Manager հավելվածը",
+    "getAppBody": "Նոր պատվերների ծանուցումները հեռախոսին ամենահուսալի ձևով գալիս են հավելվածի միջոցով։",
+    "googlePlay": "Google Play",
+    "appStore": "App Store",
+    "close": "Փակել"
+  },
+  "mapFullScreen": {
+    "open": "Ամբողջ էկրանով",
+    "back": "Հետ"
   }
 }

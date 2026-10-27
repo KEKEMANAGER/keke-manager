@@ -14,6 +14,12 @@ import {
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
+import {
+  FullScreenDriverMap,
+  FullScreenMapButton,
+  useFullScreenMap,
+  type FullScreenDriverRow,
+} from '../../components/maps/FullScreenDriverMap';
 import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
@@ -84,6 +90,7 @@ export default function CompanyGpsScreen() {
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
   const [mapEpoch, setMapEpoch] = useState(0);
+  const fullMap = useFullScreenMap();
 
   const driverIds = useMemo(() => pins.map((p) => p.driver_id), [pins]);
 
@@ -329,6 +336,38 @@ export default function CompanyGpsScreen() {
   }
 
   if (Platform.OS === 'web') {
+    const liveBadge = loading ? (
+      <View style={[styles.badge, styles.badgeLoading]}>
+        <ActivityIndicator size="small" color={COLORS.gold} />
+      </View>
+    ) : hasLocation ? (
+      <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
+        <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
+        <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
+          {isStale ? t('tracking.weakSignal') : t('tracking.live')}
+        </Text>
+      </View>
+    ) : selectedPin ? (
+      <View style={[styles.badge, styles.badgeOff]}>
+        <View style={styles.dotOff} />
+        <Text style={[styles.badgeText, styles.textOff]}>{t('tracking.noSignal')}</Text>
+      </View>
+    ) : null;
+
+    const fullRows: FullScreenDriverRow[] = pins.map((pin) => {
+      const locOk = pin.latitude != null && pin.updated_at != null;
+      const stale = locOk ? isCompanyGpsLocationStale(pin.updated_at) : true;
+      return {
+        id: pin.driver_id,
+        name: driverDisplayName(pin, t),
+        tag: pin.is_assigned_driver ? t('fleet.host') : t('fleet.subDriver'),
+        route: pin.route,
+        phone: pin.driver_phone,
+        updatedAt: locOk ? pin.updated_at : null,
+        dotColor: stale ? COLORS.textMuted : pin.is_assigned_driver ? COLORS.gold : COLORS.blue,
+      };
+    });
+
     return (
       <View style={[styles.screen, styles.webScreen]}>
         <View style={styles.webHeader}>
@@ -351,25 +390,8 @@ export default function CompanyGpsScreen() {
               hostDriverId={selectedPin?.assigned_driver_id}
               onSelectPin={setSelectedId}
             />
-            <View style={styles.webBadgeOverlay}>
-              {loading ? (
-                <View style={[styles.badge, styles.badgeLoading]}>
-                  <ActivityIndicator size="small" color={COLORS.gold} />
-                </View>
-              ) : hasLocation ? (
-                <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
-                  <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
-                  <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
-                    {isStale ? t('tracking.weakSignal') : t('tracking.live')}
-                  </Text>
-                </View>
-              ) : selectedPin ? (
-                <View style={[styles.badge, styles.badgeOff]}>
-                  <View style={styles.dotOff} />
-                  <Text style={[styles.badgeText, styles.textOff]}>{t('tracking.noSignal')}</Text>
-                </View>
-              ) : null}
-            </View>
+            <View style={styles.webBadgeOverlay}>{liveBadge}</View>
+            <FullScreenMapButton onPress={fullMap.openMap} />
           </View>
 
           <ScrollView style={styles.webSidebar} showsVerticalScrollIndicator={false}>
@@ -421,6 +443,19 @@ export default function CompanyGpsScreen() {
         </View>
 
         <View style={styles.webInfoCard}>{detailPanel}</View>
+
+        <FullScreenDriverMap
+          open={fullMap.open}
+          onClose={fullMap.closeMap}
+          title={t('tabs.gps')}
+          subtitle={t('companyGps.activeDrivers', { count: pins.length })}
+          pins={leafletPins}
+          selectedId={selectedId}
+          hostDriverId={selectedPin?.assigned_driver_id}
+          onSelect={setSelectedId}
+          rows={fullRows}
+          badge={liveBadge}
+        />
       </View>
     );
   }

@@ -2105,5 +2105,22 @@
     "adminSaveFailed": "Не удалось сохранить. Попробуйте ещё раз.",
     "driverTitle": "Вы — водитель KEKE Certified",
     "driverHint": "Вы получаете новые заказы в первой волне, а компании видят этот значок рядом с вашим именем."
+  },
+  "pushHealth": {
+    "updateTitle": "Обновите приложение",
+    "updateBody": "Чтобы уведомления о новых заказах приходили на телефон, установите новую версию KEKE Manager из Google Play.",
+    "updateButton": "Обновить в Google Play",
+    "permissionTitle": "Уведомления выключены",
+    "permissionBody": "Включите уведомления KEKE Manager, чтобы вовремя узнавать о новых заказах.",
+    "permissionButton": "Включить в настройках",
+    "getAppTitle": "Установите приложение KEKE Manager",
+    "getAppBody": "Уведомления о новых заказах надёжнее всего приходят на телефон через приложение.",
+    "googlePlay": "Google Play",
+    "appStore": "App Store",
+    "close": "Закрыть"
+  },
+  "mapFullScreen": {
+    "open": "На весь экран",
+    "back": "Назад"
   }
 }

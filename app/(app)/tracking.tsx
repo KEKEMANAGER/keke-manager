@@ -15,6 +15,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
 import { BookingOdometerSection } from '../../components/BookingOdometerSection';
+import {
+  FullScreenDriverMap,
+  FullScreenMapButton,
+  useFullScreenMap,
+  type FullScreenDriverRow,
+} from '../../components/maps/FullScreenDriverMap';
 import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { fetchBookingById, type BookingRow } from '../../lib/bookings';
@@ -94,6 +100,7 @@ export default function CompanyTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
   const [mapEpoch, setMapEpoch] = useState(0);
+  const fullMap = useFullScreenMap();
 
   const driverId = booking?.driver_id ?? paramDriverId ?? '';
   const driverName =
@@ -234,6 +241,39 @@ export default function CompanyTrackingScreen() {
   }));
 
   if (Platform.OS === 'web') {
+    const liveBadge = loading ? (
+      <View style={[styles.badge, styles.badgeLoading]}>
+        <ActivityIndicator size="small" color={COLORS.gold} />
+      </View>
+    ) : isActive ? (
+      <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
+        <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
+        <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
+          {isStale ? t('tracking.weakSignal') : t('tracking.live')}
+        </Text>
+      </View>
+    ) : (
+      <View style={[styles.badge, styles.badgeOff]}>
+        <View style={styles.dotOff} />
+        <Text style={[styles.badgeText, styles.textOff]}>{t('tracking.noSignal')}</Text>
+      </View>
+    );
+
+    const fullRows: FullScreenDriverRow[] = fleetIds.map((id) => {
+      const pin = pins.find((p) => p.driver_id === id);
+      const isHost = id === driverId;
+      return {
+        id,
+        name: pin?.full_name ?? (isHost ? driverName : t('fleet.subDriver')),
+        tag: isFleet ? (isHost ? t('fleet.host') : t('fleet.subDriver')) : null,
+        route: isHost ? route || null : null,
+        phone: isHost ? (booking?.driver_phone ?? null) : null,
+        updatedAt: pin?.updated_at ?? null,
+        dotColor:
+          !pin || pinStale(pin.updated_at) ? COLORS.textMuted : isHost ? COLORS.gold : COLORS.blue,
+      };
+    });
+
     return (
       <View style={[styles.screen, styles.webScreen, { paddingTop: insets.top }]}>
         <View style={styles.webHeader}>
@@ -262,25 +302,8 @@ export default function CompanyTrackingScreen() {
               hostDriverId={driverId}
               onSelectPin={setSelectedPinId}
             />
-            <View style={styles.webBadgeOverlay}>
-              {loading ? (
-                <View style={[styles.badge, styles.badgeLoading]}>
-                  <ActivityIndicator size="small" color={COLORS.gold} />
-                </View>
-              ) : isActive ? (
-                <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
-                  <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
-                  <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
-                    {isStale ? t('tracking.weakSignal') : t('tracking.live')}
-                  </Text>
-                </View>
-              ) : (
-                <View style={[styles.badge, styles.badgeOff]}>
-                  <View style={styles.dotOff} />
-                  <Text style={[styles.badgeText, styles.textOff]}>{t('tracking.noSignal')}</Text>
-                </View>
-              )}
-            </View>
+            <View style={styles.webBadgeOverlay}>{liveBadge}</View>
+            <FullScreenMapButton onPress={fullMap.openMap} />
           </View>
 
           <ScrollView style={styles.webSidebar} showsVerticalScrollIndicator={false}>
@@ -357,6 +380,19 @@ export default function CompanyTrackingScreen() {
           ) : null}
           {tourBooking ? <BookingOdometerSection booking={tourBooking} compact /> : null}
         </View>
+
+        <FullScreenDriverMap
+          open={fullMap.open}
+          onClose={fullMap.closeMap}
+          title={isFleet ? t('tracking.fleetTitle') : driverName}
+          subtitle={route || null}
+          pins={leafletPins}
+          selectedId={webSelectedId || null}
+          hostDriverId={driverId}
+          onSelect={setSelectedPinId}
+          rows={fullRows}
+          badge={liveBadge}
+        />
       </View>
     );
   }

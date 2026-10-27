@@ -17,6 +17,8 @@ export type LeafletDriverMapProps = {
   hostDriverId?: string;
   onSelectPin?: (driverId: string) => void;
   style?: object;
+  /** Push the zoom buttons down by this many pixels, below whatever sits over the map's top edge. */
+  controlsTopOffset?: number;
 };
 
 export function LeafletDriverMap(_props: LeafletDriverMapProps) {

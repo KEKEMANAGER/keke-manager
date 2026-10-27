@@ -2105,5 +2105,22 @@
     "adminSaveFailed": "Could not save. Try again.",
     "driverTitle": "You are a KEKE Certified driver",
     "driverHint": "You get new bookings in the first wave, and companies see this badge next to your name."
+  },
+  "pushHealth": {
+    "updateTitle": "Update the app",
+    "updateBody": "To get new booking alerts on your phone, install the new version of KEKE Manager from Google Play.",
+    "updateButton": "Update on Google Play",
+    "permissionTitle": "Notifications are off",
+    "permissionBody": "Turn on KEKE Manager notifications to hear about new bookings in time.",
+    "permissionButton": "Turn on in Settings",
+    "getAppTitle": "Install the KEKE Manager app",
+    "getAppBody": "New booking alerts reach your phone most reliably through the app.",
+    "googlePlay": "Google Play",
+    "appStore": "App Store",
+    "close": "Close"
+  },
+  "mapFullScreen": {
+    "open": "Full screen",
+    "back": "Back"
   }
 }

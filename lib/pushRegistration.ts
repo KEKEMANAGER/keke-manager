@@ -6,6 +6,11 @@ import {
   ensureAndroidNotificationChannel,
 } from './notifications';
 import { saveDriverPushToken } from './profiles';
+import {
+  pushProblemFromPermission,
+  pushProblemFromTokenError,
+  type PushProblem,
+} from './pushProblem';
 import { getSupabaseAnonKey, getSupabaseUrl } from './supabaseEnv';
 
 function resolveEasProjectId(): string | undefined {
@@ -23,6 +28,13 @@ function resolveEasProjectId(): string | undefined {
   return pick && pick.length > 0 ? pick : undefined;
 }
 
+export type PushRegistrationResult = {
+  /** Expo push token, or `null` when the phone cannot get one. */
+  token: string | null;
+  /** Why there is no token, in terms the driver can act on (lib/pushProblem.ts). */
+  problem: PushProblem;
+};
+
 /**
  * Obtains an Expo push token and stores it on `public.profiles.push_token`.
  * Does not show the system permission dialog unless `requestPermission` is true.
@@ -32,7 +44,19 @@ export async function registerForPushNotificationsAsync(
   userId: string,
   options?: { requestPermission?: boolean },
 ): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+  return (await registerForPushWithStatusAsync(userId, options)).token;
+}
+
+/**
+ * The same registration, also saying why it failed — so the driver dashboard
+ * can tell a driver on an old Android build to update, or one who switched
+ * notifications off to switch them on (components/PushHealthBanner.tsx).
+ */
+export async function registerForPushWithStatusAsync(
+  userId: string,
+  options?: { requestPermission?: boolean },
+): Promise<PushRegistrationResult> {
+  if (Platform.OS === 'web') return { token: null, problem: 'unavailable' };
 
   configureNotificationHandler();
   await ensureAndroidNotificationChannel();
@@ -41,14 +65,14 @@ export async function registerForPushNotificationsAsync(
   const anon = getSupabaseAnonKey();
   if (!url || !anon) {
     console.warn('[push] Missing Supabase env');
-    return null;
+    return { token: null, problem: 'unavailable' };
   }
 
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
   if (existing !== 'granted') {
     if (!options?.requestPermission) {
-      return null;
+      return { token: null, problem: pushProblemFromPermission(existing) };
     }
     const { status } = await Notifications.requestPermissionsAsync({
       ios: {
@@ -61,7 +85,7 @@ export async function registerForPushNotificationsAsync(
   }
   if (finalStatus !== 'granted') {
     console.warn('[push] Permission not granted:', finalStatus);
-    return null;
+    return { token: null, problem: 'permission_off' };
   }
 
   const projectId = resolveEasProjectId();
@@ -85,10 +109,11 @@ export async function registerForPushNotificationsAsync(
       console.warn('[push] save profiles.push_token:', error?.message);
     }
 
-    return token;
+    return { token, problem: 'none' };
   } catch (e) {
     console.warn('[push] getExpoPushTokenAsync', e);
-    return null;
+    const message = e instanceof Error ? e.message : String(e ?? '');
+    return { token: null, problem: pushProblemFromTokenError(Platform.OS, message) };
   }
 }
 

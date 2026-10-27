@@ -6,6 +6,12 @@ import type { LeafletDriverMapProps, LeafletMapPin } from './LeafletDriverMap';
 
 const TBILISI: [number, number] = [41.6938, 44.8015];
 const DEFAULT_ZOOM = 12;
+/**
+ * After someone zooms or drags the map, stop re-fitting it to the drivers on
+ * every location update for this long — otherwise a big-screen map snaps back
+ * every few seconds and nobody can look closer at one car.
+ */
+const USER_MOVE_PAUSE_MS = 60_000;
 
 function isStale(updatedAt: string, maxAgeMs = 60_000): boolean {
   return Date.now() - new Date(updatedAt).getTime() > maxAgeMs;
@@ -72,12 +78,15 @@ export function LeafletDriverMap({
   hostDriverId,
   onSelectPin,
   style,
+  controlsTopOffset,
 }: LeafletDriverMapProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const onSelectRef = useRef(onSelectPin);
+  const lastUserMoveRef = useRef(0);
+  const prevSelectedRef = useRef<string | null | undefined>(undefined);
   const [mapReady, setMapReady] = useState(false);
   onSelectRef.current = onSelectPin;
 
@@ -88,6 +97,15 @@ export function LeafletDriverMap({
 
     let cancelled = false;
     let sizeTimer = 0;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const markUserMove = () => {
+      lastUserMoveRef.current = Date.now();
+    };
+    el.addEventListener('wheel', markUserMove, { passive: true });
+    el.addEventListener('mousedown', markUserMove);
+    el.addEventListener('touchstart', markUserMove, { passive: true });
+    el.addEventListener('keydown', markUserMove);
 
     void loadLeaflet().then((L) => {
       if (cancelled || !hostRef.current || mapRef.current) return;
@@ -108,11 +126,30 @@ export function LeafletDriverMap({
       setMapReady(true);
 
       sizeTimer = window.setTimeout(() => map.invalidateSize(), 150);
+
+      // The box can change size after the map is drawn — full screen, a
+      // rotated phone, a resized window — and Leaflet leaves grey gaps
+      // until it is told.
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => {
+          try {
+            map.invalidateSize();
+          } catch {
+            // The map is being torn down.
+          }
+        });
+        resizeObserver.observe(el);
+      }
     });
 
     return () => {
       cancelled = true;
       window.clearTimeout(sizeTimer);
+      resizeObserver?.disconnect();
+      el.removeEventListener('wheel', markUserMove);
+      el.removeEventListener('mousedown', markUserMove);
+      el.removeEventListener('touchstart', markUserMove);
+      el.removeEventListener('keydown', markUserMove);
       const map = mapRef.current;
       if (map) {
         markers.clear();
@@ -123,6 +160,12 @@ export function LeafletDriverMap({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const container = mapRef.current?.zoomControl?.getContainer?.() as HTMLElement | undefined;
+    if (container) container.style.marginTop = controlsTopOffset ? `${controlsTopOffset}px` : '';
+  }, [mapReady, controlsTopOffset]);
 
   useEffect(() => {
     if (!mapReady) return;
@@ -161,14 +204,22 @@ export function LeafletDriverMap({
         }
       }
 
-      if (latLngs.length === 1) {
-        map.setView(latLngs[0], Math.max(map.getZoom(), 14), { animate: true });
-      } else if (latLngs.length > 1) {
-        const bounds = L.latLngBounds(latLngs);
-        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15, animate: true });
+      const selectionChanged = prevSelectedRef.current !== selectedId;
+      prevSelectedRef.current = selectedId;
+      const userIsLooking = Date.now() - lastUserMoveRef.current < USER_MOVE_PAUSE_MS;
+
+      if (!userIsLooking) {
+        if (latLngs.length === 1) {
+          map.setView(latLngs[0], Math.max(map.getZoom(), 14), { animate: true });
+        } else if (latLngs.length > 1) {
+          const bounds = L.latLngBounds(latLngs);
+          map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15, animate: true });
+        }
       }
 
-      if (selectedId) {
+      // Picking a driver always brings them into view; otherwise the view
+      // stays where the person put it.
+      if (selectedId && (selectionChanged || !userIsLooking)) {
         const sel = pins.find((p) => p.driver_id === selectedId);
         if (sel) {
           map.panTo([sel.latitude, sel.longitude], { animate: true });
