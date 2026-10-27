@@ -102,8 +102,8 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
       return;
     }
 
-    // Moving: sent at once. Standing: once a minute, so a driver at a stop
-    // stays on the map instead of going grey (lib/locations.ts).
+    // Moving: sent at once. Standing: every half minute, so a driver at a
+    // stop stays live on the maps instead of going grey (lib/locations.ts).
     const { error: locErr } = await reportDriverLocation(
       driverId,
       last.coords.latitude,

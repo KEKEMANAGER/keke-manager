@@ -50,13 +50,14 @@ export async function upsertDriverLocation(
 }
 
 /**
- * A phone that stands still still says where it is this often. The company and
- * admin maps call a driver inactive after 5 minutes of silence; before this a
+ * A phone that stands still still says where it is this often. Before this a
  * driver waiting at a sightseeing stop sent nothing at all (the OS reported
- * only movement), so a perfectly working phone faded off the map at every stop
- * and came back when the car moved again.
+ * only movement), so a perfectly working phone faded off the maps at every
+ * stop and came back when the car moved again. Every half minute keeps him
+ * live on all of them: the company's tracking map greys a pin after 60 s of
+ * silence, the fleet view after 90 s, the admin map after 5 minutes.
  */
-export const LOCATION_HEARTBEAT_MS = 60_000;
+export const LOCATION_HEARTBEAT_MS = 30_000;
 /** A move this far is sent at once… */
 const LOCATION_MOVE_REPORT_M = 15;
 /** …but not more than once every few seconds: the map needs no more, the battery and the database do. */
@@ -96,7 +97,7 @@ export function locationWorthReporting(
 /**
  * The driver's position as the trip sends it — from the background task and
  * from the open GPS screen alike, which share this one pace: right away when
- * he has moved, once a minute while he stands. `upsertDriverLocation` writes
+ * he has moved, every half minute while he stands. `upsertDriverLocation` writes
  * unconditionally and stays for callers that must (going online, first fix).
  */
 export async function reportDriverLocation(
