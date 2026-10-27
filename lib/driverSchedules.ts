@@ -114,6 +114,20 @@ function clampMinimumWindow(
   return { start, end: end.getTime() < floor ? new Date(floor) : end };
 }
 
+/**
+ * How far ahead the driver's calendar reads his blocks: at least 60 days, and
+ * always to the end of the month on screen. A fixed 60 days left every day
+ * after that (late December, January…) looking free: the tap saved the block,
+ * the reload could not see it, and the driver concluded the calendar was broken.
+ */
+export function scheduleRangeEnd(today: Date, monthCursor: Date): Date {
+  const to = new Date(today);
+  to.setHours(0, 0, 0, 0);
+  to.setDate(to.getDate() + 60);
+  const afterMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1);
+  return afterMonth.getTime() > to.getTime() ? afterMonth : to;
+}
+
 export async function fetchDriverSchedules(
   driverId: string,
   rangeStart: Date,

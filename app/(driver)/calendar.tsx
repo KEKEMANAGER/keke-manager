@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,7 @@ import {
   createManualDriverSchedule,
   deleteManualDriverSchedule,
   fetchDriverSchedules,
+  scheduleRangeEnd,
   type DriverScheduleRow,
 } from '../../lib/driverSchedules';
 
@@ -73,6 +74,8 @@ export default function DriverCalendarScreen() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+  const monthRef = useRef(monthCursor);
+  monthRef.current = monthCursor;
 
   /** What a square shows: a booking the driver took, a day he blocked, or free. */
   function dayState(day: Date): { kind: 'free' | 'busy' | 'booking'; manual: DriverScheduleRow | null } {
@@ -108,7 +111,7 @@ export default function DriverCalendarScreen() {
       Alert.alert(t('system.errorTitle'), res.error?.message ?? t('calendarScreen.saveFailed'));
       return;
     }
-    void load();
+    void load('silent');
   }
 
   function scheduleTitle(row: DriverScheduleRow): string {
@@ -116,7 +119,7 @@ export default function DriverCalendarScreen() {
     return t('calendarScreen.busyLabel');
   }
 
-  const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (!userId) {
       setBlocks([]);
       setLoading(false);
@@ -124,11 +127,9 @@ export default function DriverCalendarScreen() {
       return;
     }
     if (mode === 'refresh') setRefreshing(true);
-    else setLoading(true);
-    const from = new Date();
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(from);
-    to.setDate(to.getDate() + 60);
+    else if (mode === 'initial') setLoading(true);
+    const from = startOfDay(new Date());
+    const to = scheduleRangeEnd(from, monthRef.current);
     const { data, error } = await fetchDriverSchedules(userId, from, to);
     setLoading(false);
     setRefreshing(false);
@@ -145,6 +146,16 @@ export default function DriverCalendarScreen() {
       void load();
     }, [load]),
   );
+
+  // Moving to a later month reads that month too, without a spinner.
+  const firstMonthRef = useRef(true);
+  useEffect(() => {
+    if (firstMonthRef.current) {
+      firstMonthRef.current = false;
+      return;
+    }
+    void load('silent');
+  }, [monthCursor, load]);
 
 
   function onDeleteBlock(row: DriverScheduleRow) {
