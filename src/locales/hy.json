@@ -2092,5 +2092,18 @@
       "weakCompletionRate": "Այս վարորդը մինչև վերջ հասցնում է վերցրած ամրագրումների {{percent}}%-ը։",
       "noRecord": "Նոր վարորդ — {{jobs}} ավարտված ամրագրում, պատմություն դեռ չկա։"
     }
+  },
+  "certified": {
+    "badge": "KEKE Certified",
+    "adminTitle": "KEKE Certified",
+    "adminStatusOn": "Certified {{date}}-ից",
+    "adminStatusOff": "Դեռ Certified չէ",
+    "adminHint": "Տրվում է թրեյնինգից և թեստից հետո։ Certified վարորդը նոր պատվերները ստանում է առաջին ալիքում, իսկ ընկերությունները տեսնում են նշանը նրա անվան կողքին։",
+    "adminGrant": "Շնորհել KEKE Certified",
+    "adminRevoke": "Հանել KEKE Certified",
+    "adminRevokeConfirm": "Հանե՞լ KEKE Certified կարգավիճակը։",
+    "adminSaveFailed": "Չհաջողվեց պահպանել։ Փորձեք կրկին։",
+    "driverTitle": "Դուք KEKE Certified վարորդ եք",
+    "driverHint": "Նոր պատվերները ստանում եք առաջին ալիքում, իսկ ընկերությունները տեսնում են այս նշանը ձեր անվան կողքին։"
   }
 }

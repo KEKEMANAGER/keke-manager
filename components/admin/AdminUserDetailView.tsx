@@ -2,9 +2,11 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +25,8 @@ import type { VehicleRow } from '../../lib/vehicles';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 import { DocumentImage } from '../DocumentImage';
+import { KekeCertifiedBadge } from '../KekeCertifiedBadge';
+import { fetchKekeCertifiedAt, setKekeCertified } from '../../lib/kekeCertified';
 import { viewableDocumentUri } from '../../lib/documentStorage';
 
 type Props = {
@@ -114,11 +118,16 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  const [certifiedAt, setCertifiedAt] = useState<string | null>(null);
+  const [certBusy, setCertBusy] = useState(false);
+  const [certError, setCertError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // KEKE Certified is read on its own: without it the page is the same page.
+      void fetchKekeCertifiedAt(userId).then(setCertifiedAt);
       const { data, error: err } = await fetchAdminUserDetail(userId);
       if (err || !data) {
         setError(err?.message ?? t('adminPanel.userDetail.notFound'));
@@ -139,6 +148,34 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
       void load();
     }, [load]),
   );
+
+  function confirmRevoke(): Promise<boolean> {
+    const question = t('certified.adminRevokeConfirm');
+    if (Platform.OS === 'web') {
+      return Promise.resolve(typeof window !== 'undefined' ? window.confirm(question) : false);
+    }
+    return new Promise((resolve) => {
+      Alert.alert(question, '', [
+        { text: t('common.cancel'), style: 'cancel', onPress: () => resolve(false) },
+        { text: t('certified.adminRevoke'), style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    });
+  }
+
+  async function toggleCertified() {
+    if (certBusy) return;
+    const certify = !certifiedAt;
+    if (!certify && !(await confirmRevoke())) return;
+    setCertBusy(true);
+    setCertError(null);
+    const res = await setKekeCertified(userId, certify);
+    setCertBusy(false);
+    if (res.error) {
+      setCertError(t('certified.adminSaveFailed'));
+      return;
+    }
+    setCertifiedAt(res.certifiedAt);
+  }
 
   function kindLabel(kind: AdminUserDetail['kind']): string {
     switch (kind) {
@@ -208,6 +245,7 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
             <Text style={styles.heroName}>{displayName}</Text>
             <Text style={styles.heroKind}>{kindLabel(detail.kind)}</Text>
             <View style={styles.badgeRow}>
+              {certifiedAt ? <KekeCertifiedBadge compact /> : null}
               {u.is_verified ? (
                 <Text style={styles.verifiedBadge}>✅ {t('adminPanel.userDetail.verified')}</Text>
               ) : (
@@ -250,6 +288,39 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
               label={t('adminPanel.userDetail.experience')}
               value={u.experience_years != null ? String(u.experience_years) : '—'}
             />
+          </Section>
+        ) : null}
+
+        {u.role === 'driver' ? (
+          <Section title={t('certified.adminTitle')}>
+            <View style={styles.certifiedStatusRow}>
+              {certifiedAt ? <KekeCertifiedBadge /> : null}
+              <Text style={styles.certifiedStatus}>
+                {certifiedAt
+                  ? t('certified.adminStatusOn', { date: formatDate(certifiedAt) })
+                  : t('certified.adminStatusOff')}
+              </Text>
+            </View>
+            <Text style={styles.certifiedHint}>{t('certified.adminHint')}</Text>
+            <Pressable
+              onPress={() => void toggleCertified()}
+              disabled={certBusy}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                certifiedAt ? adminStyles.btnOutline : adminStyles.btnGold,
+                styles.certifiedBtn,
+                (pressed || certBusy) && { opacity: 0.8 },
+              ]}
+            >
+              {certBusy ? (
+                <ActivityIndicator color={certifiedAt ? COLORS.text : COLORS.black} />
+              ) : (
+                <Text style={certifiedAt ? adminStyles.btnOutlineText : adminStyles.btnGoldText}>
+                  {certifiedAt ? t('certified.adminRevoke') : t('certified.adminGrant')}
+                </Text>
+              )}
+            </Pressable>
+            {certError ? <Text style={adminStyles.errText}>{certError}</Text> : null}
           </Section>
         ) : null}
 
@@ -517,4 +588,8 @@ const styles = StyleSheet.create({
   },
   previewTitle: { fontSize: 14, fontWeight: '700', marginBottom: SPACING.sm, color: COLORS.text },
   previewImage: { width: '100%', height: 360, marginBottom: SPACING.md },
+  certifiedStatusRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
+  certifiedStatus: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  certifiedHint: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 17, marginTop: 6 },
+  certifiedBtn: { marginTop: SPACING.md, alignSelf: 'flex-start' },
 });

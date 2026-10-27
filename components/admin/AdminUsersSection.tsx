@@ -24,6 +24,8 @@ import {
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
+import { KekeCertifiedBadge } from '../KekeCertifiedBadge';
+import { fetchCertifiedUserIdsForAdmin } from '../../lib/kekeCertified';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 
 type UserTab = 'drivers' | 'companies' | 'all';
@@ -55,6 +57,7 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
   const [deleteTarget, setDeleteTarget] = useState<AdminUserRow | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const [certifiedIds, setCertifiedIds] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -71,7 +74,12 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
         setRows([]);
         return;
       }
-      setRows(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setRows(list);
+      // The badge is asked on its own; without it the list is the same list.
+      void fetchCertifiedUserIdsForAdmin(
+        list.filter((u) => u.role === 'driver').map((u) => u.id),
+      ).then(setCertifiedIds);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.error'));
       setRows([]);
@@ -242,6 +250,11 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
           <View key={u.id} style={adminStyles.card}>
             <Pressable onPress={() => openUserDetail(u)} style={({ pressed }) => pressed && { opacity: 0.9 }}>
               <Text style={adminStyles.cardTitle}>{u.full_name?.trim() || u.email || '—'}</Text>
+              {certifiedIds.has(u.id) ? (
+                <View style={styles.certifiedRow}>
+                  <KekeCertifiedBadge compact />
+                </View>
+              ) : null}
               <Text style={adminStyles.cardMeta}>{u.email}</Text>
               {u.phone?.trim() ? (
                 <Text style={adminStyles.cardMeta}>{u.phone.trim()}</Text>
@@ -514,4 +527,5 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 4,
   },
+  certifiedRow: { marginTop: 4, marginBottom: 2 },
 });

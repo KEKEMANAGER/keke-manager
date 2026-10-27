@@ -222,6 +222,7 @@ export function TransportLegDriverSection({
                           name={driver.full_name || t('driver.defaultName')}
                           verified={driver.is_verified}
                           isGuide={driver.is_guide_driver}
+                          certified={driver.keke_certified}
                           textStyle={styles.driverName}
                           numberOfLines={1}
                         />

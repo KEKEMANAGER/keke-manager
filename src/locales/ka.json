@@ -2092,5 +2092,18 @@
       "weakCompletionRate": "ამ მძღოლს აღებული ჯავშნების {{percent}}% აქვს ბოლომდე მიყვანილი.",
       "noRecord": "ახალი მძღოლია — სულ {{jobs}} დასრულებული ჯავშანი, ისტორია ჯერ არ აქვს."
     }
+  },
+  "certified": {
+    "badge": "KEKE Certified",
+    "adminTitle": "KEKE Certified",
+    "adminStatusOn": "Certified {{date}}-დან",
+    "adminStatusOff": "ჯერ არ არის Certified",
+    "adminHint": "ანიჭებ ტრენინგისა და ტესტის შემდეგ. Certified მძღოლი ახალ ჯავშანს პირველ ტალღაში იღებს და კომპანიები მის სახელთან ნიშანს ხედავენ.",
+    "adminGrant": "მიანიჭე KEKE Certified",
+    "adminRevoke": "მოხსენი KEKE Certified",
+    "adminRevokeConfirm": "მოვხსნა KEKE Certified სტატუსი?",
+    "adminSaveFailed": "ვერ შეინახა. სცადე თავიდან.",
+    "driverTitle": "თქვენ KEKE Certified მძღოლი ხართ",
+    "driverHint": "ახალ ჯავშნებს პირველ ტალღაში იღებთ, კომპანიები კი თქვენს სახელთან ამ ნიშანს ხედავენ."
   }
 }

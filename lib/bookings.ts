@@ -30,6 +30,7 @@ import { formatLocationRoute } from './bookingLocations';
 import { formatTourBookingNotificationBody } from './tourDays';
 import { sanitizeLanguageCodes, driverMatchesRequiredLanguages } from './spokenLanguages';
 import { fetchDriverProfile } from './profiles';
+import { fetchCertifiedDriverIds } from './kekeCertified';
 import { supabase } from './supabase';
 import { trimUserId, userIdsMatch } from './userId';
 import {
@@ -143,10 +144,15 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
   }
   if (ids.size === 0) return rows;
 
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, is_verified, avatar_url, is_guide_driver')
-    .in('id', [...ids]);
+  const driverIds = [...new Set(rows.map((row) => trimUserId(row.driver_id)).filter(Boolean))] as string[];
+  const [{ data, error }, certifiedIds] = await Promise.all([
+    supabase
+      .from('users')
+      .select('id, is_verified, avatar_url, is_guide_driver')
+      .in('id', [...ids]),
+    // Asked on its own: a failure leaves the badge off, never the list.
+    fetchCertifiedDriverIds(driverIds),
+  ]);
 
   if (error) {
     if (__DEV__) {
@@ -179,6 +185,7 @@ async function enrichBookingsWithUserVerification(rows: BookingRow[]): Promise<B
     driver_is_guide_driver: row.driver_id
       ? guideById.get(trimUserId(row.driver_id)) ?? false
       : null,
+    driver_keke_certified: row.driver_id ? certifiedIds.has(trimUserId(row.driver_id)!) : null,
     company_is_verified: verifiedById.get(trimUserId(row.company_id)) ?? false,
     driver_avatar_url: row.driver_id
       ? (avatarById.get(trimUserId(row.driver_id)) ?? null)
@@ -427,6 +434,8 @@ export type BookingRow = {
   /** Populated by `enrichBookingsWithUserVerification` when listing bookings. */
   driver_is_verified?: boolean | null;
   driver_is_guide_driver?: boolean | null;
+  /** KEKE Certified driver (lib/kekeCertified.ts). */
+  driver_keke_certified?: boolean | null;
   company_is_verified?: boolean | null;
   driver_avatar_url?: string | null;
   company_avatar_url?: string | null;

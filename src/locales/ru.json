@@ -2092,5 +2092,18 @@
       "weakCompletionRate": "Этот водитель доводит до конца {{percent}}% взятых броней.",
       "noRecord": "Новый водитель — {{jobs}} завершённых броней, истории пока нет."
     }
+  },
+  "certified": {
+    "badge": "KEKE Certified",
+    "adminTitle": "KEKE Certified",
+    "adminStatusOn": "Certified с {{date}}",
+    "adminStatusOff": "Пока не Certified",
+    "adminHint": "Присваивается после тренинга и теста. Certified-водитель получает новые заказы в первой волне, а компании видят значок рядом с его именем.",
+    "adminGrant": "Присвоить KEKE Certified",
+    "adminRevoke": "Снять KEKE Certified",
+    "adminRevokeConfirm": "Снять статус KEKE Certified?",
+    "adminSaveFailed": "Не удалось сохранить. Попробуйте ещё раз.",
+    "driverTitle": "Вы — водитель KEKE Certified",
+    "driverHint": "Вы получаете новые заказы в первой волне, а компании видят этот значок рядом с вашим именем."
   }
 }

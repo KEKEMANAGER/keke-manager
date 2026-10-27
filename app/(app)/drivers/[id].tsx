@@ -141,6 +141,7 @@ export default function CompanyDriverProfileScreen() {
                     name={profile.full_name || t('company.driverDefault')}
                     verified={profile.is_verified}
                     isGuide={profile.is_guide_driver}
+                    certified={profile.keke_certified}
                     textStyle={styles.driverName}
                   />
                   <Text style={styles.ratingText}>

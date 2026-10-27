@@ -228,6 +228,7 @@ export function generateCompanyVoucherHTML(data: CompanyVoucherData): string {
       ? `<img class="avatar" src="${escapeHtml(driver.avatarUrl)}" alt="" />`
       : `<div class="avatar-ph">${escapeHtml(initials)}</div>`;
     const badges = [
+      driver.isKekeCertified ? '<span class="badge">KEKE Certified</span>' : '',
       driver.isGuideDriver ? '<span class="badge">გიდ-მძღოლი</span>' : '',
       driver.isVerified ? '<span class="badge">Verified</span>' : '',
     ]

@@ -751,6 +751,7 @@ export default function CompanyDashboardScreen() {
                         name={b.driver_display_name}
                         verified={b.driver_is_verified}
                         isGuide={b.driver_is_guide_driver}
+                        certified={b.driver_keke_certified}
                         textStyle={styles.driverName}
                       />
                       <Text style={styles.driverMeta}>
@@ -931,6 +932,7 @@ export default function CompanyDashboardScreen() {
                       }
                       verified={driverProfile.is_verified}
                       isGuide={driverProfile.is_guide_driver}
+                      certified={driverProfile.keke_certified}
                       textStyle={styles.driverNameModal}
                     />
                     <Text style={styles.ratingText}>

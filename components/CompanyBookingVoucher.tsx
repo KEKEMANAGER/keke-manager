@@ -171,6 +171,7 @@ function ConvoyLegVoucherCard({ leg, onChat, onCall }: ConvoyLegCardProps) {
                 name={driver.fullName ?? t('common.driver')}
                 verified={driver.isVerified}
                 isGuide={driver.isGuideDriver}
+                certified={driver.isKekeCertified}
                 plainGuideBadge
                 textStyle={styles.driverName}
               />
@@ -723,6 +724,7 @@ export function CompanyBookingVoucherContent({
                     name={driver.fullName ?? t('common.driver')}
                     verified={driver.isVerified}
                     isGuide={driver.isGuideDriver}
+                    certified={driver.isKekeCertified}
                     plainGuideBadge
                     textStyle={styles.driverName}
                   />

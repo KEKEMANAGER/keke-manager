@@ -7,6 +7,7 @@ import { vehiclePhotosOverdue, type VehiclePhotoMeta } from './vehicleVerificati
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
+import { fetchCertifiedDriverIds } from './kekeCertified';
 import {
   driverEligibleForOpenJobBroadcast,
   driverMatchesRequestedCategory,
@@ -74,6 +75,8 @@ export type DriverProfile = {
   full_name: string | null;
   is_verified: boolean;
   is_guide_driver: boolean;
+  /** KEKE Certified by the admin (lib/kekeCertified.ts). */
+  keke_certified: boolean;
   avatar_url: string | null;
   bio: string | null;
   languages: string[] | null;
@@ -111,6 +114,8 @@ export type MatchingDriver = {
   rating: string | null;
   rating_count: number;
   is_guide_driver: boolean;
+  /** KEKE Certified by the admin (lib/kekeCertified.ts). */
+  keke_certified: boolean;
   vehicle: {
     id: string | null;
     type: string | null;
@@ -545,6 +550,7 @@ export async function fetchMatchingDrivers(
       rating: avgRating,
       rating_count: ratingStats?.count ?? 0,
       is_guide_driver: user?.is_guide_driver === true,
+      keke_certified: false,
       vehicle: vehicle
         ? {
             id: vehicle.id ?? null,
@@ -565,6 +571,11 @@ export async function fetchMatchingDrivers(
   }
 
   const sortMode = options?.sortMode === 'rating' ? 'rating' : 'name';
+  // The KEKE Certified badge, asked on its own so that a failure there never
+  // costs the company its driver list.
+  const certifiedIds = await fetchCertifiedDriverIds(drivers.map((d) => d.id));
+  for (const d of drivers) d.keke_certified = certifiedIds.has(d.id);
+
   const sortedDrivers = sortMatchingDrivers(drivers, sortMode);
 
   logFetchMatchingDrivers('done', {
@@ -583,7 +594,7 @@ export async function fetchDriverProfile(
   options?: { bookingVehicleId?: string | null },
 ): Promise<{ data: DriverProfile | null; error: Error | null }> {
   const preferredId = options?.bookingVehicleId?.trim() || null;
-  const [userRes, profileRes, vehiclesRes, ratingRes] = await Promise.all([
+  const [userRes, profileRes, vehiclesRes, ratingRes, certifiedIds] = await Promise.all([
     supabase
       .from(USERS_DIRECTORY)
       .select('full_name, bio, languages, experience_years, is_verified, is_guide_driver, avatar_url')
@@ -592,6 +603,7 @@ export async function fetchDriverProfile(
     supabase.from('profiles').select('avatar_url, full_name').eq('id', driverUserId).maybeSingle(),
     fetchVehiclesByDriver(driverUserId),
     fetchDriverAverageRating(driverUserId),
+    fetchCertifiedDriverIds([driverUserId]),
   ]);
 
   if (userRes.error) {
@@ -620,6 +632,7 @@ export async function fetchDriverProfile(
       full_name: profileName ?? userName ?? null,
       is_verified: !!user?.is_verified,
       is_guide_driver: user?.is_guide_driver === true,
+      keke_certified: certifiedIds.has(driverUserId),
       avatar_url: resolveProfileAvatarUrl(profile?.avatar_url, user?.avatar_url),
       bio: user?.bio ?? null,
       languages: user?.languages ?? null,

@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '../../../components/EmptyState';
+import { KekeCertifiedBadge } from '../../../components/KekeCertifiedBadge';
 import { StarRow } from '../../../components/StarRow';
 import { APP_HEADER_BODY_HEIGHT } from '../../../constants/layout';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../../constants/theme';
@@ -138,6 +139,11 @@ export default function CompanyDriversScreen() {
                   <Text style={styles.name} numberOfLines={1}>
                     {name}
                   </Text>
+                  {d.keke_certified ? (
+                    <View style={styles.certifiedRow}>
+                      <KekeCertifiedBadge compact />
+                    </View>
+                  ) : null}
                   {d.city?.trim() ? <Text style={styles.city}>{d.city.trim()}</Text> : null}
                   <View style={styles.ratingRow}>
                     <StarRow value={rating} size={14} />
@@ -200,4 +206,5 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   ratingMeta: { fontSize: 12, color: COLORS.textSecondary },
   vehicle: { fontSize: 12, color: COLORS.textSecondary, marginTop: SPACING.sm },
+  certifiedRow: { marginTop: 3 },
 });

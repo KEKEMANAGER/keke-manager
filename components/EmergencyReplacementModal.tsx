@@ -310,6 +310,7 @@ export function EmergencyReplacementModal({
                       name={item.full_name ?? t('company.driverDefault')}
                       verified
                       isGuide={item.is_guide_driver}
+                      certified={item.keke_certified}
                       textStyle={styles.driverName}
                     />
                     <Text style={styles.driverMeta}>

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { fetchCertifiedDriverIds } from './kekeCertified';
 
 export type DriverRatingScore = { average: number; count: number };
 
@@ -211,6 +212,15 @@ function emptyLegTier(recipient: PushRecipientLike): number {
   return recipient.endsNearPickup === true ? 0 : 1;
 }
 
+/**
+ * A KEKE Certified driver goes before one who is not — after coverage and the
+ * empty leg, which say where a driver can be, and before the score, which says
+ * how well he has done. Like the other tiers it only sorts.
+ */
+function certifiedTier(recipient: PushRecipientLike, certified: Set<string>): number {
+  return certified.has(recipient.userId) ? 0 : 1;
+}
+
 function compareByRank(
   a: DriverRankScore | undefined,
   b: DriverRankScore | undefined,
@@ -253,8 +263,17 @@ export async function buildRatingWaves<T extends PushRecipientLike>(
   recipients: T[],
   wave1Size: number,
   newDriverSlots = NEW_DRIVER_WAVE1_SLOTS,
-): Promise<{ wave1: T[]; wave2: T[]; scores: Map<string, DriverRankScore> }> {
-  const scores = await fetchDriverRankScores(recipients.map((r) => r.userId));
+): Promise<{
+  wave1: T[];
+  wave2: T[];
+  scores: Map<string, DriverRankScore>;
+  certified: Set<string>;
+}> {
+  const ids = recipients.map((r) => r.userId);
+  const [scores, certified] = await Promise.all([
+    fetchDriverRankScores(ids),
+    fetchCertifiedDriverIds(ids),
+  ]);
   const sorted = [...recipients].sort((a, b) => {
     // Coverage comes before score, but it only ever sorts — never excludes.
     // Wave 1 still fills to wave1Size and wave 2 still carries everyone else,
@@ -265,11 +284,14 @@ export async function buildRatingWaves<T extends PushRecipientLike>(
     // Already finishing next door beats a higher score — see `emptyLegTier`.
     const leg = emptyLegTier(a) - emptyLegTier(b);
     if (leg !== 0) return leg;
+    // KEKE Certified next — see `certifiedTier`.
+    const cert = certifiedTier(a, certified) - certifiedTier(b, certified);
+    if (cert !== 0) return cert;
     return compareByRank(scores.get(a.userId), scores.get(b.userId), a.userId, b.userId);
   });
 
   if (sorted.length <= wave1Size) {
-    return { wave1: sorted, wave2: [], scores };
+    return { wave1: sorted, wave2: [], scores, certified };
   }
 
   const wave1 = sorted.slice(0, wave1Size);
@@ -290,21 +312,25 @@ export async function buildRatingWaves<T extends PushRecipientLike>(
         seats -= 1;
       }
     }
-    if (promoted.length > 0) {
-      const promotedIds = new Set(promoted.map((r) => r.userId));
-      // Drop the lowest-ranked established drivers to make room.
-      const demoted = wave1
-        .filter((r) => !scores.get(r.userId)?.isNewDriver)
-        .slice(-promoted.length);
+    // Drop the lowest-ranked established drivers to make room — never a
+    // certified one: his first-wave place is what the certificate is for.
+    const demotable = wave1.filter(
+      (r) => !scores.get(r.userId)?.isNewDriver && !certified.has(r.userId),
+    );
+    const take = Math.min(promoted.length, demotable.length);
+    if (take > 0) {
+      const promotedNow = promoted.slice(0, take);
+      const promotedIds = new Set(promotedNow.map((r) => r.userId));
+      const demoted = demotable.slice(-take);
       const demotedIds = new Set(demoted.map((r) => r.userId));
 
-      const finalWave1 = wave1.filter((r) => !demotedIds.has(r.userId)).concat(promoted);
+      const finalWave1 = wave1.filter((r) => !demotedIds.has(r.userId)).concat(promotedNow);
       const finalWave2 = demoted.concat(rest.filter((r) => !promotedIds.has(r.userId)));
-      return { wave1: finalWave1, wave2: finalWave2, scores };
+      return { wave1: finalWave1, wave2: finalWave2, scores, certified };
     }
   }
 
-  return { wave1, wave2: rest, scores };
+  return { wave1, wave2: rest, scores, certified };
 }
 
 /** Record that these drivers got the first wave, for round-robin fairness. */

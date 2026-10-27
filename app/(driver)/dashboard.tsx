@@ -20,6 +20,7 @@ import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { BookingPriceDisplay } from '../../components/BookingPriceDisplay';
 import { ListEmptyState } from '../../components/ListEmptyState';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { useKekeCertified } from '../../hooks/useKekeCertified';
 import { UserAvatar } from '../../components/UserAvatar';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
@@ -91,6 +92,7 @@ function StatIcon({
 export default function DriverDashboardScreen() {
   const { t } = useTranslation();
   const { user, profile, refreshProfile } = useAuth();
+  const kekeCertified = useKekeCertified(user?.id);
   const router = useRouter();
   const layout = useAppLayoutInsets();
   const firstName =
@@ -426,6 +428,7 @@ export default function DriverDashboardScreen() {
           <NameWithVerifiedBadge
             name={firstName}
             verified={profile?.is_verified}
+            certified={kekeCertified}
             textStyle={styles.name}
           />
           <View style={styles.ratingRow}>

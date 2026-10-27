@@ -3,6 +3,7 @@ import { enrichBookingsForList, fetchBookingById } from './bookings';
 import { fetchConvoyPeerLegs, type ConvoyPeerLeg } from './convoyPeers';
 import { fetchLegsForMaster } from './groupBooking';
 import { fetchDriverAverageRating } from './ratings';
+import { fetchCertifiedDriverIds } from './kekeCertified';
 import { resolveProfileAvatarUrl } from './profileAvatar';
 import { formatSpokenLanguagesList, sanitizeLanguageCodes } from './spokenLanguages';
 import { supabase } from './supabase';
@@ -26,6 +27,8 @@ export type CompanyVoucherDriver = {
   avatarUrl: string | null;
   isVerified: boolean;
   isGuideDriver: boolean;
+  /** KEKE Certified driver (lib/kekeCertified.ts). */
+  isKekeCertified: boolean;
   ratingAverage: number;
   ratingCount: number;
   languagesLabel: string | null;
@@ -243,7 +246,7 @@ async function fetchDriverBlock(
   driverId: string,
   booking: BookingRow,
 ): Promise<{ driver: CompanyVoucherDriver; vehicle: CompanyVoucherVehicle | null }> {
-  const [userRes, profileRes, ratingRes, vehicleRow] = await Promise.all([
+  const [userRes, profileRes, ratingRes, vehicleRow, certifiedIds] = await Promise.all([
     supabase
       .from('users')
       .select('full_name, phone, bank_account, avatar_url, languages, city, is_verified, is_guide_driver')
@@ -252,6 +255,7 @@ async function fetchDriverBlock(
     supabase.from('profiles').select('full_name, avatar_url').eq('id', driverId).maybeSingle(),
     fetchDriverAverageRating(driverId),
     fetchVehicleForBooking(booking, driverId),
+    fetchCertifiedDriverIds([driverId]),
   ]);
 
   const user = userRes.data as {
@@ -282,6 +286,7 @@ async function fetchDriverBlock(
     avatarUrl: resolveProfileAvatarUrl(profile?.avatar_url, user?.avatar_url),
     isVerified: !!user?.is_verified || !!booking.driver_is_verified,
     isGuideDriver: user?.is_guide_driver === true || booking.driver_is_guide_driver === true,
+    isKekeCertified: certifiedIds.has(driverId) || booking.driver_keke_certified === true,
     ratingAverage: ratingRes.average,
     ratingCount: ratingRes.count,
     languagesLabel: user?.languages?.length ? formatSpokenLanguagesList(user.languages) : null,

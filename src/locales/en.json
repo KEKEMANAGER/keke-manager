@@ -2092,5 +2092,18 @@
       "weakCompletionRate": "This driver sees {{percent}}% of the bookings he takes through to the end.",
       "noRecord": "New driver — {{jobs}} completed bookings, no track record yet."
     }
+  },
+  "certified": {
+    "badge": "KEKE Certified",
+    "adminTitle": "KEKE Certified",
+    "adminStatusOn": "Certified since {{date}}",
+    "adminStatusOff": "Not certified yet",
+    "adminHint": "Grant it after the training and the test. A Certified driver gets new bookings in the first wave, and companies see the badge next to his name.",
+    "adminGrant": "Make KEKE Certified",
+    "adminRevoke": "Remove KEKE Certified",
+    "adminRevokeConfirm": "Remove the KEKE Certified status?",
+    "adminSaveFailed": "Could not save. Try again.",
+    "driverTitle": "You are a KEKE Certified driver",
+    "driverHint": "You get new bookings in the first wave, and companies see this badge next to your name."
   }
 }

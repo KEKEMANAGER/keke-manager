@@ -29,6 +29,8 @@ import { LANGUAGES, persistLanguage, type AppLanguage } from '../../src/lib/i18n
 import { DateOnlyField } from '../../components/DateOnlyField';
 import { EditModeButtons } from '../../components/EditModeButtons';
 import { NameWithVerifiedBadge } from '../../components/NameWithVerifiedBadge';
+import { KekeCertifiedBadge } from '../../components/KekeCertifiedBadge';
+import { useKekeCertified } from '../../hooks/useKekeCertified';
 import { LegalSettingsLinks } from '../../components/LegalSettingsLinks';
 import { ProfileFeedbackEntry } from '../../components/ProfileFeedbackEntry';
 import { LanguageMultiSelect } from '../../components/LanguageMultiSelect';
@@ -76,6 +78,7 @@ export default function DriverProfileScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
+  const kekeCertified = useKekeCertified(user?.id);
   const insets = useSafeAreaInsets();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -564,8 +567,17 @@ export default function DriverProfileScreen() {
             name={displayName}
             verified={profile?.is_verified}
             isGuide={profile?.is_guide_driver}
+            certified={kekeCertified}
             textStyle={styles.displayName}
           />
+        </View>
+      ) : null}
+
+      {kekeCertified ? (
+        <View style={styles.certifiedCard}>
+          <KekeCertifiedBadge />
+          <Text style={styles.certifiedTitle}>{t('certified.driverTitle')}</Text>
+          <Text style={styles.certifiedHint}>{t('certified.driverHint')}</Text>
         </View>
       ) : null}
 
@@ -1217,4 +1229,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
+  certifiedCard: {
+    marginBottom: SPACING.lg,
+    padding: SPACING.lg,
+    gap: 6,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.gold,
+    backgroundColor: COLORS.goldTint,
+  },
+  certifiedTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  certifiedHint: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
 });

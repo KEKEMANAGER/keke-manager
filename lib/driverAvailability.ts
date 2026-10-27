@@ -3,6 +3,7 @@ import { notifyEmergencyReplacementAssigned } from './notifications';
 import { resolveVehicleIdForBooking } from './bookingVehicle';
 import { supabase } from './supabase';
 import { trimUserId } from './userId';
+import { fetchCertifiedDriverIds } from './kekeCertified';
 
 export type AvailableDriverRow = {
   id: string;
@@ -15,6 +16,8 @@ export type AvailableDriverRow = {
   vehicle_class: string | null;
   vehicle_plate: string | null;
   is_guide_driver: boolean;
+  /** KEKE Certified driver (lib/kekeCertified.ts); filled in after the list loads. */
+  keke_certified?: boolean;
 };
 
 export async function setDriverAvailable(driverUserId: string, city: string) {
@@ -84,7 +87,11 @@ export async function findAvailableDriversInCity(
   }
 
   const rows = (data ?? []) as AvailableDriverRow[];
-  return { data: rows, error: null };
+  const certifiedIds = await fetchCertifiedDriverIds(rows.map((r) => r.id));
+  return {
+    data: rows.map((r) => ({ ...r, keke_certified: certifiedIds.has(String(r.id)) })),
+    error: null,
+  };
 }
 
 /** Company assigns an available driver to a pending booking (urgent replacement). */
