@@ -300,11 +300,9 @@ revoke execute on function public.sync_push_token_to_profiles() from authenticat
 -- shows them through signed links that expire within the hour
 -- (lib/documentStorage.ts). Only the driver himself and an admin may read or
 -- replace them. The files already uploaded are moved here afterwards.
+-- No size limit, like `media`: phone photos of documents reach 18 MB.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'documents', 'documents', false, 10485760,
-  array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
-)
+values ('documents', 'documents', false, null, array['image/*'])
 on conflict (id) do update set public = false;
 
 create or replace function public.document_path_is_mine(p_name text)
