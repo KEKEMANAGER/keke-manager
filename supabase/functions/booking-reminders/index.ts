@@ -85,6 +85,21 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    // Retired: reminders run in the database every minute
+    // (public.run_booking_reminders, cron job booking-reminders-hourly). This
+    // endpoint needs no login and acts with full rights, so it now answers
+    // only a caller holding `booking_reminders_secret` from app_settings —
+    // which nothing holds — instead of anyone who finds the URL.
+    const { data: setting } = await admin
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'booking_reminders_secret')
+      .maybeSingle();
+    const secret = (setting as { value?: string } | null)?.value ?? '';
+    if (!secret || req.headers.get('x-keke-reminders-secret') !== secret) {
+      return jsonResponse({ ok: true, retired: true }, 200);
+    }
+
     const now = Date.now();
     const { data: rows, error: fetchErr } = await admin
       .from('bookings')

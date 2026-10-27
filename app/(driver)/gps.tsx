@@ -24,7 +24,7 @@ import {
   type BookingRow,
 } from '../../lib/bookings';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
-import { clearDriverLocation, upsertDriverLocation } from '../../lib/locations';
+import { clearDriverLocation, reportDriverLocation, resetLocationReporting } from '../../lib/locations';
 import { sendMessage } from '../../lib/messages';
 import { hasTripNavigationTargets, openPlaceNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
@@ -164,8 +164,11 @@ export default function DriverGpsScreen() {
       const sub = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 4000,
-          distanceInterval: 10,
+          // Fixes keep coming while the car stands still, so the open screen
+          // also keeps the driver on the company's map at a stop; how often a
+          // position is written is paced in reportDriverLocation.
+          timeInterval: 5000,
+          distanceInterval: 0,
         },
         (loc) => {
           const { latitude, longitude } = loc.coords;
@@ -175,8 +178,8 @@ export default function DriverGpsScreen() {
             // Tells the company map whether this pin keeps moving once the app
             // is minimized ('background') or freezes then ('foreground').
             const mode = bgRunningRef.current ? 'background' : 'foreground';
-            void upsertDriverLocation(user.id, latitude, longitude, mode).then(({ error }) => {
-              if (error && __DEV__) console.warn('[gps] upsertDriverLocation:', error.message);
+            void reportDriverLocation(user.id, latitude, longitude, mode).then(({ error }) => {
+              if (error && __DEV__) console.warn('[gps] reportDriverLocation:', error.message);
             });
           }
           // While this screen is open the background task is not running, so the
@@ -406,6 +409,8 @@ export default function DriverGpsScreen() {
     await stopBackgroundLocation();
     bgRunningRef.current = false;
     setIsTracking(false);
+    // Turned back on later, the first position is written at once.
+    resetLocationReporting();
     if (user?.id) {
       const { error } = await clearDriverLocation(user.id);
       if (error && __DEV__) console.warn('[gps] clearDriverLocation:', error.message);

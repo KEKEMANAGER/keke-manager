@@ -77,3 +77,14 @@ begin
 end $$;
 grant execute on function public.dispatch_new_booking_push(uuid, integer) to anon, authenticated;
 grant execute on function public.find_replacement_driver_for_booking(uuid, uuid) to authenticated;
+
+-- Sections 4 and 5
+drop policy if exists documents_select_own on storage.objects;
+drop policy if exists documents_insert_own on storage.objects;
+drop policy if exists documents_update_own on storage.objects;
+drop policy if exists documents_delete_own on storage.objects;
+drop function if exists public.document_path_is_mine(text);
+-- (the documents bucket itself is left in place: it holds the moved files)
+grant select on public.profiles to anon, authenticated;
+drop function if exists public.set_my_birth_date(date);
+drop function if exists public.my_birth_date();

@@ -1472,7 +1472,10 @@
       "filterAllKinds": "ყველა ტიპი",
       "filterActive": "აქტიური",
       "filterInactive": "არააქტიური",
-      "filterAllCities": "ყველა ქალაქი"
+      "filterAllCities": "ყველა ქალაქი",
+      "countSummary": "{{active}} აქტიური · {{total}} სულ",
+      "call": "დარეკვა",
+      "noPhone": "ტელეფონი არ არის მითითებული"
     },
     "statUsers": "მომხმარებლები",
     "statDrivers": "მძღოლები",

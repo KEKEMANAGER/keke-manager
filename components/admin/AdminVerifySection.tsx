@@ -3,7 +3,6 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -25,6 +24,7 @@ import {
 } from '../../lib/adminVerification';
 import { supabase } from '../../lib/supabase';
 import { adminStyles } from './adminStyles';
+import { DocumentImage } from '../DocumentImage';
 
 type DocSlot = { key: AdminDocumentKey; labelKey: string };
 
@@ -339,8 +339,8 @@ export function AdminVerifySection({
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>{preview?.title}</Text>
             {preview?.url ? (
-              <Image
-                source={{ uri: preview.url }}
+              <DocumentImage
+                uri={preview.url}
                 style={styles.previewImage}
                 resizeMode="contain"
                 onError={() => setPreview(null)}

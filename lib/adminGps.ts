@@ -9,6 +9,8 @@ export type AdminGpsDriverKind = 'regular' | 'guide' | 'host' | 'hired';
 
 export type AdminGpsDriverLocation = DriverLocationRow & {
   full_name: string | null;
+  /** So the admin can call the driver straight from the map. */
+  phone: string | null;
   booking_id: string | null;
   booking_status: string | null;
   vehicle_type: string | null;
@@ -86,7 +88,7 @@ export async function fetchAllActiveDriverLocations(): Promise<{
   const [{ data: users }, { data: bookings }, { data: fleetRows }] = await Promise.all([
     supabase
       .from('users')
-      .select('id, full_name, is_guide_driver, is_hired_driver, city')
+      .select('id, full_name, phone, is_guide_driver, is_hired_driver, city')
       .in('id', ids),
     supabase
       .from('bookings')
@@ -99,6 +101,7 @@ export async function fetchAllActiveDriverLocations(): Promise<{
   type UserRow = {
     id: string;
     full_name: string | null;
+    phone: string | null;
     is_guide_driver: boolean | null;
     is_hired_driver: boolean | null;
     city: string | null;
@@ -133,6 +136,7 @@ export async function fetchAllActiveDriverLocations(): Promise<{
     return {
       ...loc,
       full_name: u?.full_name ?? null,
+      phone: u?.phone?.trim() || null,
       booking_id: b?.id ?? null,
       booking_status: b?.status ?? null,
       vehicle_type: b?.vehicle_type ?? null,
@@ -147,6 +151,24 @@ export async function fetchAllActiveDriverLocations(): Promise<{
   });
 
   return { data, error: null };
+}
+
+/** A `tel:` link for a phone number as people type it ("+995 555 12 34 56", "555-123-456"). */
+export function adminGpsTelHref(phone: string | null | undefined): string | null {
+  const raw = (phone ?? '').trim();
+  if (!raw) return null;
+  const digits = raw.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
+  return digits.replace(/\D/g, '').length >= 6 ? `tel:${digits}` : null;
+}
+
+/** "45s", "12m", "3h", "2d" — how long ago the last position came in. */
+export function formatAdminGpsAgo(iso: string, now: number = Date.now()): string {
+  const s = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
+  if (s < 5) return '< 5s';
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86_400)}d`;
 }
 
 export function filterAdminGpsLocations(

@@ -3,7 +3,6 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Platform,
   Pressable,
@@ -22,6 +21,7 @@ import {
 } from '../../lib/vehicleVerification';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { adminStyles } from './adminStyles';
+import { DocumentImage } from '../DocumentImage';
 
 function vehicleNeedsReview(status: AdminVehicleVerificationRow['verification_status']): boolean {
   return status === 'pending' || status === 'submitted';
@@ -235,7 +235,7 @@ export function AdminVehicleVerifySection({
         style={({ pressed }) => [styles.tile, pressed && url && styles.tilePressed]}
       >
         {url ? (
-          <Image source={{ uri: url }} style={styles.tileImage} resizeMode="cover" />
+          <DocumentImage uri={url} style={styles.tileImage} resizeMode="cover" />
         ) : (
           <View style={[styles.tileImage, styles.tileEmpty]}>
             <Text style={styles.tileEmptyText}>{t('adminVerify.noDocument')}</Text>
@@ -323,8 +323,8 @@ export function AdminVehicleVerifySection({
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>{preview?.title}</Text>
             {preview?.url ? (
-              <Image
-                source={{ uri: preview.url }}
+              <DocumentImage
+                uri={preview.url}
                 style={styles.previewImage}
                 resizeMode="contain"
                 onError={() => setPreview(null)}

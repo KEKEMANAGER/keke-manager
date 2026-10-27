@@ -1472,7 +1472,10 @@
       "filterAllKinds": "All types",
       "filterActive": "Active",
       "filterInactive": "Inactive",
-      "filterAllCities": "All cities"
+      "filterAllCities": "All cities",
+      "countSummary": "{{active}} ակտիվ · ընդամենը {{total}}",
+      "call": "Զանգել",
+      "noPhone": "Հեռախոսահամար չկա"
     },
     "statUsers": "Total users",
     "statDrivers": "Drivers",

@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -14,7 +15,9 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import {
   adminGpsCityOptions,
   adminGpsMarkerColor,
+  adminGpsTelHref,
   fetchAllActiveDriverLocations,
+  formatAdminGpsAgo,
   filterAdminGpsLocations,
   isAdminGpsActive,
   subscribeAdminGpsLocations,
@@ -33,11 +36,42 @@ type Props = {
   onClose?: () => void;
 };
 
-function formatAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 5) return '< 5s';
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m`;
+const formatAgo = (iso: string) => formatAdminGpsAgo(iso);
+
+/** Realtime fires on every position; the map needs at most one reload per this. */
+const RELOAD_THROTTLE_MS = 3_000;
+
+/** The driver's number, one tap from a call. */
+function CallButton({
+  phone,
+  t,
+  compact = false,
+}: {
+  phone: string | null;
+  t: (k: string) => string;
+  compact?: boolean;
+}) {
+  const href = adminGpsTelHref(phone);
+  if (!href) {
+    return <Text style={styles.noPhone}>{t('adminPanel.gps.noPhone')}</Text>;
+  }
+  return (
+    <Pressable
+      onPress={() => void Linking.openURL(href).catch(() => undefined)}
+      style={({ pressed }) => [
+        compact ? styles.callLink : styles.callBtn,
+        pressed ? { opacity: 0.75 } : undefined,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${t('adminPanel.gps.call')} ${phone}`}
+      hitSlop={6}
+    >
+      <Ionicons name="call" size={compact ? 12 : 15} color={compact ? COLORS.goldDark : '#0f0f0f'} />
+      <Text style={compact ? styles.callLinkText : styles.callBtnText} numberOfLines={1}>
+        {phone}
+      </Text>
+    </Pressable>
+  );
 }
 
 function statusLabel(status: string | null, t: (k: string) => string): string {
@@ -114,9 +148,21 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
     void reload();
   }, [reload]);
 
+  // Every driver's phone writes its position about once every 10 seconds on
+  // the road; a full reload per write was a reload storm. One every few
+  // seconds is as live as the map can show anyway.
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const ch = subscribeAdminGpsLocations(() => void reload(true));
+    const ch = subscribeAdminGpsLocations(() => {
+      if (reloadTimer.current) return;
+      reloadTimer.current = setTimeout(() => {
+        reloadTimer.current = null;
+        void reload(true);
+      }, RELOAD_THROTTLE_MS);
+    });
     return () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      reloadTimer.current = null;
       void supabase.removeChannel(ch);
     };
   }, [reload]);
@@ -134,6 +180,14 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
   );
 
   const selected = locations.find((l) => l.driver_id === selectedId) ?? null;
+
+  // "16 active" counted every driver who had ever sent a position, grey pins
+  // included. Active means a position in the last 5 minutes.
+  const activeCount = allLocations.filter((l) => isAdminGpsActive(l.updated_at)).length;
+  const countSummary = t('adminPanel.gps.countSummary', {
+    active: activeCount,
+    total: allLocations.length,
+  });
 
   const mapHeight = compact ? 380 : undefined;
 
@@ -215,9 +269,7 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
       style={[styles.sidebar, compact ? { maxHeight: 400 } : undefined]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.sidebarTitle}>
-        {t('adminTracking.activeDrivers', { count: locations.length })}
-      </Text>
+      <Text style={styles.sidebarTitle}>{countSummary}</Text>
       {locations.length === 0 ? (
         <Text style={adminStyles.empty}>{t('adminTracking.noActiveDrivers')}</Text>
       ) : (
@@ -232,6 +284,7 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
               <Text style={styles.rowName} numberOfLines={1}>
                 {loc.full_name ?? t('common.driver')}
               </Text>
+              <CallButton phone={loc.phone} t={t} compact />
               <Text style={styles.rowMeta} numberOfLines={2}>
                 {kindLabel(loc.kind, t)}
                 {loc.vehicle_type ? ` · ${vehicleTypeLabel(loc.vehicle_type)}` : ''}
@@ -277,7 +330,7 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
           {loading ? (
             <ActivityIndicator size="small" color={COLORS.gold} />
           ) : (
-            <Text style={styles.countBadge}>{allLocations.length}</Text>
+            <Text style={styles.countBadge}>{countSummary}</Text>
           )}
           <View style={styles.headerSpacer} />
           {onClose ? (
@@ -301,6 +354,9 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
         {selected ? (
           <View style={styles.detailBar}>
             <Text style={styles.detailName}>{selected.full_name ?? t('common.driver')}</Text>
+            <View style={styles.detailCallRow}>
+              <CallButton phone={selected.phone} t={t} />
+            </View>
             <Text style={styles.detailMeta}>
               {selected.vehicle_label ?? '—'} · {formatAgo(selected.updated_at)} {t('tracking.ago')}
             </Text>
@@ -316,9 +372,7 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
   return (
     <View>
       <View style={styles.compactHeader}>
-        <Text style={styles.compactTitle}>
-          {t('adminTracking.activeDrivers', { count: allLocations.length })}
-        </Text>
+        <Text style={styles.compactTitle}>{countSummary}</Text>
         {loading ? <ActivityIndicator size="small" color={COLORS.gold} /> : null}
       </View>
       {legend}
@@ -336,12 +390,34 @@ export function AdminGpsPanel({ compact = false, fullScreen = false, onClose }: 
               style={[styles.chipDriver, selectedId === loc.driver_id ? styles.chipDriverOn : undefined]}
             >
               <View style={[styles.rowDot, { backgroundColor: adminGpsMarkerColor(loc) }]} />
-              <Text style={styles.chipDriverName} numberOfLines={1}>
-                {loc.full_name ?? t('common.driver')}
-              </Text>
+              <View style={{ minWidth: 0, flexShrink: 1 }}>
+                <Text style={styles.chipDriverName} numberOfLines={1}>
+                  {loc.full_name ?? t('common.driver')}
+                </Text>
+                {loc.phone ? (
+                  <Text style={styles.chipDriverPhone} numberOfLines={1}>
+                    {loc.phone}
+                  </Text>
+                ) : null}
+              </View>
             </Pressable>
           ))}
         </ScrollView>
+      ) : null}
+      {Platform.OS !== 'web' && selected ? (
+        <View style={styles.selectedCard}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.detailName} numberOfLines={1}>
+              {selected.full_name ?? t('common.driver')}
+            </Text>
+            <Text style={styles.detailMeta} numberOfLines={2}>
+              {statusLabel(selected.booking_status, t)}
+              {` · ${formatAgo(selected.updated_at)} ${t('tracking.ago')}`}
+              {isAdminGpsActive(selected.updated_at) ? '' : ` · ${t('adminPanel.gps.inactive')}`}
+            </Text>
+          </View>
+          <CallButton phone={selected.phone} t={t} />
+        </View>
       ) : null}
     </View>
   );
@@ -510,4 +586,30 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.goldTint,
   },
   chipDriverName: { fontSize: 12, fontWeight: '600', color: COLORS.text },
+  chipDriverPhone: { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },
+  selectedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  detailCallRow: { flexDirection: 'row', marginTop: 6 },
+  callBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: RADIUS.button,
+    backgroundColor: COLORS.gold,
+  },
+  callBtnText: { color: '#0f0f0f', fontWeight: '800', fontSize: 14 },
+  callLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, alignSelf: 'flex-start' },
+  callLinkText: { color: COLORS.goldDark, fontWeight: '700', fontSize: 12 },
+  noPhone: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
 });

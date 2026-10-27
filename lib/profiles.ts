@@ -194,6 +194,17 @@ export async function fetchDriverBirthDate(
   if (!id) {
     return { birthDate: null, error: new Error('user id არ არის') };
   }
+  // Birth dates are no longer readable from other people's profiles; one's
+  // own comes through my_birth_date(). The direct read stays as a fallback
+  // for a database that does not have the function yet.
+  const rpc = await supabase.rpc('my_birth_date');
+  if (!rpc.error) {
+    const raw = rpc.data as string | null;
+    return { birthDate: typeof raw === 'string' && raw.trim() ? raw.trim() : null, error: null };
+  }
+  if (!isMissingFunctionError(rpc.error)) {
+    return { birthDate: null, error: new Error(rpc.error.message) };
+  }
   const { data, error } = await supabase
     .from('profiles')
     .select('birth_date')
@@ -214,6 +225,14 @@ export async function saveDriverBirthDate(
   if (!id) {
     return { ok: false, error: new Error('user id არ არის') };
   }
+  // One's own date goes through set_my_birth_date(): the column is no longer
+  // readable by app users, and an upsert reads it. The direct upsert stays as
+  // a fallback for a database that does not have the function yet.
+  const rpc = await supabase.rpc('set_my_birth_date', { p_birth_date: birthDateIso });
+  if (!rpc.error) return { ok: true, error: null };
+  if (!isMissingFunctionError(rpc.error)) {
+    return { ok: false, error: new Error(rpc.error.message) };
+  }
   const { error } = await supabase
     .from('profiles')
     .upsert({ id, birth_date: birthDateIso }, { onConflict: 'id' });
@@ -221,6 +240,12 @@ export async function saveDriverBirthDate(
     return { ok: false, error: new Error(error.message) };
   }
   return { ok: true, error: null };
+}
+
+/** PostgREST's "no such function" (schema cache) or Postgres' undefined_function. */
+function isMissingFunctionError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === 'PGRST202' || error.code === '42883';
 }
 
 /**

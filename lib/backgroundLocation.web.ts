@@ -4,6 +4,10 @@ export async function isBackgroundLocationRunning(): Promise<boolean> {
   return false;
 }
 
+export async function isTripTaskCurrent(): Promise<boolean> {
+  return false;
+}
+
 export type StartBackgroundLocationResult =
   | {
       ok: true;

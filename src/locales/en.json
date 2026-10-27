@@ -1472,7 +1472,10 @@
       "filterAllKinds": "All types",
       "filterActive": "Active",
       "filterInactive": "Inactive",
-      "filterAllCities": "All cities"
+      "filterAllCities": "All cities",
+      "countSummary": "{{active}} active · {{total}} total",
+      "call": "Call",
+      "noPhone": "No phone number"
     },
     "statUsers": "Total users",
     "statDrivers": "Drivers",

@@ -49,6 +49,79 @@ export async function upsertDriverLocation(
   return { error: error ? new Error(error.message) : null };
 }
 
+/**
+ * A phone that stands still still says where it is this often. The company and
+ * admin maps call a driver inactive after 5 minutes of silence; before this a
+ * driver waiting at a sightseeing stop sent nothing at all (the OS reported
+ * only movement), so a perfectly working phone faded off the map at every stop
+ * and came back when the car moved again.
+ */
+export const LOCATION_HEARTBEAT_MS = 60_000;
+/** A move this far is sent at once… */
+const LOCATION_MOVE_REPORT_M = 15;
+/** …but not more than once every few seconds: the map needs no more, the battery and the database do. */
+const LOCATION_MIN_GAP_MS = 5_000;
+
+let lastReported: { latitude: number; longitude: number; at: number; driverId: string } | null = null;
+
+function metersBetween(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const r = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 2 * r * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Whether this position is worth a write: moved far enough, or quiet for a heartbeat's time. */
+export function locationWorthReporting(
+  driverId: string,
+  latitude: number,
+  longitude: number,
+  now: number = Date.now(),
+): boolean {
+  const last = lastReported;
+  if (!last || last.driverId !== driverId) return true;
+  const elapsed = now - last.at;
+  if (elapsed >= LOCATION_HEARTBEAT_MS || elapsed < 0) return true;
+  if (elapsed < LOCATION_MIN_GAP_MS) return false;
+  return metersBetween(last, { latitude, longitude }) >= LOCATION_MOVE_REPORT_M;
+}
+
+/**
+ * The driver's position as the trip sends it — from the background task and
+ * from the open GPS screen alike, which share this one pace: right away when
+ * he has moved, once a minute while he stands. `upsertDriverLocation` writes
+ * unconditionally and stays for callers that must (going online, first fix).
+ */
+export async function reportDriverLocation(
+  driverId: string,
+  latitude: number,
+  longitude: number,
+  gpsMode?: GpsMode,
+): Promise<{ error: Error | null; skipped: boolean }> {
+  const now = Date.now();
+  if (!locationWorthReporting(driverId, latitude, longitude, now)) {
+    return { error: null, skipped: true };
+  }
+  const previous = lastReported;
+  lastReported = { latitude, longitude, at: now, driverId };
+  const { error } = await upsertDriverLocation(driverId, latitude, longitude, gpsMode);
+  // A failed write must not hold the next one back for a whole heartbeat.
+  if (error) lastReported = previous;
+  return { error, skipped: false };
+}
+
+/** Forget the pace (tests, sign-out): the next position is written at once. */
+export function resetLocationReporting(): void {
+  lastReported = null;
+}
+
 export async function clearDriverLocation(driverId: string): Promise<{ error: Error | null }> {
   const { error } = await supabase.from('driver_locations').delete().eq('driver_id', driverId);
   return { error: error ? new Error(error.message) : null };

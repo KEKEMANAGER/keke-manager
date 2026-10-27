@@ -4,6 +4,7 @@ import {
   vehiclePhotoObjectPath,
   verificationPhotoObjectPath,
 } from './mediaUpload';
+import { DOCUMENTS_BUCKET, documentPathFromRef } from './documentStorage';
 import { PICKUP_SIGN_LOGO_BUCKET } from './pickupSignLogo';
 import { VERIFICATION_DOC_COLUMNS, type VerificationDocSlot } from './verificationDocs';
 import { clearProfilePushToken } from './profiles';
@@ -96,7 +97,7 @@ async function deleteUserStorageFiles(userId: string): Promise<void> {
         .maybeSingle(),
       supabase
         .from('vehicles')
-        .select('photo_front, photo_left, photo_right, photo_interior, photo_rear')
+        .select('photo_front, photo_left, photo_right, photo_interior, photo_rear, tech_passport_front, tech_passport_back')
         .eq('driver_id', userId),
       supabase
         .from('bookings')
@@ -106,11 +107,19 @@ async function deleteUserStorageFiles(userId: string): Promise<void> {
       listPrefixPaths(MEDIA_BUCKET, `verification/${userId}`),
     ]);
 
+  // His documents in the private bucket (lib/documentStorage.ts).
+  const documentPaths = new Set<string>(await listPrefixPaths(DOCUMENTS_BUCKET, `verification/${userId}`));
+  const addDocument = (value: string | null | undefined) => {
+    const path = documentPathFromRef(value);
+    if (path) documentPaths.add(path);
+  };
+
   const userRow = userRes.data as Record<string, string | null> | null;
   if (userRow) {
     for (const url of Object.values(userRow)) {
       const path = storagePathFromPublicUrl(url, MEDIA_BUCKET);
       if (path) paths.add(path);
+      addDocument(url);
     }
   }
 
@@ -118,6 +127,7 @@ async function deleteUserStorageFiles(userId: string): Promise<void> {
     for (const url of Object.values(row as Record<string, string | null>)) {
       const path = storagePathFromPublicUrl(url, MEDIA_BUCKET);
       if (path) paths.add(path);
+      addDocument(url);
     }
   }
 
@@ -135,6 +145,7 @@ async function deleteUserStorageFiles(userId: string): Promise<void> {
   for (const p of odometerPaths) paths.add(p);
 
   await removeStoragePaths(MEDIA_BUCKET, [...paths]);
+  await removeStoragePaths(DOCUMENTS_BUCKET, [...documentPaths]);
   await removeStoragePaths(PICKUP_SIGN_LOGO_BUCKET, pickupPaths);
 }
 

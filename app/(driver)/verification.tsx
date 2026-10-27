@@ -2,7 +2,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,9 +14,10 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { isHiredDriver } from '../../lib/role';
 import { ensureMediaPermission } from '../../lib/mediaPermissions';
+import { DocumentImage } from '../../components/DocumentImage';
+import { uploadDocumentObject } from '../../lib/documentStorage';
 import {
   storagePublicUrlBase,
-  uploadMediaObject,
   verificationPhotoObjectPath,
   withCacheBust,
 } from '../../lib/mediaUpload';
@@ -201,7 +201,8 @@ export default function DriverVerificationScreen() {
 
       const localUri = asset.uri;
       const path = verificationPhotoObjectPath(userId, slot);
-      const publicUrl = await uploadMediaObject(path, localUri, { contentType: 'image/jpeg' });
+      // Into the private bucket: only he and an admin can open it.
+      const publicUrl = await uploadDocumentObject(path, localUri, { contentType: 'image/jpeg' });
       const { error } = await saveSingleVerificationDocument(userId, slot, publicUrl);
       if (error) {
         setSubmitError(error.message);
@@ -261,7 +262,7 @@ export default function DriverVerificationScreen() {
         <Text style={styles.slotLabel}>{t(`verificationScreen.${slot}`)}</Text>
         <Text style={styles.slotHint}>{t(`verificationScreen.${slot}Hint`)}</Text>
         {uri ? (
-          <Image source={{ uri }} style={styles.docPreview} resizeMode="cover" />
+          <DocumentImage uri={uri} style={styles.docPreview} resizeMode="cover" />
         ) : (
           <View style={styles.docPreviewPlaceholder}>
             <Text style={styles.docPreviewPh}>{t('verificationScreen.noPhoto')}</Text>

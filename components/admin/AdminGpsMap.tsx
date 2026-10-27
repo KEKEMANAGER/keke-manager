@@ -7,6 +7,8 @@ import { MapErrorBoundary } from '../maps/MapErrorBoundary';
 import { COLORS, RADIUS, SHADOWS } from '../../constants/theme';
 import {
   adminGpsMarkerColor,
+  formatAdminGpsAgo,
+  isAdminGpsActive,
   type AdminGpsDriverLocation,
 } from '../../lib/adminGps';
 
@@ -86,6 +88,8 @@ export function AdminGpsMap({
                 key={loc.driver_id}
                 coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
                 onPress={() => onSelectDriver(loc.driver_id)}
+                // A live driver is never hidden under a stale grey pin.
+                zIndex={selected ? 2 : isAdminGpsActive(loc.updated_at) ? 1 : 0}
               >
                 <View style={styles.markerWrap}>
                   <View
@@ -103,7 +107,15 @@ export function AdminGpsMap({
                     <Text style={styles.calloutName} numberOfLines={1}>
                       {loc.full_name ?? t('common.driver')}
                     </Text>
-                    <Text style={styles.calloutMeta}>{statusLabel(loc.booking_status, t)}</Text>
+                    {loc.phone ? (
+                      <Text style={styles.calloutPhone} numberOfLines={1}>
+                        {loc.phone}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.calloutMeta}>
+                      {statusLabel(loc.booking_status, t)}
+                      {` · ${formatAdminGpsAgo(loc.updated_at)} ${t('tracking.ago')}`}
+                    </Text>
                   </View>
                 </Callout>
               </Marker>
@@ -157,5 +169,6 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   calloutName: { fontSize: 12, fontWeight: '700', color: COLORS.text },
+  calloutPhone: { fontSize: 12, fontWeight: '700', color: COLORS.goldDark, marginTop: 2 },
   calloutMeta: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
 });

@@ -290,3 +290,103 @@ revoke execute on function public.guard_users_privileged_columns() from authenti
 revoke execute on function public.sync_driver_profile() from authenticated;
 revoke execute on function public.sync_profile_on_vehicle_change() from authenticated;
 revoke execute on function public.sync_push_token_to_profiles() from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 4. Drivers' documents — ID card, driving licence, tech passport — in a
+--    private bucket.
+--
+-- They sat in the public bucket, where a link opens them for anyone, and a
+-- link is easy to build from a user id. The app now uploads them here and
+-- shows them through signed links that expire within the hour
+-- (lib/documentStorage.ts). Only the driver himself and an admin may read or
+-- replace them. The files already uploaded are moved here afterwards.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'documents', 'documents', false, 10485760,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+)
+on conflict (id) do update set public = false;
+
+create or replace function public.document_path_is_mine(p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select auth.uid() is not null and (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'admin')
+    or (split_part(p_name, '/', 1) in ('verification', 'verifications')
+        and split_part(p_name, '/', 2) = auth.uid()::text)
+    or (split_part(p_name, '/', 1) = 'vehicles'
+        and (split_part(p_name, '/', 2) = auth.uid()::text
+             or exists (select 1
+                          from public.vehicles v
+                         where v.id::text = split_part(p_name, '/', 2)
+                           and v.driver_id = auth.uid())))
+  );
+$$;
+
+revoke all on function public.document_path_is_mine(text) from public, anon;
+grant execute on function public.document_path_is_mine(text) to authenticated, service_role;
+
+create policy documents_select_own on storage.objects
+  for select to authenticated
+  using (bucket_id = 'documents' and public.document_path_is_mine(name));
+
+create policy documents_insert_own on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'documents' and public.document_path_is_mine(name));
+
+create policy documents_update_own on storage.objects
+  for update to authenticated
+  using (bucket_id = 'documents' and public.document_path_is_mine(name))
+  with check (bucket_id = 'documents' and public.document_path_is_mine(name));
+
+create policy documents_delete_own on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'documents' and public.document_path_is_mine(name));
+
+-- ---------------------------------------------------------------------------
+-- 5. profiles: e-mail and birth date are nobody else's business.
+--
+-- Every signed-in account could read every profile's e-mail and birth date.
+-- The other columns stay readable (names, photos, push tokens — the app needs
+-- them); those two only through the owner's own function.
+revoke select on public.profiles from anon, authenticated;
+grant select (id, full_name, vehicle_type, vehicle_class, push_token, created_at, is_verified, languages, avatar_url)
+  on public.profiles to authenticated;
+
+create or replace function public.my_birth_date()
+returns date
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.birth_date from public.profiles p where p.id = auth.uid();
+$$;
+
+revoke all on function public.my_birth_date() from public, anon;
+grant execute on function public.my_birth_date() to authenticated, service_role;
+
+-- Saving it: an upsert of birth_date would now be refused (ON CONFLICT DO
+-- UPDATE reads the column), so the app saves one's own date through this.
+create or replace function public.set_my_birth_date(p_birth_date date)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not signed in' using errcode = '28000';
+  end if;
+  insert into public.profiles (id, birth_date)
+  values (auth.uid(), p_birth_date)
+  on conflict (id) do update set birth_date = excluded.birth_date;
+end;
+$$;
+
+revoke all on function public.set_my_birth_date(date) from public, anon;
+grant execute on function public.set_my_birth_date(date) to authenticated, service_role;

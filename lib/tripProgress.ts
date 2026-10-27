@@ -42,6 +42,17 @@ const MAX_PLAUSIBLE_SEGMENT_M = 3000;
 /** Ignore a second fix that lands on top of the previous one; it only adds noise. */
 const MIN_SEGMENT_M = 8;
 
+/**
+ * A point closer than this to the last counted one is not a step of the trip.
+ *
+ * The phone now reports its position while the car stands still too — that is
+ * what keeps a driver at a sightseeing stop on the company's map. Those points
+ * must not become distance: the counted point stays where it was until the car
+ * has really moved this far, the same 15 m the OS used to wait for before it
+ * reported anything at all.
+ */
+export const TRIP_STEP_M = 15;
+
 export type Coords = { latitude: number; longitude: number };
 
 export type TripDestination = Coords & {
@@ -268,6 +279,22 @@ export async function recordPoint(
 
   const current = (await readProgress(id)) ?? emptyProgress(id);
   const previous = current.lastPoint;
+
+  if (previous && haversineMeters(previous, coords) < TRIP_STEP_M) {
+    // Standing, or creeping within GPS noise: nothing to add, and the counted
+    // point stays put so that small creeps add up once they amount to a step.
+    // Still an arrival if this is the moment he came within reach.
+    if (
+      current.destination &&
+      current.arrivedAt === null &&
+      haversineMeters(coords, current.destination) <= ARRIVAL_RADIUS_M
+    ) {
+      const arrived: TripProgress = { ...current, arrivedAt: at };
+      await writeProgress(arrived);
+      return { progress: arrived, justArrived: true };
+    }
+    return { progress: current, justArrived: false };
+  }
 
   let distanceM = current.distanceM;
   let speedMps = current.speedMps;

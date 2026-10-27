@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -12,11 +11,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { ensureMediaPermission } from '../../lib/mediaPermissions';
-import {
-  uploadMediaObject,
-  vehicleTechPassportObjectPath,
-  withCacheBust,
-} from '../../lib/mediaUpload';
+import { DocumentImage } from '../DocumentImage';
+import { isDocumentRef, uploadDocumentObject } from '../../lib/documentStorage';
+import { vehicleTechPassportObjectPath, withCacheBust } from '../../lib/mediaUpload';
 import type { VehicleRow, VehicleTechPassportKey } from '../../lib/vehicles';
 import {
   saveVehicleTechPassportUrl,
@@ -72,7 +69,8 @@ export function VehicleTechPassportSection({
         if (res.canceled || !res.assets[0]) return;
 
         const path = vehicleTechPassportObjectPath(vehicle.id, slot);
-        const publicUrl = await uploadMediaObject(path, res.assets[0]!.uri, {
+        // Into the private bucket: only the driver and an admin can open it.
+        const publicUrl = await uploadDocumentObject(path, res.assets[0]!.uri, {
           contentType: 'image/jpeg',
         });
         const { error } = await saveVehicleTechPassportUrl(vehicle.id, driverId, slot, publicUrl);
@@ -142,8 +140,10 @@ export function VehicleTechPassportSection({
 
       {SLOTS.map((slot) => {
         const uri = vehicle[slot];
+        // A private document gets a fresh signed link of its own; only an old
+        // public photo needs the cache-buster.
         const busted =
-          uri && uri.startsWith('http')
+          uri && uri.startsWith('http') && !isDocumentRef(uri)
             ? withCacheBust(uri) ?? uri
             : uri;
         const uploaded = vehicleTechPassportSlotUploaded(vehicle, slot);
@@ -153,7 +153,7 @@ export function VehicleTechPassportSection({
             <Text style={styles.slotLabel}>{t(`verificationScreen.${slot}`)}</Text>
             <Text style={styles.slotHint}>{t(`verificationScreen.${slot}Hint`)}</Text>
             {busted ? (
-              <Image source={{ uri: busted }} style={styles.preview} resizeMode="cover" />
+              <DocumentImage uri={busted} style={styles.preview} resizeMode="cover" />
             ) : (
               <View style={styles.previewPh}>
                 <Text style={styles.previewPhText}>{t('verificationScreen.noPhoto')}</Text>

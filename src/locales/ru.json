@@ -1317,7 +1317,10 @@
       "filterAllKinds": "Все типы",
       "filterActive": "Активные",
       "filterInactive": "Неактивные",
-      "filterAllCities": "Все города"
+      "filterAllCities": "Все города",
+      "countSummary": "{{active}} активных · всего {{total}}",
+      "call": "Позвонить",
+      "noPhone": "Номер не указан"
     },
     "statUsers": "Всего пользователей",
     "statDrivers": "Водители",

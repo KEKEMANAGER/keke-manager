@@ -22,6 +22,8 @@ import type { BookingRow } from '../../lib/bookings';
 import type { VehicleRow } from '../../lib/vehicles';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
+import { DocumentImage } from '../DocumentImage';
+import { viewableDocumentUri } from '../../lib/documentStorage';
 
 type Props = {
   userId: string;
@@ -267,8 +269,8 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
                   onPress={() => setPreview({ url: d.url, title: d.key })}
                   style={({ pressed }) => [styles.docThumb, pressed && { opacity: 0.9 }]}
                 >
-                  <Image
-                    source={{ uri: d.url }}
+                  <DocumentImage
+                    uri={d.url}
                     style={styles.docImage}
                     resizeMode="cover"
                     onError={() => setPreview(null)}
@@ -378,9 +380,18 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>{preview?.title}</Text>
             {preview?.url ? (
-              <Image source={{ uri: preview.url }} style={styles.previewImage} resizeMode="contain" />
+              <DocumentImage uri={preview.url} style={styles.previewImage} resizeMode="contain" />
             ) : null}
-            <Pressable onPress={() => preview && void Linking.openURL(preview.url)} style={adminStyles.btnOutline}>
+            <Pressable
+              onPress={() => {
+                if (!preview) return;
+                // A private document opens through a signed link, not its stored address.
+                void viewableDocumentUri(preview.url).then((url) => {
+                  if (url) void Linking.openURL(url);
+                });
+              }}
+              style={adminStyles.btnOutline}
+            >
               <Text style={adminStyles.btnOutlineText}>{t('adminVerify.viewDocument')}</Text>
             </Pressable>
           </View>

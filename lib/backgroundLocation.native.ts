@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
-import { upsertDriverLocation } from './locations';
+import { reportDriverLocation } from './locations';
 import { supabase } from './supabase';
 import { notifyArrival, recordPoint } from './tripProgress';
 
@@ -89,11 +89,12 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
       return;
     }
 
-    const locations = data?.locations;
-    if (!locations || locations.length === 0) return;
+    const locations = (data?.locations ?? []).filter(
+      (l) => l?.coords && Number.isFinite(l.coords.latitude) && Number.isFinite(l.coords.longitude),
+    );
+    if (locations.length === 0) return;
 
-    const last = locations[locations.length - 1];
-    if (!last?.coords) return;
+    const last = locations[locations.length - 1]!;
 
     const driverId = await resolveDriverId();
     if (!driverId) {
@@ -101,7 +102,9 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
       return;
     }
 
-    const { error: locErr } = await upsertDriverLocation(
+    // Moving: sent at once. Standing: once a minute, so a driver at a stop
+    // stays on the map instead of going grey (lib/locations.ts).
+    const { error: locErr } = await reportDriverLocation(
       driverId,
       last.coords.latitude,
       last.coords.longitude,
@@ -113,19 +116,24 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
     // paid for, the speed his arrival time is calculated from, and whether he
     // has reached the address. This is the half of the feature that belongs to
     // the person holding the phone, and it only works here — at the wheel the
-    // app is behind Maps or a dark screen.
+    // app is behind Maps or a dark screen. Every point of the batch, in order:
+    // the batch spans several seconds of road.
     const bookingId = await resolveBookingId();
     if (!bookingId) return;
 
     try {
-      const result = await recordPoint(
-        bookingId,
-        { latitude: last.coords.latitude, longitude: last.coords.longitude },
-        last.timestamp ?? Date.now(),
-      );
-      if (result?.justArrived) {
+      let arrival: Awaited<ReturnType<typeof recordPoint>> = null;
+      for (const loc of locations) {
+        const result = await recordPoint(
+          bookingId,
+          { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
+          loc.timestamp ?? Date.now(),
+        );
+        if (result?.justArrived && !arrival) arrival = result;
+      }
+      if (arrival) {
         const copy = await resolveArrivalCopy();
-        await notifyArrival(copy.title, copy.body || result.progress.destination?.label || '');
+        await notifyArrival(copy.title, copy.body || arrival.progress.destination?.label || '');
       }
     } catch (e) {
       if (__DEV__) console.warn('[bg-location] trip progress failed:', e);
@@ -244,6 +252,13 @@ export async function startBackgroundLocation(
 
     const alreadyStarted = await isBackgroundLocationRunning();
     if (alreadyStarted) {
+      if (!(await tripTaskOptionsCurrent())) {
+        try {
+          await startTripTask(notificationTitle, notificationBody);
+        } catch (e) {
+          if (__DEV__) console.warn('[bg-location] options refresh failed:', e);
+        }
+      }
       return { ok: true, backgroundGranted, running: true };
     }
 
@@ -257,10 +272,7 @@ export async function startBackgroundLocation(
     // only while the app was open, so his pin froze the moment he switched to
     // Maps or locked the screen.
     try {
-      await Location.startLocationUpdatesAsync(
-        LOCATION_TASK_NAME,
-        tripTaskOptions(notificationTitle, notificationBody),
-      );
+      await startTripTask(notificationTitle, notificationBody);
     } catch (e) {
       // Location services off, or the OS refused the service. The trip still
       // runs on the open screen's watch, exactly as it did before this change,
@@ -277,14 +289,57 @@ export async function startBackgroundLocation(
   }
 }
 
+/**
+ * Bumped whenever tripTaskOptions changes, so a trip whose task was started by
+ * an older app version gets the new options the next time the app opens
+ * (resumeTripLocation), not only on the next trip.
+ *   2 — positions keep coming while the car stands still (was: only on moves
+ *       of 15 m, so a driver at a stop vanished from the map).
+ */
+const TRIP_TASK_OPTIONS_VERSION = '2';
+const OPTIONS_VERSION_KEY = 'bg-location:options-version';
+
+async function tripTaskOptionsCurrent(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(OPTIONS_VERSION_KEY)) === TRIP_TASK_OPTIONS_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+/** The trip's task runs, and with this app version's options. */
+export async function isTripTaskCurrent(): Promise<boolean> {
+  return (await isBackgroundLocationRunning()) && (await tripTaskOptionsCurrent());
+}
+
+async function startTripTask(notificationTitle?: string, notificationBody?: string): Promise<void> {
+  await Location.startLocationUpdatesAsync(
+    LOCATION_TASK_NAME,
+    tripTaskOptions(notificationTitle, notificationBody),
+  );
+  try {
+    await AsyncStorage.setItem(OPTIONS_VERSION_KEY, TRIP_TASK_OPTIONS_VERSION);
+  } catch {
+    // best effort: worst case the options are re-applied once more
+  }
+}
+
 function tripTaskOptions(
   notificationTitle?: string,
   notificationBody?: string,
 ): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.High,
+    // A fix every 5 s whether the car moves or not (Android), every fix (iPhone):
+    // a phone at a sightseeing stop keeps saying where it is. The 15 m the OS
+    // used to wait for now lives in the trip's own bookkeeping (TRIP_STEP_M)
+    // and in how often a position is written (lib/locations.ts).
     timeInterval: 5000,
-    distanceInterval: 15,
+    distanceInterval: 0,
+    // With the app minimized the fixes arrive in one batch every 10 s instead
+    // of waking the app for each one.
+    deferredUpdatesInterval: 10_000,
+    deferredUpdatesDistance: 0,
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
     foregroundService: {
@@ -352,7 +407,19 @@ export async function resumeTripLocation(options: ResumeTripLocationOptions): Pr
   const trip = options.bookingId?.trim();
   if (!id || !trip) return false;
   try {
-    if (await isBackgroundLocationRunning()) return true;
+    if (await isBackgroundLocationRunning()) {
+      // Running, but perhaps with the options of an older app version (a trip
+      // that was already under way when the update arrived): apply the current
+      // ones. Same task, same permission — nothing is asked or shown.
+      if (!(await tripTaskOptionsCurrent())) {
+        try {
+          await startTripTask(options.notificationTitle, options.notificationBody);
+        } catch (e) {
+          if (__DEV__) console.warn('[bg-location] options refresh failed:', e);
+        }
+      }
+      return true;
+    }
     const fg = await Location.getForegroundPermissionsAsync();
     if (fg.status !== 'granted') return false;
     if (!(await hasBackgroundTrackingConsent())) return false;
@@ -366,10 +433,7 @@ export async function resumeTripLocation(options: ResumeTripLocationOptions): Pr
         body: options.arrivalBody?.trim() || '',
       }),
     );
-    await Location.startLocationUpdatesAsync(
-      LOCATION_TASK_NAME,
-      tripTaskOptions(options.notificationTitle, options.notificationBody),
-    );
+    await startTripTask(options.notificationTitle, options.notificationBody);
     return true;
   } catch (e) {
     if (__DEV__) console.warn('[bg-location] resume failed:', e);

@@ -4,6 +4,8 @@ import { loadLeaflet } from '../../lib/loadLeaflet.web';
 import {
   adminGpsMarkerColor,
   adminGpsMarkerEmoji,
+  adminGpsTelHref,
+  formatAdminGpsAgo,
   isAdminGpsActive,
   type AdminGpsDriverLocation,
 } from '../../lib/adminGps';
@@ -22,16 +24,48 @@ function escapeHtml(s: string): string {
   return s.replace(/[<>&"]/g, '');
 }
 
+/** The marker box: the dot, then the name and phone label under it. */
+const MARKER_W = 160;
+function markerDotSize(selected: boolean): number {
+  return selected ? 40 : 34;
+}
+function markerBoxHeight(loc: AdminGpsDriverLocation, selected: boolean): number {
+  const lines = (loc.full_name?.trim() ? 1 : 0) + (adminGpsTelHref(loc.phone) ? 1 : 0);
+  return markerDotSize(selected) + (lines ? 4 + 4 + lines * 14 : 0);
+}
+
 function markerHtml(loc: AdminGpsDriverLocation, selected: boolean): string {
   const color = adminGpsMarkerColor(loc);
   const active = isAdminGpsActive(loc.updated_at);
-  const size = selected ? 40 : 34;
+  const size = markerDotSize(selected);
   const border = selected ? '3px solid #1A1A2E' : '2px solid #fff';
   const emoji = adminGpsMarkerEmoji(loc);
   const pulse = active
     ? `animation:admin-gps-pulse 1.8s ease-out infinite;`
     : 'opacity:0.55;';
   const name = escapeHtml(loc.full_name?.trim() ?? '');
+  // The number sits right under the name, so the admin can call without
+  // opening anything first.
+  const tel = adminGpsTelHref(loc.phone);
+  const phone = escapeHtml(loc.phone?.trim() ?? '');
+  const phoneLine = tel
+    ? `<a href="${escapeHtml(tel)}" style="
+        display:block;margin-top:1px;white-space:nowrap;text-decoration:none;
+        font:700 11px/1.25 system-ui,sans-serif;color:#B8860B;
+      ">📞 ${phone}</a>`
+    : '';
+  const label =
+    name || phoneLine
+      ? `<div style="
+        margin-top:4px;max-width:${MARKER_W}px;text-align:center;
+        background:rgba(255,255,255,0.94);padding:2px 6px;border-radius:4px;
+        box-shadow:0 1px 3px rgba(0,0,0,0.15);
+      ">${
+        name
+          ? `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 11px/1.25 system-ui,sans-serif;color:#1A1A2E;">${name}</div>`
+          : ''
+      }${phoneLine}</div>`
+      : '';
 
   return `
     <style>
@@ -49,15 +83,7 @@ function markerHtml(loc: AdminGpsDriverLocation, selected: boolean): string {
         display:flex;align-items:center;justify-content:center;
         font-size:16px;line-height:1;${pulse}
       ">${emoji}</div>
-      ${
-        name
-          ? `<span style="
-        margin-top:4px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-        font:600 11px/1.2 system-ui,sans-serif;color:#1A1A2E;
-        background:rgba(255,255,255,0.92);padding:2px 6px;border-radius:4px;
-      ">${name}</span>`
-          : ''
-      }
+      ${label}
     </div>
   `;
 }
@@ -66,9 +92,15 @@ function popupHtml(loc: AdminGpsDriverLocation, formatAgo: (iso: string) => stri
   const name = escapeHtml(loc.full_name?.trim() ?? '—');
   const vehicle = escapeHtml(loc.vehicle_label ?? '—');
   const updated = escapeHtml(formatAgo(loc.updated_at));
+  const tel = adminGpsTelHref(loc.phone);
+  const phone = escapeHtml(loc.phone?.trim() ?? '');
+  const phoneLine = tel
+    ? `<a href="${escapeHtml(tel)}" style="display:inline-block;margin:2px 0 4px;color:#B8860B;font-weight:700;text-decoration:none;">📞 ${phone}</a><br/>`
+    : '';
   return `
     <div style="font:13px/1.4 system-ui,sans-serif;min-width:140px;">
       <strong style="display:block;margin-bottom:4px;color:#1A1A2E;">${name}</strong>
+      ${phoneLine}
       <span style="color:#6B7280;">${vehicle}</span><br/>
       <span style="color:#9CA3AF;font-size:12px;">${updated}</span>
     </div>
@@ -137,11 +169,7 @@ export function AdminGpsMap({
     if (!map || !layer) return;
 
     void loadLeaflet().then((L) => {
-      const formatAgo = (iso: string) => {
-        const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-        if (s < 60) return `${s}s`;
-        return `${Math.floor(s / 60)}m`;
-      };
+      const formatAgo = (iso: string) => formatAdminGpsAgo(iso);
 
       const nextIds = new Set(locations.map((l) => l.driver_id));
       for (const [id, marker] of markersRef.current) {
@@ -159,11 +187,15 @@ export function AdminGpsMap({
         latLngs.push(latLng);
 
         const selected = loc.driver_id === selectedId;
+        // A live driver's label is never hidden under a stale grey pin.
+        const zIndexOffset = selected ? 2000 : isAdminGpsActive(loc.updated_at) ? 1000 : 0;
         const icon = L.divIcon({
           className: '',
           html: markerHtml(loc, selected),
-          iconSize: [120, selected ? 68 : 58],
-          iconAnchor: [60, selected ? 34 : 29],
+          iconSize: [MARKER_W, markerBoxHeight(loc, selected)],
+          // The dot's centre is the driver's position; the label hangs below.
+          iconAnchor: [MARKER_W / 2, markerDotSize(selected) / 2],
+          popupAnchor: [0, -markerDotSize(selected) / 2],
         });
 
         let marker = markersRef.current.get(loc.driver_id);
@@ -171,9 +203,9 @@ export function AdminGpsMap({
           marker.setLatLng(latLng);
           marker.setIcon(icon);
           marker.setPopupContent(popupHtml(loc, formatAgo));
-          marker.setZIndexOffset(selected ? 1000 : 0);
+          marker.setZIndexOffset(zIndexOffset);
         } else {
-          marker = L.marker(latLng, { icon }).addTo(layer);
+          marker = L.marker(latLng, { icon, zIndexOffset }).addTo(layer);
           marker.bindPopup(popupHtml(loc, formatAgo), { closeButton: false, offset: [0, -8] });
           marker.on('click', () => onSelectRef.current(loc.driver_id));
           marker.on('mouseover', () => {
