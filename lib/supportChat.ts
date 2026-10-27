@@ -19,8 +19,12 @@ export type SupportInboxRow = {
   user_email: string | null;
   /** The person's own profile photo, when they have one. */
   user_avatar_url: string | null;
+  /** driver / company, for the label next to the name. */
+  user_role: string | null;
   last_text: string;
   last_at: string;
+  /** The last message in the thread is the admin's own reply. */
+  last_from_admin: boolean;
   unread_count: number;
 };
 
@@ -125,7 +129,10 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
   type Row = { sender_id: string; receiver_id: string; text: string; is_read: boolean; created_at: string };
   const rows = (data ?? []) as Row[];
 
-  const byUser = new Map<string, { last_text: string; last_at: string; unread_count: number }>();
+  const byUser = new Map<
+    string,
+    { last_text: string; last_at: string; last_from_admin: boolean; unread_count: number }
+  >();
   for (const row of rows) {
     const endUserId = row.sender_id === aid ? row.receiver_id : row.sender_id;
     if (endUserId === aid) continue;
@@ -135,6 +142,7 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
       byUser.set(endUserId, {
         last_text: row.text,
         last_at: row.created_at,
+        last_from_admin: row.sender_id === aid,
         unread_count: row.receiver_id === aid && !row.is_read ? 1 : 0,
       });
     } else if (row.receiver_id === aid && !row.is_read) {
@@ -147,7 +155,7 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
 
   const { data: users } = await supabase
     .from('users')
-    .select('id, full_name, email, avatar_url')
+    .select('id, full_name, email, avatar_url, role')
     .in('id', userIds);
 
   type UserRow = {
@@ -155,6 +163,7 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
     full_name: string | null;
     email: string | null;
     avatar_url: string | null;
+    role: string | null;
   };
   const userMap = new Map<string, UserRow>(
     ((users ?? []) as UserRow[]).map((u) => [u.id, u]),
@@ -169,6 +178,7 @@ export async function fetchSupportInbox(adminUserId: string): Promise<{
         user_name: u?.full_name?.trim() || u?.email?.trim() || null,
         user_email: u?.email?.trim() || null,
         user_avatar_url: u?.avatar_url?.trim() || null,
+        user_role: u?.role?.trim() || null,
         ...c,
       };
     })

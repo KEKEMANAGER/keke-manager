@@ -3,7 +3,7 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
+  type FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,26 +17,16 @@ import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
 import { useTranslation } from 'react-i18next';
 import { ChatScreenHeader } from '../../components/layout/ChatScreenHeader';
 import { CONTENT_PADDING_BOTTOM } from '../../constants/layout';
-import { COLORS, RADIUS, SPACING } from '../../constants/theme';
+import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import type { ChatThreadType, ParticipantRole } from '../../lib/bookingChat';
-import {
-  fetchMessages,
-  findActiveBookingWithPeer,
-  markMessagesRead,
-  sendMessage,
-  subscribeToMessages,
-  type MessageRow,
-} from '../../lib/messages';
+import { findActiveBookingWithPeer, sendMessage } from '../../lib/messages';
+import { ChatMessageList, type ChatListItem } from '../../components/chat/ChatMessageList';
+import { useChatThread } from '../../hooks/useChatThread';
 import { adminPanelBackHref } from '../../lib/adminNav';
 import { supabase } from '../../lib/supabase';
-import { notifyChatUnreadMayHaveChanged } from '../../lib/useChatUnreadCount';
 import { SUPPORT_THREAD_TYPE } from '../../lib/supportChat';
 import { clearOpenChat, setOpenChat } from '../../lib/chatFocus';
-
-function formatMsgTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
 
 export default function CompanyChatScreen() {
   const { t } = useTranslation();
@@ -78,9 +68,6 @@ export default function CompanyChatScreen() {
       : t('supportChat.title')
     : name?.trim() || resolvedName || t('common.driver');
 
-  const [messages, setMessages] = useState<MessageRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -90,48 +77,18 @@ export default function CompanyChatScreen() {
    *  conversation row) — resolved by looking up whether an active tour currently connects the two
    *  people, so sending is gated on real state rather than on how the screen was opened. */
   const [resolvedBookingId, setResolvedBookingId] = useState<string | null>(null);
-  const listRef = useRef<FlatList<MessageRow>>(null);
+  const listRef = useRef<FlatList<ChatListItem>>(null);
 
   const scrollToBottom = useCallback((animated: boolean) => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated }), 60);
   }, []);
 
-  const load = useCallback(async () => {
-    if (!user?.id || !otherUserId) {
-      setLoading(false);
-      return;
-    }
-    setLoadError(null);
-    try {
-      const { data, error } = await fetchMessages(user.id, otherUserId, threadOpts);
-      if (error) {
-        setLoadError(t('chat.loadError'));
-        setMessages([]);
-      } else {
-        setMessages(Array.isArray(data) ? data : []);
-      }
-      scrollToBottom(false);
-      await markMessagesRead(user.id, otherUserId, threadOpts);
-      notifyChatUnreadMayHaveChanged();
-    } catch {
-      setLoadError(t('chat.loadError'));
-      setMessages([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, otherUserId, scrollToBottom, threadOpts, t]);
-
-  // A different conversation starts clean. Without this the previous person's
-  // messages stayed on screen until the new ones arrived — same stale-peer
-  // problem as the avatar above, just a bigger thing to leave showing.
-  useEffect(() => {
-    setMessages([]);
-    setLoading(true);
-  }, [otherUserId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { messages, loading, loadError, reload, appendSent } = useChatThread({
+    userId: user?.id,
+    otherUserId,
+    threadOpts,
+    onArrival: (kind) => scrollToBottom(kind === 'live'),
+  });
 
   // While this conversation is on screen, its messages are not announced on
   // top of it — no banner, sound or dialog on the phone, no popup in the
@@ -206,25 +163,6 @@ export default function CompanyChatScreen() {
     };
   }, [isSupport, threadOpts, user?.id, otherUserId]);
 
-  useEffect(() => {
-    if (!user?.id || !otherUserId) return;
-    const ch = subscribeToMessages(
-      user.id,
-      otherUserId,
-      (msg) => {
-        setMessages((prev) => [...prev, msg]);
-        scrollToBottom(true);
-        void markMessagesRead(user.id!, otherUserId, threadOpts)
-          .then(() => notifyChatUnreadMayHaveChanged())
-          .catch(() => undefined);
-      },
-      threadOpts,
-    );
-    return () => {
-      void supabase.removeChannel(ch);
-    };
-  }, [user?.id, otherUserId, scrollToBottom, threadOpts]);
-
   async function onSend() {
     if (!user?.id || !text.trim() || sending) return;
     const effectiveBookingId =
@@ -252,7 +190,7 @@ export default function CompanyChatScreen() {
       setSendError(t('chat.sendError'));
       return;
     }
-    setMessages((prev) => [...prev, sent]);
+    appendSent(sent);
     scrollToBottom(true);
   }
 
@@ -274,8 +212,8 @@ export default function CompanyChatScreen() {
 
       {loadError && !loading ? (
         <View style={styles.loadErrorWrap}>
-          <Text style={styles.loadErrorText}>{loadError}</Text>
-          <Pressable onPress={() => void load()} style={styles.loadErrorRetry}>
+          <Text style={styles.loadErrorText}>{t('chat.loadError')}</Text>
+          <Pressable onPress={() => void reload()} style={styles.loadErrorRetry}>
             <Text style={styles.loadErrorRetryText}>{t('common.retry')}</Text>
           </Pressable>
         </View>
@@ -286,38 +224,12 @@ export default function CompanyChatScreen() {
           <ActivityIndicator color={COLORS.gold} size="large" />
         </View>
       ) : (
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[
-            styles.msgList,
-            messages.length === 0 && styles.msgListEmpty,
-            { paddingBottom: CONTENT_PADDING_BOTTOM },
-          ]}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="chatbubble-outline" size={40} color={COLORS.textMuted} />
-              <Text style={styles.emptyText}>
-                {isSupport ? t('supportChat.emptyMessages') : t('chat.emptyMessages')}
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const isMine = item.sender_id === user?.id;
-            return (
-              <View style={[styles.msgRow, isMine ? styles.msgRowMine : styles.msgRowTheirs]}>
-                <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                  <Text style={[styles.msgText, isMine ? styles.msgTextMine : styles.msgTextTheirs]}>
-                    {item.text}
-                  </Text>
-                  <Text style={[styles.timeText, isMine ? styles.timeTextMine : styles.timeTextTheirs]}>
-                    {formatMsgTime(item.created_at)}
-                  </Text>
-                </View>
-              </View>
-            );
-          }}
+        <ChatMessageList
+          listRef={listRef}
+          messages={messages}
+          myId={user?.id}
+          emptyText={isSupport ? t('supportChat.emptyMessages') : t('chat.emptyMessages')}
+          paddingBottom={CONTENT_PADDING_BOTTOM}
         />
       )}
 
@@ -343,7 +255,24 @@ export default function CompanyChatScreen() {
           placeholderTextColor={COLORS.textMuted}
           multiline
           maxLength={1000}
-          onSubmitEditing={Platform.OS !== 'web' ? undefined : () => void onSend()}
+          // On a computer Enter sends and Shift+Enter starts a new line. (A
+          // multi-line box on the web never fires onSubmitEditing, so Enter
+          // used to do nothing at all.)
+          onKeyPress={
+            Platform.OS === 'web'
+              ? (e) => {
+                  const k = e.nativeEvent as unknown as {
+                    key?: string;
+                    shiftKey?: boolean;
+                    isComposing?: boolean;
+                  };
+                  if (k.key === 'Enter' && !k.shiftKey && !k.isComposing) {
+                    (e as unknown as { preventDefault?: () => void }).preventDefault?.();
+                    void onSend();
+                  }
+                }
+              : undefined
+          }
         />
         <Pressable
           onPress={() => void onSend()}
@@ -374,71 +303,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  msgList: {
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
-    gap: SPACING.sm,
-  },
-  msgListEmpty: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  emptyWrap: {
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  emptyText: {
-    color: COLORS.textMuted,
-    fontSize: 15,
-    textAlign: 'center',
-  },
-  msgRow: {
-    flexDirection: 'row',
-    marginBottom: SPACING.xs,
-  },
-  msgRowMine: {
-    justifyContent: 'flex-end',
-  },
-  msgRowTheirs: {
-    justifyContent: 'flex-start',
-  },
-  bubble: {
-    maxWidth: '75%',
-    borderRadius: RADIUS.card,
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
-    paddingBottom: 6,
-    gap: 4,
-  },
-  bubbleMine: {
-    backgroundColor: '#FEF3C7',
-    borderBottomRightRadius: 4,
-  },
-  bubbleTheirs: {
-    backgroundColor: COLORS.surface,
-    borderBottomLeftRadius: 4,
-  },
-  msgText: {
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  msgTextMine: {
-    color: COLORS.text,
-  },
-  msgTextTheirs: {
-    color: COLORS.text,
-  },
-  timeText: {
-    fontSize: 11,
-  },
-  timeTextMine: {
-    color: COLORS.goldDark,
-    textAlign: 'right',
-  },
-  timeTextTheirs: {
-    color: COLORS.textMuted,
-    textAlign: 'left',
   },
   loadErrorWrap: {
     paddingHorizontal: SPACING.lg,
@@ -479,17 +343,18 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.card,
+    backgroundColor: '#F1F2F5',
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.sm,
+    borderColor: '#E6E8EC',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 11,
+    paddingBottom: 11,
     fontSize: 15,
     color: COLORS.text,
     maxHeight: 120,
     minHeight: 44,
+    ...(Platform.OS === 'web' ? ({ outlineWidth: 0 } as object) : null),
   },
   sendBtn: {
     width: 44,

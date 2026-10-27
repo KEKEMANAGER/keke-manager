@@ -421,6 +421,31 @@ export async function fetchConversations(userId: string): Promise<{
   return { data: conversations, error: null };
 }
 
+/**
+ * Messages of one conversation, merged by id and kept in time order. A message
+ * can arrive twice (live and again from the periodic check); a second copy only
+ * replaces the first when something changed — for example it has been read.
+ */
+export function mergeMessages(prev: MessageRow[], incoming: MessageRow[]): MessageRow[] {
+  if (!incoming.length) return prev;
+  const byId = new Map(prev.map((m) => [m.id, m]));
+  let changed = false;
+  for (const m of incoming) {
+    if (!m?.id) continue;
+    const old = byId.get(m.id);
+    if (!old || old.is_read !== m.is_read || old.text !== m.text) {
+      byId.set(m.id, m);
+      changed = true;
+    }
+  }
+  if (!changed) return prev;
+  return [...byId.values()].sort(
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime() ||
+      a.id.localeCompare(b.id),
+  );
+}
+
 export function subscribeToMessages(
   userId: string,
   otherUserId: string,
@@ -429,12 +454,18 @@ export function subscribeToMessages(
 ) {
   const bookingId = options && 'bookingId' in options ? options.bookingId?.trim() : undefined;
   const threadType = options?.threadType;
-  const channelKey =
+  const channelBase =
     threadType === SUPPORT_THREAD_TYPE
       ? `msgs-support-${[userId, otherUserId].sort().join('-')}`
       : bookingId && threadType
         ? `msgs-${bookingId}-${threadType}`
         : `msgs-${[userId, otherUserId].sort().join('-')}`;
+  // A fresh channel every time. `supabase.channel(name)` hands back an existing
+  // channel with the same name, so re-subscribing while the previous one was
+  // still leaving (screen refocused, app back from the background) attached the
+  // new listener to a channel that closed a moment later: the conversation
+  // stopped updating until it was left and opened again.
+  const channelKey = `${channelBase}-${Math.random().toString(36).slice(2, 10)}`;
 
   return supabase
     .channel(channelKey)

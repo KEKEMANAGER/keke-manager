@@ -1581,7 +1581,8 @@
     "yesterday": "Yesterday",
     "loadError": "Failed to load messages",
     "sendError": "Failed to send message",
-    "activeBookingRequired": "You can only send messages while a booking is active"
+    "activeBookingRequired": "You can only send messages while a booking is active",
+    "today": "Today"
   },
   "supportChat": {
     "title": "KEKE Support",

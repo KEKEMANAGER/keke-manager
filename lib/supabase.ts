@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { getSupabaseAnonKey, getSupabaseUrl } from './supabaseEnv';
 
 let _client: SupabaseClient | null = null;
@@ -25,6 +25,16 @@ function initClient(): SupabaseClient {
       detectSessionInUrl: Platform.OS === 'web',
     },
   });
+  // On a phone the session is refreshed only while the app is in front (the
+  // browser does this by itself). Without it a phone that slept could come
+  // back with an expired session and live updates quietly stopped arriving.
+  if (Platform.OS !== 'web') {
+    const client = _client;
+    AppState.addEventListener('change', (state) => {
+      if (state === 'active') void client.auth.startAutoRefresh();
+      else void client.auth.stopAutoRefresh();
+    });
+  }
   return _client;
 }
 
