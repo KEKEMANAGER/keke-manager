@@ -27,7 +27,7 @@ async function main() {
     if (bad) failed += 1;
   }
 
-  const entry = scripts.find((s) => s.includes('entry-'));
+  const entry = scripts.find((s) => /\/(?:entry|index)-[^/]*\.js$/.test(s));
   if (entry) {
     const bundleRes = await fetch(`${ORIGIN}${entry}`);
     const bundle = await bundleRes.text();

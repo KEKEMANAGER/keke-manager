@@ -17,7 +17,8 @@ const files = fs.readdirSync(distJs).map((name) => {
   return { name, bytes: fs.statSync(full).size };
 });
 
-const entry = files.find((f) => f.name.startsWith('entry-'));
+// Named after package.json "main": entry-*.js (expo-router/entry) or index-*.js (index.js).
+const entry = files.find((f) => /^(?:entry|index)-.*\.js$/.test(f.name));
 const common = files.find((f) => f.name.startsWith('__common-'));
 
 function chunkIncludesSupabase(fileName) {

@@ -32,9 +32,11 @@ function main() {
     if (!fs.existsSync(local)) missing.push(ref);
   }
 
-  const entry = refs.find((r) => r.includes('entry-'));
+  // The app's main bundle is named after package.json "main": entry-*.js for
+  // expo-router/entry, index-*.js for the app's own index.js.
+  const entry = refs.find((r) => /\/(?:entry|index)-[^/]*\.js$/.test(r));
   if (!entry) {
-    console.error('verify-dist-assets: no entry-*.js script in dist/index.html');
+    console.error('verify-dist-assets: no entry-*.js / index-*.js script in dist/index.html');
     process.exit(1);
   }
 
