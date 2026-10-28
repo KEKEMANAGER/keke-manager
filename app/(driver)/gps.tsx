@@ -29,6 +29,7 @@ import { sendMessage } from '../../lib/messages';
 import { hasTripNavigationTargets, openPlaceNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
 import { completeTourTripWithOdometer, odometerErrorMessageKey } from '../../lib/tourTripLifecycle';
+import { isTourDaysOpenError, tourDaysOpenMessage } from '../../lib/tourDayLogs';
 import {
   etaMinutes,
   formatKm,
@@ -460,11 +461,23 @@ export default function DriverGpsScreen() {
 
     if (!res.ok) {
       if ('cancelled' in res && res.cancelled) return false;
+      // A multi-day tour is finished day by day, on its own screen — the same
+      // place the bookings list sends the driver. Without this the driver got a
+      // bare "error" here and had no idea what to do.
+      if ('needsDays' in res && res.needsDays) {
+        router.push(`/(driver)/tour-days/${booking.id}`);
+        return false;
+      }
+      const err = 'error' in res ? res.error : null;
+      const errMessage = err instanceof Error ? err.message : null;
+      const odometerKey = odometerErrorMessageKey(err);
       Alert.alert(
         t('common.error'),
-        getSupabaseErrorMessage('error' in res ? res.error : null) ||
-          t(odometerErrorMessageKey('error' in res ? res.error : null)) ||
-          t('bookings.completeFailed'),
+        isTourDaysOpenError(errMessage)
+          ? tourDaysOpenMessage(errMessage)
+          : odometerKey !== 'common.error'
+            ? t(odometerKey)
+            : getSupabaseErrorMessage(err) || t('bookings.completeFailed'),
       );
       return false;
     }
