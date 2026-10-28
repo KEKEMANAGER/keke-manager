@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import '../lib/backgroundLocation';
 import { firstChatAnnouncement, isReadingChat } from '../lib/chatFocus';
+import { resetBatteryPrompt } from '../lib/gpsBatteryPrompt';
 import {
   configureNotificationHandler,
   ensureAndroidNotificationChannel,
@@ -102,6 +103,11 @@ function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | unde
   );
 }
 
+/** The server saw the trip's GPS go quiet and told the driver (watch_trip_gps). */
+function isGpsStoppedPayload(data: BookingPushTapPayload | undefined): boolean {
+  return data?.type === 'gps_stopped';
+}
+
 function isChatTapPayload(
   data: BookingPushTapPayload | undefined,
 ): data is BookingPushTapPayload & { sender_id: string } {
@@ -148,6 +154,16 @@ export function PushNotificationListeners() {
     (response: Notifications.NotificationResponse) => {
       if (role !== 'driver') return;
       const data = response.notification.request.content.data as BookingPushTapPayload | undefined;
+      if (isGpsStoppedPayload(data)) {
+        const id = response.notification.request.identifier;
+        if (handledOpenRef.current === id) return;
+        handledOpenRef.current = id;
+        // Opening the app already restarts the trip's GPS; the GPS screen shows
+        // it, and asks about the battery saver again — the usual culprit.
+        void resetBatteryPrompt();
+        router.push('/(driver)/gps');
+        return;
+      }
       if (!driverOpensBookingsNotificationTypes(data)) return;
       const id = response.notification.request.identifier;
       if (handledOpenRef.current === id) return;

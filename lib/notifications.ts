@@ -62,6 +62,17 @@ export function configureNotificationHandler(): void {
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
       const data = notification.request.content.data as Record<string, unknown> | undefined;
+      // The server's silent "is the trip's GPS alive?" (lib/gpsWake.native.ts):
+      // for the app, never for the eyes.
+      const content = notification.request.content;
+      if (data?.type === 'gps_wake' || (!content.title && !content.body && !data?.type)) {
+        return {
+          shouldShowBanner: false,
+          shouldShowList: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        };
+      }
       // A chat message is shown once, and not at all to someone reading that
       // very conversation. It reaches an open app twice — the sender's push and
       // this app's own banner from the realtime insert — and both used to sound.

@@ -19,6 +19,8 @@ export type LeafletDriverMapProps = {
   style?: object;
   /** Push the zoom buttons down by this many pixels, below whatever sits over the map's top edge. */
   controlsTopOffset?: number;
+  /** The road the selected driver took (lib/locationTrail.ts), drawn as a line. */
+  trail?: { latitude: number; longitude: number }[];
 };
 
 export function LeafletDriverMap(_props: LeafletDriverMapProps) {

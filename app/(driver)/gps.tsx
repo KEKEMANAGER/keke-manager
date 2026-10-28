@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -24,12 +24,22 @@ import {
   type BookingRow,
 } from '../../lib/bookings';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
+import { batteryPromptAsked, markBatteryPromptAsked } from '../../lib/gpsBatteryPrompt';
+import { addTrailPoints, uploadTrail } from '../../lib/locationTrail';
 import { clearDriverLocation, reportDriverLocation, resetLocationReporting } from '../../lib/locations';
-import { sendMessage } from '../../lib/messages';
 import { hasTripNavigationTargets, openPlaceNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
 import { completeTourTripWithOdometer, odometerErrorMessageKey } from '../../lib/tourTripLifecycle';
 import { isTourDaysOpenError, tourDaysOpenMessage } from '../../lib/tourDayLogs';
+import {
+  flushTripEventQueue,
+  formatEventTime,
+  latestTripEvent,
+  newClientEventId,
+  nextTripEventKind,
+  recordTripEvent,
+  type TripEventKind,
+} from '../../lib/tripEvents';
 import {
   etaMinutes,
   formatKm,
@@ -47,6 +57,48 @@ const TBILISI: Region = {
   latitudeDelta: 0.08,
   longitudeDelta: 0.08,
 };
+
+/** Where the car is for a passenger mark: the open screen's fix, or a fresh one. */
+async function positionForMark(
+  current: { latitude: number; longitude: number } | null,
+): Promise<{ latitude: number; longitude: number } | null> {
+  if (current) return current;
+  try {
+    const fresh = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+    if (fresh) return { latitude: fresh.coords.latitude, longitude: fresh.coords.longitude };
+  } catch {
+    // no fix: try the last known one
+  }
+  try {
+    const last = await Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000 });
+    return last ? { latitude: last.coords.latitude, longitude: last.coords.longitude } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A short name for the spot ("Sephia Hotel", "Rustaveli Ave 12"), when the phone can tell. */
+async function placeLabelFor(point: { latitude: number; longitude: number }): Promise<string | null> {
+  try {
+    const found = await Promise.race([
+      Location.reverseGeocodeAsync(point),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    const a = found?.[0];
+    if (!a) return null;
+    const street = [a.street, a.streetNumber].filter(Boolean).join(' ').trim();
+    const name = a.name?.trim() ?? '';
+    // `name` is often just the house number, or the street again.
+    const named = name && !/^\d+[a-zA-Z]?$/.test(name) && name !== street && name !== a.streetNumber ? name : '';
+    const label = named || street || a.district || a.city || '';
+    return label.trim().slice(0, 80) || null;
+  } catch {
+    return null;
+  }
+}
 
 const TRIP_BOOKING_SELECT =
   'id, kind, status, company_id, from_location, from_location_type, from_location_link, to_location, to_location_type, to_location_link, transfer_in, transfer_out, tour_days';
@@ -76,8 +128,11 @@ export default function DriverGpsScreen() {
   const [tripBooking, setTripBooking] = useState<TripBookingState | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const [mapEpoch, setMapEpoch] = useState(0);
-  const [sendingPickup, setSendingPickup] = useState(false);
-  const [pickupSent, setPickupSent] = useState(false);
+  /** The latest passenger mark of this trip, including one still waiting on the phone. */
+  const [lastMark, setLastMark] = useState<{ kind: TripEventKind; happened_at: string } | null>(null);
+  const [marking, setMarking] = useState(false);
+  /** "Company told" for a few seconds after a mark. */
+  const [markFlash, setMarkFlash] = useState<'sent' | 'queued' | null>(null);
   const [progress, setProgress] = useState<TripProgress | null>(null);
   const geocodedForRef = useRef<string | null>(null);
 
@@ -130,9 +185,27 @@ export default function DriverGpsScreen() {
     void refreshTripBooking();
   }, [refreshTripBooking]);
 
-  useEffect(() => {
-    setPickupSent(false);
+  const refreshLastMark = useCallback(async () => {
+    if (!bookingId) {
+      setLastMark(null);
+      return;
+    }
+    // What waited for the internet goes first, then the button reads the result.
+    await flushTripEventQueue().catch(() => 0);
+    setLastMark(await latestTripEvent(bookingId));
   }, [bookingId]);
+
+  useEffect(() => {
+    setLastMark(null);
+    void refreshLastMark();
+  }, [refreshLastMark]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshLastMark();
+      void uploadTrail(true).catch(() => 0);
+    }, [refreshLastMark]),
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -190,6 +263,9 @@ export default function DriverGpsScreen() {
             void recordPoint(bookingId, { latitude, longitude }).then((res) => {
               if (res) setProgress(res.progress);
             });
+            if (user?.id) {
+              void addTrailPoints(user.id, bookingId, [{ latitude, longitude, at: loc.timestamp ?? Date.now() }]);
+            }
           }
         },
       );
@@ -321,8 +397,10 @@ export default function DriverGpsScreen() {
   const targetQuery = useMemo(() => {
     if (!tripBooking) return null;
     const { pickup, destination } = tripNavigationTargets(tripBooking);
-    return (pickupSent ? destination : pickup) ?? destination ?? pickup ?? null;
-  }, [tripBooking, pickupSent]);
+    // Passengers aboard: the drop-off; otherwise the pickup.
+    const aboard = lastMark?.kind === 'pickup';
+    return (aboard ? destination : pickup) ?? destination ?? pickup ?? null;
+  }, [tripBooking, lastMark?.kind]);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !bookingId || !targetQuery) return;
@@ -496,32 +574,78 @@ export default function DriverGpsScreen() {
     }
   }
 
-  /** Lets the driver notify the company they've picked up the passengers, for any booking kind
-   *  (transfer, day tour, multi-day tour) — sent as a normal booking-scoped chat message so it
-   *  shows up in the same thread as everything else. */
-  async function sendPickupConfirmation() {
-    if (!user?.id || !tripBooking?.company_id || sendingPickup) return;
-    setSendingPickup(true);
-    const { error } = await sendMessage({
-      senderId: user.id,
-      receiverId: tripBooking.company_id,
-      text: t('gpsScreen.pickedUpMessage'),
-      bookingId: tripBooking.id,
-      threadType: 'company_driver',
-      senderRole: 'driver',
-      receiverRole: 'company',
-      senderName: profile?.full_name?.trim() || '',
-    });
-    setSendingPickup(false);
-    if (error) {
-      Alert.alert(t('common.error'), t('chat.sendError'));
-      return;
+  /**
+   * "Passengers picked up" / "passengers dropped off", one button that takes
+   * turns, for every leg and every day: the start of a tour day, a transfer,
+   * the end of the day, the drive to the airport. The company gets the time and
+   * the place in the booking's chat and on the booking card. Without internet
+   * the mark is kept and sent later with its real time (lib/tripEvents.ts).
+   */
+  async function markPassengers(kind: TripEventKind) {
+    if (!user?.id || !tripBooking?.id || !tripBooking.company_id || marking) return;
+    setMarking(true);
+    try {
+      const point = await positionForMark(currentLocation);
+      const place = point ? await placeLabelFor(point) : null;
+      const res = await recordTripEvent({
+        client_event_id: newClientEventId(),
+        booking_id: tripBooking.id,
+        driver_id: user.id,
+        kind,
+        happened_at: new Date().toISOString(),
+        latitude: point?.latitude ?? null,
+        longitude: point?.longitude ?? null,
+        place_label: place,
+        message: {
+          receiverId: tripBooking.company_id,
+          text: kind === 'pickup' ? t('gpsScreen.pickupMessage') : t('gpsScreen.dropoffMessage'),
+          senderName: profile?.full_name?.trim() || '',
+        },
+      });
+      setLastMark({ kind, happened_at: new Date().toISOString() });
+      setMarkFlash(res.sent ? 'sent' : 'queued');
+      setTimeout(() => setMarkFlash(null), 4000);
+      if (!res.sent) {
+        Alert.alert(t('gpsScreen.markQueuedTitle'), t('gpsScreen.markQueuedBody'));
+      }
+    } finally {
+      setMarking(false);
     }
-    setPickupSent(true);
+  }
+
+  function confirmMark() {
+    const kind = nextTripEventKind(lastMark?.kind);
+    Alert.alert(
+      kind === 'pickup' ? t('gpsScreen.confirmPickupTitle') : t('gpsScreen.confirmDropoffTitle'),
+      t('gpsScreen.confirmMarkBody'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('gpsScreen.confirmMarkYes'), onPress: () => void markPassengers(kind) },
+      ],
+    );
   }
 
   const tripStatus = String(tripBooking?.status ?? '').toLowerCase();
   const linkedInProgress = Boolean(bookingId && tripStatus === 'in_progress');
+
+  // Many Android phones (Samsung, Xiaomi) stop an app in the background to save
+  // battery, and with it the trip's GPS. Asked once, during a trip, when it
+  // matters; asked again after the server had to report his GPS as stopped.
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !isTracking || !linkedInProgress) return;
+    let cancelled = false;
+    void (async () => {
+      if ((await batteryPromptAsked()) || cancelled) return;
+      await markBatteryPromptAsked();
+      Alert.alert(t('gpsScreen.batteryPromptTitle'), t('gpsScreen.batteryPromptBody'), [
+        { text: t('gpsScreen.batteryPromptLater'), style: 'cancel' },
+        { text: t('gpsScreen.batteryPromptOpen'), onPress: () => void Linking.openSettings() },
+      ]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isTracking, linkedInProgress, t]);
   const needsStartTripFirst = Boolean(
     bookingId && (tripStatus === 'accepted' || tripStatus === 'confirmed'),
   );
@@ -699,30 +823,52 @@ export default function DriverGpsScreen() {
           </View>
         ) : null}
         {linkedInProgress && tripBooking?.company_id ? (
-          <Pressable
-            onPress={() => void sendPickupConfirmation()}
-            disabled={sendingPickup || pickupSent}
-            style={({ pressed }) => [
-              styles.pickupBtn,
-              pickupSent && styles.pickupBtnSent,
-              (pressed || sendingPickup) && styles.togglePressed,
-            ]}
-          >
-            {sendingPickup ? (
-              <ActivityIndicator color={COLORS.goldDark} size="small" />
-            ) : (
-              <>
-                <Ionicons
-                  name={pickupSent ? 'checkmark-circle' : 'people-outline'}
-                  size={18}
-                  color={pickupSent ? COLORS.text : COLORS.goldDark}
-                />
-                <Text style={[styles.pickupBtnText, pickupSent && styles.pickupBtnTextSent]}>
-                  {pickupSent ? t('gpsScreen.pickedUpSentConfirm') : t('gpsScreen.pickedUpButton')}
-                </Text>
-              </>
-            )}
-          </Pressable>
+          <View style={styles.markWrap}>
+            <Pressable
+              onPress={confirmMark}
+              disabled={marking}
+              style={({ pressed }) => [
+                styles.pickupBtn,
+                nextTripEventKind(lastMark?.kind) === 'dropoff' && styles.dropoffBtn,
+                (pressed || marking) && styles.togglePressed,
+              ]}
+            >
+              {marking ? (
+                <ActivityIndicator color={COLORS.goldDark} size="small" />
+              ) : (
+                <>
+                  <Ionicons
+                    name={nextTripEventKind(lastMark?.kind) === 'pickup' ? 'people-outline' : 'flag-outline'}
+                    size={18}
+                    color={nextTripEventKind(lastMark?.kind) === 'pickup' ? COLORS.goldDark : COLORS.success}
+                  />
+                  <Text
+                    style={[
+                      styles.pickupBtnText,
+                      nextTripEventKind(lastMark?.kind) === 'dropoff' && styles.dropoffBtnText,
+                    ]}
+                  >
+                    {nextTripEventKind(lastMark?.kind) === 'pickup'
+                      ? t('gpsScreen.pickupButton')
+                      : t('gpsScreen.dropoffButton')}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+            {markFlash || lastMark ? (
+              <Text style={styles.markCaption}>
+                {markFlash === 'sent'
+                  ? t('gpsScreen.markSent')
+                  : markFlash === 'queued'
+                    ? t('gpsScreen.markQueued')
+                    : lastMark
+                      ? t(lastMark.kind === 'pickup' ? 'gpsScreen.lastPickup' : 'gpsScreen.lastDropoff', {
+                          time: formatEventTime(lastMark.happened_at),
+                        })
+                      : ''}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
         <Pressable
           onPress={handleTrackingToggle}
@@ -950,18 +1096,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.gold,
     paddingVertical: 13,
+  },
+  markWrap: {
     marginBottom: SPACING.sm,
   },
-  pickupBtnSent: {
-    backgroundColor: 'rgba(46, 204, 113, 0.18)',
-    borderColor: 'rgba(46, 204, 113, 0.55)',
+  dropoffBtn: {
+    borderColor: 'rgba(46, 204, 113, 0.75)',
+  },
+  dropoffBtnText: {
+    color: COLORS.success,
+  },
+  markCaption: {
+    marginTop: 4,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text,
+    textShadowColor: 'rgba(255,255,255,0.9)',
+    textShadowRadius: 4,
   },
   pickupBtnText: {
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.goldDark,
-  },
-  pickupBtnTextSent: {
-    color: COLORS.text,
   },
 });

@@ -29,6 +29,7 @@ import {
 } from '../../lib/companyGps';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchLocationsForDriverIds, subscribeToDriverLocations } from '../../lib/locations';
+import { isSignalLost, lostAtLabel } from '../../lib/signalAge';
 import { supabase } from '../../lib/supabase';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 
@@ -200,6 +201,11 @@ export default function CompanyGpsScreen() {
     selectedPin.longitude != null &&
     selectedPin.updated_at != null;
   const isStale = hasLocation ? isCompanyGpsLocationStale(selectedPin!.updated_at) : false;
+  // A phone that stopped sending, not a weak signal: say since when.
+  const lostLabel =
+    hasLocation && isSignalLost(selectedPin!.updated_at)
+      ? t('tracking.signalLostAt', { time: lostAtLabel(selectedPin!.updated_at!) })
+      : null;
   const vehicle = selectedPin ? vehicleLabel(selectedPin) : '';
 
   function openChat(pin: CompanyGpsDriverPin) {
@@ -286,8 +292,8 @@ export default function CompanyGpsScreen() {
             <Ionicons name="time-outline" size={15} color={COLORS.textSecondary} />
             <Text style={styles.infoLabel}>{t('tracking.lastUpdated')}</Text>
             <Text style={[styles.infoValue, isStale && styles.infoValueStale]}>
-              {formatTime(selectedPin.updated_at!)} · {formatAgo(selectedPin.updated_at!)}{' '}
-              {t('tracking.ago')}
+              {lostLabel ??
+                `${formatTime(selectedPin.updated_at!)} · ${formatAgo(selectedPin.updated_at!)} ${t('tracking.ago')}`}
             </Text>
           </View>
           {selectedPin.gps_mode === 'foreground' ? (
@@ -344,7 +350,7 @@ export default function CompanyGpsScreen() {
       <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
         <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
         <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
-          {isStale ? t('tracking.weakSignal') : t('tracking.live')}
+          {lostLabel ?? (isStale ? t('tracking.weakSignal') : t('tracking.live'))}
         </Text>
       </View>
     ) : selectedPin ? (
@@ -432,7 +438,9 @@ export default function CompanyGpsScreen() {
                     </Text>
                     <Text style={styles.webRowMeta}>
                       {locOk
-                        ? `${formatAgo(pin.updated_at!)} ${t('tracking.ago')}`
+                        ? isSignalLost(pin.updated_at)
+                          ? t('tracking.signalLostAt', { time: lostAtLabel(pin.updated_at!) })
+                          : `${formatAgo(pin.updated_at!)} ${t('tracking.ago')}`
                         : t('tracking.noSignal')}
                     </Text>
                   </View>
@@ -525,7 +533,7 @@ export default function CompanyGpsScreen() {
           <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
             <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
             <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
-              {isStale ? t('tracking.weakSignal') : t('tracking.live')}
+              {lostLabel ?? (isStale ? t('tracking.weakSignal') : t('tracking.live'))}
             </Text>
           </View>
         ) : selectedPin ? (

@@ -79,10 +79,12 @@ export function LeafletDriverMap({
   onSelectPin,
   style,
   controlsTopOffset,
+  trail,
 }: LeafletDriverMapProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
+  const trailLayerRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const onSelectRef = useRef(onSelectPin);
   const lastUserMoveRef = useRef(0);
@@ -121,6 +123,8 @@ export function LeafletDriverMap({
         maxZoom: 19,
       }).addTo(map);
 
+      // The road under the cars.
+      trailLayerRef.current = L.layerGroup().addTo(map);
       layerRef.current = L.layerGroup().addTo(map);
       mapRef.current = map;
       setMapReady(true);
@@ -156,6 +160,7 @@ export function LeafletDriverMap({
         map.remove();
         mapRef.current = null;
         layerRef.current = null;
+        trailLayerRef.current = null;
         setMapReady(false);
       }
     };
@@ -227,6 +232,29 @@ export function LeafletDriverMap({
       }
     });
   }, [pins, selectedId, hostDriverId, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const layer = trailLayerRef.current;
+    if (!layer) return;
+    void loadLeaflet().then((L) => {
+      layer.clearLayers();
+      const pts = (trail ?? [])
+        .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
+        .map((p) => [p.latitude, p.longitude] as [number, number]);
+      if (pts.length < 2) return;
+      L.polyline(pts, { color: '#FFFFFF', weight: 8, opacity: 0.9, interactive: false }).addTo(layer);
+      L.polyline(pts, { color: COLORS.gold, weight: 4, opacity: 0.95, interactive: false }).addTo(layer);
+      L.circleMarker(pts[0], {
+        radius: 5,
+        color: '#FFFFFF',
+        weight: 2,
+        fillColor: COLORS.goldDark,
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(layer);
+    });
+  }, [trail, mapReady]);
 
   return (
     <View style={[styles.wrap, style]}>

@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { LeafletDriverMap } from '../LeafletDriverMap';
+import { isSignalLost, lostAtLabel } from '../../lib/signalAge';
 import type { FullScreenDriverMapProps, FullScreenDriverRow } from './FullScreenDriverMap';
 
 export type { FullScreenDriverMapProps, FullScreenDriverRow } from './FullScreenDriverMap';
@@ -189,6 +190,7 @@ export function FullScreenDriverMap({
   onSelect,
   rows,
   badge,
+  trail,
 }: FullScreenDriverMapProps) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
@@ -196,7 +198,11 @@ export function FullScreenDriverMap({
   const selected = rows.find((r) => r.id === selectedId) ?? null;
 
   const when = (row: FullScreenDriverRow) =>
-    row.updatedAt ? `${formatAgo(row.updatedAt)} ${t('tracking.ago')}` : t('tracking.noSignal');
+    row.updatedAt
+      ? isSignalLost(row.updatedAt)
+        ? t('tracking.signalLostAt', { time: lostAtLabel(row.updatedAt) })
+        : `${formatAgo(row.updatedAt)} ${t('tracking.ago')}`
+      : t('tracking.noSignal');
 
   return (
     <Modal visible={open} animationType="none" transparent={false} onRequestClose={onClose}>
@@ -208,6 +214,7 @@ export function FullScreenDriverMap({
           onSelectPin={onSelect}
           style={styles.map}
           controlsTopOffset={wide ? 64 : 120}
+          trail={trail}
         />
 
         <View style={styles.topBar} pointerEvents="box-none">

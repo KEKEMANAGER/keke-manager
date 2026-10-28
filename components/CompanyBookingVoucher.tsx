@@ -52,6 +52,7 @@ import { formatBankAccountForDisplay } from '../lib/bankAccount';
 import { shareCompanyVoucherPDF } from '../lib/voucher';
 import { BookingPaymentBadge } from './BookingPaymentBadge';
 import { BookingOdometerSection, shouldShowBookingOdometer } from './BookingOdometerSection';
+import { TripEventsSection } from './TripEventsSection';
 import { MeetGreetVoucherSection } from './MeetGreetVoucherSection';
 import { NameWithVerifiedBadge } from './NameWithVerifiedBadge';
 import { TouristBookingVoucherContent } from './TouristBookingVoucher';
@@ -785,6 +786,7 @@ export function CompanyBookingVoucherContent({
                 </Pressable>
               ) : null}
             </View>
+            <TripEventsSection bookingId={booking.id} />
           </View>
         ) : null}
 

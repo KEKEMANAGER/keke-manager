@@ -1222,7 +1222,25 @@
     "arrivedLabel": "Arrived",
     "arrivalTitle": "You have arrived",
     "arrivalBody": "KEKE marked your arrival at the address automatically.",
-    "batteryNotice": "This app uses your location in the background while a trip is active. Continued use of GPS running in the background can dramatically decrease battery life."
+    "batteryNotice": "This app uses your location in the background while a trip is active. Continued use of GPS running in the background can dramatically decrease battery life.",
+    "pickupButton": "Passengers picked up",
+    "dropoffButton": "Passengers dropped off",
+    "pickupMessage": "Passengers picked up 🚗",
+    "dropoffMessage": "Passengers dropped off 🏁",
+    "confirmPickupTitle": "Picked up the passengers?",
+    "confirmDropoffTitle": "Dropped off the passengers?",
+    "confirmMarkBody": "The company gets the time and the place.",
+    "confirmMarkYes": "Yes",
+    "markSent": "✓ Company notified",
+    "markQueued": "Saved, sent when the internet is back",
+    "markQueuedTitle": "No internet",
+    "markQueuedBody": "Saved. It goes out by itself, with the real time, as soon as the connection is back.",
+    "lastPickup": "Last: pick-up {{time}}",
+    "lastDropoff": "Last: drop-off {{time}}",
+    "batteryPromptTitle": "Keep the GPS running",
+    "batteryPromptBody": "On some phones the battery saver stops KEKE Manager in the background, and the company loses you on the map. Open Settings → Battery and choose “Unrestricted”.",
+    "batteryPromptOpen": "Settings",
+    "batteryPromptLater": "Later"
   },
   "tracking": {
     "title": "Driver Tracking",
@@ -1244,7 +1262,8 @@
     "locationPermissionDenied": "Location permission is required for GPS tracking.",
     "fleetTitle": "Fleet GPS",
     "fleetDrivers": "{{count}} drivers on map",
-    "gpsForegroundOnly": "This driver's GPS only works while the app is open — the position stops updating when the app is minimized."
+    "gpsForegroundOnly": "This driver's GPS only works while the app is open — the position stops updating when the app is minimized.",
+    "signalLostAt": "Signal lost at {{time}}"
   },
   "companyGps": {
     "empty": "No drivers on active tours",
@@ -2123,5 +2142,11 @@
   "mapFullScreen": {
     "open": "Full screen",
     "back": "Back"
+  },
+  "tripEvents": {
+    "title": "Passengers",
+    "pickedUp": "Picked up",
+    "droppedOff": "Dropped off",
+    "onMap": "Map"
   }
 }

@@ -1222,7 +1222,25 @@
     "arrivedLabel": "Տեղում",
     "arrivalTitle": "Դուք հասել եք",
     "arrivalBody": "KEKE-ն ավտոմատ նշեց ձեր ժամանումը հասցեին։",
-    "batteryNotice": "Հավելվածը օգտագործում է ձեր տեղադրությունը ֆոնային ռեժիմում, քանի դեռ երթը ակտիվ է։ GPS-ի երկարատև աշխատանքը ֆոնում կարող է զգալիորեն նվազեցնել մարտկոցի լիցքը։"
+    "batteryNotice": "Հավելվածը օգտագործում է ձեր տեղադրությունը ֆոնային ռեժիմում, քանի դեռ երթը ակտիվ է։ GPS-ի երկարատև աշխատանքը ֆոնում կարող է զգալիորեն նվազեցնել մարտկոցի լիցքը։",
+    "pickupButton": "Ուղևորներին վերցրի",
+    "dropoffButton": "Ուղևորներին իջեցրի",
+    "pickupMessage": "Ուղևորներին վերցրի 🚗",
+    "dropoffMessage": "Ուղևորներին իջեցրի 🏁",
+    "confirmPickupTitle": "Վերցրե՞լ եք ուղևորներին",
+    "confirmDropoffTitle": "Իջեցրե՞լ եք ուղևորներին",
+    "confirmMarkBody": "Ընկերությունը կստանա ժամը և վայրը։",
+    "confirmMarkYes": "Այո",
+    "markSent": "✓ Ընկերությունը տեղեկացված է",
+    "markQueued": "Պահպանված է, կուղարկվի ինտերնետի վերականգնումից հետո",
+    "markQueuedTitle": "Ինտերնետ չկա",
+    "markQueuedBody": "Պահպանված է։ Կուղարկվի ինքնաշխատ՝ իրական ժամով, հենց կապը վերականգնվի։",
+    "lastPickup": "Վերջինը՝ նստեցում {{time}}",
+    "lastDropoff": "Վերջինը՝ իջեցում {{time}}",
+    "batteryPromptTitle": "Որպեսզի GPS-ը չկանգնի",
+    "batteryPromptBody": "Որոշ հեռախոսներում մարտկոցի խնայողությունը կանգնեցնում է KEKE Manager-ը ֆոնում, և ընկերությունը ձեզ չի տեսնում քարտեզի վրա։ Բացեք Կարգավորումներ → Մարտկոց և ընտրեք «Առանց սահմանափակման»։",
+    "batteryPromptOpen": "Կարգավորումներ",
+    "batteryPromptLater": "Ավելի ուշ"
   },
   "tracking": {
     "title": "Driver Tracking",
@@ -1244,7 +1262,8 @@
     "locationPermissionDenied": "Location permission is required for GPS tracking.",
     "fleetTitle": "Fleet GPS",
     "fleetDrivers": "{{count}} drivers on map",
-    "gpsForegroundOnly": "Այս վարորդի GPS-ը աշխատում է միայն բաց հավելվածով․ երբ այն փոքրացվում է, դիրքը դադարում է թարմացվել։"
+    "gpsForegroundOnly": "Այս վարորդի GPS-ը աշխատում է միայն բաց հավելվածով․ երբ այն փոքրացվում է, դիրքը դադարում է թարմացվել։",
+    "signalLostAt": "Ազդանշանը կորել է {{time}}-ին"
   },
   "companyGps": {
     "empty": "No drivers on active tours",
@@ -2123,5 +2142,11 @@
   "mapFullScreen": {
     "open": "Ամբողջ էկրանով",
     "back": "Հետ"
+  },
+  "tripEvents": {
+    "title": "Ուղևորներ",
+    "pickedUp": "Նստեցում",
+    "droppedOff": "Իջեցում",
+    "onMap": "Քարտեզ"
   }
 }

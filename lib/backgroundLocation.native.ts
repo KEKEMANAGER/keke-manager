@@ -2,8 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
-import { reportDriverLocation } from './locations';
+import { addTrailPoints, uploadTrail } from './locationTrail';
+import { reportDriverLocation, resetLocationReporting } from './locations';
 import { supabase } from './supabase';
+import { flushTripEventQueue } from './tripEvents';
 import { notifyArrival, recordPoint } from './tripProgress';
 
 export const LOCATION_TASK_NAME = 'driver-background-location';
@@ -25,6 +27,12 @@ const ARRIVAL_COPY_KEY = 'bg-location:arrival-copy';
  * showing him anything (resumeTripLocation); a decline clears it.
  */
 const CONSENT_KEY = 'bg-location:consent';
+/**
+ * The wording of the Android "GPS active" notification, in the driver's
+ * language: kept so the task can be restarted from the background
+ * (reviveTripGps), where there is no screen to translate it.
+ */
+const SERVICE_COPY_KEY = 'bg-location:service-copy';
 
 type LocationTaskData = {
   locations?: Location.LocationObject[];
@@ -101,10 +109,29 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
       if (__DEV__) console.warn('[bg-location] no driver id — skipping upsert');
       return;
     }
+    const bookingId = await resolveBookingId();
+
+    // The road, kept on the phone first: GPS works without mobile data, the
+    // upload below does not (lib/locationTrail.ts).
+    if (bookingId) {
+      try {
+        await addTrailPoints(
+          driverId,
+          bookingId,
+          locations.map((l) => ({
+            latitude: l.coords.latitude,
+            longitude: l.coords.longitude,
+            at: l.timestamp ?? Date.now(),
+          })),
+        );
+      } catch (e) {
+        if (__DEV__) console.warn('[bg-location] trail failed:', e);
+      }
+    }
 
     // Moving: sent at once. Standing: every half minute, so a driver at a
     // stop stays live on the maps instead of going grey (lib/locations.ts).
-    const { error: locErr } = await reportDriverLocation(
+    const { error: locErr, skipped } = await reportDriverLocation(
       driverId,
       last.coords.latitude,
       last.coords.longitude,
@@ -112,13 +139,22 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
     );
     if (locErr && __DEV__) console.warn('[bg-location] upsert failed:', locErr.message);
 
+    // The internet is there (the position just went through): send the road
+    // and any passenger marks that waited for it.
+    if (!locErr && !skipped) {
+      try {
+        await Promise.all([uploadTrail(), flushTripEventQueue()]);
+      } catch (e) {
+        if (__DEV__) console.warn('[bg-location] catch-up failed:', e);
+      }
+    }
+
     // The same points, folded into the driver's own trip: the distance he is
     // paid for, the speed his arrival time is calculated from, and whether he
     // has reached the address. This is the half of the feature that belongs to
     // the person holding the phone, and it only works here — at the wheel the
     // app is behind Maps or a dark screen. Every point of the batch, in order:
     // the batch spans several seconds of road.
-    const bookingId = await resolveBookingId();
     if (!bookingId) return;
 
     try {
@@ -221,6 +257,7 @@ export async function startBackgroundLocation(
     }
 
     await AsyncStorage.setItem(ACTIVE_DRIVER_KEY, id);
+    await storeServiceCopy(notificationTitle, notificationBody);
     const trip = bookingId?.trim() ?? '';
     if (trip) {
       await AsyncStorage.setItem(ACTIVE_BOOKING_KEY, trip);
@@ -426,6 +463,7 @@ export async function resumeTripLocation(options: ResumeTripLocationOptions): Pr
 
     await AsyncStorage.setItem(ACTIVE_DRIVER_KEY, id);
     await AsyncStorage.setItem(ACTIVE_BOOKING_KEY, trip);
+    await storeServiceCopy(options.notificationTitle, options.notificationBody);
     await AsyncStorage.setItem(
       ARRIVAL_COPY_KEY,
       JSON.stringify({
@@ -457,4 +495,111 @@ export async function stopBackgroundLocation(): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+async function storeServiceCopy(title?: string, body?: string): Promise<void> {
+  if (!title?.trim() && !body?.trim()) return;
+  try {
+    await AsyncStorage.setItem(
+      SERVICE_COPY_KEY,
+      JSON.stringify({ title: title?.trim() || '', body: body?.trim() || '' }),
+    );
+  } catch {
+    // best effort: the English wording is used instead
+  }
+}
+
+async function resolveServiceCopy(): Promise<{ title?: string; body?: string }> {
+  try {
+    const raw = await AsyncStorage.getItem(SERVICE_COPY_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { title?: string; body?: string };
+      return { title: parsed?.title || undefined, body: parsed?.body || undefined };
+    }
+  } catch {
+    // fall through
+  }
+  return {};
+}
+
+/** A position now, or the phone's last one from the past ten minutes. */
+async function quickPosition(): Promise<Location.LocationObject | null> {
+  try {
+    const fresh = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+    if (fresh) return fresh;
+  } catch {
+    // no fix right now: try the last known one
+  }
+  try {
+    return await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 });
+  } catch {
+    return null;
+  }
+}
+
+export type ReviveTripGpsResult = 'no_trip' | 'running' | 'restarted' | 'reported' | 'failed';
+
+/**
+ * A trip whose phone went quiet, brought back from the background.
+ *
+ * Run by the server's silent "gps_wake" push (lib/gpsWake.native.ts): report
+ * where the car is right now, restart the trip's GPS if the phone stopped it,
+ * and send the road and the passenger marks that waited for the internet.
+ * Only for a trip the driver started himself, and never asking for anything —
+ * the same rules as resumeTripLocation.
+ */
+export async function reviveTripGps(): Promise<ReviveTripGpsResult> {
+  if (Platform.OS === 'web') return 'no_trip';
+  const bookingId = await resolveBookingId();
+  if (!bookingId) return 'no_trip';
+  let driverId: string | null = null;
+  try {
+    driverId = (await AsyncStorage.getItem(ACTIVE_DRIVER_KEY))?.trim() || null;
+  } catch {
+    driverId = null;
+  }
+  if (!driverId) return 'no_trip';
+  try {
+    const fg = await Location.getForegroundPermissionsAsync();
+    if (fg.status !== 'granted') return 'failed';
+  } catch {
+    return 'failed';
+  }
+
+  let result: ReviveTripGpsResult = 'failed';
+  const pos = await quickPosition();
+  if (pos && Number.isFinite(pos.coords.latitude) && Number.isFinite(pos.coords.longitude)) {
+    resetLocationReporting();
+    const { error } = await reportDriverLocation(driverId, pos.coords.latitude, pos.coords.longitude, 'background');
+    if (!error) result = 'reported';
+    try {
+      await addTrailPoints(driverId, bookingId, [
+        { latitude: pos.coords.latitude, longitude: pos.coords.longitude, at: pos.timestamp ?? Date.now() },
+      ]);
+    } catch {
+      // the live pin is what matters here
+    }
+  }
+
+  if (await isBackgroundLocationRunning()) {
+    result = 'running';
+  } else if (await hasBackgroundTrackingConsent()) {
+    try {
+      const copy = await resolveServiceCopy();
+      await startTripTask(copy.title, copy.body);
+      result = 'restarted';
+    } catch (e) {
+      if (__DEV__) console.warn('[bg-location] revive restart failed:', e);
+    }
+  }
+
+  try {
+    await Promise.all([uploadTrail(true), flushTripEventQueue()]);
+  } catch {
+    // next time
+  }
+  return result;
 }

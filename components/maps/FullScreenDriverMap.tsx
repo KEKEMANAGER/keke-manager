@@ -30,6 +30,8 @@ export type FullScreenDriverMapProps = {
   rows: FullScreenDriverRow[];
   /** The live / weak signal badge the screen already shows. */
   badge?: ReactNode;
+  /** The selected driver's road, as on the small map. */
+  trail?: { latitude: number; longitude: number }[];
 };
 
 export function FullScreenDriverMap(_props: FullScreenDriverMapProps) {

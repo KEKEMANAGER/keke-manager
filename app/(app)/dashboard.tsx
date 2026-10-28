@@ -47,6 +47,7 @@ import { DriverProfileCard } from '../../components/DriverProfileCard';
 import { UserAvatar } from '../../components/UserAvatar';
 import { BookingListSkeleton } from '../../components/BookingListSkeleton';
 import { BookingOdometerSection, BookingOdometerBadge } from '../../components/BookingOdometerSection';
+import { TripEventsSection } from '../../components/TripEventsSection';
 import { EmptyState } from '../../components/EmptyState';
 import { canCompanyEditBooking } from '../../lib/bookingUpdate';
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
@@ -819,6 +820,7 @@ export default function CompanyDashboardScreen() {
                 </View>
               </View>
             ) : null}
+            {b.status === 'in_progress' ? <TripEventsSection bookingId={b.id} compact /> : null}
             <BookingOdometerSection booking={b} compact />
             {b.status === 'completed' && b.driver_id ? (
               isBookingAlreadyRated(b.id, ratedBookingIds) ? (

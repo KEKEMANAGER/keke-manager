@@ -51,3 +51,10 @@ export type ResumeTripLocationOptions = {
 export async function resumeTripLocation(_options: ResumeTripLocationOptions): Promise<boolean> {
   return false;
 }
+
+export type ReviveTripGpsResult = 'no_trip' | 'running' | 'restarted' | 'reported' | 'failed';
+
+/** Phones only: nothing runs in the background on the web. */
+export async function reviveTripGps(): Promise<ReviveTripGpsResult> {
+  return 'no_trip';
+}

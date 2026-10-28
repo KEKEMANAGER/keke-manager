@@ -10,11 +10,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import MapView, { Marker, type Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
 import { BookingOdometerSection } from '../../components/BookingOdometerSection';
+import { TripEventsSection } from '../../components/TripEventsSection';
 import {
   FullScreenDriverMap,
   FullScreenMapButton,
@@ -30,6 +31,8 @@ import {
   subscribeToDriverLocations,
   type DriverLocationPin,
 } from '../../lib/locations';
+import { fetchTrail, type TrailPoint } from '../../lib/locationTrail';
+import { isSignalLost, lostAtLabel } from '../../lib/signalAge';
 import { supabase } from '../../lib/supabase';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { useAndroidRouterBack } from '../../hooks/useAndroidRouterBack';
@@ -100,6 +103,7 @@ export default function CompanyTrackingScreen() {
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
   const [mapEpoch, setMapEpoch] = useState(0);
+  const [trail, setTrail] = useState<TrailPoint[]>([]);
   const fullMap = useFullScreenMap();
 
   const driverId = booking?.driver_id ?? paramDriverId ?? '';
@@ -194,6 +198,23 @@ export default function CompanyTrackingScreen() {
     };
   }, [fleetIds, reloadPins]);
 
+  // The road the car took on this trip: what the phone recorded, including
+  // stretches without internet that it sent later (lib/locationTrail.ts).
+  useEffect(() => {
+    if (!bookingId) return undefined;
+    let cancelled = false;
+    const load = () =>
+      void fetchTrail(bookingId).then((pts) => {
+        if (!cancelled) setTrail(pts);
+      });
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [bookingId]);
+
   useEffect(() => {
     tickRef.current = setInterval(() => setTick((n) => n + 1), 5000);
     return () => {
@@ -222,6 +243,12 @@ export default function CompanyTrackingScreen() {
 
   const isActive = !!activePin;
   const isStale = activePin ? pinStale(activePin.updated_at) : false;
+  // Not a weak signal any more but a phone that stopped sending: say since when.
+  const isLost = activePin ? isSignalLost(activePin.updated_at) : false;
+  const lostLabel =
+    activePin && isLost ? t('tracking.signalLostAt', { time: lostAtLabel(activePin.updated_at) }) : null;
+  // Only the booking's own driver has this road.
+  const trailForMap = activePin && activePin.driver_id === driverId ? trail : [];
   const isFleet = fleetIds.length > 1;
 
   const route = [booking?.from_location, booking?.to_location].filter(Boolean).join(' → ');
@@ -249,7 +276,7 @@ export default function CompanyTrackingScreen() {
       <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
         <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
         <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
-          {isStale ? t('tracking.weakSignal') : t('tracking.live')}
+          {lostLabel ?? (isStale ? t('tracking.weakSignal') : t('tracking.live'))}
         </Text>
       </View>
     ) : (
@@ -301,6 +328,7 @@ export default function CompanyTrackingScreen() {
               selectedId={webSelectedId}
               hostDriverId={driverId}
               onSelectPin={setSelectedPinId}
+              trail={trailForMap}
             />
             <View style={styles.webBadgeOverlay}>{liveBadge}</View>
             <FullScreenMapButton onPress={fullMap.openMap} />
@@ -326,7 +354,9 @@ export default function CompanyTrackingScreen() {
                     </Text>
                     <Text style={styles.webRowMeta}>
                       {pin
-                        ? `${formatAgo(pin.updated_at)} ${t('tracking.ago')}`
+                        ? isSignalLost(pin.updated_at)
+                          ? t('tracking.signalLostAt', { time: lostAtLabel(pin.updated_at) })
+                          : `${formatAgo(pin.updated_at)} ${t('tracking.ago')}`
                         : t('tracking.noSignal')}
                     </Text>
                   </View>
@@ -336,7 +366,13 @@ export default function CompanyTrackingScreen() {
           </ScrollView>
         </View>
 
-        <View style={[styles.webInfoCard, { paddingBottom: insets.bottom + SPACING.md }]}>
+        {/* Scrolls on its own: with the passenger marks it can be taller than
+            the room under the map, and nothing may end up behind the tab bar. */}
+        <ScrollView
+          style={[styles.webInfoCard, styles.webInfoCardMax]}
+          contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.md }}
+          showsVerticalScrollIndicator={false}
+        >
           {activePin ? (
             <>
               <View style={styles.infoRow}>
@@ -368,7 +404,8 @@ export default function CompanyTrackingScreen() {
                 <Ionicons name="time-outline" size={15} color={COLORS.textSecondary} />
                 <Text style={styles.infoLabel}>{t('tracking.lastUpdated')}</Text>
                 <Text style={[styles.infoValue, isStale && styles.infoValueStale]}>
-                  {formatTime(activePin.updated_at)} · {formatAgo(activePin.updated_at)} {t('tracking.ago')}
+                  {lostLabel ??
+                    `${formatTime(activePin.updated_at)} · ${formatAgo(activePin.updated_at)} ${t('tracking.ago')}`}
                 </Text>
               </View>
             </>
@@ -379,7 +416,8 @@ export default function CompanyTrackingScreen() {
             </View>
           ) : null}
           {tourBooking ? <BookingOdometerSection booking={tourBooking} compact /> : null}
-        </View>
+          {bookingId ? <TripEventsSection bookingId={bookingId} /> : null}
+        </ScrollView>
 
         <FullScreenDriverMap
           open={fullMap.open}
@@ -392,6 +430,7 @@ export default function CompanyTrackingScreen() {
           onSelect={setSelectedPinId}
           rows={fullRows}
           badge={liveBadge}
+          trail={trailForMap}
         />
       </View>
     );
@@ -419,6 +458,13 @@ export default function CompanyTrackingScreen() {
           showsMyLocationButton={false}
           onPress={() => setSelectedPinId(null)}
         >
+          {trailForMap.length > 1 ? (
+            <Polyline
+              coordinates={trailForMap.map((p) => ({ latitude: p.latitude, longitude: p.longitude }))}
+              strokeColor={COLORS.gold}
+              strokeWidth={4}
+            />
+          ) : null}
           {pins.map((pin) => {
             const isHost = pin.driver_id === driverId;
             const stale = pinStale(pin.updated_at);
@@ -480,7 +526,7 @@ export default function CompanyTrackingScreen() {
           <View style={[styles.badge, isStale ? styles.badgeStale : styles.badgeLive]}>
             <View style={[styles.dot, isStale ? styles.dotStale : styles.dotLive]} />
             <Text style={[styles.badgeText, isStale ? styles.textStale : styles.textLive]}>
-              {isStale ? t('tracking.weakSignal') : t('tracking.live')}
+              {lostLabel ?? (isStale ? t('tracking.weakSignal') : t('tracking.live'))}
             </Text>
           </View>
         ) : (
@@ -535,7 +581,8 @@ export default function CompanyTrackingScreen() {
               <Ionicons name="time-outline" size={15} color={COLORS.textSecondary} />
               <Text style={styles.infoLabel}>{t('tracking.lastUpdated')}</Text>
               <Text style={[styles.infoValue, isStale && styles.infoValueStale]}>
-                {formatTime(activePin.updated_at)} · {formatAgo(activePin.updated_at)} {t('tracking.ago')}
+                {lostLabel ??
+                  `${formatTime(activePin.updated_at)} · ${formatAgo(activePin.updated_at)} ${t('tracking.ago')}`}
               </Text>
             </View>
           </>
@@ -546,6 +593,7 @@ export default function CompanyTrackingScreen() {
           </View>
         ) : null}
         {tourBooking ? <BookingOdometerSection booking={tourBooking} compact /> : null}
+        {bookingId ? <TripEventsSection bookingId={bookingId} limit={4} /> : null}
       </View>
     </View>
   );
@@ -737,6 +785,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: SPACING.sm,
+  },
+  webInfoCardMax: {
+    flexGrow: 0,
+    maxHeight: 300,
   },
   webInfoCard: {
     backgroundColor: COLORS.white,
