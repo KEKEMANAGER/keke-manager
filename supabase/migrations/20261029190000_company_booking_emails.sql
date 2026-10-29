@@ -44,6 +44,13 @@ insert into public.app_settings (key, value)
 values ('booking_email_hook_secret', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
 on conflict (key) do nothing;
 
+-- Who gets the emails: 'all', or a comma-separated list of company emails.
+-- It starts with KEKE Manager's own company account only, as a test; set it to
+-- 'all' to open it to every company.
+insert into public.app_settings (key, value)
+values ('booking_email_scope', 'info@kekemanager.com')
+on conflict (key) do nothing;
+
 -- ── wake the function ───────────────────────────────────────────────────────
 
 create or replace function public.wake_booking_emails()
@@ -112,6 +119,8 @@ set search_path to 'public'
 as $$
 declare
   v_event text;
+  v_scope text;
+  v_email text;
 begin
   if new.status is not distinct from old.status then
     return null;
@@ -127,6 +136,16 @@ begin
   if v_event is null or new.company_id is null or new.driver_id is null
      or coalesce(new.is_group_master, false) then
     return null;
+  end if;
+
+  select lower(replace(coalesce(value, 'all'), ' ', '')) into v_scope
+    from public.app_settings where key = 'booking_email_scope';
+  if coalesce(v_scope, 'all') <> 'all' then
+    select lower(trim(coalesce(nullif(trim(u.company_email), ''), u.email))) into v_email
+      from public.users u where u.id = new.company_id;
+    if v_email is null or not (v_email = any (string_to_array(v_scope, ','))) then
+      return null;
+    end if;
   end if;
 
   insert into public.booking_emails (booking_id, event, driver_id)
