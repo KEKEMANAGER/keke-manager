@@ -16,23 +16,34 @@
  *   POST {}                                          send what is queued
  *   POST {"preview": {"bookingId", "event"}}         build one email, send nothing
  *   POST {"test": {"bookingId", "event", "to"}}      send one sample to a @kekemanager.com address
+ *
+ * Every email carries the voucher as a PDF too (pdf.ts). If the PDF cannot be
+ * built, the email still goes, without the attachment.
  */
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import {
   renderBookingEmail,
+  voucherCode,
   type EmailEvent,
   type EmailInput,
   type EmailVehicle,
   type RenderedEmail,
 } from './render.ts';
+import { renderVoucherPdf, type PdfFonts } from './pdf.ts';
 
 const FROM = 'KEKE Manager <noreply@kekemanager.com>';
 const REPLY_TO = 'info@kekemanager.com';
 const SITE = 'https://kekemanager.com';
-const BATCH = 20;
+const BATCH = 8; // PDFs cost CPU time; the next wake takes the rest
 const STALE_MS = 24 * 60 * 60 * 1000;
 const EVENTS: EmailEvent[] = ['confirmed', 'started', 'completed'];
+
+/** DejaVu Sans (Georgian + Latin), fetched once per instance from the npm CDN. */
+const FONT_SOURCES = [
+  'https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/',
+  'https://unpkg.com/dejavu-fonts-ttf@2.37.3/ttf/',
+];
 
 type QueueRow = {
   id: number;
@@ -69,6 +80,58 @@ async function hookSecret(db: SupabaseClient): Promise<string | null> {
     .maybeSingle();
   cachedSecret = (data as { value?: string } | null)?.value || null;
   return cachedSecret;
+}
+
+let fontsPromise: Promise<PdfFonts | null> | null = null;
+
+async function fetchFont(name: string): Promise<Uint8Array> {
+  let last: unknown = null;
+  for (const base of FONT_SOURCES) {
+    try {
+      const res = await fetch(base + name);
+      if (res.ok) return new Uint8Array(await res.arrayBuffer());
+      last = new Error(`${res.status} ${base}${name}`);
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last ?? new Error(`font ${name}`);
+}
+
+function pdfFonts(): Promise<PdfFonts | null> {
+  if (!fontsPromise) {
+    fontsPromise = Promise.all([fetchFont('DejaVuSans.ttf'), fetchFont('DejaVuSans-Bold.ttf')])
+      .then(([regular, bold]) => ({ regular, bold }))
+      .catch((e) => {
+        console.error('voucher fonts', e);
+        fontsPromise = null; // try again next time
+        return null;
+      });
+  }
+  return fontsPromise;
+}
+
+type Attachment = { filename: string; content: string };
+
+function toBase64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+
+/** The voucher PDF for this email, or null when it cannot be built (the email still goes). */
+async function voucherAttachment(input: EmailInput, code: string): Promise<{ file: Attachment; bytes: number } | null> {
+  try {
+    const fonts = await pdfFonts();
+    if (!fonts) return null;
+    const pdf = await renderVoucherPdf(input, fonts);
+    return { file: { filename: `${code}.pdf`, content: toBase64(pdf) }, bytes: pdf.length };
+  } catch (e) {
+    console.error('voucher pdf', e);
+    return null;
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -199,6 +262,7 @@ async function sendViaResend(
   to: string,
   email: RenderedEmail,
   event: EmailEvent,
+  attachment: Attachment | null,
 ): Promise<{ ok: true; id: string | null } | { ok: false; error: string }> {
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -216,6 +280,7 @@ async function sendViaResend(
         html: email.html,
         text: email.text,
         tags: [{ name: 'event', value: event }],
+        ...(attachment ? { attachments: [attachment] } : {}),
       }),
     });
     const out = await res.json().catch(() => ({}));
@@ -273,7 +338,8 @@ async function processQueue(): Promise<Record<string, unknown>> {
       continue;
     }
     const email = renderBookingEmail(loaded.input);
-    const res = await sendViaResend(key, `booking-email-${row.id}`, loaded.to, email, row.event);
+    const pdf = await voucherAttachment(loaded.input, voucherCode(loaded.input.booking));
+    const res = await sendViaResend(key, `booking-email-${row.id}`, loaded.to, email, row.event, pdf?.file ?? null);
     if (res.ok) {
       await finish(db, row.id, { status: 'sent', provider_id: res.id, recipient: loaded.to });
       tally.sent++;
@@ -326,6 +392,7 @@ Deno.serve(async (req) => {
       to = loaded.to;
     }
     const email = renderBookingEmail(input);
+    const pdf = await voucherAttachment(input, voucherCode(input.booking));
 
     if (body.test) {
       const target = String(p?.to ?? '').trim().toLowerCase();
@@ -339,11 +406,21 @@ Deno.serve(async (req) => {
         target,
         { ...email, subject: `[ნიმუში] ${email.subject}` },
         event,
+        pdf?.file ?? null,
       );
-      return json({ ...res, to: target, subject: email.subject });
+      return json({ ...res, to: target, subject: email.subject, pdfBytes: pdf?.bytes ?? 0 });
     }
 
-    return json({ ok: true, keyConfigured, to, subject: email.subject, html: email.html, text: email.text });
+    return json({
+      ok: true,
+      keyConfigured,
+      to,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+      pdfBytes: pdf?.bytes ?? 0,
+      ...(p?.pdf ? { pdfBase64: pdf?.file.content ?? null } : {}),
+    });
   }
 
   const work = processQueue();

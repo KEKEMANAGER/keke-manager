@@ -163,7 +163,7 @@ export function kindCode(b: EmailBooking): string {
   return 'transfer';
 }
 
-function isTour(b: EmailBooking): boolean {
+export function isTour(b: EmailBooking): boolean {
   const c = kindCode(b);
   return c === 'tour' || c === 'day_tour';
 }
@@ -180,7 +180,7 @@ export function escapeHtml(s: string): string {
 }
 
 /** Emoji and pictographs are dropped, as on the printed voucher. */
-function clean(s: string | null | undefined): string {
+export function clean(s: string | null | undefined): string {
   return String(s ?? '')
     .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '')
     .replace(/\s+/g, ' ')
@@ -241,7 +241,7 @@ export function offeredPriceGel(b: EmailBooking): number {
   return 0;
 }
 
-function formatGel(n: number): string {
+export function formatGel(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '—';
   return `${new Intl.NumberFormat('ka-GE').format(n)} GEL`;
 }
@@ -250,7 +250,7 @@ export function voucherCode(b: EmailBooking): string {
   return clean(b.group_code) || clean(b.voucher_code) || `KEKE-${b.id.slice(0, 6).toUpperCase()}`;
 }
 
-function priceNotes(b: EmailBooking): string[] {
+export function priceNotes(b: EmailBooking): string[] {
   const notes: string[] = [];
   if (b.price_includes_fuel === false) notes.push('ფასში საწვავი არ შედის — ცალკე ანაზღაურდება');
   else if (b.price_includes_fuel === true) notes.push('ფასში საწვავი შედის');
@@ -272,9 +272,9 @@ function vehicleLine(v: EmailVehicle): string {
 
 // ── wording per moment ──────────────────────────────────────────────────────
 
-type Lines = { subject: string; heading: string; intro: string };
+export type Lines = { subject: string; heading: string; intro: string };
 
-function lines(input: EmailInput): Lines {
+export function lines(input: EmailInput): Lines {
   const b = input.booking;
   const code = voucherCode(b);
   const noun = isTour(b) ? 'ტური' : 'ტრანსფერი';
@@ -316,7 +316,7 @@ const C = {
 
 const FONT = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
 
-type Row = [string, string, string?]; // label, value (text), optional href
+export type Row = [string, string, string?]; // label, value (text), optional href
 
 function rowsTable(rows: Row[]): string {
   const body = rows
@@ -343,7 +343,7 @@ ${inner}
 </td></tr>`;
 }
 
-function bookingRows(b: EmailBooking): Row[] {
+export function bookingRows(b: EmailBooking): Row[] {
   const langs = (b.required_languages ?? []).map((c) => LANGUAGE[c] ?? c).filter(Boolean).join(', ');
   const rows: Row[] = [
     ['ტიპი', KIND_LABEL[kindCode(b)] ?? 'ტრანსფერი'],
@@ -366,19 +366,22 @@ function legRoute(from: string | undefined, to: string | undefined): string {
   return [clean(from), clean(to)].filter(Boolean).join(' → ');
 }
 
-function tourRows(b: EmailBooking): string {
-  if (!isTour(b)) return '';
-  const blocks: string[] = [];
+export type TourData = { arrival: Row | null; days: Row[][]; departure: Row | null };
+
+/** Arrival transfer, each day, departure transfer: the same rows the in-app voucher shows. */
+export function tourData(b: EmailBooking): TourData | null {
+  if (!isTour(b)) return null;
   const tin = b.transfer_in;
-  if (tin && (tin.date || tin.airport || tin.hotel)) {
-    blocks.push(rowsTable([[
-      'ჩამოსვლის ტრანსფერი',
-      [formatDateTime(tin.date), legRoute(tin.airport, tin.hotel), clean(tin.flight)].filter((x) => x && x !== '—').join(' · '),
-    ]]));
-  }
-  const days = Array.isArray(b.tour_days) ? b.tour_days : [];
-  days.forEach((d, i) => {
-    const last = i === days.length - 1;
+  const tout = b.transfer_out;
+  const arrival: Row | null = tin && (tin.date || tin.airport || tin.hotel)
+    ? ['ჩამოსვლის ტრანსფერი', [formatDateTime(tin.date), legRoute(tin.airport, tin.hotel), clean(tin.flight)].filter((x) => x && x !== '—').join(' · ')]
+    : null;
+  const departure: Row | null = tout && (tout.date || tout.airport || tout.hotel)
+    ? ['გამგზავრების ტრანსფერი', [formatDateTime(tout.date), legRoute(tout.hotel, tout.airport), clean(tout.flight)].filter((x) => x && x !== '—').join(' · ')]
+    : null;
+  const list = Array.isArray(b.tour_days) ? b.tour_days : [];
+  const days = list.map((d, i) => {
+    const last = i === list.length - 1;
     const stops = Array.isArray(d.stops) ? d.stops.filter(Boolean).join(', ') : clean(d.stops as string);
     const rows: Row[] = [
       [`თარიღი (დღე ${d.day ?? i + 1})`, formatDay(d.date)],
@@ -389,36 +392,63 @@ function tourRows(b: EmailBooking): string {
       rows.push(['ტურისტების სასტუმრო', clean(d.touristHotel ?? d.tourist_hotel) || '—']);
       rows.push(['მძღოლის ღამისთევა', clean(d.driverOvernight ?? d.driver_overnight) || '—']);
     }
-    blocks.push(`<div style="background:#fafafa;border:1px solid ${C.line};border-radius:8px;padding:8px 10px;margin:6px 0">${rowsTable(rows)}</div>`);
+    return rows;
   });
-  const tout = b.transfer_out;
-  if (tout && (tout.date || tout.airport || tout.hotel)) {
-    blocks.push(rowsTable([[
-      'გამგზავრების ტრანსფერი',
-      [formatDateTime(tout.date), legRoute(tout.hotel, tout.airport), clean(tout.flight)].filter((x) => x && x !== '—').join(' · '),
-    ]]));
+  return { arrival, days, departure };
+}
+
+function tourRows(b: EmailBooking): string {
+  const data = tourData(b);
+  if (!data) return '';
+  const blocks: string[] = [];
+  if (data.arrival) blocks.push(rowsTable([data.arrival]));
+  for (const rows of data.days) {
+    blocks.push(`<div style="background:#fafafa;border:1px solid ${C.line};border-radius:8px;padding:8px 10px;margin:6px 0">${rowsTable(rows)}</div>`);
   }
+  if (data.departure) blocks.push(rowsTable([data.departure]));
   return blocks.join('');
 }
 
-function driverBlock(d: EmailDriver | null): string {
-  if (!d) return '';
-  const badges = [
-    d.isKekeCertified ? 'KEKE Certified' : '',
-    d.isGuideDriver ? 'გიდ-მძღოლი' : '',
-  ].filter(Boolean);
+export function driverBadges(d: EmailDriver): string[] {
+  return [d.isKekeCertified ? 'KEKE Certified' : '', d.isGuideDriver ? 'გიდ-მძღოლი' : ''].filter(Boolean);
+}
+
+export function driverRows(d: EmailDriver): Row[] {
   const rating = d.ratingCount > 0 && d.ratingAverage
     ? `${d.ratingAverage.toFixed(1)} (${d.ratingCount} შეფასება)`
     : '';
   const langs = d.languages.map((c) => LANGUAGE[c] ?? c).filter(Boolean).join(', ');
-  const avatar = d.avatarUrl
-    ? `<img src="${escapeHtml(d.avatarUrl)}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;border-radius:28px;object-fit:cover;border:0">`
-    : '';
-  const rows = rowsTable([
+  return [
     ['ტელეფონი', clean(d.phone) || '—', d.phone ? phoneHref(d.phone) : undefined],
     ['შეფასება', rating || '—'],
     ['ენები', langs || '—'],
-  ]);
+  ];
+}
+
+export function vehicleRows(v: EmailVehicle): Row[] {
+  return [
+    ['მარკა / მოდელი / წელი', vehicleLine(v) || '—'],
+    ['ნომერი', clean(v.plate) || '—'],
+    ['ფერი', clean(v.color) || '—'],
+    ['ტიპი', VEHICLE_TYPE[String(v.type ?? '')] ?? '—'],
+    ['კლასი', VEHICLE_CLASS[String(v.vehicleClass ?? '')] ?? '—'],
+  ];
+}
+
+export function hostRows(h: NonNullable<EmailHost>): Row[] {
+  return [
+    ['სახელი', clean(h.fullName) || '—'],
+    ['ტელეფონი', clean(h.phone) || '—', h.phone ? phoneHref(h.phone) : undefined],
+  ];
+}
+
+function driverBlock(d: EmailDriver | null): string {
+  if (!d) return '';
+  const badges = driverBadges(d);
+  const avatar = d.avatarUrl
+    ? `<img src="${escapeHtml(d.avatarUrl)}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;border-radius:28px;object-fit:cover;border:0">`
+    : '';
+  const rows = rowsTable(driverRows(d));
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
 ${avatar ? `<td style="width:68px;vertical-align:top;padding:2px 12px 0 0">${avatar}</td>` : ''}
 <td style="vertical-align:top">
@@ -433,13 +463,7 @@ function vehicleBlock(v: EmailVehicle | null): string {
   const img = v.photoUrl
     ? `<img src="${escapeHtml(v.photoUrl)}" alt="" width="520" style="display:block;width:100%;max-width:520px;height:auto;border-radius:10px;margin:4px 0 8px 0;border:0">`
     : '';
-  return img + rowsTable([
-    ['მარკა / მოდელი / წელი', vehicleLine(v) || '—'],
-    ['ნომერი', clean(v.plate) || '—'],
-    ['ფერი', clean(v.color) || '—'],
-    ['ტიპი', VEHICLE_TYPE[String(v.type ?? '')] ?? '—'],
-    ['კლასი', VEHICLE_CLASS[String(v.vehicleClass ?? '')] ?? '—'],
-  ]);
+  return img + rowsTable(vehicleRows(v));
 }
 
 // ── the email ───────────────────────────────────────────────────────────────
@@ -490,7 +514,7 @@ ${notes.map((n) => `<div style="font-size:12px;color:${C.muted};margin-top:2px">
 ${section('ჯავშანი', rowsTable(bookingRows(b)) + tourRows(b))}
 ${section('მძღოლი', driverBlock(input.driver))}
 ${section('მანქანა', vehicleBlock(input.vehicle))}
-${input.host ? section('ჰოსტი', rowsTable([['სახელი', clean(input.host.fullName) || '—'], ['ტელეფონი', clean(input.host.phone) || '—', input.host.phone ? phoneHref(input.host.phone) : undefined]])) : ''}
+${input.host ? section('ჰოსტი', rowsTable(hostRows(input.host))) : ''}
 </table>
 </td></tr>
 </table>
