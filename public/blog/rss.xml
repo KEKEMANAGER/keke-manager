@@ -5,8 +5,15 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Tue, 27 Oct 2026 07:05:45 GMT</lastBuildDate>
+    <lastBuildDate>Thu, 29 Oct 2026 07:05:45 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[როგორ მოვაგვაროთ მძღოლის უეცარი გაუქმება ტურის დღეს საქართველოში]]></title>
+      <link>https://kekemanager.com/blog/how-to-handle-last-minute-driver-cancellations-georgia</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/how-to-handle-last-minute-driver-cancellations-georgia</guid>
+      <pubDate>Thu, 29 Oct 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[პრაქტიკული სტრატეგიები და რეზერვული გეგმები მძღოლის უეცარი გაუქმებისთვის ტურისტული სეზონის პიკზე.]]></description>
+    </item>
     <item>
       <title><![CDATA[როგორ აირჩიოთ სანდო ტრანსპორტის პარტნიორი სასტუმროსთვის/გესთჰაუსისთვის საქართველოში]]></title>
       <link>https://kekemanager.com/blog/how-to-choose-transport-partner-guesthouse-georgia</link>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/akaki-kachibaia-keke-manager-founder-story</guid>
       <pubDate>Tue, 01 Sep 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[აკაკი ქაჩიბაიას ისტორია — მძღოლიდან ტრანსპორტის მენეჯერამდე და კეკე მენეჯერის დაფუძნებამდე. რატომ და როგორ დაიბადა პლატფორმა, რომელიც საქართველოს ტურისტულ ტრანსპორტს ცვლის.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[ტურ-ოპერატორი vs მძღოლი: რა პრობლემებს წყვეტს KEKE Manager]]></title>
-      <link>https://kekemanager.com/blog/tour-operator-vs-driver-keke-manager-problems</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/tour-operator-vs-driver-keke-manager-problems</guid>
-      <pubDate>Fri, 12 Jun 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[WhatsApp-ის ქაოსის ნაცვლად — ერთი ეკრანი ტურ-ოპერატორისთვის, ღია ჯავშნები მძღოლისთვის. GPS, ვაუჩერი, ჩათი და ვერიფიკაცია ერთ აპში. კომპანიისთვის უფასო.]]></description>
     </item>
   </channel>
 </rss>
