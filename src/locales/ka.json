@@ -376,7 +376,8 @@
     },
     "transferTab": {
       "arrival": "ჩამოსვლა",
-      "departure": "გამგზავრება"
+      "departure": "გამგზავრება",
+      "roundTrip": "ორმხრივი"
     },
     "form": {
       "airport": "აეროპორტი",
@@ -492,7 +493,16 @@
         "multiDayTourDesc": "მაგ: მრავალდღიანი ტურის სრული აღწერა, სასტუმროები, ქალაქები...",
         "touristHotel": "მაგ: Hotel Marriott Tbilisi",
         "driverOvernight": "მაგ: სასტუმრო ან სახლი ბორჯომში"
-      }
+      },
+      "roundTripHint": "შეიქმნება ორი ჯავშანი — ჩამოსვლა და გამგზავრება, თითოეული თავისი ფასით.",
+      "arrivalPrice": "ჩამოსვლის ფასი (₾)",
+      "departurePrice": "გამგზავრების ფასი (₾)",
+      "roundTripTotal": "ორივე მიმართულება ჯამში: {{amount}}",
+      "roundTripTotalLabel": "ფასი ორივე მიმართულებით",
+      "roundTripPriceNote": "ჩამოსვლა {{arrival}} + გამგზავრება {{departure}}",
+      "voucherRoundTrip": "ტრანსფერი — ორმხრივი",
+      "roundTripDriverHint": "არჩეული მძღოლი ორივე ჯავშანს მიიღებს.",
+      "roundTripBroadcastHint": "ორივე ჯავშანი მძღოლებს ცალ-ცალკე გაეგზავნება."
     },
     "validation": {
       "airport": "შეიყვანეთ აეროპორტი",
@@ -517,7 +527,10 @@
       "session": "სესია არ არის ნაპოვნი. გთხოვთ თავიდან შეხვიდეთ",
       "operator": "აირჩიეთ ოპერატორი",
       "mapLink": "Google Maps-ის ბმული არასწორია. ჩასვით ბმული Google Maps-იდან („გაზიარება“ → „ბმულის კოპირება“) ან დატოვეთ ველი ცარიელი.",
-      "offeredPrice": "მიუთითეთ ფასი (₾) — ნულზე მეტი"
+      "offeredPrice": "მიუთითეთ ფასი (₾) — ნულზე მეტი",
+      "departureAfterArrival": "გამგზავრება ჩამოსვლის შემდეგ უნდა იყოს",
+      "arrivalPrice": "მიუთითეთ ჩამოსვლის ფასი (₾) — ნულზე მეტი",
+      "departurePrice": "მიუთითეთ გამგზავრების ფასი (₾) — ნულზე მეტი"
     },
     "dayLine": "დღე {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -531,7 +544,8 @@
       "pdfReady": "PDF ატვირთულია",
       "pickFailed": "ფაილის არჩევა ვერ მოხერხდა",
       "uploadFailed": "ლოგოს ატვირთვა ვერ მოხერხდა"
-    }
+    },
+    "roundTripPartial": "ჩამოსვლის ჯავშანი შეიქმნა, გამგზავრებისა — ვერა: {{reason}}. ფორმაში გამგზავრება დარჩა — გაასწორეთ და ხელახლა შექმენით."
   },
   "locationPicker": {
     "selectTypeHint": "აირჩიეთ ლოკაციის ტიპი",

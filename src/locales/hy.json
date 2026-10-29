@@ -376,7 +376,8 @@
     },
     "transferTab": {
       "arrival": "Arrival",
-      "departure": "Departure"
+      "departure": "Departure",
+      "roundTrip": "Երկկողմանի"
     },
     "form": {
       "airport": "Airport",
@@ -492,7 +493,16 @@
         "multiDayTourDesc": "e.g. full multi-day tour description, hotels, cities...",
         "touristHotel": "e.g. Hotel Marriott Tbilisi",
         "driverOvernight": "e.g. guesthouse in Borjomi"
-      }
+      },
+      "roundTripHint": "Կստեղծվի երկու ամրագրում՝ ժամանում և մեկնում, յուրաքանչյուրը՝ իր գնով։",
+      "arrivalPrice": "Ժամանման գին (₾)",
+      "departurePrice": "Մեկնման գին (₾)",
+      "roundTripTotal": "Ընդամենը երկու ուղղությամբ՝ {{amount}}",
+      "roundTripTotalLabel": "Գինը՝ երկու ուղղությամբ",
+      "roundTripPriceNote": "Ժամանում {{arrival}} + մեկնում {{departure}}",
+      "voucherRoundTrip": "Տրանսֆեր — երկկողմանի",
+      "roundTripDriverHint": "Ընտրված վարորդը կստանա երկու ամրագրումն էլ։",
+      "roundTripBroadcastHint": "Երկու ամրագրումն էլ վարորդներին կուղարկվեն առանձին։"
     },
     "validation": {
       "airport": "Enter airport",
@@ -517,7 +527,10 @@
       "session": "Session not found. Please sign in again",
       "operator": "Select an operator",
       "mapLink": "The Google Maps link is not valid. Paste a link from Google Maps (Share → Copy link) or leave the field empty.",
-      "offeredPrice": "Նշեք գինը (₾)՝ զրոյից մեծ"
+      "offeredPrice": "Նշեք գինը (₾)՝ զրոյից մեծ",
+      "departureAfterArrival": "Մեկնումը պետք է լինի ժամանումից հետո",
+      "arrivalPrice": "Նշեք ժամանման գինը (₾)՝ զրոյից մեծ",
+      "departurePrice": "Նշեք մեկնման գինը (₾)՝ զրոյից մեծ"
     },
     "dayLine": "Day {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -531,7 +544,8 @@
       "pdfReady": "PDF uploaded",
       "pickFailed": "Could not pick file",
       "uploadFailed": "Could not upload logo"
-    }
+    },
+    "roundTripPartial": "Ժամանումը ստեղծվեց, մեկնումը՝ ոչ. {{reason}}։ Մեկնումը մնաց ձևում — ուղղեք և նորից ստեղծեք։"
   },
   "locationPicker": {
     "selectTypeHint": "Select a location type",

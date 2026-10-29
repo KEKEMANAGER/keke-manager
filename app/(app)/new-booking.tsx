@@ -108,6 +108,12 @@ import { useAndroidBackHandler } from '../../hooks/useAndroidBackHandler';
 
 type BookingKindUi = 'transfer' | 'tour' | 'dayTour';
 type TransferTab = 'arrival' | 'departure';
+/**
+ * What the transfer step shows. A round trip is the arrival and the departure
+ * filled in together and saved as two bookings, each with its own price — the
+ * way companies already sell it ("airport both ways").
+ */
+type TransferMode = TransferTab | 'round_trip';
 
 function bookingKindUiLabel(ui: BookingKindUi, transferTab?: TransferTab): string {
   const code =
@@ -143,7 +149,7 @@ function mapPickupSignLogoError(
 }
 
 
-function switchTransferTab(setTab: (t: TransferTab) => void, tab: TransferTab) {
+function switchTransferTab(setTab: (t: TransferMode) => void, tab: TransferMode) {
   safeLayoutAnimation();
   setTab(tab);
 }
@@ -247,8 +253,8 @@ function TransferSegmented({
   tab,
   onChange,
 }: {
-  tab: TransferTab;
-  onChange: (t: TransferTab) => void;
+  tab: TransferMode;
+  onChange: (t: TransferMode) => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -257,6 +263,7 @@ function TransferSegmented({
         [
           { id: 'arrival' as const, labelKey: 'newBooking.transferTab.arrival' },
           { id: 'departure' as const, labelKey: 'newBooking.transferTab.departure' },
+          { id: 'round_trip' as const, labelKey: 'newBooking.transferTab.roundTrip' },
         ] as const
       ).map((item) => {
         const active = tab === item.id;
@@ -827,6 +834,10 @@ export default function NewBookingScreen() {
     name: '',
   }));
   const [departureDateTime, setDepartureDateTime] = useState<Date | null>(null);
+  /** Arrival and departure together, saved as two bookings. */
+  const [roundTrip, setRoundTrip] = useState(false);
+  /** The departure's own price on a round trip; the arrival keeps `clientPriceStr`. */
+  const [departurePriceStr, setDeparturePriceStr] = useState('');
 
   const [bookingDateTime, setBookingDateTime] = useState<Date | null>(null);
   const [passengers, setPassengers] = useState('2');
@@ -1065,6 +1076,43 @@ export default function NewBookingScreen() {
     setTransportLegs([]);
   }, [selectDriver]);
 
+  const roundTripActive = booking_kind === 'transfer' && roundTrip;
+  const transferMode: TransferMode = roundTrip ? 'round_trip' : transferTab;
+
+  const onTransferModeChange = useCallback(
+    (mode: TransferMode) => {
+      if (mode !== 'round_trip') {
+        setRoundTrip(false);
+        setTransferTab(mode);
+        return;
+      }
+      // One car both ways: a round trip with two vehicles is two convoys, which
+      // is a different job — fold the plan back to its first vehicle.
+      if (multiVehicle && transportLegs[0]) {
+        collapseToSingleVehicle(transportLegs[0]);
+      }
+      // The guests leave from where they were taken, usually by the same
+      // airport: start the departure from the arrival instead of empty fields.
+      if (!departureFrom.name?.trim() && arrivalTo.name?.trim()) {
+        setDepartureFrom({ ...arrivalTo });
+      }
+      if (!departureTo.name?.trim() && arrivalFrom.name?.trim() && arrivalFrom.type === 'airport') {
+        setDepartureTo({ ...arrivalFrom });
+      }
+      setTransferTab('arrival');
+      setRoundTrip(true);
+    },
+    [
+      multiVehicle,
+      transportLegs,
+      collapseToSingleVehicle,
+      departureFrom.name,
+      departureTo.name,
+      arrivalFrom,
+      arrivalTo,
+    ],
+  );
+
   const pax = multiVehicle
     ? Math.max(1, sumLegPassengers(transportLegs))
     : Math.max(1, parseInt(passengers, 10) || 1);
@@ -1076,9 +1124,17 @@ export default function NewBookingScreen() {
     () => (multiVehicle ? sumLegPrices(transportLegs) : 0),
     [multiVehicle, transportLegs],
   );
+  const departureGelParsed = useMemo(
+    () => parseAmountGeorgian(departurePriceStr),
+    [departurePriceStr],
+  );
   // No invented number when the field is empty: the price is the company's to
   // set, and a guess shown in its place is the one they end up sending.
-  const driverOfferGel = multiVehicle ? multiTotalPriceGel : offeredGelParsed;
+  const driverOfferGel = multiVehicle
+    ? multiTotalPriceGel
+    : roundTripActive
+      ? offeredGelParsed + departureGelParsed
+      : offeredGelParsed;
   const previewVoucherId = useMemo(
     () => `KEKE-${Date.now().toString(36).toUpperCase().slice(-6)}`,
     [],
@@ -1106,7 +1162,7 @@ export default function NewBookingScreen() {
 
   function validateStep2(): string | null {
     if (booking_kind === 'transfer') {
-      if (transferTab === 'arrival') {
+      const arrivalError = (): string | null => {
         if (!locationValueIsComplete(arrivalFrom)) return t('newBooking.validation.locationFrom');
         if (!locationValueIsComplete(arrivalTo)) return t('newBooking.validation.locationTo');
         if (!arrivalDateTime) return t('newBooking.validation.dateTime');
@@ -1114,14 +1170,29 @@ export default function NewBookingScreen() {
           return t('newBooking.validation.mapLink');
         }
         return null;
+      };
+      const departureError = (): string | null => {
+        if (!locationValueIsComplete(departureFrom)) return t('newBooking.validation.locationFrom');
+        if (!locationValueIsComplete(departureTo)) return t('newBooking.validation.locationTo');
+        if (!departureDateTime) return t('newBooking.validation.departureDate');
+        if (locationMapLinkIsInvalid(departureFrom) || locationMapLinkIsInvalid(departureTo)) {
+          return t('newBooking.validation.mapLink');
+        }
+        return null;
+      };
+      if (roundTrip) {
+        const legError = arrivalError() ?? departureError();
+        if (legError) return legError;
+        if (
+          arrivalDateTime &&
+          departureDateTime &&
+          departureDateTime.getTime() <= arrivalDateTime.getTime()
+        ) {
+          return t('newBooking.validation.departureAfterArrival');
+        }
+        return null;
       }
-      if (!locationValueIsComplete(departureFrom)) return t('newBooking.validation.locationFrom');
-      if (!locationValueIsComplete(departureTo)) return t('newBooking.validation.locationTo');
-      if (!departureDateTime) return t('newBooking.validation.departureDate');
-      if (locationMapLinkIsInvalid(departureFrom) || locationMapLinkIsInvalid(departureTo)) {
-        return t('newBooking.validation.mapLink');
-      }
-      return null;
+      return transferTab === 'arrival' ? arrivalError() : departureError();
     }
     if (booking_kind === 'dayTour') {
       if (!bookingDateTime) return t('newBooking.validation.dateTime');
@@ -1185,6 +1256,9 @@ export default function NewBookingScreen() {
     setDepartureFrom(emptyLocationValue());
     setDepartureTo({ type: 'airport', name: '' });
     setDepartureDateTime(null);
+    setDepartureFlightNo('');
+    setRoundTrip(false);
+    setDeparturePriceStr('');
     setBookingDateTime(null);
     setPassengers('2');
     setVehicleClass('comfort');
@@ -1267,7 +1341,10 @@ export default function NewBookingScreen() {
     if (!passengers.trim() || pax < 1) {
       return t('newBooking.validation.passengers');
     }
-    if (offeredGelParsed <= 0) {
+    if (roundTripActive) {
+      if (offeredGelParsed <= 0) return t('newBooking.validation.arrivalPrice');
+      if (departureGelParsed <= 0) return t('newBooking.validation.departurePrice');
+    } else if (offeredGelParsed <= 0) {
       return t('newBooking.validation.offeredPrice');
     }
 
@@ -1471,8 +1548,50 @@ export default function NewBookingScreen() {
 
     let bookingId: string | undefined;
     let error: Error | null = null;
+    /** A round trip whose arrival was saved but whose departure was refused. */
+    let departureError: Error | null = null;
 
-    if (multiVehicle && transportLegs.length >= 2) {
+    if (roundTripActive && !multiVehicle) {
+      // Two ordinary bookings, one per direction, each with its own price and
+      // its own offer to drivers. A driver picked by name gets both; the server
+      // checks his calendar for each date separately.
+      const arrival = await insertBooking({
+        ...insertPayload,
+        from_location: arrivalFromP.name,
+        from_location_type: arrivalFromP.type,
+        to_location: arrivalToP.name,
+        to_location_type: arrivalToP.type,
+        from_location_link: persistLocationLink(arrivalFrom),
+        to_location_link: persistLocationLink(arrivalTo),
+        date_display: arrivalDateTime ? toIsoString(arrivalDateTime) : null,
+        flight_number: arrivalFlightNo.trim() || null,
+        flight_direction: 'arrival',
+        client_price: offeredGelParsed,
+        price_gel: offeredGelParsed,
+      });
+      bookingId = arrival.id;
+      error = arrival.error;
+      if (!arrival.error) {
+        const departure = await insertBooking({
+          ...insertPayload,
+          from_location: departureFromP.name,
+          from_location_type: departureFromP.type,
+          to_location: departureToP.name,
+          to_location_type: departureToP.type,
+          from_location_link: persistLocationLink(departureFrom),
+          to_location_link: persistLocationLink(departureTo),
+          date_display: departureDateTime ? toIsoString(departureDateTime) : null,
+          flight_number: departureFlightNo.trim() || null,
+          flight_direction: 'departure',
+          // The name sign is for meeting the guests at the airport.
+          meet_greet: false,
+          sign_text: null,
+          client_price: departureGelParsed,
+          price_gel: departureGelParsed,
+        });
+        departureError = departure.error;
+      }
+    } else if (multiVehicle && transportLegs.length >= 2) {
       const legs: GroupConvoyLegPlan[] = transportLegs.map((row, i) => {
         const legPrice = parseLegPrice(row.price_str);
         const specific = row.driver_target_mode === 'specific';
@@ -1537,6 +1656,25 @@ export default function NewBookingScreen() {
       }
     }
 
+    if (departureError) {
+      // The arrival is saved. Leave just the departure in the form, with its
+      // own price, so it can be fixed and sent on its own.
+      const message = t('newBooking.roundTripPartial', {
+        reason: mapSupabaseError(departureError),
+      });
+      setSubmitting(false);
+      setRoundTrip(false);
+      setTransferTab('departure');
+      setClientPriceStr(departurePriceStr);
+      setDeparturePriceStr('');
+      setMeetGreet(false);
+      setSignText('');
+      setPickupSignLogo(null);
+      setSubmitError(message);
+      showErrorAlert(message);
+      return;
+    }
+
     setSubmitting(false);
     router.replace('/(app)/dashboard');
     resetWizard();
@@ -1544,12 +1682,103 @@ export default function NewBookingScreen() {
 
   const bottomPad = insets.bottom + SPACING.xl + 8;
 
+  const arrivalFields = (
+    <>
+      <LocationPicker
+        label={t('newBooking.form.pickupLocation')}
+        value={arrivalFrom}
+        onChange={setArrivalFrom}
+        showMapLink
+      />
+      <DateTimeField
+        label={t('newBooking.form.dateTime')}
+        value={arrivalDateTime}
+        onChange={setArrivalDateTime}
+        placeholder={t('newBooking.form.placeholders.dateTime')}
+        minimumDate={minimumBookingDate}
+      />
+      <LocationPicker
+        label={t('newBooking.form.dropoffLocation')}
+        value={arrivalTo}
+        onChange={setArrivalTo}
+        showMapLink
+      />
+      <TransportReferenceField
+        pickup={arrivalFrom}
+        dropoff={arrivalTo}
+        value={arrivalFlightNo}
+        onChangeText={setArrivalFlightNo}
+      />
+    </>
+  );
+
+  const departureFields = (
+    <>
+      <LocationPicker
+        label={t('newBooking.form.pickupLocation')}
+        value={departureFrom}
+        onChange={setDepartureFrom}
+        showMapLink
+      />
+      <DateTimeField
+        label={t('newBooking.form.departureDateTime')}
+        value={departureDateTime}
+        onChange={setDepartureDateTime}
+        placeholder={t('newBooking.form.placeholders.dateTime')}
+        minimumDate={arrivalDateTime && roundTrip ? arrivalDateTime : minimumBookingDate}
+      />
+      <LocationPicker
+        label={t('newBooking.form.dropoffLocation')}
+        value={departureTo}
+        onChange={setDepartureTo}
+        showMapLink
+      />
+      <TransportReferenceField
+        pickup={departureFrom}
+        dropoff={departureTo}
+        value={departureFlightNo}
+        onChangeText={setDepartureFlightNo}
+      />
+    </>
+  );
+
+  /** One direction of a transfer on the voucher preview; the price only on a round trip. */
+  const transferLegPreview = (dir: TransferTab, priceGel: number | null) => {
+    const isArrival = dir === 'arrival';
+    const from = isArrival ? arrivalFrom : departureFrom;
+    const to = isArrival ? arrivalTo : departureTo;
+    const when = isArrival ? arrivalDateTime : departureDateTime;
+    const ref = isArrival ? arrivalTransportRef : departureTransportRef;
+    const reference = (isArrival ? arrivalFlightNo : departureFlightNo).trim();
+    return (
+      <>
+        <Text style={styles.vLine}>
+          {isArrival ? t('newBooking.form.voucherArrival') : t('newBooking.form.voucherDeparture')}
+        </Text>
+        <Text style={styles.vLine}>
+          {formatLocationRoute(from.name, from.type, to.name, to.type)}
+        </Text>
+        {when ? <Text style={styles.vLine}>{formatDisplayDateTime(when)}</Text> : null}
+        {ref && reference ? (
+          <Text style={styles.vLineMuted}>
+            {t(transportReferenceLabelKey(ref))}: {reference}
+          </Text>
+        ) : null}
+        {priceGel != null ? (
+          <Text style={styles.vLineMuted}>
+            {t('newBooking.form.voucherOfferedPrice')}: {formatGel(priceGel)}
+          </Text>
+        ) : null}
+      </>
+    );
+  };
+
   const transportPlanBlock = (
     <TransportPlanSection
       multiVehicle={multiVehicle}
       legs={transportLegs}
       onLegsChange={setTransportLegs}
-      onAddVehicle={enableMultiVehicle}
+      onAddVehicle={roundTripActive ? undefined : enableMultiVehicle}
       onCollapseToSingle={collapseToSingleVehicle}
       passengers={passengers}
       onPassengersChange={setPassengers}
@@ -1632,65 +1861,28 @@ export default function NewBookingScreen() {
 
         {step === 2 && booking_kind === 'transfer' && (
           <View style={styles.block}>
-            <TransferSegmented tab={transferTab} onChange={setTransferTab} />
+            <TransferSegmented tab={transferMode} onChange={onTransferModeChange} />
+            {roundTrip ? (
+              <Text style={styles.roundTripHint}>{t('newBooking.form.roundTripHint')}</Text>
+            ) : null}
 
             <View style={styles.accordionPanel}>
-              {transferTab === 'arrival' ? (
+              {roundTrip ? (
                 <>
-                  <LocationPicker
-                    label={t('newBooking.form.pickupLocation')}
-                    value={arrivalFrom}
-                    onChange={setArrivalFrom}
-                    showMapLink
-                  />
-                  <DateTimeField
-                    label={t('newBooking.form.dateTime')}
-                    value={arrivalDateTime}
-                    onChange={setArrivalDateTime}
-                    placeholder={t('newBooking.form.placeholders.dateTime')}
-                    minimumDate={minimumBookingDate}
-                  />
-                  <LocationPicker
-                    label={t('newBooking.form.dropoffLocation')}
-                    value={arrivalTo}
-                    onChange={setArrivalTo}
-                    showMapLink
-                  />
-                  <TransportReferenceField
-                    pickup={arrivalFrom}
-                    dropoff={arrivalTo}
-                    value={arrivalFlightNo}
-                    onChangeText={setArrivalFlightNo}
-                  />
+                  <Text style={styles.roundTripLegTitle}>
+                    {t('newBooking.transferTab.arrival')}
+                  </Text>
+                  {arrivalFields}
+                  <View style={styles.compactDivider} />
+                  <Text style={styles.roundTripLegTitle}>
+                    {t('newBooking.transferTab.departure')}
+                  </Text>
+                  {departureFields}
                 </>
+              ) : transferTab === 'arrival' ? (
+                arrivalFields
               ) : (
-                <>
-                  <LocationPicker
-                    label={t('newBooking.form.pickupLocation')}
-                    value={departureFrom}
-                    onChange={setDepartureFrom}
-                    showMapLink
-                  />
-                  <DateTimeField
-                    label={t('newBooking.form.departureDateTime')}
-                    value={departureDateTime}
-                    onChange={setDepartureDateTime}
-                    placeholder={t('newBooking.form.placeholders.dateTime')}
-                    minimumDate={minimumBookingDate}
-                  />
-                  <LocationPicker
-                    label={t('newBooking.form.dropoffLocation')}
-                    value={departureTo}
-                    onChange={setDepartureTo}
-                    showMapLink
-                  />
-                  <TransportReferenceField
-                    pickup={departureFrom}
-                    dropoff={departureTo}
-                    value={departureFlightNo}
-                    onChangeText={setDepartureFlightNo}
-                  />
-                </>
+                departureFields
               )}
             </View>
 
@@ -1746,7 +1938,28 @@ export default function NewBookingScreen() {
               disabled={submitting}
             />
 
-            {!multiVehicle ? (
+            {!multiVehicle && roundTrip ? (
+              <>
+                <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
+                <AuthInput
+                  label={t('newBooking.form.arrivalPrice')}
+                  value={clientPriceStr}
+                  onChangeText={setClientPriceStr}
+                  keyboardType="decimal-pad"
+                  placeholder={t('newBooking.form.placeholders.zero')}
+                />
+                <AuthInput
+                  label={t('newBooking.form.departurePrice')}
+                  value={departurePriceStr}
+                  onChangeText={setDeparturePriceStr}
+                  keyboardType="decimal-pad"
+                  placeholder={t('newBooking.form.placeholders.zero')}
+                />
+                <Text style={styles.driverPayNote}>
+                  {t('newBooking.form.roundTripTotal', { amount: formatGel(driverOfferGel) })}
+                </Text>
+              </>
+            ) : !multiVehicle ? (
               <>
                 <Text style={styles.sectionHeader}>{t('newBooking.form.prices')}</Text>
                 <AuthInput
@@ -2080,11 +2293,22 @@ export default function NewBookingScreen() {
               <Text style={styles.priceLabel}>
                 {multiVehicle
                   ? t('transportPlan.totalPriceLabel')
-                  : t('newBooking.form.offeredPriceDriver')}
+                  : roundTripActive
+                    ? t('newBooking.form.roundTripTotalLabel')
+                    : t('newBooking.form.offeredPriceDriver')}
               </Text>
               <Text style={styles.priceBig}>{formatGel(driverOfferGel)}</Text>
               {multiVehicle ? (
                 <Text style={styles.priceNote}>{t('transportPlan.step3MultiPriceHint')}</Text>
+              ) : roundTripActive ? (
+                <Text style={styles.priceNote}>
+                  {offeredGelParsed <= 0 || departureGelParsed <= 0
+                    ? t('newBooking.form.offeredPriceRequiredHint')
+                    : t('newBooking.form.roundTripPriceNote', {
+                        arrival: formatGel(offeredGelParsed),
+                        departure: formatGel(departureGelParsed),
+                      })}
+                </Text>
               ) : offeredGelParsed <= 0 ? (
                 <Text style={styles.priceNote}>{t('newBooking.form.offeredPriceRequiredHint')}</Text>
               ) : (
@@ -2104,7 +2328,10 @@ export default function NewBookingScreen() {
                 </Text>
               ) : null}
               <Text style={styles.vLine}>
-                {t('newBooking.form.voucherType')}: {bookingKindUiLabel(booking_kind, transferTab)}
+                {t('newBooking.form.voucherType')}:{' '}
+                {roundTripActive
+                  ? t('newBooking.form.voucherRoundTrip')
+                  : bookingKindUiLabel(booking_kind, transferTab)}
               </Text>
               {multiVehicle && transportLegs.length >= 2 ? (
                 <>
@@ -2157,45 +2384,15 @@ export default function NewBookingScreen() {
               ) : null}
               {booking_kind === 'transfer' ? (
                 <>
-                  <Text style={styles.vLine}>
-                    {transferTab === 'arrival'
-                      ? t('newBooking.form.voucherArrival')
-                      : t('newBooking.form.voucherDeparture')}
-                  </Text>
-                  <Text style={styles.vLine}>
-                    {transferTab === 'arrival'
-                      ? formatLocationRoute(
-                          arrivalFrom.name,
-                          arrivalFrom.type,
-                          arrivalTo.name,
-                          arrivalTo.type,
-                        )
-                      : formatLocationRoute(
-                          departureFrom.name,
-                          departureFrom.type,
-                          departureTo.name,
-                          departureTo.type,
-                        )}
-                  </Text>
-                  {transferTab === 'arrival' && arrivalDateTime ? (
-                    <Text style={styles.vLine}>{formatDisplayDateTime(arrivalDateTime)}</Text>
-                  ) : null}
-                  {transferTab === 'departure' && departureDateTime ? (
-                    <Text style={styles.vLine}>{formatDisplayDateTime(departureDateTime)}</Text>
-                  ) : null}
-                  {(transferTab === 'arrival' ? arrivalTransportRef : departureTransportRef) &&
-                  (transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim() ? (
-                    <Text style={styles.vLineMuted}>
-                      {t(
-                        transportReferenceLabelKey(
-                          (transferTab === 'arrival'
-                            ? arrivalTransportRef
-                            : departureTransportRef) as TransportReferenceKind,
-                        ),
-                      )}
-                      : {(transferTab === 'arrival' ? arrivalFlightNo : departureFlightNo).trim()}
-                    </Text>
-                  ) : null}
+                  {roundTripActive ? (
+                    <>
+                      {transferLegPreview('arrival', offeredGelParsed)}
+                      <View style={styles.vDivider} />
+                      {transferLegPreview('departure', departureGelParsed)}
+                    </>
+                  ) : (
+                    transferLegPreview(transferTab, null)
+                  )}
                   {passengerName.trim() ? (
                     <Text style={styles.vLineMuted}>
                       {t('newBooking.form.voucherPassenger')}: {passengerName.trim()}
@@ -2353,6 +2550,13 @@ export default function NewBookingScreen() {
                   filterByMinSeats={filterByMinSeats}
                   onFilterByMinSeatsChange={setFilterByMinSeats}
                 />
+                {roundTripActive ? (
+                  <Text style={styles.roundTripHint}>
+                    {driverTargetMode === 'specific'
+                      ? t('newBooking.form.roundTripDriverHint')
+                      : t('newBooking.form.roundTripBroadcastHint')}
+                  </Text>
+                ) : null}
               </>
             ) : null}
 
@@ -2556,6 +2760,21 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.border,
     marginVertical: SPACING.sm,
+  },
+  roundTripHint: {
+    color: COLORS.gray,
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginBottom: SPACING.sm,
+  },
+  roundTripLegTitle: {
+    fontSize: 12,
+    color: COLORS.goldDark,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.xs,
   },
   compactRow: {
     gap: 0,

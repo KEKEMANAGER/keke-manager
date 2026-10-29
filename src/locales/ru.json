@@ -375,7 +375,8 @@
     },
     "transferTab": {
       "arrival": "Прилёт",
-      "departure": "Вылет"
+      "departure": "Вылет",
+      "roundTrip": "Туда и обратно"
     },
     "form": {
       "airport": "Аэропорт",
@@ -491,7 +492,16 @@
       "totalOvernights": "Всего ночей: {{count}}",
       "voucherTransferInRoute": "Прилёт: {{datetime}} · {{from}} → {{to}}",
       "voucherTransferOutRoute": "Вылет: {{datetime}} · {{from}} → {{to}}",
-      "voucherTourRange": "Тур: {{from}} — {{to}}"
+      "voucherTourRange": "Тур: {{from}} — {{to}}",
+      "roundTripHint": "Будут созданы два заказа — прилёт и вылет, у каждого своя цена.",
+      "arrivalPrice": "Цена прилёта (₾)",
+      "departurePrice": "Цена вылета (₾)",
+      "roundTripTotal": "Итого в обе стороны: {{amount}}",
+      "roundTripTotalLabel": "Цена в обе стороны",
+      "roundTripPriceNote": "Прилёт {{arrival}} + вылет {{departure}}",
+      "voucherRoundTrip": "Трансфер — туда и обратно",
+      "roundTripDriverHint": "Выбранный водитель получит оба заказа.",
+      "roundTripBroadcastHint": "Оба заказа отправляются водителям отдельно."
     },
     "validation": {
       "airport": "Введите аэропорт",
@@ -516,7 +526,10 @@
       "tourDates": "Выберите даты начала и окончания тура",
       "tourEndBeforeStart": "Дата окончания должна быть после даты начала",
       "mapLink": "Ссылка Google Maps неверна. Вставьте ссылку из Google Maps («Поделиться» → «Копировать ссылку») или оставьте поле пустым.",
-      "offeredPrice": "Укажите цену (₾) больше нуля"
+      "offeredPrice": "Укажите цену (₾) больше нуля",
+      "departureAfterArrival": "Вылет должен быть после прилёта",
+      "arrivalPrice": "Укажите цену прилёта (₾) больше нуля",
+      "departurePrice": "Укажите цену вылета (₾) больше нуля"
     },
     "dayLine": "День {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -531,7 +544,8 @@
       "pickFailed": "Не удалось выбрать файл",
       "uploadFailed": "Не удалось загрузить логотип"
     },
-    "filterByCity": "Фильтр по городу"
+    "filterByCity": "Фильтр по городу",
+    "roundTripPartial": "Прилёт создан, вылет — нет: {{reason}}. Вылет остался в форме — исправьте его и создайте снова."
   },
   "locationPicker": {
     "selectTypeHint": "Выберите тип локации",

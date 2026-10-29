@@ -376,7 +376,8 @@
     },
     "transferTab": {
       "arrival": "Arrival",
-      "departure": "Departure"
+      "departure": "Departure",
+      "roundTrip": "Round trip"
     },
     "form": {
       "airport": "Airport",
@@ -492,7 +493,16 @@
         "multiDayTourDesc": "e.g. full multi-day tour description, hotels, cities...",
         "touristHotel": "e.g. Hotel Marriott Tbilisi",
         "driverOvernight": "e.g. guesthouse in Borjomi"
-      }
+      },
+      "roundTripHint": "Two bookings will be created — arrival and departure, each with its own price.",
+      "arrivalPrice": "Arrival price (₾)",
+      "departurePrice": "Departure price (₾)",
+      "roundTripTotal": "Both ways in total: {{amount}}",
+      "roundTripTotalLabel": "Price, both ways",
+      "roundTripPriceNote": "Arrival {{arrival}} + departure {{departure}}",
+      "voucherRoundTrip": "Transfer — round trip",
+      "roundTripDriverHint": "The chosen driver gets both bookings.",
+      "roundTripBroadcastHint": "Both bookings go to drivers separately."
     },
     "validation": {
       "airport": "Enter airport",
@@ -517,7 +527,10 @@
       "session": "Session not found. Please sign in again",
       "operator": "Select an operator",
       "mapLink": "The Google Maps link is not valid. Paste a link from Google Maps (Share → Copy link) or leave the field empty.",
-      "offeredPrice": "Enter a price (₾) greater than zero"
+      "offeredPrice": "Enter a price (₾) greater than zero",
+      "departureAfterArrival": "The departure must be after the arrival",
+      "arrivalPrice": "Enter the arrival price (₾) greater than zero",
+      "departurePrice": "Enter the departure price (₾) greater than zero"
     },
     "dayLine": "Day {{day}}: {{from}} → {{to}}",
     "pickupSignLogo": {
@@ -531,7 +544,8 @@
       "pdfReady": "PDF uploaded",
       "pickFailed": "Could not pick file",
       "uploadFailed": "Could not upload logo"
-    }
+    },
+    "roundTripPartial": "The arrival was created, the departure was not: {{reason}}. The departure is still in the form — fix it and create it again."
   },
   "locationPicker": {
     "selectTypeHint": "Select a location type",

@@ -47,7 +47,8 @@ type Props = SingleProps & {
   multiVehicle: boolean;
   legs: TransportLegDraft[];
   onLegsChange: (legs: TransportLegDraft[]) => void;
-  onAddVehicle: () => void;
+  /** Left out where a second vehicle is not offered (a round-trip transfer). */
+  onAddVehicle?: () => void;
   onCollapseToSingle: (leg: TransportLegDraft) => void;
   cityHint?: string | null;
   requiredLanguages: string[];
@@ -277,7 +278,9 @@ export function TransportPlanSection({
           value={modelGroup}
           onChange={onModelGroupChange}
         />
-        <AddVehicleLink onPress={onAddVehicle} label={t('transportPlan.addVehicle')} />
+        {onAddVehicle ? (
+          <AddVehicleLink onPress={onAddVehicle} label={t('transportPlan.addVehicle')} />
+        ) : null}
       </View>
     );
   }
