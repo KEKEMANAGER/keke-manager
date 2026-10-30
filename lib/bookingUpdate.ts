@@ -77,9 +77,9 @@ function labelForField(key: string): string {
     vehicle_class: 'კლასი',
     flight_number: 'რეისი',
     sign_text: 'დასახვედრი სახელი',
-    pickup_sign_logo_url: 'დასახვედრი ლოგო',
-    passenger_name: 'მგზავრი',
-    passenger_phone: 'ტელეფონი',
+    pickup_sign_logo_url: 'დასახვედრი ფაილი',
+    passenger_name: 'ტურისტის სახელი',
+    passenger_phone: 'ტურისტის ტელეფონი',
     comment: 'კომენტარი',
     client_price: 'ფასი',
     price_includes_fuel: 'ფასში შედის საწვავი',
@@ -109,6 +109,16 @@ export function computeBookingDiff(
     const o = serializeValue(oldRow[key]);
     const n = serializeValue(newRow[key]);
     if (o !== n) {
+      if (key === 'pickup_sign_logo_url') {
+        // The driver and the company read this diff; a storage address means
+        // nothing to them, the fact that the file changed does.
+        diff[key] = {
+          old: o === '—' ? '—' : 'ძველი ფაილი',
+          new: n === '—' ? 'წაიშალა' : 'ახალი ფაილი',
+          label: labelForField(key),
+        };
+        continue;
+      }
       diff[key] = { old: o, new: n, label: labelForField(key) };
     }
   }

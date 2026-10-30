@@ -24,9 +24,11 @@ type Props = {
   value: PickupSignLogoFile | null;
   onChange: (file: PickupSignLogoFile | null) => void;
   disabled?: boolean;
+  /** Heading over the picker; the new-booking wording when left out. */
+  label?: string;
 };
 
-export function PickupSignLogoField({ value, onChange, disabled }: Props) {
+export function PickupSignLogoField({ value, onChange, disabled, label }: Props) {
   const { t } = useTranslation();
   const webInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -105,7 +107,7 @@ export function PickupSignLogoField({ value, onChange, disabled }: Props) {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{t('newBooking.pickupSignLogo.label')}</Text>
+      <Text style={styles.label}>{label ?? t('newBooking.pickupSignLogo.label')}</Text>
       <Text style={styles.hint}>{t('newBooking.pickupSignLogo.hint', { maxMb })}</Text>
 
       {Platform.OS === 'web'
