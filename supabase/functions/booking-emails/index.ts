@@ -1,12 +1,14 @@
 /**
- * Booking emails for companies: the voucher arrives by email when a driver
- * confirms the booking, when the trip starts and when it ends.
+ * Booking emails for companies: the voucher arrives by email at every moment of
+ * a booking — created, edited, confirmed, driver changed or declined, cancelled,
+ * started, passengers picked up and dropped off, completed (render.ts lists them).
  *
- * The database queues one row per moment in `booking_emails` (a trigger on
- * bookings.status) and wakes this function with the shared secret it keeps in
- * `app_settings`. The function claims queued rows, builds the voucher email
- * (render.ts) and sends it through Resend from KEKE Manager's own domain. A
- * five-minute job wakes it again, so a failed send is retried.
+ * The database queues one row per moment in `booking_emails` (triggers on
+ * bookings, booking_history and trip_events) and wakes this function with the
+ * shared secret it keeps in `app_settings`. The function claims queued rows,
+ * builds the voucher email (render.ts) and sends it through Resend from KEKE
+ * Manager's own domain. A one-minute job wakes it again for retries and for
+ * edits, which wait two minutes so quick successive edits go out as one email.
  *
  * It needs one secret, RESEND_API_KEY (Supabase → Edge Functions → Secrets).
  * Until that is set nothing is lost: rows stay queued, and anything younger
@@ -23,8 +25,10 @@
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import {
+  EMAIL_EVENTS,
   renderBookingEmail,
   voucherCode,
+  type EmailDetails,
   type EmailEvent,
   type EmailInput,
   type EmailVehicle,
@@ -37,7 +41,6 @@ const REPLY_TO = 'info@kekemanager.com';
 const SITE = 'https://kekemanager.com';
 const BATCH = 8; // PDFs cost CPU time; the next wake takes the rest
 const STALE_MS = 24 * 60 * 60 * 1000;
-const EVENTS: EmailEvent[] = ['confirmed', 'started', 'completed'];
 
 /** DejaVu Sans (Georgian + Latin), fetched once per instance from the npm CDN. */
 const FONT_SOURCES = [
@@ -50,6 +53,8 @@ type QueueRow = {
   booking_id: string;
   event: EmailEvent;
   driver_id: string | null;
+  dedupe_key: string;
+  details: EmailDetails & { old_driver_id?: string | null };
   created_at: string;
   attempts: number;
 };
@@ -169,14 +174,22 @@ async function loadEmail(
   event: EmailEvent,
   eventAt: string,
   rowDriverId: string | null,
+  details: QueueRow['details'] = {},
 ): Promise<Loaded> {
   const { data: b } = await db.from('bookings').select('*').eq('id', bookingId).maybeSingle();
   if (!b) return { skip: 'booking missing' };
-  if (b.status === 'cancelled' || b.status === 'rejected') return { skip: `booking ${b.status}` };
-  // A trip that has already ended gets only the end email, which carries the voucher too.
-  if (event !== 'completed' && b.status === 'completed') return { skip: 'already completed' };
+  const closed = b.status === 'cancelled' || b.status === 'rejected';
+  if (closed && event !== 'cancelled' && event !== 'rejected' && event !== 'voucher') {
+    return { skip: `booking ${b.status}` };
+  }
+  // The new driver's email ("driver changed") replaces a stale confirmation.
   if (event === 'confirmed' && rowDriverId && b.driver_id && rowDriverId !== b.driver_id) {
     return { skip: 'driver changed' };
+  }
+  // A group booking cancelled as a whole is one email (the group's), not one per car.
+  if (event === 'cancelled' && b.parent_booking_id) {
+    const { data: parent } = await db.from('bookings').select('status').eq('id', b.parent_booking_id).maybeSingle();
+    if (parent?.status === 'cancelled') return { skip: 'group cancelled' };
   }
 
   const { data: company } = await db
@@ -187,7 +200,8 @@ async function loadEmail(
   const to = companyEmail(company);
   if (!to) return { skip: 'no company email' };
 
-  const driverId: string | null = b.driver_id ?? null;
+  // A declined or cancelled booking has lost its driver; the email still names who it was.
+  const driverId: string | null = b.driver_id ?? details?.old_driver_id ?? rowDriverId ?? null;
   const { data: du } = driverId
     ? await db
       .from('users')
@@ -252,6 +266,7 @@ async function loadEmail(
     vehicle,
     host,
     voucherUrl: `${SITE}/company-voucher/${b.id}`,
+    details,
   };
   return { input, to };
 }
@@ -318,7 +333,30 @@ async function processQueue(): Promise<Record<string, unknown>> {
   const rows = (data ?? []) as QueueRow[];
   const tally = { sent: 0, failed: 0, skipped: 0 };
 
+  // Several quick edits of one booking become one email listing all changes.
+  const firstEdit = new Map<string, QueueRow>();
+  const merged = new Set<number>();
   for (const row of rows) {
+    if (row.event !== 'edited') continue;
+    const first = firstEdit.get(row.booking_id);
+    if (!first) {
+      firstEdit.set(row.booking_id, row);
+      continue;
+    }
+    const into = (first.details.changes ??= {});
+    for (const [key, c] of Object.entries(row.details.changes ?? {})) {
+      into[key] = { ...c, old: into[key]?.old ?? c.old };
+    }
+    if (row.details.reason) {
+      first.details.reason = [first.details.reason, row.details.reason].filter(Boolean).join('; ');
+    }
+    merged.add(row.id);
+    await finish(db, row.id, { status: 'skipped', last_error: `merged into #${first.id}` });
+    tally.skipped++;
+  }
+
+  for (const row of rows) {
+    if (merged.has(row.id)) continue;
     if (Date.now() - Date.parse(row.created_at) > STALE_MS) {
       await finish(db, row.id, { status: 'skipped', last_error: 'older than a day' });
       tally.skipped++;
@@ -326,7 +364,10 @@ async function processQueue(): Promise<Record<string, unknown>> {
     }
     let loaded: Loaded;
     try {
-      loaded = await loadEmail(db, row.booking_id, row.event, row.created_at, row.driver_id);
+      const at = (row.event === 'pickup' || row.event === 'dropoff') && row.details?.happened_at
+        ? String(row.details.happened_at)
+        : row.created_at;
+      loaded = await loadEmail(db, row.booking_id, row.event, at, row.driver_id, row.details ?? {});
     } catch (e) {
       await finish(db, row.id, { status: 'failed', last_error: String((e as Error)?.message ?? e).slice(0, 300) });
       tally.failed++;
@@ -372,25 +413,17 @@ Deno.serve(async (req) => {
 
   if (body.preview || body.test) {
     const p = body.preview ?? body.test;
-    const event = EVENTS.includes(p?.event) ? (p.event as EmailEvent) : 'confirmed';
+    const event = EMAIL_EVENTS.includes(p?.event) ? (p.event as EmailEvent) : 'confirmed';
+    const sample: QueueRow['details'] = p?.details && typeof p.details === 'object' ? p.details : {};
     const bookingId = String(p?.bookingId ?? '');
     if (!bookingId) return json({ ok: false, error: 'bookingId' }, 400);
     const { data: b } = await db.from('bookings').select('status').eq('id', bookingId).maybeSingle();
     if (!b) return json({ ok: false, error: 'booking missing' }, 404);
-    // Previews ignore the "already completed" rule so any moment can be looked at.
-    const loaded = await loadEmail(db, bookingId, event, new Date().toISOString(), null);
-    let input: EmailInput;
-    let to: string | null = null;
-    if ('skip' in loaded) {
-      if (!loaded.skip.startsWith('already completed')) return json({ ok: false, skipped: loaded.skip, keyConfigured });
-      const again = await loadEmail(db, bookingId, 'completed', new Date().toISOString(), null);
-      if ('skip' in again) return json({ ok: false, skipped: again.skip, keyConfigured });
-      input = { ...again.input, event };
-      to = again.to;
-    } else {
-      input = loaded.input;
-      to = loaded.to;
-    }
+    // Previews draw any moment for any booking, whatever its status now.
+    const loaded = await loadEmail(db, bookingId, 'voucher', String(sample.happened_at ?? new Date().toISOString()), null, sample);
+    if ('skip' in loaded) return json({ ok: false, skipped: loaded.skip, keyConfigured });
+    const input: EmailInput = { ...loaded.input, event };
+    const to: string | null = loaded.to;
     const email = renderBookingEmail(input);
     const pdf = await voucherAttachment(input, voucherCode(input.booking));
 

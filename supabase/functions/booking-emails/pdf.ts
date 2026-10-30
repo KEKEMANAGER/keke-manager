@@ -12,6 +12,7 @@ import {
   bookingRows,
   clean,
   driverBadges,
+  eventRows,
   driverRows,
   formatGel,
   formatTime,
@@ -40,6 +41,7 @@ const INK = rgb(0.086, 0.094, 0.114);
 const MUTED = rgb(0.42, 0.435, 0.47);
 const RULE = rgb(0.9, 0.9, 0.9);
 const GREEN = rgb(0.082, 0.502, 0.239);
+const RED = rgb(0.725, 0.11, 0.11);
 const SOFT = rgb(0.976, 0.976, 0.976);
 
 type Glyphs = { has(cp: number): boolean };
@@ -238,11 +240,20 @@ export async function renderVoucherPdf(input: EmailInput, fonts: PdfFonts): Prom
   w.text(code, 22, { font: bold, color: GOLD, gap: 2 });
   if (input.companyName) w.text(input.companyName, 10, { color: MUTED, gap: 4 });
 
-  const statusColor = input.event === 'completed' ? GREEN : GOLD_DARK;
+  const statusColor = input.event === 'completed' || input.event === 'dropoff'
+    ? GREEN
+    : input.event === 'cancelled' || input.event === 'rejected'
+    ? RED
+    : GOLD_DARK;
   w.text(L.heading + (b.parent_booking_id && b.leg_index ? ` · მანქანა ${b.leg_index}` : ''), 12.5, { font: bold, color: statusColor });
-  if (input.event !== 'confirmed') {
+  if (input.event === 'started' || input.event === 'completed') {
     const at = formatTime(input.eventAt);
     if (at) w.text(`${input.event === 'started' ? 'დაიწყო' : 'დასრულდა'} ${at}-ზე (თბილისის დროით)`, 9.5, { color: MUTED });
+  }
+  const happened = eventRows(input);
+  if (happened.length) {
+    w.y -= 2;
+    w.rows(happened);
   }
   w.y -= 6;
   w.text(`ფასი: ${formatGel(offeredPriceGel(b))}`, 15, { font: bold, color: GREEN });

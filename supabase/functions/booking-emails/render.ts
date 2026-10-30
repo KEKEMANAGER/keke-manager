@@ -1,9 +1,17 @@
 /**
- * The company's booking email: one voucher, three moments.
+ * The company's booking email: the voucher, sent at every moment of a booking.
  *
- *   confirmed  — a driver accepted the booking (the voucher now has a driver and a car)
- *   started    — the driver started the transfer / tour
- *   completed  — the driver finished it
+ *   created         the company created it
+ *   edited          the company changed it (the changes are listed)
+ *   confirmed       a driver accepted it (the voucher now has a driver and a car)
+ *   driver_changed  another driver took it over
+ *   rejected        the driver declined it
+ *   cancelled       it was cancelled (by the company, the driver, KEKE or the system)
+ *   started         the driver started the transfer / tour
+ *   pickup          the driver picked the passengers up
+ *   dropoff         the driver dropped them off
+ *   completed       the driver finished it
+ *   voucher         the voucher sent again by hand
  *
  * Pure functions only (no Deno, no database), so the same file renders in the
  * edge function, in tests and in a local preview. Labels follow the app's own
@@ -12,7 +20,34 @@
  * is what Gmail, Outlook and phone mail apps all draw the same way.
  */
 
-export type EmailEvent = 'confirmed' | 'started' | 'completed';
+export type EmailEvent =
+  | 'created'
+  | 'edited'
+  | 'confirmed'
+  | 'driver_changed'
+  | 'rejected'
+  | 'cancelled'
+  | 'started'
+  | 'pickup'
+  | 'dropoff'
+  | 'completed'
+  | 'voucher';
+
+export const EMAIL_EVENTS: EmailEvent[] = [
+  'created', 'edited', 'confirmed', 'driver_changed', 'rejected', 'cancelled',
+  'started', 'pickup', 'dropoff', 'completed', 'voucher',
+];
+
+/** What the queue row carries besides the booking: the edit, who cancelled, where the pickup was. */
+export type EmailDetails = {
+  changes?: Record<string, { old?: string; new?: string; label?: string }>;
+  reason?: string | null;
+  cancelled_by?: string | null;
+  happened_at?: string | null;
+  place?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+};
 
 export type TourDay = {
   day?: number;
@@ -98,6 +133,7 @@ export type EmailInput = {
   host: EmailHost;
   /** Link to the voucher on kekemanager.com. */
   voucherUrl: string;
+  details?: EmailDetails;
 };
 
 export type RenderedEmail = { subject: string; html: string; text: string };
@@ -279,27 +315,131 @@ export function lines(input: EmailInput): Lines {
   const code = voucherCode(b);
   const noun = isTour(b) ? 'ტური' : 'ტრანსფერი';
   const driver = clean(input.driver?.fullName);
+  const driverNote = driver ? ` მძღოლი: ${driver}.` : '';
   const when = formatDateTime(b.date_display);
+  const whenTag = when !== '—' ? ` · ${when}` : '';
   const at = formatTime(input.eventAt);
-  if (input.event === 'confirmed') {
-    return {
-      subject: `ჯავშანი დადასტურდა · ${code}${when !== '—' ? ` · ${when}` : ''}`,
-      heading: 'ჯავშანი დადასტურდა',
-      intro: `თქვენი ჯავშანი მძღოლმა მიიღო.${driver ? ` მძღოლი: ${driver}.` : ''} ვაუჩერი ქვემოთაა.`,
-    };
+  const atTag = at ? `${at}-ზე` : '';
+  const place = clean(input.details?.place);
+  switch (input.event) {
+    case 'created':
+      return {
+        subject: `ჯავშანი მიღებულია · ${code}${whenTag}`,
+        heading: 'ჯავშანი მიღებულია',
+        intro: driver
+          ? `თქვენი ჯავშანი KEKE Manager-ში შეიქმნა და გაეგზავნა მძღოლს: ${driver}. დადასტურებისთანავე მოგწერთ.`
+          : 'თქვენი ჯავშანი KEKE Manager-ში შეიქმნა. მძღოლს ვეძებთ და დადასტურებისთანავე მოგწერთ.',
+      };
+    case 'edited':
+      return {
+        subject: `ჯავშანი შეიცვალა · ${code}`,
+        heading: 'ჯავშანი შეიცვალა',
+        intro: 'ჯავშანში ცვლილებები შევიდა. განახლებული ვაუჩერი ქვემოთაა.',
+      };
+    case 'confirmed':
+      return {
+        subject: `ჯავშანი დადასტურდა · ${code}${whenTag}`,
+        heading: 'ჯავშანი დადასტურდა',
+        intro: `თქვენი ჯავშანი მძღოლმა მიიღო.${driverNote} ვაუჩერი ქვემოთაა.`,
+      };
+    case 'driver_changed':
+      return {
+        subject: `მძღოლი შეიცვალა · ${code}`,
+        heading: 'მძღოლი შეიცვალა',
+        intro: `ჯავშანს ახალი მძღოლი ჰყავს.${driverNote} განახლებული ვაუჩერი ქვემოთაა.`,
+      };
+    case 'rejected':
+      return {
+        subject: `მძღოლმა უარი თქვა · ${code}`,
+        heading: 'მძღოლმა ჯავშანზე უარი თქვა',
+        intro: `მძღოლმა ამ ჯავშანზე უარი თქვა.${driverNote} შეგიძლიათ ჯავშანი სხვა მძღოლს ან ყველა მძღოლს გაუგზავნოთ KEKE Manager-ში.`,
+      };
+    case 'cancelled': {
+      const by = String(input.details?.cancelled_by ?? '');
+      const who = by === 'company'
+        ? 'ჯავშანი თქვენ გააუქმეთ.'
+        : by === 'driver'
+        ? `ჯავშანი მძღოლმა გააუქმა.${driverNote} საჭიროების შემთხვევაში ჯავშანი ხელახლა შექმენით KEKE Manager-ში.`
+        : by === 'admin'
+        ? 'ჯავშანი KEKE Manager-მა გააუქმა.'
+        : by === 'system'
+        ? 'ჯავშანი ავტომატურად გაუქმდა.'
+        : 'ჯავშანი გაუქმდა.';
+      return { subject: `ჯავშანი გაუქმდა · ${code}`, heading: 'ჯავშანი გაუქმდა', intro: who };
+    }
+    case 'started':
+      return {
+        subject: `${noun} დაიწყო · ${code}`,
+        heading: `${noun} დაიწყო`,
+        intro: `${at ? `${at}-ზე ` : ''}მძღოლმა ${noun} დაიწყო.${driverNote}`,
+      };
+    case 'pickup':
+      return {
+        subject: `მძღოლმა მგზავრები აიყვანა · ${code}`,
+        heading: 'მძღოლმა მგზავრები აიყვანა',
+        intro: ([atTag, place].filter(Boolean).join(', ') + (atTag || place ? '.' : '') + driverNote).trim(),
+      };
+    case 'dropoff':
+      return {
+        subject: `მძღოლმა მგზავრები დატოვა · ${code}`,
+        heading: 'მძღოლმა მგზავრები დატოვა',
+        intro: ([atTag, place].filter(Boolean).join(', ') + (atTag || place ? '.' : '') + driverNote).trim(),
+      };
+    case 'voucher':
+      return {
+        subject: `ვაუჩერი · ${code}${whenTag}`,
+        heading: 'ვაუჩერი',
+        intro: 'თქვენი ჯავშნის ვაუჩერი. PDF ფაილი თან ერთვის.',
+      };
+    default:
+      return {
+        subject: `${noun} დასრულდა · ${code}`,
+        heading: `${noun} დასრულდა`,
+        intro: `${at ? `${at}-ზე ` : ''}${noun} დასრულდა. გთხოვთ, შეაფასოთ მძღოლი KEKE Manager-ში. შეფასების გარეშე ახალი ჯავშნის შექმნა შეიზღუდება.`,
+      };
   }
-  if (input.event === 'started') {
-    return {
-      subject: `${noun} დაიწყო · ${code}`,
-      heading: `${noun} დაიწყო`,
-      intro: `${at ? `${at}-ზე ` : ''}მძღოლმა ${noun} დაიწყო.${driver ? ` მძღოლი: ${driver}.` : ''}`,
-    };
+}
+
+const CHANGE_VALUE: Record<string, string> = { true: 'კი', false: 'არა', company: 'კომპანია', keke: 'KEKE Manager' };
+
+function changeValue(key: string, raw: string | undefined): string {
+  const v = String(raw ?? '').trim();
+  if (!v || v === 'null' || v === 'undefined') return '—';
+  if (key === 'vehicle_type') return VEHICLE_TYPE[v] ?? v;
+  if (key === 'vehicle_class') return VEHICLE_CLASS[v] ?? v;
+  if (CHANGE_VALUE[v]) return CHANGE_VALUE[v];
+  if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return formatDateTime(v);
+  if (v.startsWith('[') || v.startsWith('{')) return 'შეიცვალა';
+  if (/^https?:\/\//.test(v)) return 'ბმული';
+  return clean(v).slice(0, 160);
+}
+
+/** The edit (label: old → new), or where and when the passengers were picked up / dropped off. */
+export function eventRows(input: EmailInput): Row[] {
+  const d = input.details ?? {};
+  if (input.event === 'edited') {
+    const rows: Row[] = Object.entries(d.changes ?? {})
+      .filter(([key]) => !key.endsWith('_location_type') && key !== 'commission')
+      .map(([key, c]) => {
+        const before = changeValue(key, c?.old);
+        const after = changeValue(key, c?.new);
+        const whole = key.endsWith('_link') || after === 'შეიცვალა';
+        return [clean(c?.label) || key, whole ? 'შეიცვალა' : `${before} → ${after}`] as Row;
+      });
+    if (clean(d.reason)) rows.push(['მიზეზი', clean(d.reason)]);
+    return rows;
   }
-  return {
-    subject: `${noun} დასრულდა · ${code}`,
-    heading: `${noun} დასრულდა`,
-    intro: `${at ? `${at}-ზე ` : ''}${noun} დასრულდა. გთხოვთ, შეაფასოთ მძღოლი KEKE Manager-ში. შეფასების გარეშე ახალი ჯავშნის შექმნა შეიზღუდება.`,
-  };
+  if (input.event === 'pickup' || input.event === 'dropoff') {
+    const rows: Row[] = [];
+    const at = d.happened_at ? formatDateTime(d.happened_at) : '';
+    if (at && at !== '—') rows.push(['დრო', at]);
+    if (clean(d.place)) rows.push(['ადგილი', clean(d.place)]);
+    if (typeof d.lat === 'number' && typeof d.lng === 'number') {
+      rows.push(['რუკაზე', 'Google Maps', `https://www.google.com/maps?q=${d.lat},${d.lng}`]);
+    }
+    return rows;
+  }
+  return [];
 }
 
 // ── building blocks ─────────────────────────────────────────────────────────
@@ -311,6 +451,7 @@ const C = {
   gold: '#F5A623',
   goldDark: '#B45309',
   green: '#15803d',
+  red: '#b91c1c',
   page: '#f4f4f5',
 };
 
@@ -475,7 +616,11 @@ export function renderBookingEmail(input: EmailInput): RenderedEmail {
   const price = formatGel(offeredPriceGel(b));
   const notes = priceNotes(b);
   const legTag = b.parent_booking_id && b.leg_index ? ` · მანქანა ${b.leg_index}` : '';
-  const accent = input.event === 'completed' ? C.green : C.gold;
+  const accent = input.event === 'completed' || input.event === 'dropoff'
+    ? C.green
+    : input.event === 'cancelled' || input.event === 'rejected'
+    ? C.red
+    : C.gold;
 
   const html = `<!DOCTYPE html>
 <html lang="ka">
@@ -498,6 +643,7 @@ export function renderBookingEmail(input: EmailInput): RenderedEmail {
 <div style="border-left:4px solid ${accent};padding:6px 0 6px 12px">
 <div style="font-size:20px;font-weight:bold;color:${C.ink}">${escapeHtml(L.heading)}${escapeHtml(legTag)}</div>
 <div style="font-size:14px;color:${C.ink};margin-top:6px;line-height:1.5">${escapeHtml(L.intro)}</div>
+${eventRows(input).length ? `<div style="margin-top:8px">${rowsTable(eventRows(input))}</div>` : ''}
 </div>
 </td></tr>
 <tr><td style="padding:16px 24px 8px 24px">
@@ -535,7 +681,7 @@ ${input.host ? section('ჰოსტი', rowsTable(hostRows(input.host))) : ''}
 </html>`;
 
   const textRows = (rows: Row[]) =>
-    rows.filter(([, v]) => v && v !== '—').map(([l, v]) => `${l}: ${v}`).join('\n');
+    rows.filter(([, v]) => v && v !== '—').map(([l, v, href]) => `${l}: ${href && /^https?:/.test(href) ? href : v}`).join('\n');
   const d = input.driver;
   const v = input.vehicle;
   const text = [
@@ -543,6 +689,7 @@ ${input.host ? section('ჰოსტი', rowsTable(hostRows(input.host))) : ''}
     '',
     `${L.heading}${legTag}`,
     L.intro,
+    textRows(eventRows(input)),
     '',
     `ვაუჩერი: ${code}`,
     `ფასი: ${price}`,
