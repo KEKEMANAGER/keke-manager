@@ -1568,7 +1568,8 @@
       "companies": "Ընկերություններ",
       "all": "Բոլորը"
     },
-    "noVehicle": "Տրանսպորտ ավելացված չէ"
+    "noVehicle": "Տրանսպորտ ավելացված չէ",
+    "chatWithCompany": "Chat"
   },
   "dateOnlyField": {
     "default": "Select date"
@@ -1627,7 +1628,12 @@
     "adminInboxEmpty": "No support messages yet",
     "adminInboxOpen": "Open inbox and reply to users",
     "unavailable": "Support chat is temporarily unavailable. Try again later or email info@kekemanager.com",
-    "userFallback": "User"
+    "userFallback": "User",
+    "writeToCompany": "Message a company",
+    "writeToCompanyHint": "Pick a company. Your message reaches its chat from KEKE Support, with a notification.",
+    "companySearch": "Company name, email or phone",
+    "noCompanies": "No company found",
+    "adminEmptyMessages": "Write the first message — they will see it in their KEKE Support chat."
   },
   "jobBoard": {
     "title": "Find drivers",

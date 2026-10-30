@@ -1568,7 +1568,8 @@
       "companies": "კომპანიები",
       "all": "ყველა"
     },
-    "noVehicle": "ტრანსპორტი არ აქვს დამატებული"
+    "noVehicle": "ტრანსპორტი არ აქვს დამატებული",
+    "chatWithCompany": "ჩათი"
   },
   "dateOnlyField": {
     "default": "აირჩიეთ თარიღი"
@@ -1627,7 +1628,12 @@
     "adminInboxEmpty": "საფორტი შეტყობინებები ჯერ არ არის",
     "adminInboxOpen": "გახსენით inbox და უპასუხეთ მომხმარებლებს",
     "unavailable": "საფორტი ჩათი დროებით მიუწვდომელია. სცადეთ მოგვიანებით ან მოგვწერეთ info@kekemanager.com",
-    "userFallback": "მომხმარებელი"
+    "userFallback": "მომხმარებელი",
+    "writeToCompany": "კომპანიას მიწერა",
+    "writeToCompanyHint": "აირჩიე კომპანია. წერილი მის ჩათში „KEKE საფორტიდან“ მივა, შეტყობინებით.",
+    "companySearch": "კომპანიის სახელი, ელფოსტა ან ტელეფონი",
+    "noCompanies": "კომპანია ვერ მოიძებნა",
+    "adminEmptyMessages": "მიწერე პირველი — წერილს „KEKE საფორტის“ ჩათში ნახავენ."
   },
   "jobBoard": {
     "title": "მძღოლების ძიება",

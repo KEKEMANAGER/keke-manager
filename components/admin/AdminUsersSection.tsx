@@ -26,6 +26,7 @@ import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 import { KekeCertifiedBadge } from '../KekeCertifiedBadge';
 import { fetchCertifiedUserIdsForAdmin } from '../../lib/kekeCertified';
+import { adminSupportChatHref } from '../../lib/supportChat';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 
 type UserTab = 'drivers' | 'companies' | 'all';
@@ -285,6 +286,22 @@ export function AdminUsersSection({ searchQuery = '' }: { searchQuery?: string }
               </View>
             ) : null}
             <View style={adminStyles.btnRow}>
+              {u.role === 'company' ? (
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      adminSupportChatHref({
+                        userId: u.id,
+                        name: u.full_name?.trim() || u.email,
+                        adminTab: 'users',
+                      }),
+                    )
+                  }
+                  style={({ pressed }) => [adminStyles.btnGold, pressed && { opacity: 0.88 }]}
+                >
+                  <Text style={adminStyles.btnGoldText}>💬 {t('adminPanel.chatWithCompany')}</Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() => void toggleBlock(u)}
                 disabled={actingId === u.id}

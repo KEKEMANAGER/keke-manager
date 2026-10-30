@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, type Href } from 'expo-router';
 import { useCallback, useState } from 'react';
 import type { ChatThreadType } from './bookingChat';
 import { supabase } from './supabase';
@@ -65,6 +65,29 @@ export function resetSupportAdminCache(): void {
 
 export function isSupportThreadType(value: string | null | undefined): value is typeof SUPPORT_THREAD_TYPE {
   return value === SUPPORT_THREAD_TYPE;
+}
+
+/**
+ * The admin's support conversation with one person, opened from the admin
+ * panel — also before that person has ever written. They read it in their
+ * "KEKE Support" chat. Back returns to the panel tab it was opened from.
+ */
+export function adminSupportChatHref(params: {
+  userId: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+  adminTab: string;
+}): Href {
+  return {
+    pathname: '/(app)/chat',
+    params: {
+      uid: params.userId,
+      name: params.name?.trim() ?? '',
+      avatar: params.avatarUrl?.trim() ?? '',
+      threadType: SUPPORT_THREAD_TYPE,
+      adminTab: params.adminTab,
+    },
+  };
 }
 
 export async function fetchSupportConversationSummary(

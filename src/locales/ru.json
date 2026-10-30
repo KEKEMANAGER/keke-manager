@@ -1413,7 +1413,8 @@
       "companies": "Компании",
       "all": "Все"
     },
-    "noVehicle": "Транспорт не добавлен"
+    "noVehicle": "Транспорт не добавлен",
+    "chatWithCompany": "Чат"
   },
   "dateOnlyField": {
     "default": "Выберите дату"
@@ -1472,7 +1473,12 @@
     "adminInboxEmpty": "Сообщений поддержки пока нет",
     "adminInboxOpen": "Открыть inbox и ответить пользователям",
     "unavailable": "Чат поддержки временно недоступен. Попробуйте позже или напишите на info@kekemanager.com",
-    "userFallback": "Пользователь"
+    "userFallback": "Пользователь",
+    "writeToCompany": "Написать компании",
+    "writeToCompanyHint": "Выберите компанию. Сообщение придёт в её чат от «Поддержки KEKE», с уведомлением.",
+    "companySearch": "Название, email или телефон компании",
+    "noCompanies": "Компания не найдена",
+    "adminEmptyMessages": "Напишите первым — сообщение появится в их чате «Поддержка KEKE»."
   },
   "jobBoard": {
     "title": "Поиск водителей",

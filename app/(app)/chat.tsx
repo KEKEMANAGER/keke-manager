@@ -228,7 +228,13 @@ export default function CompanyChatScreen() {
           listRef={listRef}
           messages={messages}
           myId={user?.id}
-          emptyText={isSupport ? t('supportChat.emptyMessages') : t('chat.emptyMessages')}
+          emptyText={
+            isSupport
+              ? profile?.role === 'admin'
+                ? t('supportChat.adminEmptyMessages')
+                : t('supportChat.emptyMessages')
+              : t('chat.emptyMessages')
+          }
           paddingBottom={CONTENT_PADDING_BOTTOM}
         />
       )}
