@@ -15,6 +15,7 @@
     "/sitemap.xml",
     "/llms.txt",
     "/llms-full.txt",
-    "/blog/rss.xml"
+    "/blog/rss.xml",
+    "/docs/*"
   ]
 }

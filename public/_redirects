@@ -19,6 +19,9 @@
 /test             /test/index.html  200
 /test/*           /test/:splat      200
 
+# Documents linked from emails (presentations): static files, never the SPA
+/docs/*           /docs/:splat      200
+
 # Missing build assets must 404 — never serve index.html as JavaScript (MIME error)
 /_expo/*          /asset-not-found.html         404
 /assets/*         /asset-not-found.html         404
