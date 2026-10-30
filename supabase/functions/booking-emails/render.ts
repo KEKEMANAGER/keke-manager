@@ -334,19 +334,19 @@ export function lines(input: EmailInput): Lines {
       return {
         subject: `ჯავშანი შეიცვალა · ${code}`,
         heading: 'ჯავშანი შეიცვალა',
-        intro: 'ჯავშანში ცვლილებები შევიდა. განახლებული ვაუჩერი ქვემოთაა.',
+        intro: 'ჯავშანში ცვლილებები შევიდა.',
       };
     case 'confirmed':
       return {
         subject: `ჯავშანი დადასტურდა · ${code}${whenTag}`,
         heading: 'ჯავშანი დადასტურდა',
-        intro: `თქვენი ჯავშანი მძღოლმა მიიღო.${driverNote} ვაუჩერი ქვემოთაა.`,
+        intro: `თქვენი ჯავშანი მძღოლმა მიიღო.${driverNote}`,
       };
     case 'driver_changed':
       return {
         subject: `მძღოლი შეიცვალა · ${code}`,
         heading: 'მძღოლი შეიცვალა',
-        intro: `ჯავშანს ახალი მძღოლი ჰყავს.${driverNote} განახლებული ვაუჩერი ქვემოთაა.`,
+        intro: `ჯავშანს ახალი მძღოლი ჰყავს.${driverNote}`,
       };
     case 'rejected':
       return {
@@ -609,7 +609,12 @@ function vehicleBlock(v: EmailVehicle | null): string {
 
 // ── the email ───────────────────────────────────────────────────────────────
 
-export function renderBookingEmail(input: EmailInput): RenderedEmail {
+/**
+ * The email. `logoSrc` is where the footer logo comes from: `cid:…` when the
+ * logo travels with the email as an inline image, a web address for previews,
+ * nothing for a footer without the picture.
+ */
+export function renderBookingEmail(input: EmailInput, opts: { logoSrc?: string | null } = {}): RenderedEmail {
   const b = input.booking;
   const L = lines(input);
   const code = voucherCode(b);
@@ -668,11 +673,24 @@ ${input.host ? section('ჰოსტი', rowsTable(hostRows(input.host))) : ''}
 <tr><td align="center" style="padding:12px 24px 24px 24px">
 <a href="${escapeHtml(input.voucherUrl)}" style="display:inline-block;background:${C.gold};color:#111111;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:10px">ვაუჩერი KEKE Manager-ში</a>
 </td></tr>
+<tr><td style="padding:0 24px">
+<div style="border-top:1px solid #E6E8EE;font-size:0;line-height:0">&nbsp;</div>
+</td></tr>
+<tr><td align="center" style="padding:22px 24px 26px 24px;text-align:center">
+${opts.logoSrc
+    ? `<img src="${escapeHtml(opts.logoSrc)}" alt="KEKE Manager" width="96" height="109" style="display:block;margin:0 auto;width:96px;height:109px;border:0">`
+    : `<div style="font-size:18px;font-weight:900;letter-spacing:3px;color:${C.ink}">KEKE MANAGER</div>`}
+<div style="font-size:12px;color:${C.muted};margin-top:10px">B2B ტურისტული სატრანსპორტო პლატფორმა</div>
+<div style="font-size:14px;color:${C.ink};margin-top:12px;line-height:1.8">
+ტელეფონი: <a href="tel:+995551003411" style="color:${C.ink};text-decoration:none;font-weight:bold">+995 551 003 411</a><br>
+ელფოსტა: <a href="mailto:info@kekemanager.com" style="color:${C.ink};font-weight:bold">info@kekemanager.com</a><br>
+ვებგვერდი: <a href="https://kekemanager.com" style="color:${C.ink};font-weight:bold">kekemanager.com</a>
+</div>
+</td></tr>
 </table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
 <tr><td style="padding:14px 24px;text-align:center;font-size:11px;color:${C.muted};line-height:1.6">
-ეს წერილი ავტომატურად გამოიგზავნა KEKE Manager-იდან.<br>
-კითხვები: <a href="mailto:info@kekemanager.com" style="color:${C.muted}">info@kekemanager.com</a> · +995 551 003 411
+ეს წერილი ავტომატურად გამოიგზავნა KEKE Manager-იდან.
 </td></tr>
 </table>
 </td></tr>
@@ -701,7 +719,11 @@ ${input.host ? section('ჰოსტი', rowsTable(hostRows(input.host))) : ''}
     '',
     `ვაუჩერი ონლაინ: ${input.voucherUrl}`,
     '',
-    'KEKE Manager · info@kekemanager.com · +995 551 003 411',
+    '—',
+    'KEKE Manager · B2B ტურისტული სატრანსპორტო პლატფორმა',
+    'ტელეფონი: +995 551 003 411',
+    'ელფოსტა: info@kekemanager.com',
+    'ვებგვერდი: kekemanager.com',
   ].filter((x, i, a) => !(x === '' && a[i - 1] === '')).join('\n');
 
   return { subject: L.subject, html, text };

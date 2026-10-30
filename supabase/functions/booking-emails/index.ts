@@ -35,6 +35,7 @@ import {
   type RenderedEmail,
 } from './render.ts';
 import { renderVoucherPdf, type PdfFonts } from './pdf.ts';
+import { LOGO_PNG_BASE64 } from './logo.ts';
 
 const FROM = 'KEKE Manager <noreply@kekemanager.com>';
 const REPLY_TO = 'info@kekemanager.com';
@@ -116,7 +117,11 @@ function pdfFonts(): Promise<PdfFonts | null> {
   return fontsPromise;
 }
 
-type Attachment = { filename: string; content: string };
+type Attachment = { filename: string; content: string; content_id?: string; content_type?: string };
+
+/** The footer logo, sent with every email as an inline image. */
+const LOGO_CID = 'keke-logo';
+const LOGO: Attachment = { filename: 'keke-manager.png', content: LOGO_PNG_BASE64, content_id: LOGO_CID, content_type: 'image/png' };
 
 function toBase64(bytes: Uint8Array): string {
   let s = '';
@@ -295,7 +300,7 @@ async function sendViaResend(
         html: email.html,
         text: email.text,
         tags: [{ name: 'event', value: event }],
-        ...(attachment ? { attachments: [attachment] } : {}),
+        attachments: attachment ? [attachment, LOGO] : [LOGO],
       }),
     });
     const out = await res.json().catch(() => ({}));
@@ -378,7 +383,7 @@ async function processQueue(): Promise<Record<string, unknown>> {
       tally.skipped++;
       continue;
     }
-    const email = renderBookingEmail(loaded.input);
+    const email = renderBookingEmail(loaded.input, { logoSrc: `cid:${LOGO_CID}` });
     const pdf = await voucherAttachment(loaded.input, voucherCode(loaded.input.booking));
     const res = await sendViaResend(key, `booking-email-${row.id}`, loaded.to, email, row.event, pdf?.file ?? null);
     if (res.ok) {
@@ -424,7 +429,7 @@ Deno.serve(async (req) => {
     if ('skip' in loaded) return json({ ok: false, skipped: loaded.skip, keyConfigured });
     const input: EmailInput = { ...loaded.input, event };
     const to: string | null = loaded.to;
-    const email = renderBookingEmail(input);
+    const email = renderBookingEmail(input, { logoSrc: body.test ? `cid:${LOGO_CID}` : 'https://kekemanager.com/logo.png' });
     const pdf = await voucherAttachment(input, voucherCode(input.booking));
 
     if (body.test) {
