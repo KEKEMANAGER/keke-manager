@@ -25,6 +25,8 @@ export function useCompanyCancelBooking(onSettled?: (booking: BookingRow) => voi
   const { t } = useTranslation();
   const { user } = useAuth();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  // one cancellation at a time: from the first tap (while the question is
+  // open) until the server has answered
   const busy = useRef(false);
 
   const requestCancel = useCallback(
@@ -43,9 +45,8 @@ export function useCompanyCancelBooking(onSettled?: (booking: BookingRow) => voi
           ? t('companyCancel.confirmWithDriver', { name: driverName })
           : t('companyDashboard.cancelConfirm');
 
+      busy.current = true;
       const run = async () => {
-        if (busy.current) return;
-        busy.current = true;
         setCancellingId(booking.id);
         try {
           const res = await cancelBookingByCompany(booking.id, userId, opts?.reason);
@@ -69,14 +70,23 @@ export function useCompanyCancelBooking(onSettled?: (booking: BookingRow) => voi
         }
       };
 
+      const release = () => {
+        busy.current = false;
+      };
       if (Platform.OS === 'web') {
         if (window.confirm(question)) void run();
+        else release();
         return;
       }
-      Alert.alert(t('companyCancel.title'), question, [
-        { text: t('common.no'), style: 'cancel' },
-        { text: t('companyCancel.confirmButton'), style: 'destructive', onPress: () => void run() },
-      ]);
+      Alert.alert(
+        t('companyCancel.title'),
+        question,
+        [
+          { text: t('common.no'), style: 'cancel', onPress: release },
+          { text: t('companyCancel.confirmButton'), style: 'destructive', onPress: () => void run() },
+        ],
+        { cancelable: true, onDismiss: release },
+      );
     },
     [user?.id, t, onSettled],
   );

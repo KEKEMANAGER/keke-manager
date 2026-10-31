@@ -154,27 +154,32 @@ applied after P0-4 part A (it tells drivers through part A's server delivery)
 and before the app update that calls it. Nothing is sent anywhere. The runner
 builds the database as P0-1..P0-4 part A leave it and then runs, in order:
 
-1. `p0_5_bug_reproduction.sql` — 10 BUG checks hold (no server cancel; the
+1. `p0_5_bug_reproduction.sql` — 12 BUG checks hold (no server cancel; the
    driver, the driver a job was offered to, the fleet owner and his driver
    not told; no change-log line; the company's direct update cancelling a trip
    in progress or a finished booking, reviving a cancelled one that a driver
-   then takes, quietly stopping a car on the road with 'rejected').
+   then takes, quietly stopping a car on the road with 'rejected', taking an
+   accepted job back by setting it to pending, recording its own cancellation
+   as the driver's).
 2. P0-5: the reproduction (nothing holds), `p0_5_company_cancel.test.sql`
-   (125 pgTAP checks: who may cancel what — company, another company, the
+   (146 pgTAP checks: who may cancel what — company, another company, the
    driver, an unrelated driver, the fleet owner, KEKE; each status; the
-   calendar; the change log; each notice once, on the phone too; convoys;
-   dispatch, outbox, reminder worker and automatic replacement after a
-   cancellation; an installed app's old cancel), the P0-4 reproduction (only
-   its part-B items) and the P0-1..P0-4 suites.
+   calendar; the change log; who cancelled, written by the server only; the
+   fleet owner taken from the fleet, not from a column the company can write;
+   each notice once, on the phone too; convoys; dispatch, outbox, reminder
+   worker and automatic replacement after a cancellation; an installed app's
+   old cancel), the P0-4 reproduction (only its part-B items) and the
+   P0-1..P0-4 suites.
 3. With P0-3 part B, then also P0-4 part B on top (the state after the whole
    rollout): the same.
 4. `p0_5_concurrency.sh` on both states: cancel against a driver's
    acceptance, against the reminder worker's replacement, against a second
-   cancel, against the driver's own cancel, against the second-wave flush —
-   whichever wins, the booking ends cancelled, holds no calendar, and each
+   cancel, against the driver's own cancel, against the second-wave flush, and
+   a convoy cancelled together with one of its cars — whichever wins, the
+   booking ends cancelled, holds no calendar, nothing deadlocks, and each
    person is told what happened to him once.
 5. Undo: the P0-4 part A undo refuses while P0-5 is in place; undoing P0-5
-   brings the 10 problems back and leaves P0-1..P0-4 passing; P0-5 applied
+   brings the 12 problems back and leaves P0-1..P0-4 passing; P0-5 applied
    again passes again. On both states.
 
 `p0_5_client_check.cjs` compiles the app's TypeScript on the fly with a

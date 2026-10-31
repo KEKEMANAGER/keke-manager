@@ -9,8 +9,12 @@ select * from no_plan();
 
 -- more bookings for this file (C1's; days from now): NEWACC at ACC's time,
 -- open; RUN2 RUN3 for E1 (+25 / +26); MST3 a convoy with LEG5 (E1, +30) and
--- LEG6 open; MST5 a convoy with LEG7 open; OPEN3 open (+27); OLDP offered to
--- E3 (+28); SOON for E1 and SOON2 for E2, both in about 12 hours.
+-- LEG6 open; MST5 a convoy with LEG7 open; MST6 a convoy with LEG8 (E2, +32)
+-- and LEG9 open; MST7 a convoy whose cars are finished (LEG10 completed,
+-- LEG11 cancelled) but whose own row still says pending; OPEN3 open (+27);
+-- OLDP offered to E3 (+28); FLT4 a minivan job H gave S (+35) without the
+-- fleet owner written on it; SOON for E1 and SOON2 for E2, both in about 12
+-- hours.
 insert into public.bookings (id, company_id, driver_id, kind, status, date_display, from_location, to_location,
                              price_gel, vehicle_type, vehicle_class, passengers, voucher_code, parent_booking_id,
                              is_group_master, leg_index)
@@ -23,6 +27,8 @@ select tests.p5(b), tests.p5('C1'), case when d is null then null else tests.p5(
     ('RUN3',   null, (now() + interval '26 days')::text, null, null, null),
     ('MST3',   null, (now() + interval '30 days')::text, null, true, null),
     ('MST5',   null, (now() + interval '31 days')::text, null, true, null),
+    ('MST6',   null, (now() + interval '32 days')::text, null, true, null),
+    ('MST7',   null, (now() + interval '33 days')::text, null, true, null),
     ('OPEN3',  null, (now() + interval '27 days')::text, null, null, null),
     ('OLDP',   'E3', (now() + interval '28 days')::text, null, null, null),
     ('SOON',   null, (now() + interval '12 hours')::text, null, null, null),
@@ -32,13 +38,23 @@ insert into public.bookings (id, company_id, driver_id, kind, status, date_displ
                              price_gel, vehicle_type, vehicle_class, passengers, voucher_code, parent_booking_id, leg_index)
 select tests.p5(b), tests.p5('C1'), null, 'transfer', 'pending', (now() + make_interval(days => dd))::text,
        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 2, 'V-' || b, tests.p5(par), li
-  from (values ('LEG5', 'MST3', 30, 1), ('LEG6', 'MST3', 30, 2), ('LEG7', 'MST5', 31, 1)) as x(b, par, dd, li);
+  from (values ('LEG5', 'MST3', 30, 1), ('LEG6', 'MST3', 30, 2), ('LEG7', 'MST5', 31, 1),
+               ('LEG8', 'MST6', 32, 1), ('LEG9', 'MST6', 32, 2),
+               ('LEG10', 'MST7', 33, 1), ('LEG11', 'MST7', 33, 2)) as x(b, par, dd, li);
+insert into public.bookings (id, company_id, kind, status, date_display, from_location, to_location,
+                             price_gel, vehicle_type, vehicle_class, passengers, voucher_code)
+values (tests.p5('FLT4'), tests.p5('C1'), 'transfer', 'pending', (now() + interval '35 days')::text,
+        'Test airport', 'Test hotel', 150, 'minivan', 'comfort', 2, 'V-FLT4');
 select tests.act_as(tests.p5('C1'));
 select public.accept_booking_atomic(tests.p5(b), tests.p5(d), tests.p5(v))
   from (values ('RUN2', 'E1', 'vE1'), ('RUN3', 'E1', 'vE1'), ('LEG5', 'E1', 'vE1'),
-               ('SOON', 'E1', 'vE1'), ('SOON2', 'E2', 'vE2')) as x(b, d, v);
+               ('SOON', 'E1', 'vE1'), ('SOON2', 'E2', 'vE2'), ('LEG8', 'E2', 'vE2')) as x(b, d, v);
+select tests.act_as(tests.p5('H'));
+select public.accept_booking_atomic(tests.p5('FLT4'), tests.p5('S'), tests.p5('vH2'));
 select tests.act_as_owner();
 update public.bookings set status = 'in_progress' where id = tests.p5('RUN3');
+update public.bookings set status = 'completed' where id = tests.p5('LEG10');
+update public.bookings set status = 'cancelled' where id = tests.p5('LEG11');
 delete from public.booking_history;
 delete from public.notifications;
 delete from net.http_calls;
@@ -172,6 +188,48 @@ select ok(tests.blocked(tests.p5('RUN')), 'E3''s calendar still holds it');
 select is(tests.notices(tests.p5('E3'), 'booking_cancelled'), 0, 'E3 is not told anything');
 select is(tests.history_lines(tests.p5('RUN')), 0, 'a refused cancellation is not logged');
 
+-- the company cannot get around that through the fleet owner's column
+select tests.act_as(tests.p5('C1'));
+select is(tests.try_sql(format('update public.bookings set host_driver_id = %L where id = %L', tests.p5('C1'), tests.p5('RUN'))), -1,
+  'the company cannot name itself the fleet owner of a trip in progress (to stop it as such)');
+select is(tests.try_sql(format('update public.bookings set host_driver_id = %L where id = %L', tests.p5('E2'), tests.p5('ACC2'))), -1,
+  'nor name anyone the fleet owner of its booking (who would then be told about it)');
+select tests.act_as_owner();
+select is(tests.status_of(tests.p5('RUN')), 'in_progress', 'RUN still goes on');
+
+-- no silent unassign, no empty status
+select tests.act_as(tests.p5('C1'));
+select is(tests.try_sql(format('update public.bookings set status = ''pending'' where id = %L', tests.p5('ACC2'))), -1,
+  'the company cannot take an accepted job back by setting it to pending (the driver would not be told)');
+select is(tests.try_sql(format('update public.bookings set status = null where id = %L', tests.p5('ACC2'))), -1,
+  'nor leave a booking without a status');
+select tests.act_as_owner();
+select ok(tests.status_of(tests.p5('ACC2')) = 'accepted' and tests.blocked(tests.p5('ACC2')),
+  'ACC2 is still E1''s, in his calendar');
+
+-- who cancelled is the server's to write
+select tests.act_as(tests.p5('C1'));
+select is(tests.try_sql(format('update public.bookings set status = ''cancelled'', cancelled_by = ''driver'' where id = %L', tests.p5('ACC2'))), 1,
+  'the company cancels ACC2 with a direct update that claims the driver did it');
+select tests.act_as_owner();
+select is((select cancelled_by from public.bookings where id = tests.p5('ACC2')), 'company',
+  'it is recorded as the company''s (a driver''s own cancellation counts against his rating)');
+select is((select h.reason from public.booking_history h where h.booking_id = tests.p5('ACC2')), 'cancelled_by_company',
+  'and logged as the company''s');
+select is(tests.notices(tests.p5('E1'), 'booking_cancelled', tests.p5('ACC2')), 1, 'E1 is told, once');
+select tests.act_as(tests.p5('C1'));
+select tests.try_sql(format('update public.bookings set cancelled_by = ''driver'', cancelled_at = now() - interval ''5 days'' where id = %L', tests.p5('ACC2')));
+select tests.act_as_owner();
+select is((select cancelled_by || ' ' || (cancelled_at > now() - interval '1 minute')::text from public.bookings where id = tests.p5('ACC2')),
+  'company true', 'and a later direct update does not rewrite who cancelled, or when');
+
+-- the fleet owner who is told is the driver's own, from the fleet
+select tests.act_as(tests.p5('C1'));
+select is(tests.cancel(tests.p5('FLT4')), 'cancelled', 'FLT4, which H gave S (no fleet owner written on the booking), is cancelled');
+select tests.act_as_owner();
+select is(tests.notices(tests.p5('S'), 'booking_cancelled', tests.p5('FLT4')) || ',' || tests.notices(tests.p5('H'), 'booking_cancelled', tests.p5('FLT4')),
+  '1,1', 'S and his fleet owner H are each told once'); 
+
 -- finished bookings stay finished
 select tests.act_as(tests.p5('C1'));
 select is(tests.cancel(tests.p5('DONE')), 'already_completed', 'a completed booking: already_completed, nothing changes');
@@ -258,6 +316,8 @@ select is(tests.try_sql(format('update public.bookings set status = ''pending'' 
 
 -- MST2: LEG3 on the road (E2), LEG4 open
 select is(tests.cancel(tests.p5('MST2')), 'convoy_in_progress', 'a convoy with a car on the road: refused');
+select is(tests.try_sql(format('update public.bookings set status = ''cancelled'' where id = %L', tests.p5('MST2'))), -1,
+  '... and an installed app cannot cancel its convoy row directly either');
 select tests.act_as_owner();
 select is((select string_agg(status, ',' order by leg_index) from public.bookings where parent_booking_id = tests.p5('MST2'))
           || ' / ' || tests.status_of(tests.p5('MST2')),
@@ -285,7 +345,25 @@ select is(tests.notices(tests.p5('E1'), 'booking_cancelled', tests.p5('MST3')), 
 select tests.act_as(tests.p5('C1'));
 select is(tests.try_sql(format('update public.bookings set status = ''accepted'' where id = %L', tests.p5('MST5'))), 1,
   'an installed app can still set an open convoy''s status from its cars');
+
+-- MST6: its row cancelled directly, its cars still waiting (LEG8 E2's, LEG9 open)
+select is(tests.try_sql(format('update public.bookings set status = ''cancelled'' where id = %L', tests.p5('MST6'))), 1,
+  'an installed app cancels a convoy row before its cars');
+select is(tests.cancel(tests.p5('LEG9')), 'cancelled', 'one of its cars is then cancelled');
 select tests.act_as_owner();
+select is(tests.status_of(tests.p5('MST6')), 'cancelled', 'the cancelled convoy row is not brought back by its cars');
+select tests.act_as(tests.p5('C1'));
+select is(public.cancel_booking_by_company(tests.p5('MST6')) ->> 'cancelled_cars', '1',
+  'cancelling the convoy again cancels the car still waiting');
+select tests.act_as_owner();
+select is(tests.notices(tests.p5('E2'), 'booking_cancelled', tests.p5('LEG8')), 1, 'whose driver is told, once');
+
+-- MST7: every car finished, the convoy row behind
+select tests.act_as(tests.p5('C1'));
+select is(tests.cancel(tests.p5('MST7')), 'already_completed',
+  'a convoy whose cars are all finished is not cancelled: already_completed');
+select tests.act_as_owner();
+select is(tests.status_of(tests.p5('MST7')), 'completed', 'and its row is brought in line with its cars');
 
 -- 7. After a cancellation nothing brings it back ------------------------------------
 
@@ -340,10 +418,10 @@ select is((select count(*)::int from (select n.user_id, n.data ->> 'booking_id'
                                         from public.notifications n where n.type = 'booking_cancelled'
                                        group by 1, 2 having count(*) > 1) d), 0,
   'nobody got two cancellation notices for one booking');
-select is((select count(*)::int from public.notifications n where n.type = 'booking_cancelled'), 10,
-  'ten cancellation notices in all: E1 (ACC, LEG5, SOON), E2 (OFFER, C2ACC), E3 (RUN, LEG1, OLDP), S and H (FLT); none for the open bookings, the convoy rows or a driver''s own cancellation');
+select is((select count(*)::int from public.notifications n where n.type = 'booking_cancelled'), 14,
+  'fourteen cancellation notices in all: E1 (ACC, ACC2, LEG5, SOON), E2 (OFFER, C2ACC, LEG8), E3 (RUN, LEG1, OLDP), S and H (FLT, FLT4); none for the open bookings, the convoy rows or a driver''s own cancellation');
 select is((select count(*)::int from net.http_calls c where c.url like 'https://exp.host/%'
-            and c.body -> 'data' ->> 'type' = 'booking_cancelled'), 10, 'and one phone notification for each');
+            and c.body -> 'data' ->> 'type' = 'booking_cancelled'), 14, 'and one phone notification for each');
 
 select * from finish();
 rollback;

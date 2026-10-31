@@ -1,11 +1,11 @@
 -- P0-5 reproduction: each "BUG:" check passes while that problem exists. On
--- the state P0-5 builds on (P0-1..P0-4) all 10 hold; after P0-5 none does.
+-- the state P0-5 builds on (P0-1..P0-4) all 12 hold; after P0-5 none does.
 -- The app side of the bug (cancel only on the two newest dashboard cards, and
 -- only for pending bookings) is in app/(app)/dashboard.tsx and
 -- lib/bookings.ts cancelBookingByCompany; this file covers the database.
 -- One transaction, rolled back; nothing is sent anywhere.
 begin;
-select plan(10);
+select plan(12);
 \ir fixtures/p0_5_seed.sql
 
 select ok(not tests.p5_applied(),
@@ -42,6 +42,12 @@ select is(public.accept_booking_atomic(tests.p5('CNL'), tests.p5('E1'), tests.p5
 select tests.act_as(tests.p5('C1'));
 select is(tests.try_sql(format('update public.bookings set status = ''rejected'' where id = %L', tests.p5('LEG3'))), 1,
   'BUG: the company quietly stops a car on the road by marking its booking ''rejected''');
+select is(tests.try_sql(format('update public.bookings set status = ''pending'' where id = %L', tests.p5('ACC2'))), 1,
+  'BUG: the company takes back a job its driver accepted by setting it to pending; nobody is told');
+select tests.try_sql(format('update public.bookings set status = ''cancelled'', cancelled_by = ''driver'' where id = %L', tests.p5('ACC2')));
+select tests.act_as_owner();
+select is((select cancelled_by from public.bookings where id = tests.p5('ACC2')), 'driver',
+  'BUG: the company records its own cancellation as the driver''s, which counts against his rating');
 
 select * from finish();
 rollback;

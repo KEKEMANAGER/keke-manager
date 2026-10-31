@@ -37,10 +37,15 @@
 --         cancellation is announced to the company by his app, as before.
 --   * A cancelled or completed booking stays so: no direct update from an app
 --     changes its status any more (an admin still can). A trip in progress
---     changes status only by its driver (or an admin): the company's direct
---     update can no longer cancel it, set it back or mark it 'rejected' — nor
---     mark any booking 'rejected', which skipped the driver's notice and the
---     change log. A convoy's coordinator row still follows its cars.
+--     changes status only by its driver (or an admin). A company changes a
+--     booking's status only by cancelling it: not back to pending (a silent
+--     unassign), not 'rejected', never empty — those skipped the driver's
+--     notice and the change log. A convoy's coordinator row still follows its
+--     cars, but is not cancelled while one of them is on the road.
+--   * Who cancelled, and when, is written by the server only (it counts in
+--     the driver's rating); the fleet owner on a booking is not set by a
+--     direct update, and the fleet owner who is told is the driver's own,
+--     from the fleet.
 --
 -- Needs P0-3 part A and P0-4 part A (checked below). Changes no rows.
 -- Undo: supabase/rollback/20261101120000_company_cancellation_undo.sql
@@ -72,12 +77,16 @@ $$;
 -- functions, the reminder worker and cron run as the owner and pass; so does
 -- an admin. P0-3's bookings_guard_direct_writes already limits what a driver
 -- may write; this adds what holds for everyone, the company included:
---   * a cancelled or completed booking stays so;
+--   * a booking always has a status; a cancelled or completed one stays so;
 --   * a trip in progress changes status only by its driver (or KEKE);
---   * a company withdraws a booking by cancelling it — which tells the
---     driver and is logged — not by marking it 'rejected'.
+--   * a company changes a booking's status only by cancelling it — which
+--     tells the driver and is logged — not back to pending, not 'rejected';
+--   * who cancelled and when (cancelled_by, cancelled_at) is the server's to
+--     write: bookings_stamp_lifecycle sets it from the caller, after this;
+--   * the fleet owner on a booking (host_driver_id) is not set by an app.
 -- A convoy's coordinator row may follow its cars (the app sets it from
--- them), but once cancelled or completed it stays so too.
+-- them), but not to 'cancelled' while a car is on the road, and once
+-- cancelled or completed it stays so too.
 create or replace function public.bookings_guard_cancellation()
 returns trigger
 language plpgsql
@@ -89,10 +98,24 @@ begin
   if current_user not in ('authenticated', 'anon') then
     return new;
   end if;
-  if new.status is not distinct from old.status then
-    return new;
+  if new.status is null then
+    raise exception 'bookings: a booking always has a status' using errcode = '42501';
   end if;
   if public.is_admin_user() then
+    return new;
+  end if;
+  uid := auth.uid();
+
+  -- whatever the app sent, these stay as they are (an untouched cancellation
+  -- stamp is empty, so bookings_stamp_lifecycle fills it from the caller)
+  new.cancelled_by := old.cancelled_by;
+  new.cancelled_at := old.cancelled_at;
+  if new.host_driver_id is distinct from old.host_driver_id then
+    raise exception 'bookings: the fleet owner on a booking is not set by a direct update'
+      using errcode = '42501';
+  end if;
+
+  if new.status is not distinct from old.status then
     return new;
   end if;
   if old.status in ('cancelled', 'completed') then
@@ -100,17 +123,20 @@ begin
       using errcode = '42501';
   end if;
   if coalesce(old.is_group_master, false) then
+    if new.status = 'cancelled'
+       and exists (select 1 from public.bookings x
+                    where x.parent_booking_id = old.id and x.status = 'in_progress') then
+      raise exception 'bookings: a convoy with a car on the road is not cancelled'
+        using errcode = '42501';
+    end if;
     return new;
   end if;
-  uid := auth.uid();
-  if old.status = 'in_progress'
-     and uid is distinct from old.driver_id
-     and uid is distinct from old.host_driver_id then
+  if old.status = 'in_progress' and uid is distinct from old.driver_id then
     raise exception 'bookings: a trip in progress is ended by its driver or by KEKE, not by the company'
       using errcode = '42501';
   end if;
-  if new.status = 'rejected' and uid is not distinct from old.company_id then
-    raise exception 'bookings: a company cancels its booking (cancel_booking_by_company); it does not reject it'
+  if uid is not distinct from old.company_id and new.status is distinct from 'cancelled' then
+    raise exception 'bookings: a company changes a booking''s status only by cancelling it (cancel_booking_by_company)'
       using errcode = '42501';
   end if;
   return new;
@@ -121,7 +147,7 @@ revoke all on function public.bookings_guard_cancellation() from public, anon, a
 
 drop trigger if exists bookings_guard_cancellation on public.bookings;
 create trigger bookings_guard_cancellation
-  before update of status on public.bookings
+  before update of status, cancelled_by, cancelled_at, host_driver_id on public.bookings
   for each row execute function public.bookings_guard_cancellation();
 
 -- 2. What every cancellation does --------------------------------------------
@@ -159,7 +185,8 @@ begin
           left('cancelled_by_' || coalesce(new.cancelled_by, 'unknown') || coalesce(': ' || reason, ''), 500));
 
   -- the company or KEKE cancelled: the driver and his fleet owner are told,
-  -- once (a driver's own cancellation is announced to the company by his app)
+  -- once (a driver's own cancellation is announced to the company by his app).
+  -- The fleet owner is the driver's own, from the fleet.
   if coalesce(new.is_group_master, false) or uid is null then
     return null;
   end if;
@@ -170,7 +197,12 @@ begin
   route := public.booking_route_summary(new.from_location, new.to_location, new.route::text)
            || coalesce(' · ' || nullif(btrim(new.date_display), ''), '');
   for r in
-    select distinct x from unnest(array[old.driver_id, old.host_driver_id]) x
+    select distinct x
+      from unnest(array[
+             old.driver_id,
+             (select f.host_driver_id from public.driver_fleet f
+               where f.sub_driver_id = old.driver_id and f.status = 'accepted'
+               order by f.created_at desc limit 1)]) x
      where x is not null and x is distinct from uid
   loop
     perform public.deliver_notification(r, 'KEKE · ჯავშანი გაუქმდა',
@@ -221,6 +253,7 @@ begin
      set status = next, updated_at = now()
    where id = p_master_id
      and coalesce(is_group_master, false)
+     and status not in ('cancelled', 'completed')
      and status is distinct from next;
 end;
 $$;
@@ -239,6 +272,7 @@ as $$
 declare
   uid   uuid := auth.uid();
   b     public.bookings;
+  par   uuid;
   admin boolean;
   why   text;
   n     int := 0;
@@ -251,7 +285,13 @@ begin
   end if;
 
   -- locked: a driver's acceptance, the reminder worker's replacement and a
-  -- second tap all wait here, and each sees the other's result
+  -- second tap all wait here, and each sees the other's result. A convoy's
+  -- own row is always locked before its cars, so cancelling a convoy and one
+  -- of its cars at the same moment wait for each other instead of deadlocking.
+  select x.parent_booking_id into par from public.bookings x where x.id = p_booking_id;
+  if par is not null then
+    perform 1 from public.bookings x where x.id = par for update;
+  end if;
   select * into b from public.bookings where id = p_booking_id for update;
   if not found then
     return jsonb_build_object('ok', false, 'code', 'not_found', 'message', 'ჯავშანი ვერ მოიძებნა');
@@ -269,23 +309,40 @@ begin
       return jsonb_build_object('ok', false, 'code', 'convoy_in_progress',
         'message', 'გაუქმება შეუძლებელია — ერთ-ერთი მანქანა უკვე გზაშია');
     end if;
-    if b.status in ('cancelled', 'completed')
-       and not exists (select 1 from public.bookings x
-                        where x.parent_booking_id = b.id and x.status in ('pending', 'accepted')) then
+    if not exists (select 1 from public.bookings x
+                    where x.parent_booking_id = b.id and x.status in ('pending', 'accepted')) then
+      -- no car left to cancel: the convoy row follows its cars (a convoy
+      -- without cars is cancelled itself, as the app does)
+      if exists (select 1 from public.bookings x where x.parent_booking_id = b.id) then
+        perform public.sync_convoy_master_status(b.id);
+      elsif b.status not in ('cancelled', 'completed') then
+        perform set_config('keke.cancel_reason', why, true);
+        update public.bookings
+           set status = 'cancelled', cancelled_by = null, cancelled_at = null, updated_at = now()
+         where id = b.id;
+        perform set_config('keke.cancel_reason', '', true);
+        return jsonb_build_object('ok', true, 'code', 'cancelled', 'previous_status', b.status, 'cancelled_cars', 0,
+          'message', 'ჯავშანი გაუქმდა');
+      end if;
+      select x.status into b.status from public.bookings x where x.id = b.id;
       return jsonb_build_object('ok', false,
-        'code', case b.status when 'cancelled' then 'already_cancelled' else 'already_completed' end,
-        'message', case b.status when 'cancelled' then 'ჯავშანი უკვე გაუქმებულია' else 'ჯავშანი უკვე დასრულებულია' end);
+        'code', case b.status when 'cancelled' then 'already_cancelled'
+                              when 'completed' then 'already_completed' else 'already_closed' end,
+        'message', case b.status when 'cancelled' then 'ჯავშანი უკვე გაუქმებულია'
+                                 when 'completed' then 'ჯავშანი უკვე დასრულებულია' else 'ჯავშანი ვერ გაუქმდება' end);
     end if;
     -- the reason reaches the change log through bookings_after_cancel, for
-    -- these updates only
+    -- these updates only; the stamp is cleared so it names this caller
     perform set_config('keke.cancel_reason', why, true);
     update public.bookings
-       set status = 'cancelled', updated_at = now()
+       set status = 'cancelled', cancelled_by = null, cancelled_at = null, updated_at = now()
      where parent_booking_id = b.id
        and status in ('pending', 'accepted');
     get diagnostics n = row_count;
     if b.status not in ('cancelled', 'completed') then
-      update public.bookings set status = 'cancelled', updated_at = now() where id = b.id;
+      update public.bookings
+         set status = 'cancelled', cancelled_by = null, cancelled_at = null, updated_at = now()
+       where id = b.id;
     end if;
     perform set_config('keke.cancel_reason', '', true);
     return jsonb_build_object('ok', true, 'code', 'cancelled', 'previous_status', b.status, 'cancelled_cars', n,
@@ -306,7 +363,9 @@ begin
   end if;
 
   perform set_config('keke.cancel_reason', why, true);
-  update public.bookings set status = 'cancelled', updated_at = now() where id = b.id;
+  update public.bookings
+     set status = 'cancelled', cancelled_by = null, cancelled_at = null, updated_at = now()
+   where id = b.id;
   if b.parent_booking_id is not null then
     perform public.sync_convoy_master_status(b.parent_booking_id);
   end if;

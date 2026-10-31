@@ -12,6 +12,8 @@
 #           the server tell the company)
 #   race 5  the company cancels an open booking while the outbox flush sends
 #           its second wave
+#   race 6  the company cancels a convoy and one of its cars at the same
+#           moment (two taps, two devices)
 #
 # Whatever the order, the booking ends cancelled, holds nobody's calendar,
 # and each person is told what happened to him once — the driver on it when
@@ -56,7 +58,7 @@ state() { # $1 db, $2 job -> "status,calendar rows,history lines"
 }
 
 fail=0
-ok1=0; w1a=0; w1c=0; ok2=0; w2r=0; w2c=0; w2s=0; ok3=0; ok4=0; w4c=0; w4d=0; ok5=0; w5f=0; w5c=0
+ok1=0; w1a=0; w1c=0; ok2=0; w2r=0; w2c=0; w2s=0; ok3=0; ok4=0; w4c=0; w4d=0; ok5=0; w5f=0; w5c=0; ok6=0; w6c=0; w6m=0
 for i in $(seq 1 "$N"); do
   db="p05_race_${i}"
   dropdb --if-exists "$db" >/dev/null 2>&1; createdb -T "$TPL" "$db"
@@ -138,6 +140,32 @@ for i in $(seq 1 "$N"); do
     ok5=$((ok5+1)); [[ "$r" == "1,0" ]] && w5f=$((w5f+1)) || w5c=$((w5c+1))
   else fail=1; echo "race 5 #$i FAILED: cancel=$a flushed=$b state=$s told,waiting=$r $(cat "$TMP"/5*.err)"; fi
 
+  # race 6 — a convoy and one of its cars cancelled at once
+  mst=$(q "$db" "insert into public.bookings (company_id, kind, status, date_display, from_location, to_location,
+                   price_gel, vehicle_type, vehicle_class, passengers, is_group_master)
+                 values ('$C1', 'transfer', 'pending', (now() + interval '45 days')::text, 'Test airport', 'Test hotel',
+                         300, 'sedan', 'comfort', 4, true) returning id")
+  leg1=$(q "$db" "insert into public.bookings (company_id, kind, status, date_display, from_location, to_location,
+                    price_gel, vehicle_type, vehicle_class, passengers, parent_booking_id, leg_index)
+                  values ('$C1', 'transfer', 'pending', (now() + interval '45 days')::text, 'Test airport', 'Test hotel',
+                          150, 'sedan', 'comfort', 2, '$mst', 1) returning id")
+  leg2=$(q "$db" "insert into public.bookings (company_id, kind, status, date_display, from_location, to_location,
+                    price_gel, vehicle_type, vehicle_class, passengers, parent_booking_id, leg_index)
+                  values ('$C1', 'transfer', 'pending', (now() + interval '45 days')::text, 'Test airport', 'Test hotel',
+                          150, 'sedan', 'comfort', 2, '$mst', 2) returning id")
+  q "$db" "begin; select tests.act_as('$C1'); select public.accept_booking_atomic('$leg1', '$E1', '$VE1'); commit;" >/dev/null
+  session "$db" "$C1" "public.cancel_booking_by_company('$mst', 'race') ->> 'code'" "$TMP/6a" &
+  session "$db" "$C1" "public.cancel_booking_by_company('$leg2', 'race') ->> 'code'" "$TMP/6b" &
+  wait
+  a=$(cat "$TMP/6a"); b=$(cat "$TMP/6b")
+  r=$(q "$db" "select string_agg(status, ',' order by coalesce(leg_index, 0)) from public.bookings
+                where id = '$mst' or parent_booking_id = '$mst'")
+  t=$(q "$db" "select tests.notices('$E1', 'booking_cancelled', '$leg1')")
+  if [[ "$a" == cancelled && ( "$b" == cancelled || "$b" == already_cancelled ) \
+        && "$r" == "cancelled,cancelled,cancelled" && "$t" == 1 ]] && ! grep -q 'deadlock' "$TMP"/6*.err; then
+    ok6=$((ok6+1)); [[ "$b" == cancelled ]] && w6c=$((w6c+1)) || w6m=$((w6m+1))
+  else fail=1; echo "race 6 #$i FAILED: convoy=$a car=$b statuses=$r told=$t $(cat "$TMP"/6*.err)"; fi
+
   dropdb "$db"
 done
 
@@ -146,4 +174,5 @@ echo "race 2 cancel vs the worker's swap:      $ok2/$N consistent (swap first $w
 echo "race 3 the company cancels twice:        $ok3/$N one cancellation, the driver told once"
 echo "race 4 company and driver cancel:        $ok4/$N consistent (company first $w4c, driver first $w4d)"
 echo "race 5 cancel vs the second-wave flush:  $ok5/$N consistent (flush first $w5f, cancel first $w5c)"
+echo "race 6 a convoy and one of its cars:     $ok6/$N no deadlock, all cancelled (car first $w6c, convoy first $w6m)"
 exit $fail

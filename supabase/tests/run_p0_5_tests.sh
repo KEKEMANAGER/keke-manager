@@ -7,7 +7,7 @@
 #
 #   1. builds a database from fixtures/ (shim + the four production
 #      snapshots), then applies P0-1, P0-2, P0-3 part A and P0-4 part A: the
-#      state P0-5 builds on. The P0-5 reproduction: all 10 problems present.
+#      state P0-5 builds on. The P0-5 reproduction: all 12 problems present.
 #   2. P0-5: the reproduction (none left), the P0-5 suite, the P0-4
 #      reproduction (only its six part-B items left) and the P0-1..P0-4
 #      suites.
@@ -46,10 +46,10 @@ tap() { # prints plan + failures; fails on a real failure (TODO failures don't c
   echo "   $(echo "$out" | grep -c '^ok') passed"
   ! echo "$out" | grep -E '^not ok|^# Looks like you planned|ERROR' | grep -vq '# TODO'
 }
-bugs() { # $1 = how many of the 10 P0-5 BUG checks should still hold
+bugs() { # $1 = how many of the 12 P0-5 BUG checks should still hold
   local out held; out=$(psql -X -qAt -d "$DB" -f p0_5_bug_reproduction.sql 2>&1 | grep -E '^(ok|not ok)')
   held=$(echo "$out" | grep -c '^ok .* BUG:' || true)
-  echo "   P0-5 BUG checks holding: $held/10"
+  echo "   P0-5 BUG checks holding: $held/12"
   [[ "$held" == "$1" ]]
 }
 bugs4() { # $1 = how many of the 12 P0-4 BUG checks should still hold (all of them part-B items)
@@ -82,7 +82,7 @@ SQL
 }
 
 fresh "$DB"; run -f "$M1" -f "$M2" -f "$M3A" -f "$M4A"
-echo "== 1/5 before P0-5 (production + P0-1 + P0-2 + P0-3 part A + P0-4 part A): reproduction"; bugs 10
+echo "== 1/5 before P0-5 (production + P0-1 + P0-2 + P0-3 part A + P0-4 part A): reproduction"; bugs 12
 echo "== 2/5 P0-5 (local database only)"; run -f "$M5"
 echo "-- reproduction:"; bugs 0
 bugs4 6
@@ -113,14 +113,14 @@ if psql -X -q -v ON_ERROR_STOP=1 -d "$DB" -f "$U4A" >/dev/null 2>"$DB.undo4.err"
 fi
 grep -q 'Undo P0-5 first' "$DB.undo4.err" && echo "   the P0-4 part A undo refuses while P0-5 is in place"; rm -f "$DB.undo4.err"
 run -f "$U5"
-echo "-- after undoing P0-5, the problems are back:"; bugs 10
+echo "-- after undoing P0-5, the problems are back:"; bugs 12
 echo "-- P0-1..P0-4 unaffected:"
 tap p0_4_push_privacy.test.sql; tap p0_1_driver_decline.test.sql; tap p0_2_reminder_reassign.test.sql; tap p0_3_driver_eligibility.test.sql
 run -f "$M5"
 echo "-- P0-5 applied again:"; bugs 0; tap p0_5_company_cancel.test.sql
 SAVED="$DB"; DB="${SAVED}_final"
 run -f "$U5"
-echo "-- after the whole rollout, undoing P0-5:"; bugs 10
+echo "-- after the whole rollout, undoing P0-5:"; bugs 12
 tap p0_4_push_privacy.test.sql; tap p0_1_driver_decline.test.sql; tap p0_2_reminder_reassign.test.sql; tap p0_3_driver_eligibility.test.sql
 run -f "$M5"
 echo "-- and applying it again:"; bugs 0; tap p0_5_company_cancel.test.sql
