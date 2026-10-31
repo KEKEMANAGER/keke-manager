@@ -1409,6 +1409,14 @@ export async function hostAcceptBookingForSub(
   return { ok: true as const, error: null };
 }
 
+/**
+ * Driver declines a pending job. The server decides what that means
+ * (`reject_pending_booking_as_driver`): an open job stays open for every
+ * other driver and only disappears for this one; a job offered to this driver
+ * alone is turned down. There is deliberately no direct-update fallback —
+ * writing `status = 'rejected'` from the phone used to cancel open jobs for
+ * everyone.
+ */
 export async function rejectBooking(
   /** `bookings.id` (uuid) */
   bookingRowId: string,
@@ -1426,54 +1434,20 @@ export async function rejectBooking(
     { p_booking_id: rowId },
   );
 
-  if (!rpcError && rpcOk === true) {
-    void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
-    return { ok: true as const, error: null };
+  if (rpcError) {
+    if (__DEV__) {
+      console.warn('[rejectBooking] rpc:', rpcError.message, { rowId });
+    }
+    return { ok: false as const, error: rpcError };
   }
 
-  if (rpcError) {
-    const missingRpc =
-      rpcError.message.includes('reject_pending_booking_as_driver') ||
-      rpcError.code === 'PGRST202';
-    if (!missingRpc) {
-      if (__DEV__) {
-        console.warn('[rejectBooking] rpc:', rpcError.message, { rowId });
-      }
-      return { ok: false as const, error: rpcError };
-    }
-    if (__DEV__) {
-      console.warn('[rejectBooking] rpc missing, falling back to direct update');
-    }
-  } else if (rpcOk === false) {
+  if (rpcOk !== true) {
     return {
       ok: false as const,
       error: new Error('ჯავშანი უკვე აღებულია ან მიუწვდომელია'),
     };
   }
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .update({
-      status: 'rejected',
-      driver_id: null,
-      driver_display_name: null,
-      driver_phone: null,
-      driver_plate: null,
-    })
-    .eq('id', rowId)
-    .eq('status', 'pending')
-    .select('id')
-    .maybeSingle();
-
-  if (error) {
-    if (__DEV__) {
-      console.warn('[rejectBooking]', error.message, { rowId });
-    }
-    return { ok: false as const, error };
-  }
-  if (!data) {
-    return { ok: false as const, error: new Error('ჯავშანი ვერ განახლდა') };
-  }
   void import('./groupBooking').then((m) => m.syncConvoyMasterFromBookingId(rowId));
   return { ok: true as const, error: null };
 }

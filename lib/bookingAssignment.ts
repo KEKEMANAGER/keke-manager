@@ -19,7 +19,9 @@ export type AcceptBookingCode =
   | 'taken'
   | 'no_window'
   | 'driver_busy'
-  | 'vehicle_busy';
+  | 'vehicle_busy'
+  /** The driver declined this open job earlier and cannot take it back. */
+  | 'declined';
 
 export type AcceptBookingResult = {
   ok: boolean;
