@@ -130,7 +130,7 @@ the database as P0-1..P0-3 part A leave it and then runs, in order:
    second wave reaching a blocked driver), and the double-dispatch race,
    counted (before P0-4 two dispatches of one booking tell drivers twice).
 2. Part A: the reproduction again (only the six part-B items hold),
-   `p0_4_push_privacy.test.sql` (166 pgTAP checks; those that differ between
+   `p0_4_push_privacy.test.sql` (167 pgTAP checks; those that differ between
    the parts say so), then the P0-1, P0-2 and P0-3 suites.
 3. Part B: the reproduction (nothing holds) and the same suites.
 4. `p0_4_concurrency.sh` on part A and on part B: two dispatches of one

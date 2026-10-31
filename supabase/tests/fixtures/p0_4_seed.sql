@@ -258,7 +258,10 @@ select tests.act_as_owner();
 update public.bookings set host_driver_id = tests.p4('H'), driver_payout_gel = 120
  where id in (tests.p4('FLT1'), tests.p4('FLT2'));
 update public.bookings set status = 'completed' where id = tests.p4('FLT2');
+-- E2 cancels CAN1 himself (as his app does)
+select tests.act_as(tests.p4('E2'));
 update public.bookings set status = 'cancelled' where id = tests.p4('CAN1');
+select tests.act_as_owner();
 update public.bookings set is_emergency_replacement = true where id = tests.p4('EMR1');
 update public.bookings set odometer_start_photo_url = 'https://example.invalid/odo-start.jpg'
  where id = tests.p4('ACC1');

@@ -871,7 +871,9 @@ begin
     if not coalesce(admin or uid = b.driver_id or uid = b.host_driver_id, false) then
       raise exception 'notify_booking_event: not your booking' using errcode = '42501';
     end if;
-    if b.status is distinct from 'cancelled' then
+    -- only a cancellation the driver made: when the company (or KEKE) got
+    -- there first, the company is not told that the driver cancelled
+    if b.status is distinct from 'cancelled' or b.cancelled_by is distinct from 'driver' then
       return 0;
     end if;
     n := public.deliver_notification(b.company_id, 'KEKE · ჯავშანი გაუქმდა',

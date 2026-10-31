@@ -429,19 +429,23 @@ select is(tests.sqlstate_of(format('select public.notify_booking_event(%L, ''any
 -- key counts per booking
 select tests.act_as_owner();
 insert into public.bookings (id, company_id, driver_id, host_driver_id, kind, status, date_display, from_location,
-                             to_location, price_gel, vehicle_type, vehicle_class, voucher_code)
+                             to_location, price_gel, vehicle_type, vehicle_class, voucher_code, cancelled_by)
 values (tests.p4('ASG2'), tests.p4('C1'), tests.p4('E2'), null, 'transfer', 'pending', (now() + interval '31 days')::text,
-        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 'V-ASG2'),
+        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 'V-ASG2', null),
        (tests.p4('CAN2'), tests.p4('C1'), tests.p4('E2'), null, 'transfer', 'cancelled', (now() + interval '32 days')::text,
-        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 'V-CAN2'),
+        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 'V-CAN2', 'driver'),
+       (tests.p4('CAN3'), tests.p4('C1'), tests.p4('E2'), null, 'transfer', 'cancelled', (now() + interval '33 days')::text,
+        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 'V-CAN3', 'company'),
        (tests.p4('FLT3'), tests.p4('C1'), tests.p4('S'), tests.p4('H'), 'transfer', 'completed', (now() - interval '1 day')::text,
-        'Test airport', 'Test hotel', 150, 'minivan', 'comfort', 'V-FLT3');
+        'Test airport', 'Test hotel', 150, 'minivan', 'comfort', 'V-FLT3', null);
 select tests.act_as(tests.p4('C1'));
 select is(public.notify_booking_event(tests.p4('ASG2'), 'voucher'), 2,
   'a second job given to the same driver brings its own voucher, to him and to the company');
 select tests.act_as(tests.p4('E2'));
 select is(public.notify_booking_event(tests.p4('CAN2'), 'driver_cancelled'), 1,
   'the same driver cancelling a second booking is announced again');
+select is(public.notify_booking_event(tests.p4('CAN3'), 'driver_cancelled'), 0,
+  'a booking the company cancelled (his app a moment late) is not announced as cancelled by the driver');
 select tests.act_as(tests.p4('S'));
 select is(public.notify_booking_event(tests.p4('FLT3'), 'host_completed'), 1,
   'a second finished trip is announced to the same fleet owner again');
