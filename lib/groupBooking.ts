@@ -444,7 +444,12 @@ export async function broadcastOpenLegs(
 
 const ACTIVE_LEG_STATUSES: BookingStatus[] = ['pending', 'accepted', 'in_progress'];
 
-/** Derive coordinator row status from convoy leg rows. */
+/**
+ * Derive coordinator row status from convoy leg rows. A convoy whose cars are
+ * all finished — some completed, the rest cancelled or declined — is
+ * completed (it used to fall through to 'pending', as if still open). The
+ * server's sync_convoy_master_status (P0-5) uses the same rule.
+ */
 export function deriveConvoyMasterStatus(legs: BookingRow[]): BookingStatus {
   if (legs.length === 0) return 'pending';
   const statuses = legs.map((leg) => leg.status);
@@ -452,7 +457,8 @@ export function deriveConvoyMasterStatus(legs: BookingRow[]): BookingStatus {
   if (statuses.some((s) => s === 'in_progress')) return 'in_progress';
   if (statuses.every((s) => s === 'cancelled' || s === 'rejected')) return 'cancelled';
   if (statuses.some((s) => s === 'accepted')) return 'accepted';
-  return 'pending';
+  if (statuses.some((s) => s === 'pending')) return 'pending';
+  return 'completed';
 }
 
 /** True when company may cancel the whole convoy (no leg currently in progress). */

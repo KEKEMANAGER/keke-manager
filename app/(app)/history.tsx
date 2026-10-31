@@ -34,6 +34,8 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchBookingRiskMap, type BookingRiskAssessment } from '../../lib/bookingRisk';
 import { canCompanyEditBooking } from '../../lib/bookingUpdate';
+import { companyCanCancelBooking } from '../../lib/companyCancel';
+import { useCompanyCancelBooking } from '../../hooks/useCompanyCancelBooking';
 import {
   fetchRatedBookingIdsForCompany,
   isBookingAlreadyRated,
@@ -153,6 +155,11 @@ export default function CompanyHistoryScreen() {
   useEffect(() => {
     void load('initial');
   }, [load]);
+
+  const reloadSilently = useCallback(() => {
+    void load('silent');
+  }, [load]);
+  const { cancellingId, requestCancel } = useCompanyCancelBooking(reloadSilently);
 
   useFocusEffect(
     useCallback(() => {
@@ -346,13 +353,35 @@ export default function CompanyHistoryScreen() {
                 <Text style={styles.date}>{formatBookingDate(r)}</Text>
                 <Text style={styles.price}>{formatGel(Number(r.price_gel))}</Text>
               </View>
-              {canCompanyEditBooking(r.status).allowed ? (
-                <Pressable
-                  onPress={() => router.push(`/(app)/edit-booking/${r.id}` as never)}
-                  style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
-                >
-                  <Text style={styles.editBtnText}>✏️ {t('editBooking.edit')}</Text>
-                </Pressable>
+              {canCompanyEditBooking(r.status).allowed || companyCanCancelBooking(r) ? (
+                <View style={styles.actionRow}>
+                  {canCompanyEditBooking(r.status).allowed ? (
+                    <Pressable
+                      onPress={() => router.push(`/(app)/edit-booking/${r.id}` as never)}
+                      style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                    >
+                      <Text style={styles.editBtnText}>✏️ {t('editBooking.edit')}</Text>
+                    </Pressable>
+                  ) : null}
+                  {companyCanCancelBooking(r) ? (
+                    <Pressable
+                      onPress={() => requestCancel(r)}
+                      disabled={cancellingId === r.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('companyCancel.title')}
+                      style={({ pressed }) => [
+                        styles.cancelBtn,
+                        (pressed || cancellingId === r.id) && styles.editBtnPressed,
+                      ]}
+                    >
+                      {cancellingId === r.id ? (
+                        <ActivityIndicator color={COLORS.error} size="small" />
+                      ) : (
+                        <Text style={styles.cancelBtnText}>{t('companyDashboard.cancelBooking')}</Text>
+                      )}
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
               <BookingOdometerSection booking={r} compact />
               <Pressable
@@ -529,6 +558,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
   },
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
   editBtn: {
     borderWidth: 1,
     borderColor: COLORS.gold,
@@ -538,6 +573,22 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 4,
     backgroundColor: COLORS.goldTint,
+  },
+  cancelBtn: {
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    minWidth: 84,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  cancelBtnText: {
+    color: COLORS.error,
+    fontSize: 13,
+    fontWeight: '700',
   },
   editBtnPressed: { opacity: 0.88 },
   editBtnText: {

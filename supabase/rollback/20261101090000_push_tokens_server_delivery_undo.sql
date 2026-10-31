@@ -7,13 +7,18 @@
 -- keep writing them. Second-wave rows still waiting get their driver's phone
 -- again, so the restored flush sends them.
 --
--- Undo part B first if it was applied (checked below).
+-- Undo part B first if it was applied, and P0-5, which tells drivers through
+-- part A's deliver_notification (both checked below).
 
 do $$
 begin
   if exists (select 1 from pg_trigger
               where tgrelid = 'public.profiles'::regclass and tgname = 'push_tokens_capture') then
     raise exception 'Undo P0-4 part B first: supabase/rollback/20261101090100_push_tokens_private_undo.sql';
+  end if;
+  if exists (select 1 from pg_trigger
+              where tgrelid = 'public.bookings'::regclass and tgname = 'bookings_after_cancel') then
+    raise exception 'Undo P0-5 first: supabase/rollback/20261101120000_company_cancellation_undo.sql';
   end if;
 end
 $$;

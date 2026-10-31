@@ -1758,22 +1758,90 @@ export async function cancelBookingByDriver(bookingRowId: string, driverUserId: 
   return { ok: true as const, error: null };
 }
 
-/** Company cancels only while still pending. */
+/** Company cancels its booking (see cancelBookingByCompany). */
 export async function cancelBooking(bookingId: string, companyId: string) {
   return cancelBookingByCompany(bookingId, companyId);
 }
 
-/** Company cancels pending booking, or whole convoy when master row. */
-export async function cancelBookingByCompany(bookingRowId: string, companyUserId: string) {
+/**
+ * What a company's cancellation came to. The server's answers
+ * (cancel_booking_by_company), plus `pending_only` (a server without that
+ * function, where only a pending booking can be cancelled) and `failed`.
+ */
+export type CompanyCancelCode =
+  | 'cancelled'
+  | 'already_cancelled'
+  | 'already_completed'
+  | 'already_closed'
+  | 'trip_in_progress'
+  | 'convoy_in_progress'
+  | 'forbidden'
+  | 'not_found'
+  | 'pending_only'
+  | 'failed';
+
+export type CompanyCancelResult =
+  | { ok: true; error: null; code: 'cancelled'; driverTold: boolean }
+  | { ok: false; error: Error | null; code: CompanyCancelCode };
+
+const COMPANY_CANCEL_CODES: ReadonlySet<string> = new Set<CompanyCancelCode>([
+  'cancelled',
+  'already_cancelled',
+  'already_completed',
+  'already_closed',
+  'trip_in_progress',
+  'convoy_in_progress',
+  'forbidden',
+  'not_found',
+]);
+
+/**
+ * The company cancels its booking — pending, offered to a driver, or accepted
+ * by one; a convoy cancels each car that has not finished, then itself. The
+ * server (cancel_booking_by_company) does it in one locked step, so it cannot
+ * cross a driver's acceptance or the reminder worker's replacement; it frees
+ * the driver's calendar, writes the change log and tells the driver (and his
+ * fleet owner) once. A trip in progress, a finished or cancelled booking are
+ * refused with their own code. `reason` goes into the change log.
+ *
+ * Until that function is deployed, the old way: a direct update of a pending
+ * booking, or the convoy cancelled car by car.
+ */
+export async function cancelBookingByCompany(
+  bookingRowId: string,
+  companyUserId: string,
+  reason?: string | null,
+): Promise<CompanyCancelResult> {
   const rowId = String(bookingRowId).trim();
   if (!isBookingRowUuid(rowId)) {
-    return { ok: false as const, error: new Error('invalid booking id') };
+    return { ok: false, error: new Error('invalid booking id'), code: 'not_found' };
   }
   const companyId = trimUserId(companyUserId);
   if (!companyId) {
-    return { ok: false as const, error: new Error('company id არ არის') };
+    return { ok: false, error: new Error('company id არ არის'), code: 'failed' };
   }
 
+  const { data: answer, error: rpcErr } = await supabase.rpc('cancel_booking_by_company', {
+    p_booking_id: rowId,
+    p_reason: reason?.trim() || null,
+  });
+  if (!rpcErr) {
+    const res = (answer ?? {}) as { ok?: boolean; code?: string; message?: string; driver_told?: boolean };
+    if (res.ok === true) {
+      // (a convoy's own row is brought in line by the server)
+      return { ok: true, error: null, code: 'cancelled', driverTold: res.driver_told === true };
+    }
+    const code = COMPANY_CANCEL_CODES.has(String(res.code)) ? (res.code as CompanyCancelCode) : 'failed';
+    return { ok: false, error: res.message ? new Error(res.message) : null, code };
+  }
+  if (!isMissingServerFunction(rpcErr)) {
+    return { ok: false, error: new Error(rpcErr.message), code: 'failed' };
+  }
+  return cancelBookingByCompanyDirect(rowId, companyId);
+}
+
+/** The pre-P0-5 cancellation, for a server without cancel_booking_by_company. */
+async function cancelBookingByCompanyDirect(rowId: string, companyId: string): Promise<CompanyCancelResult> {
   const { data: row, error: fetchErr } = await supabase
     .from('bookings')
     .select('id, is_group_master')
@@ -1781,17 +1849,20 @@ export async function cancelBookingByCompany(bookingRowId: string, companyUserId
     .eq('company_id', companyId)
     .maybeSingle();
 
-  if (fetchErr) return { ok: false as const, error: new Error(fetchErr.message) };
+  if (fetchErr) return { ok: false, error: new Error(fetchErr.message), code: 'failed' };
   if (!row) {
-    return { ok: false as const, error: new Error('booking not found') };
+    return { ok: false, error: new Error('booking not found'), code: 'not_found' };
   }
 
   if ((row as { is_group_master?: boolean | null }).is_group_master === true) {
     const { cancelConvoyByCompany } = await import('./groupBooking');
     const res = await cancelConvoyByCompany(rowId, companyId);
-    return res.ok
-      ? { ok: true as const, error: null }
-      : { ok: false as const, error: res.error };
+    if (res.ok) return { ok: true, error: null, code: 'cancelled', driverTold: false };
+    return {
+      ok: false,
+      error: res.error,
+      code: res.error?.message === 'convoy_cancel_in_progress' ? 'convoy_in_progress' : 'failed',
+    };
   }
 
   const { data, error } = await supabase
@@ -1802,14 +1873,15 @@ export async function cancelBookingByCompany(bookingRowId: string, companyUserId
     .eq('status', 'pending')
     .select('id')
     .maybeSingle();
-  if (error) return { ok: false as const, error };
+  if (error) return { ok: false, error: new Error(error.message), code: 'failed' };
   if (!data) {
     return {
-      ok: false as const,
+      ok: false,
       error: new Error('გაუქმება შესაძლებელია მხოლოდ „მოლოდინში“ ჯავშნისთვის'),
+      code: 'pending_only',
     };
   }
-  return { ok: true as const, error: null };
+  return { ok: true, error: null, code: 'cancelled', driverTold: false };
 }
 
 export async function aggregateCompanyStats(companyUserId: string) {

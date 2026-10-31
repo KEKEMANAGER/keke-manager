@@ -14,6 +14,7 @@ PostgreSQL that is built from these fixtures:
 | `fixtures/p0_3_seed.sql` | One account of every kind P0-3 is about (not approved, rejected, blocked, approved without a usable car, approved, fleet owner and driver, company, admin), open jobs and offers carrying passenger details, a taken job, an overlapping job, change-log rows, pickup-sign files and three replacement scenarios. |
 | `fixtures/prod_p0_4_snapshot_2026-10-31.sql` | Read-only snapshot of the production objects behind push notifications and new-booking dispatch: `messages`, `push_outbox` and `dispatch_log` with their rules and grants, the dispatch chain (`dispatch_new_booking_push` in both forms, the second wave, the one-minute fallback, `log_dispatch` and their helpers), `enqueue_booking_push`, `flush_push_outbox`, `create_user_notifications`, `user_may_notify`, `may_message_user`, and the triggers that touch push tokens. Load after the other three snapshots. |
 | `fixtures/p0_4_seed.sql` | Companies, an admin, approved drivers, a blocked one, two KEKE has not approved, a fleet owner with his driver and a pending invitation, a hired driver, open / offered / taken / cancelled / finished bookings, chat messages, and a fake phone token for every account (`ExponentPushToken[p04-<name>]`). Helpers count what reached the shim's `net.http_post`. |
+| `fixtures/p0_5_seed.sql` | Two companies, an admin, three approved drivers, a fleet owner with his driver, and C1's bookings in every state a cancellation meets: open, offered to one driver, accepted, given by a fleet owner to his driver, on the road, finished, cancelled, declined, another company's, and two convoys (one waiting, one with a car on the road). Helpers for the calendar, the change log and what reached `net.http_post`. |
 
 The snapshot is a test fixture, not a migration and not the production
 baseline. Once the production baseline migration exists, build the test
@@ -140,3 +141,44 @@ the database as P0-1..P0-3 part A leave it and then runs, in order:
 5. Both parts with P0-3 part B underneath.
 6. Undo part B (part A's results again), undo part A (all 12 problems back,
    P0-1..P0-3 still pass), then both parts again.
+
+## P0-5 — a company cancels its own bookings, and a cancellation stays final
+
+```bash
+PGHOST=<local socket or host> PGPORT=<port> PGUSER=<superuser> supabase/tests/run_p0_5_tests.sh
+node supabase/tests/p0_5_client_check.cjs     # the app side, no server needed
+```
+
+P0-5 is one migration, `supabase/migrations/20261101120000_company_cancellation.sql`,
+applied after P0-4 part A (it tells drivers through part A's server delivery)
+and before the app update that calls it. Nothing is sent anywhere. The runner
+builds the database as P0-1..P0-4 part A leave it and then runs, in order:
+
+1. `p0_5_bug_reproduction.sql` — 10 BUG checks hold (no server cancel; the
+   driver, the driver a job was offered to, the fleet owner and his driver
+   not told; no change-log line; the company's direct update cancelling a trip
+   in progress or a finished booking, reviving a cancelled one that a driver
+   then takes, quietly stopping a car on the road with 'rejected').
+2. P0-5: the reproduction (nothing holds), `p0_5_company_cancel.test.sql`
+   (125 pgTAP checks: who may cancel what — company, another company, the
+   driver, an unrelated driver, the fleet owner, KEKE; each status; the
+   calendar; the change log; each notice once, on the phone too; convoys;
+   dispatch, outbox, reminder worker and automatic replacement after a
+   cancellation; an installed app's old cancel), the P0-4 reproduction (only
+   its part-B items) and the P0-1..P0-4 suites.
+3. With P0-3 part B, then also P0-4 part B on top (the state after the whole
+   rollout): the same.
+4. `p0_5_concurrency.sh` on both states: cancel against a driver's
+   acceptance, against the reminder worker's replacement, against a second
+   cancel, against the driver's own cancel, against the second-wave flush —
+   whichever wins, the booking ends cancelled, holds no calendar, and each
+   person is told what happened to him once.
+5. Undo: the P0-4 part A undo refuses while P0-5 is in place; undoing P0-5
+   brings the 10 problems back and leaves P0-1..P0-4 passing; P0-5 applied
+   again passes again. On both states.
+
+`p0_5_client_check.cjs` compiles the app's TypeScript on the fly with a
+recording Supabase client: the call to `cancel_booking_by_company` and each of
+its answers, the fallback for a server without it, when the cancel button
+shows, the convoy status rule, and every text in all four languages (34
+checks).

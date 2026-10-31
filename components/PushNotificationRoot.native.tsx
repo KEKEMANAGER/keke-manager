@@ -99,6 +99,8 @@ function driverOpensBookingsNotificationTypes(data: BookingPushTapPayload | unde
     payloadType === 'booking_confirmed' ||
     payloadType === 'emergency_replacement' ||
     payloadType === 'booking_voucher' ||
+    // the company or KEKE cancelled his job (P0-5)
+    payloadType === 'booking_cancelled' ||
     payloadType === 'test'
   );
 }

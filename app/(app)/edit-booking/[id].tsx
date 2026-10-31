@@ -36,7 +36,9 @@ import {
 } from '../../../lib/bookingLocations';
 import { uploadPickupSignLogo, type PickupSignLogoFile } from '../../../lib/pickupSignLogo';
 import { showErrorAlert, showValidationAlert } from '../../../lib/validation';
+import { companyCanCancelBooking } from '../../../lib/companyCancel';
 import { useAndroidRouterBack } from '../../../hooks/useAndroidRouterBack';
+import { useCompanyCancelBooking } from '../../../hooks/useCompanyCancelBooking';
 
 export default function EditBookingScreen() {
   const { t } = useTranslation();
@@ -100,6 +102,12 @@ export default function EditBookingScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // cancelled, or found already cancelled / finished / under way: back to the list
+  const leaveAfterCancel = useCallback(() => {
+    router.back();
+  }, [router]);
+  const { cancellingId, requestCancel } = useCompanyCancelBooking(leaveAfterCancel);
 
   async function onSave() {
     if (!user?.id || !booking) return;
@@ -391,6 +399,26 @@ export default function EditBookingScreen() {
           <Text style={styles.saveBtnText}>{t('editBooking.save')}</Text>
         )}
       </Pressable>
+
+      {companyCanCancelBooking(booking) ? (
+        <Pressable
+          onPress={() => requestCancel(booking, { reason })}
+          disabled={saving || cancellingId === booking.id}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.cancelBookingBtn,
+            (pressed || cancellingId === booking.id) && styles.pressed,
+          ]}
+        >
+          {cancellingId === booking.id ? (
+            <ActivityIndicator color={COLORS.error} />
+          ) : (
+            <Text style={styles.cancelBookingBtnText}>{t('companyCancel.title')}</Text>
+          )}
+        </Pressable>
+      ) : booking.status === 'in_progress' && !booking.is_group_master ? (
+        <Text style={styles.cancelHint}>{t('companyCancel.tripInProgress')}</Text>
+      ) : null}
     </ScrollView>
   );
 }
@@ -445,5 +473,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveBtnText: { fontWeight: '800', fontSize: 16, color: COLORS.black },
+  cancelBookingBtn: {
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+    paddingVertical: 13,
+    borderRadius: RADIUS.button,
+    alignItems: 'center',
+  },
+  cancelBookingBtnText: { fontWeight: '700', fontSize: 15, color: COLORS.error },
+  cancelHint: { marginTop: SPACING.md, fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
   pressed: { opacity: 0.88 },
 });

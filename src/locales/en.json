@@ -612,7 +612,9 @@
     "cancelFailed": "Could not cancel booking",
     "cancelSuccess": "Booking cancelled successfully",
     "cancelConfirm": "Are you sure you want to cancel this booking?",
-    "emptyActiveSubtitle": "When a new or confirmed booking appears, it will show here."
+    "emptyActiveSubtitle": "When a new or confirmed booking appears, it will show here.",
+    "moreActive": "More active bookings: {{count}} — full list →",
+    "fullHistory": "Full history →"
   },
   "city": {
     "selectCity": "Select city",
@@ -2178,5 +2180,18 @@
     "pickedUp": "Picked up",
     "droppedOff": "Dropped off",
     "onMap": "Map"
+  },
+  "companyCancel": {
+    "title": "Cancel booking",
+    "confirmButton": "Yes, cancel",
+    "confirmWithDriver": "Cancel this booking? The driver ({{name}}) will be notified.",
+    "confirmConvoy": "Cancel this multi-vehicle booking? Every vehicle that has not finished its trip is cancelled and its driver is notified.",
+    "successDriverTold": "Booking cancelled. The driver has been notified.",
+    "alreadyCancelled": "This booking is already cancelled.",
+    "alreadyCompleted": "This booking is already completed — it can no longer be cancelled.",
+    "alreadyClosed": "This booking is already closed.",
+    "tripInProgress": "The trip has already started — to cancel it, contact the driver or KEKE.",
+    "forbidden": "This booking does not belong to your company.",
+    "notFound": "Booking not found."
   }
 }

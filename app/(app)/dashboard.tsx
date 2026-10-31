@@ -4,10 +4,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -22,7 +20,6 @@ import {
   aggregateCompanyStats,
   bookingStatusLabel,
   bookingTypeLabel,
-  cancelBookingByCompany,
   fetchBookingsByCompanyId,
   formatBookingDate,
   routeSummary,
@@ -31,9 +28,10 @@ import {
 } from '../../lib/bookings';
 import {
   fetchConvoyDashboardByMasterIds,
-  canCancelConvoyMaster,
   type ConvoyMasterDashboard,
 } from '../../lib/groupBooking';
+import { companyCanCancelBooking } from '../../lib/companyCancel';
+import { useCompanyCancelBooking } from '../../hooks/useCompanyCancelBooking';
 import { EmergencyReplacementModal } from '../../components/EmergencyReplacementModal';
 import { EmergencyReplacementBanner } from '../../components/EmergencyReplacementBanner';
 import { DriverConfirmationBadge } from '../../components/DriverConfirmationBadge';
@@ -174,7 +172,6 @@ export default function CompanyDashboardScreen() {
   const [driverModal, setDriverModal] = useState<BookingRow | null>(null);
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [driverLoading, setDriverLoading] = useState(false);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [ads, setAds] = useState<AdCard[]>([]);
   const [voucherBooking, setVoucherBooking] = useState<BookingRow | null>(null);
   const [ratedBookingIds, setRatedBookingIds] = useState<Set<string>>(() => new Set());
@@ -349,6 +346,15 @@ export default function CompanyDashboardScreen() {
     [activeBookings],
   );
 
+  // the dashboard shows the two newest active bookings; the rest are a tap away
+  // in the full list, where each can be cancelled too
+  const moreActiveCount = activeBookings.length - recentActiveBookings.length;
+
+  const reloadSilently = useCallback(() => {
+    void load('silent');
+  }, [load]);
+  const { cancellingId, requestCancel } = useCompanyCancelBooking(reloadSilently);
+
   const pendingCount = useMemo(
     () => bookings.filter((b) => b.status === 'pending').length,
     [bookings],
@@ -382,74 +388,6 @@ export default function CompanyDashboardScreen() {
       })
       .reduce((sum, b) => sum + Number(b.price_gel || 0), 0);
   }, [bookings]);
-
-  async function handleCancelBooking(b: BookingRow) {
-    if (!userId) {
-      if (Platform.OS === 'web') {
-        window.alert(t('companyDashboard.sessionInactive'));
-      } else {
-        Alert.alert(t('common.error'), t('companyDashboard.sessionInactive'));
-      }
-      return;
-    }
-
-    const convoy = b.is_group_master ? convoyByMaster[b.id] : undefined;
-    const canCancel = b.is_group_master
-      ? canCancelConvoyMaster(convoy?.legs ?? [])
-      : b.status === 'pending';
-
-    if (!canCancel) {
-      const msg = b.is_group_master
-        ? t('transportPlan.convoyCancelBlocked')
-        : t('companyDashboard.cancelPendingOnly');
-      if (Platform.OS === 'web') {
-        window.alert(msg);
-      } else {
-        Alert.alert(t('companyDashboard.cancelBooking'), msg);
-      }
-      return;
-    }
-
-    const run = async () => {
-      setCancellingId(b.id);
-      try {
-        const res = await cancelBookingByCompany(b.id, userId);
-        if (!res.ok) {
-          const raw = res.error?.message ?? '';
-          const msg =
-            raw === 'convoy_cancel_in_progress'
-              ? t('transportPlan.convoyCancelInProgress')
-              : res.error
-                ? getSupabaseErrorMessage(res.error)
-                : t('companyDashboard.cancelFailed');
-          if (Platform.OS === 'web') {
-            window.alert(msg);
-          } else {
-            Alert.alert(t('common.error'), msg);
-          }
-          return;
-        }
-        const successMsg = t('companyDashboard.cancelSuccess');
-        if (Platform.OS === 'web') {
-          window.alert(successMsg);
-        } else {
-          Alert.alert(t('companyDashboard.cancelBooking'), successMsg);
-        }
-        void load('silent');
-      } finally {
-        setCancellingId(null);
-      }
-    };
-
-    if (Platform.OS === 'web') {
-      if (window.confirm(t('companyDashboard.cancelConfirm'))) void run();
-    } else {
-      Alert.alert(t('companyDashboard.cancelBooking'), t('companyDashboard.cancelConfirm'), [
-        { text: t('common.no'), style: 'cancel' },
-        { text: t('companyDashboard.cancelBooking'), style: 'destructive', onPress: () => void run() },
-      ]);
-    }
-  }
 
   async function openDriverModal(booking: BookingRow) {
     if (!booking.driver_id) return;
@@ -792,11 +730,9 @@ export default function CompanyDashboardScreen() {
             </View>
             )}
             <Text style={styles.price}>{formatGel(Number(b.price_gel))}</Text>
-            {(b.is_group_master
-              ? canCancelConvoyMaster(convoyByMaster[b.id]?.legs ?? [])
-              : b.status === 'pending') ? (
+            {companyCanCancelBooking(b, b.is_group_master ? convoyByMaster[b.id]?.legs ?? [] : null) ? (
               <Pressable
-                onPress={() => void handleCancelBooking(b)}
+                onPress={() => requestCancel(b)}
                 disabled={cancellingId === b.id}
                 hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
                 style={({ pressed }) => [
@@ -860,7 +796,11 @@ export default function CompanyDashboardScreen() {
             onPress={() => router.push('/(app)/bookings')}
             style={({ pressed }) => [styles.historyLinkBtn, pressed && styles.pressed]}
           >
-            <Text style={styles.historyLinkText}>სრული ისტორია →</Text>
+            <Text style={styles.historyLinkText}>
+              {moreActiveCount > 0
+                ? t('companyDashboard.moreActive', { count: moreActiveCount })
+                : t('companyDashboard.fullHistory')}
+            </Text>
           </Pressable>
         </>
       )}
