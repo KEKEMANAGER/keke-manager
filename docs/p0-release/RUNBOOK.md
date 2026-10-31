@@ -267,7 +267,7 @@ group by refusal order by n desc limit 20
   state, 12/12 fingerprints, bookings as rehearsed, 0 unsent pushes, 0
   duplicates, 0 pickups within 3 h, 0 long transactions, 11 cron jobs; cron:
   11 active, 0 failed runs in 24 h; API log: 0 errors in 24 h (1,495 × 200 on
-  `/rest/v1/bookings`); Postgres log: 0 errors; security advisor: only the
+  `/rest/v1/bookings`); security advisor: only the
   findings that existed before (none about bookings); Edge Functions unchanged
   since 30 Oct 21:25 (`booking-reminders` v7); Expo: latest update still the
   30 Oct one; disk 0.45 GB of 2 GB (grows to 8 GB by itself); database 58 MB.
