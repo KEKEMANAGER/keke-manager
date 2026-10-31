@@ -425,6 +425,28 @@ select is(tests.sqlstate_of(format('select public.notify_booking_event(%L, ''hos
   'only the driver announces his finished trip');
 select is(tests.sqlstate_of(format('select public.notify_booking_event(%L, ''anything'')', tests.p4('FLT2'))), '22023',
   'an unknown event is refused');
+-- the same kind of event on another booking is another notice: the dedupe
+-- key counts per booking
+select tests.act_as_owner();
+insert into public.bookings (id, company_id, driver_id, host_driver_id, kind, status, date_display, from_location,
+                             to_location, price_gel, vehicle_type, vehicle_class, voucher_code)
+values (tests.p4('ASG2'), tests.p4('C1'), tests.p4('E2'), null, 'transfer', 'pending', (now() + interval '31 days')::text,
+        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 'V-ASG2'),
+       (tests.p4('CAN2'), tests.p4('C1'), tests.p4('E2'), null, 'transfer', 'cancelled', (now() + interval '32 days')::text,
+        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 'V-CAN2'),
+       (tests.p4('FLT3'), tests.p4('C1'), tests.p4('S'), tests.p4('H'), 'transfer', 'completed', (now() - interval '1 day')::text,
+        'Test airport', 'Test hotel', 150, 'minivan', 'comfort', 'V-FLT3');
+select tests.act_as(tests.p4('C1'));
+select is(public.notify_booking_event(tests.p4('ASG2'), 'voucher'), 2,
+  'a second job given to the same driver brings its own voucher, to him and to the company');
+select tests.act_as(tests.p4('E2'));
+select is(public.notify_booking_event(tests.p4('CAN2'), 'driver_cancelled'), 1,
+  'the same driver cancelling a second booking is announced again');
+select tests.act_as(tests.p4('S'));
+select is(public.notify_booking_event(tests.p4('FLT3'), 'host_completed'), 1,
+  'a second finished trip is announced to the same fleet owner again');
+select tests.act_as_owner();
+select is(tests.notices(tests.p4('E2'), 'booking_voucher'), 3, 'E2 has a voucher notice for each of his jobs (ASG1, EMR1, ASG2)');
 select tests.act_as_owner();
 select is(tests.pushes_to(tests.tok('C2')) + tests.pushes_to(tests.tok('U')) + tests.pushes_to(tests.tok('BL')), 0,
   'none of these events reached anyone outside the bookings');

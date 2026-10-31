@@ -188,6 +188,8 @@ create index if not exists notifications_dedupe_idx
 -- In-app notice + push (Expo and web) to one user, through booking_notify.
 -- With a dedupe key the same event reaches the same person once, even when
 -- two calls meet (the advisory lock makes the second wait and then see it).
+-- The key counts per booking: the same kind of event on another booking is
+-- another notice.
 create or replace function public.deliver_notification(
   p_user uuid, p_title text, p_body text, p_type text, p_data jsonb, p_dedupe text)
 returns boolean
@@ -196,19 +198,21 @@ security definer
 set search_path = public
 as $$
 declare
-  k text := coalesce(p_dedupe, '');
+  k  text := coalesce(p_dedupe, '');
+  bk text := coalesce(p_data ->> 'booking_id', '');
 begin
   if p_user is null then
     return false;
   end if;
   if k <> '' then
     perform pg_advisory_xact_lock(
-      hashtextextended('deliver_notification:' || p_user::text || ':' || coalesce(p_type, '') || ':' || k, 0));
+      hashtextextended('deliver_notification:' || p_user::text || ':' || coalesce(p_type, '') || ':' || bk || ':' || k, 0));
     if exists (select 1 from public.notifications n
                 where n.user_id = p_user
                   and n.type = p_type
                   and n.data ? 'dedupe'
-                  and n.data ->> 'dedupe' = k) then
+                  and n.data ->> 'dedupe' = k
+                  and coalesce(n.data ->> 'booking_id', '') = bk) then
       return false;
     end if;
   end if;
