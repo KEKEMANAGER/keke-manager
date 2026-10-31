@@ -469,6 +469,16 @@ async function fetchPushToken(
   const id = userId.trim();
   if (!id) return null;
 
+  // P0-4: tokens live in public.push_tokens, which only the server's own
+  // lookup reads; once part B is applied the profile columns are empty.
+  const { data: serverToken, error: serverTokenError } = await admin.rpc('fetch_user_push_token', {
+    p_user_id: id,
+  });
+  if (!serverTokenError) {
+    const t = typeof serverToken === 'string' ? serverToken.trim() : '';
+    return t && acceptableExpoPushToken(t) ? t : null;
+  }
+
   const { data: profile } = await admin
     .from('profiles')
     .select('push_token')

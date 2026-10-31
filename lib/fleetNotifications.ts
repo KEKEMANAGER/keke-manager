@@ -1,6 +1,7 @@
 import i18n from '../src/lib/i18n';
 import { sendExpoPushNotification } from './expoPush';
 import { insertInAppNotifications } from './notifications';
+import { notifyBookingEventOnServer, notifyFleetInviteOnServer } from './serverPush';
 import { supabase } from './supabase';
 
 async function pushToUser(
@@ -48,6 +49,9 @@ export async function notifyFleetInviteToSub(params: {
   const hostId = params.hostDriverId.trim();
   if (!subId || !hostId) return;
 
+  // P0-4: the server sends the invitation (only the fleet owner can).
+  if ((await notifyFleetInviteOnServer(params.fleetId)) !== 'missing') return;
+
   const { data: host } = await supabase
     .from('users')
     .select('full_name')
@@ -79,6 +83,9 @@ export async function notifyBookingAssignedByHost(params: {
 }): Promise<void> {
   const subId = params.subDriverId.trim();
   if (!subId) return;
+
+  // P0-4: the server tells the driver his owner gave him the job (with his pay).
+  if ((await notifyBookingEventOnServer(params.bookingId, 'host_assigned')) !== 'missing') return;
 
   const route = params.routeSummary.trim();
   const voucher = params.voucherCode?.trim();
@@ -115,6 +122,9 @@ export async function notifyHostTourCompleted(params: {
   const hostId = params.hostDriverId.trim();
   const bookingId = params.bookingId.trim();
   if (!hostId || !bookingId) return;
+
+  // P0-4: the server tells the fleet owner his driver finished.
+  if ((await notifyBookingEventOnServer(bookingId, 'host_completed')) !== 'missing') return;
 
   const title = i18n.t('fleet.tourCompletedHostTitle');
   const driverLine = params.driverName?.trim()

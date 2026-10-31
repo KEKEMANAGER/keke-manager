@@ -40,6 +40,7 @@ import {
 } from '../../lib/bookings';
 import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
 import { sendExpoPushNotification } from '../../lib/expoPush';
+import { sendTestPushOnServer } from '../../lib/serverPush';
 import { getTestNotificationContent } from '../../lib/notifications';
 import { registerForPushNotificationsAsync } from '../../lib/pushRegistration';
 import { fetchDriverAverageRating } from '../../lib/ratings';
@@ -294,6 +295,19 @@ export default function DriverDashboardScreen() {
     setTestPushSending(false);
     if (!token) {
       Alert.alert(t('notifications.testTitle'), t('notifications.noToken'));
+      return;
+    }
+    // P0-4: the server sends it, to this phone's own registered token.
+    const server = await sendTestPushOnServer();
+    if (server.outcome !== 'missing') {
+      Alert.alert(
+        t('notifications.testTitle'),
+        server.outcome === 'refused'
+          ? t('notifications.testFailed')
+          : server.delivered
+            ? t('notifications.testSent')
+            : t('notifications.noToken'),
+      );
       return;
     }
     const { title, body } = getTestNotificationContent();

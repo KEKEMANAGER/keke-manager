@@ -1,7 +1,7 @@
 # Database tests
 
 These tests never connect to Supabase. They run on a throwaway local
-PostgreSQL that is built from three fixtures:
+PostgreSQL that is built from these fixtures:
 
 | File | What it is |
 |---|---|
@@ -12,6 +12,8 @@ PostgreSQL that is built from three fixtures:
 | `fixtures/p0_2_seed.sql` | Fake company, drivers and bookings for the reminder scenarios, a `tests.advance(n)` helper that makes n minutes go by, and a notification counter. |
 | `fixtures/prod_p0_3_snapshot_2026-10-31.sql` | Read-only snapshot of the further production objects P0-3 touches: `booking_history` with its rules, the privileged-column guard on `users`, the two triggers on `vehicles`, the admin's car approve / reject functions and the four Storage rules of the bucket `booking-pickup-signs`. Load after the other two snapshots. |
 | `fixtures/p0_3_seed.sql` | One account of every kind P0-3 is about (not approved, rejected, blocked, approved without a usable car, approved, fleet owner and driver, company, admin), open jobs and offers carrying passenger details, a taken job, an overlapping job, change-log rows, pickup-sign files and three replacement scenarios. |
+| `fixtures/prod_p0_4_snapshot_2026-10-31.sql` | Read-only snapshot of the production objects behind push notifications and new-booking dispatch: `messages`, `push_outbox` and `dispatch_log` with their rules and grants, the dispatch chain (`dispatch_new_booking_push` in both forms, the second wave, the one-minute fallback, `log_dispatch` and their helpers), `enqueue_booking_push`, `flush_push_outbox`, `create_user_notifications`, `user_may_notify`, `may_message_user`, and the triggers that touch push tokens. Load after the other three snapshots. |
+| `fixtures/p0_4_seed.sql` | Companies, an admin, approved drivers, a blocked one, two KEKE has not approved, a fleet owner with his driver and a pending invitation, a hired driver, open / offered / taken / cancelled / finished bookings, chat messages, and a fake phone token for every account (`ExponentPushToken[p04-<name>]`). Helpers count what reached the shim's `net.http_post`. |
 
 The snapshot is a test fixture, not a migration and not the production
 baseline. Once the production baseline migration exists, build the test
@@ -108,3 +110,33 @@ runner builds the database as P0-1 and P0-2 leave it and then runs, in order:
 5. Undo part B (part A's results again), undo part A (all 22 problems back,
    P0-1 and P0-2 still pass), then both parts again.
 
+## P0-4 — push tokens are the server's, and the server decides who is told
+
+```bash
+PGHOST=<local socket or host> PGPORT=<port> PGUSER=<superuser> supabase/tests/run_p0_4_tests.sh
+```
+
+P0-4 comes in two parts: `supabase/migrations/20261101090000_push_tokens_server_delivery.sql`
+(part A, safe with the app versions installed today) and
+`supabase/staged/20261101090100_push_tokens_private.sql` (part B, after the app
+update that sends notifications through the server is out). Nothing is sent
+anywhere: every push lands in the shim's `net.http_calls`. The runner builds
+the database as P0-1..P0-3 part A leave it and then runs, in order:
+
+1. `p0_4_bug_reproduction.sql` — 12 BUG checks hold (any signed-in account
+   reads every token; any text to any phone through `enqueue_booking_push`;
+   free in-app text from any company to any driver; the server's dispatch
+   telling blocked, unapproved and declining drivers; an installed app's
+   second wave reaching a blocked driver), and the double-dispatch race,
+   counted (before P0-4 two dispatches of one booking tell drivers twice).
+2. Part A: the reproduction again (only the six part-B items hold),
+   `p0_4_push_privacy.test.sql` (162 pgTAP checks; those that differ between
+   the parts say so), then the P0-1, P0-2 and P0-3 suites.
+3. Part B: the reproduction (nothing holds) and the same suites.
+4. `p0_4_concurrency.sh` on part A and on part B: two dispatches of one
+   booking; the app's dispatch against the one-minute fallback; one
+   acceptance announced twice; two outbox flushes; one chat message announced
+   twice; one second wave queued twice — everyone told once.
+5. Both parts with P0-3 part B underneath.
+6. Undo part B (part A's results again), undo part A (all 12 problems back,
+   P0-1..P0-3 still pass), then both parts again.

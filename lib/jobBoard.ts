@@ -9,6 +9,7 @@ import {
   type JobBoardLangCode,
 } from './spokenLanguages';
 import { insertInAppNotifications } from './notifications';
+import { notifyProfileViewedOnServer } from './serverPush';
 import { supabase } from './supabase';
 import { USERS_DIRECTORY } from './usersDirectory';
 
@@ -135,6 +136,11 @@ export async function notifyJobBoardProfileViewed(targetDriverId: string): Promi
 }> {
   const id = targetDriverId.trim();
   if (!id) return { error: new Error('driver id missing') };
+
+  // P0-4: the server tells him (at most once a day per viewer).
+  const server = await notifyProfileViewedOnServer(id);
+  if (server === 'sent') return { error: null };
+  if (server === 'refused') return { error: new Error('profile_view_not_sent') };
 
   const title = i18n.t('jobBoard.profileViewedTitle');
   const body = i18n.t('jobBoard.profileViewedBody');

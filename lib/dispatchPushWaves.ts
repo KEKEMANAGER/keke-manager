@@ -7,8 +7,51 @@ import {
   markDriversDispatched,
   type PushRecipientLike,
 } from './driverRatingSort';
+import { markRecipientsFinishingNearPickup, type EmptyLegPickup } from './emptyLegChaining';
 import { sendExpoPushToMany } from './expoPush';
+import { dispatchNewBookingOnServer, type ServerPushOutcome } from './serverPush';
 import { supabase } from './supabase';
+
+/**
+ * P0-4: a new booking goes out through the server. The app still decides the
+ * order — drivers finishing a job next door, then coverage, KEKE Certified and
+ * rating fill the first wave, everyone else waits three minutes — and sends
+ * only driver ids. The server drops anyone it may not tell (not approved,
+ * blocked, declined, busy, wrong car), writes the text and sends it; the
+ * dispatch log is written there too.
+ *
+ * A job offered to one driver goes to that driver whatever this app thinks of
+ * him (the server decides). An open job with nobody matched here goes to the
+ * server's own waves. `outcome` 'missing' means the server is older than this
+ * app: the caller sends the old way.
+ */
+export async function dispatchBookingViaServer(params: {
+  bookingId: string;
+  recipients: PushRecipientLike[];
+  targetedDriverId?: string | null;
+  pickup: EmptyLegPickup;
+}): Promise<{ outcome: ServerPushOutcome; notified: number; queued: number }> {
+  const targeted = String(params.targetedDriverId ?? '').trim();
+  if (targeted) {
+    return dispatchNewBookingOnServer(params.bookingId, [targeted], []);
+  }
+  if (params.recipients.length === 0) {
+    return dispatchNewBookingOnServer(params.bookingId, null, null);
+  }
+
+  const ordered = await markRecipientsFinishingNearPickup(params.recipients, params.pickup);
+  const { wave1, wave2 } = await buildRatingWaves(ordered, DISPATCH_RATING_WAVE1_SIZE);
+  const first = [...new Set(wave1.map((r) => r.userId))];
+  const firstSet = new Set(first);
+  const later = [...new Set(wave2.map((r) => r.userId))].filter((id) => !firstSet.has(id));
+
+  const result = await dispatchNewBookingOnServer(params.bookingId, first, later);
+  if (result.outcome === 'sent') {
+    // Round-robin fairness, exactly as before: the first wave takes a turn.
+    void markDriversDispatched(first);
+  }
+  return result;
+}
 
 export type RatingWavePushResult = {
   tokenCount: number;

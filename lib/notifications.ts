@@ -20,9 +20,10 @@ import {
 } from './georgiaRegions';
 import { firstChatAnnouncement, isReadingChat } from './chatFocus';
 import { BOOKINGS_CHANNEL_ID } from './pushChannels';
-import { sendBroadcastPushInRatingWaves } from './dispatchPushWaves';
+import { dispatchBookingViaServer, sendBroadcastPushInRatingWaves } from './dispatchPushWaves';
 import { markRecipientsFinishingNearPickup } from './emptyLegChaining';
 import { sendExpoPushNotification, sendExpoPushToMany } from './expoPush';
+import { notifyBookingEventOnServer, notifyChatMessageOnServer } from './serverPush';
 import { driverMatchesRequiredLanguages } from './spokenLanguages';
 import { formatTourBookingNotificationBody } from './tourDays';
 import { supabase } from './supabase';
@@ -185,6 +186,11 @@ export type NotifyMatchingDriversResult = {
 
 type DriverPushRecipient = {
   userId: string;
+  /**
+   * The phone, when this app can still see it. Empty once the server keeps
+   * tokens to itself (P0-4): the server sends then, and this is only used by
+   * the fallback for a server that predates P0-4.
+   */
   token: string;
   /**
    * False only when this driver narrowed his own coverage and the job falls
@@ -245,7 +251,8 @@ export function normalizeBookingVehicleFilters(
 
 /**
  * Drivers with an active vehicle matching booking type AND class (same rules as open job board).
- * Push tokens are read from `profiles`; verification from `profiles` + `users`.
+ * Verification from `profiles` + `users`. The token, where this app can still
+ * read one, only serves the fallback for a server without P0-4.
  */
 export async function fetchMatchingDriverPushRecipients(
   bookingVehicleType: string,
@@ -368,8 +375,7 @@ export async function fetchMatchingDriverPushRecipients(
     supabase
       .from('profiles')
       .select('id, push_token, is_verified')
-      .in('id', driverIds)
-      .not('push_token', 'is', null),
+      .in('id', driverIds),
     supabase
       .from(USERS_DIRECTORY)
       .select(
@@ -464,11 +470,12 @@ export async function fetchMatchingDriverPushRecipients(
     }
   }
 
+  // Every matching driver, with or without a phone this app can see: the
+  // server has the tokens (P0-4). The fallback below drops the empty ones.
   const byUser = new Map<string, string>();
   for (const row of matchedRows) {
-    const t = row.push_token?.trim() ?? '';
-    if (t.length > 0 && !byUser.has(row.id)) {
-      byUser.set(row.id, t);
+    if (!byUser.has(row.id)) {
+      byUser.set(row.id, row.push_token?.trim() ?? '');
     }
   }
 
@@ -608,7 +615,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   });
 
   const targetedDriverId = String(params.driverId ?? '').trim();
-  const { recipients, error } = targetedDriverId
+  const { recipients: matched, error } = targetedDriverId
     ? await fetchDriverPushRecipientsById(targetedDriverId, params.availability)
     : await fetchMatchingDriverPushRecipients(
         vehicleType,
@@ -624,6 +631,46 @@ export async function notifyMatchingDriversOfNewBooking(params: {
         },
       );
 
+  const noDriversMessage = () =>
+    i18n.t('notifications.matchingNoDrivers', {
+      type: vehicleTypeLabel(vehicleType),
+      class: vehicleClass ? vehicleClassLabel(vehicleClass) : i18n.t('notifications.anyVehicleClass'),
+    });
+
+  // P0-4: the server tells the drivers. This app only orders the waves; the
+  // old way below is for a server that does not have dispatch_new_booking yet.
+  const serverBookingId = params.bookingId?.trim();
+  if (serverBookingId) {
+    const viaServer = await dispatchBookingViaServer({
+      bookingId: serverBookingId,
+      recipients: error ? [] : matched,
+      targetedDriverId,
+      pickup: {
+        fromLocation: params.fromLocation,
+        route: params.route,
+        startAt: params.availability?.date_display ?? null,
+      },
+    });
+    if (viaServer.outcome !== 'missing') {
+      const reached = viaServer.notified + viaServer.queued;
+      const message = reached === 0 ? noDriversMessage() : null;
+      if (message && params.showAlertIfEmpty) {
+        Alert.alert(i18n.t('system.noticeTitle'), message);
+      }
+      return {
+        tokenCount: reached,
+        sentCount: viaServer.notified,
+        failedCount: 0,
+        vehicleType,
+        vehicleClass,
+        message,
+      };
+    }
+  }
+
+  // The old way can only reach phones it can see.
+  const recipients = matched.filter((r) => r.token.trim().length > 0);
+
   if (error) {
     if (__DEV__) console.warn('[notifyMatchingDrivers] fetch error:', error.message);
     if (params.showAlertIfEmpty) {
@@ -633,13 +680,7 @@ export async function notifyMatchingDriversOfNewBooking(params: {
   }
 
   if (recipients.length === 0) {
-    const classLabel = vehicleClass
-      ? vehicleClassLabel(vehicleClass)
-      : i18n.t('notifications.anyVehicleClass');
-    const message = i18n.t('notifications.matchingNoDrivers', {
-      type: vehicleTypeLabel(vehicleType),
-      class: classLabel,
-    });
+    const message = noDriversMessage();
     if (__DEV__) console.warn('[notifyMatchingDrivers]', message);
     if (params.showAlertIfEmpty) {
       Alert.alert(i18n.t('system.noticeTitle'), message);
@@ -739,6 +780,9 @@ export async function notifyCompanyBookingAccepted(params: {
   const bookingId = params.bookingId.trim();
   if (!companyUserId || !bookingId) return;
 
+  // P0-4: the server tells the company (text and recipient from the booking).
+  if ((await notifyBookingEventOnServer(bookingId, 'accepted')) !== 'missing') return;
+
   const { title } = getBookingConfirmedNotificationContent();
 
   const lines: string[] = [];
@@ -785,6 +829,8 @@ export async function notifyCompanyDriverCancelledBooking(params: {
   const companyUserId = params.companyUserId.trim();
   const bookingId = params.bookingId.trim();
   if (!companyUserId || !bookingId) return;
+
+  if ((await notifyBookingEventOnServer(bookingId, 'driver_cancelled')) !== 'missing') return;
 
   const title = notifyT('notifications.driverCancelledTitle', 'KEKE · Booking cancelled');
   const driverLine = params.driverName?.trim()
@@ -833,6 +879,8 @@ export async function notifyCompanyOdometerPhoto(params: {
   const companyUserId = params.companyUserId.trim();
   const bookingId = params.bookingId.trim();
   if (!companyUserId || !bookingId) return;
+
+  if ((await notifyBookingEventOnServer(bookingId, 'odometer', params.phase)) !== 'missing') return;
 
   const title =
     params.phase === 'start'
@@ -905,6 +953,9 @@ export async function notifyBookingVoucherCreated(params: {
   const companyId = params.companyUserId.trim();
   const code = params.voucherCode.trim();
   if (!bookingId || !driverId || !code) return;
+
+  // P0-4: the server tells the driver (if he may take jobs) and the company.
+  if ((await notifyBookingEventOnServer(bookingId, 'voucher')) !== 'missing') return;
 
   const routeLine =
     params.route?.trim() ||
@@ -997,6 +1048,8 @@ export async function notifyEmergencyReplacementAssigned(params: {
         })
       : '';
 
+  if ((await notifyBookingEventOnServer(bookingId, 'emergency')) !== 'missing') return;
+
   const title = notifyT('notifications.emergencyAssignedTitle', 'KEKE · Replacement');
   const body = [
     notifyT('notifications.voucherBodyPrefix', `Voucher ${code}`),
@@ -1043,12 +1096,20 @@ export async function notifyChatMessageRecipient(params: {
   messageText: string;
   bookingId?: string;
   threadType?: string;
+  /** The message just inserted, when the caller has it (one-to-one chat). */
+  messageId?: string | null;
 }): Promise<{ ok: boolean; error: string | null }> {
   const receiverId = String(params.receiverUserId ?? '').trim();
   const senderId = String(params.senderUserId ?? '').trim();
   if (!receiverId || !senderId) {
     return { ok: false, error: 'invalid_user_id' };
   }
+
+  // P0-4: the server announces the message the caller really sent, with its
+  // own text, to its receiver.
+  const server = await notifyChatMessageOnServer(receiverId, params.messageId);
+  if (server === 'sent') return { ok: true, error: null };
+  if (server === 'refused') return { ok: false, error: 'server_refused' };
 
   const { data, error } = await supabase
     .from('profiles')
@@ -1118,6 +1179,11 @@ async function pushBookingUpdatedToUser(
   const uid = userId.trim();
   const bid = bookingId.trim();
   if (!uid || !bid) return;
+
+  // P0-4: the server tells the booking's driver and fleet owner, once per
+  // edit, with what changed from the company's change log. Called for the
+  // driver and again for the owner: the second call finds it already done.
+  if ((await notifyBookingEventOnServer(bid, 'updated')) !== 'missing') return;
 
   const title = notifyT('notifications.bookingUpdatedTitle', '📝 Booking updated');
   const body = formatBookingUpdateBody(diff);

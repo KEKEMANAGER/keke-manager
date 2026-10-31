@@ -152,6 +152,7 @@ export async function sendMessage(params: {
         messageText: text,
         bookingId: params.bookingId ?? undefined,
         threadType: params.threadType ?? undefined,
+        messageId: (data as { id?: string } | null)?.id ?? null,
       });
     } catch (e) {
       if (__DEV__) {
