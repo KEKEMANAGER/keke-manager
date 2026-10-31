@@ -686,6 +686,65 @@ export async function fetchOpenPendingBookings() {
 /** Explains zero open-job rows when filtering by driver prefs is impossible. */
 export type DriverOpenJobsHint = 'profile_vehicle_required';
 
+/** PostgREST / Postgres answer for "this server function is not deployed yet". */
+function isMissingServerFunction(error: { code?: string | null } | null | undefined): boolean {
+  return error?.code === 'PGRST202' || error?.code === '42883';
+}
+
+/**
+ * Open jobs, and offers made to this driver, from the server function
+ * `driver_open_jobs`. The server decides who gets them — only a driver KEKE
+ * approved, who is not blocked and has an approved, active car — and sends
+ * the job's summary only: passenger names and phones, meeting contacts, the
+ * pickup sign, notes, the client's price and the commission stay hidden until
+ * the driver has the job (the company's price for the trip is shown). Until
+ * that function is deployed, the old table read is used.
+ */
+async function fetchPendingRowsForDriver(
+  driverId: string,
+): Promise<{ data: Record<string, unknown>[]; error: Error | null }> {
+  const { data, error } = await supabase.rpc('driver_open_jobs');
+  if (!error) {
+    return { data: Array.isArray(data) ? (data as Record<string, unknown>[]) : [], error: null };
+  }
+  if (!isMissingServerFunction(error)) {
+    return { data: [], error: new Error(error.message) };
+  }
+  const legacy = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('status', 'pending')
+    .eq('is_group_master', false)
+    .or(`driver_id.is.null,driver_id.eq.${driverId}`)
+    .order('created_at', { ascending: false });
+  if (legacy.error) {
+    return { data: [], error: new Error(legacy.error.message) };
+  }
+  return { data: (legacy.data ?? []) as Record<string, unknown>[], error: null };
+}
+
+/** True only when the server answers that the signed-in driver may not take jobs. */
+async function serverRefusesJobsToMe(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('current_driver_can_take_jobs');
+  return !error && data === false;
+}
+
+/**
+ * A pending booking's fields as the signed-in user may read them: from the
+ * table for its company (and for drivers on servers without P0-3 part B),
+ * otherwise from the driver's job summary.
+ */
+async function fetchPendingBookingFields(
+  rowId: string,
+  columns: string,
+): Promise<Record<string, unknown> | null> {
+  const { data } = await supabase.from('bookings').select(columns).eq('id', rowId).maybeSingle();
+  if (data) return data as unknown as Record<string, unknown>;
+  const { data: jobs, error } = await supabase.rpc('driver_open_jobs', { p_booking_id: rowId });
+  if (error || !Array.isArray(jobs) || jobs.length === 0) return null;
+  return jobs[0] as Record<string, unknown>;
+}
+
 /**
  * Pending jobs matching this driver's active vehicle type/class.
  *
@@ -768,19 +827,18 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     };
   }
 
-  const { data, error } = await supabase
-    .from('bookings')
-    .select('*')
-    .eq('status', 'pending')
-    .eq('is_group_master', false)
-    .or(`driver_id.is.null,driver_id.eq.${id}`)
-    .order('created_at', { ascending: false });
+  const { data, error } = await fetchPendingRowsForDriver(id);
 
   if (error) {
-    return { data: [] as BookingRow[], error: new Error(error.message) };
+    return { data: [] as BookingRow[], error };
+  }
+  // An empty list because the server will not give this driver jobs yet (no
+  // approved car switched on): point him to his cars, as for a missing car.
+  if (data.length === 0 && (await serverRefusesJobsToMe())) {
+    return { data: [] as BookingRow[], error: null, hint: 'profile_vehicle_required' };
   }
 
-  const rows = (data ?? []).filter((r) => {
+  const rows = data.filter((r) => {
     const row = r as {
       driver_id?: string | null;
       vehicle_type?: string | null;
@@ -1226,11 +1284,7 @@ export async function acceptBooking(
     return { ok: false, error: new Error('მძღოლის id არ არის'), conflict: null };
   }
 
-  const { data: pendingRow } = await supabase
-    .from('bookings')
-    .select('vehicle_type, vehicle_class, vehicle_id')
-    .eq('id', rowId)
-    .maybeSingle();
+  const pendingRow = await fetchPendingBookingFields(rowId, 'vehicle_type, vehicle_class, vehicle_id');
 
   const pending = pendingRow as {
     vehicle_type?: string | null;
@@ -1326,11 +1380,7 @@ export async function hostAcceptBookingForSub(
     return { ok: false as const, error: new Error('მძღოლის ხელფასი არასწორია') };
   }
 
-  const { data: priceRow } = await supabase
-    .from('bookings')
-    .select('price_gel')
-    .eq('id', rowId)
-    .maybeSingle();
+  const priceRow = await fetchPendingBookingFields(rowId, 'price_gel');
   const tripTotal = Number((priceRow as { price_gel?: number } | null)?.price_gel ?? 0);
   if (Number.isFinite(tripTotal) && tripTotal > 0 && payout > tripTotal) {
     return {

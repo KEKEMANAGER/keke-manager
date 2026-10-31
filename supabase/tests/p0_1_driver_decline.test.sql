@@ -20,11 +20,11 @@ select is(public.accept_booking_atomic(tests.id('X'), tests.id('B'), tests.id('v
 
 -- 1. the open booking reaches all three drivers
 select tests.act_as(tests.id('A'));
-select is((select count(*)::int from public.bookings where id = tests.id('O1')), 1, '1. driver A sees open booking O1');
+select is(tests.sees_open_job(tests.id('O1')), 1, '1. driver A sees open booking O1');
 select tests.act_as(tests.id('B'));
-select is((select count(*)::int from public.bookings where id = tests.id('O1')), 1, '1. driver B sees open booking O1');
+select is(tests.sees_open_job(tests.id('O1')), 1, '1. driver B sees open booking O1');
 select tests.act_as(tests.id('C'));
-select is((select count(*)::int from public.bookings where id = tests.id('O1')), 1, '1. driver C sees open booking O1');
+select is(tests.sees_open_job(tests.id('O1')), 1, '1. driver C sees open booking O1');
 
 -- 2. driver A declines
 select tests.act_as(tests.id('A'));
@@ -39,11 +39,11 @@ select is((select count(*)::int from public.booking_emails where booking_id = te
 
 -- 4. B and C still see it; A no longer does
 select tests.act_as(tests.id('B'));
-select is((select count(*)::int from public.bookings where id = tests.id('O1')), 1, '4. driver B still sees O1');
+select is(tests.sees_open_job(tests.id('O1')), 1, '4. driver B still sees O1');
 select tests.act_as(tests.id('C'));
-select is((select count(*)::int from public.bookings where id = tests.id('O1')), 1, '4. driver C still sees O1');
+select is(tests.sees_open_job(tests.id('O1')), 1, '4. driver C still sees O1');
 select tests.act_as(tests.id('A'));
-select is((select count(*)::int from public.bookings where id = tests.id('O1')), 0, '4. driver A no longer sees O1');
+select is(tests.sees_open_job(tests.id('O1')), 0, '4. driver A no longer sees O1');
 select is((select count(*)::int from public.bookings where id = tests.id('O1') and passenger_phone is not null), 0, '10. after declining, driver A can no longer read O1''s passenger details');
 
 -- 7 (rule). the decliner cannot take it back
@@ -66,7 +66,7 @@ select is(public.reject_pending_booking_as_driver(tests.id('O1')), false, '6. a 
 select tests.act_as_owner();
 select ok((select status = 'accepted' and driver_id = tests.id('B') from public.bookings where id = tests.id('O1')), '6. O1 is still accepted by B');
 select tests.act_as(tests.id('A'));
-select throws_ok($$ select tests.try_set_status(tests.id('O2'), 'rejected') $$, '42501', null, '6. a direct update of open O2 to "rejected" is refused');
+select ok(tests.refused($$ update public.bookings set status = 'rejected' where id = tests.id('O2') $$), '6. a direct update of open O2 to "rejected" is refused');
 select tests.act_as_owner();
 select is((select status from public.bookings where id = tests.id('O2')), 'pending', '6. O2 is still pending');
 
@@ -84,7 +84,7 @@ select tests.act_as_owner();
 select is((select count(*)::int from public.booking_driver_declines where booking_id = tests.id('O2') and driver_id = tests.id('A')), 1, '7. still one decline row for A on O2');
 select ok((select status = 'pending' and driver_id is null from public.bookings where id = tests.id('O2')), '7. O2 is still open');
 select tests.act_as(tests.id('B'));
-select is((select count(*)::int from public.bookings where id = tests.id('O2')), 1, '7. driver B still sees O2');
+select is(tests.sees_open_job(tests.id('O2')), 1, '7. driver B still sees O2');
 
 -- 9. calendar conflicts are still refused
 select tests.act_as(tests.id('B'));
@@ -126,16 +126,16 @@ select is((select count(*)::int from public.booking_driver_declines), 0, 'the co
 
 -- 10. passenger details before acceptance: KNOWN GAP, belongs to P0-3
 select tests.act_as(tests.id('C'));
-select todo('P0-3: open jobs still expose passenger details to every driver', 1);
+select todo('P0-3: open jobs still expose passenger details to every driver', 1) where not tests.p0_3_summary_only();
 select is((select count(*)::int from public.bookings where id = tests.id('O2') and passenger_phone is not null), 0, '10. a driver who has not accepted O2 cannot read its passenger phone');
 
 -- Deliberate tampering through direct table updates: KNOWN GAP, P0-3 / P1-1.
 -- (Last, because the unfiltered update rejects the remaining open jobs.)
 select tests.act_as(tests.id('A'));
-select is((select count(*)::int from public.bookings where id = tests.id('O2')), 0, 'tampering: A cannot even see O2, which he declined');
-select todo('P0-3/P1-1: the direct-accept rule lets a driver match any open job he has not declined, and the other update rules'' checks (incl. WITH CHECK (true)) accept the changed row', 2);
-select throws_ok($$ update public.bookings set status = 'rejected', driver_id = auth.uid() where id = tests.id('O5') $$, '42501', null, 'tampering: a driver cannot set open job O5 to rejected under his own name');
-select throws_ok($$ update public.bookings set status = 'rejected' $$, '42501', null, 'tampering: a driver cannot reject every open job with one unfiltered update');
+select is(tests.sees_open_job(tests.id('O2')), 0, 'tampering: A cannot even see O2, which he declined');
+select todo('P0-3/P1-1: the direct-accept rule lets a driver match any open job he has not declined, and the other update rules'' checks (incl. WITH CHECK (true)) accept the changed row', 2) where to_regprocedure('public.driver_open_jobs(uuid)') is null;
+select ok(tests.refused($$ update public.bookings set status = 'rejected', driver_id = auth.uid() where id = tests.id('O5') $$), 'tampering: a driver cannot set open job O5 to rejected under his own name');
+select ok(tests.refused($$ update public.bookings set status = 'rejected' $$), 'tampering: a driver cannot reject every open job with one unfiltered update');
 select tests.act_as_owner();
 select is((select status from public.bookings where id = tests.id('O2')), 'pending', 'tampering: O2, which A declined, survives A''s unfiltered update');
 

@@ -23,6 +23,8 @@ language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
     json_build_object('sub', p_user, 'role', 'authenticated')::text, true);
+  -- PostgREST: signed in as authenticator, switched to the caller's role
+  execute 'set local session authorization authenticator';
   execute 'set local role authenticated';
 end;
 $$;
@@ -30,6 +32,7 @@ $$;
 create or replace function tests.act_as_owner() returns void
 language plpgsql as $$
 begin
+  execute 'reset session authorization';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 end;

@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -97,6 +97,9 @@ function crossInfoAlert(title: string, message: string) {
     Alert.alert(title, message);
   }
 }
+
+/** How often the open-jobs tab refreshes itself while it is on screen. */
+const OPEN_JOBS_REFRESH_MS = 60_000;
 
 type BookingTabKey = 'open' | 'active' | 'completed';
 
@@ -294,6 +297,17 @@ export default function DriverBookingsScreen() {
     });
     return () => unsubscribeChannel(ch);
   }, [userId, load]);
+
+  // The server no longer streams other drivers' open jobs to a driver (P0-3:
+  // before he has a job he gets only its summary, through driver_open_jobs),
+  // so while the open-jobs tab is on screen it also refreshes itself.
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId || tab !== 'open') return undefined;
+      const timer = setInterval(() => void load('silent'), OPEN_JOBS_REFRESH_MS);
+      return () => clearInterval(timer);
+    }, [userId, tab, load]),
+  );
 
   const data = useMemo(() => {
     if (tab === 'open') return openJobs;

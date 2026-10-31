@@ -16,6 +16,15 @@ begin
   if not exists (select 1 from pg_roles where rolname = 'service_role') then
     create role service_role nologin noinherit bypassrls;
   end if;
+  -- PostgREST signs in as `authenticator` and switches to the caller's role,
+  -- so in production session_user is 'authenticator' on every API request.
+  -- tests.act_as() does the same, which matters for checks on session_user.
+  if not exists (select 1 from pg_roles where rolname = 'authenticator') then
+    create role authenticator nologin noinherit;
+  end if;
+  if not pg_has_role('authenticator', 'authenticated', 'member') then
+    grant anon, authenticated, service_role to authenticator;
+  end if;
 end
 $$;
 
@@ -80,8 +89,33 @@ begin
 end;
 $$;
 
-grant usage on schema public, auth, net to anon, authenticated, service_role;
-grant execute on all functions in schema auth to anon, authenticated, service_role;
+-- Storage stand-in: the objects table the Storage API checks policies on,
+-- with Supabase's own storage.foldername() and the same table grants.
+create schema if not exists storage;
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text,
+  name text,
+  owner uuid,
+  created_at timestamptz not null default now()
+);
+alter table storage.objects enable row level security;
+
+create or replace function storage.foldername(name text)
+returns text[]
+language plpgsql immutable as $$
+declare
+  _parts text[];
+begin
+  select string_to_array(name, '/') into _parts;
+  return _parts[1 : array_length(_parts, 1) - 1];
+end
+$$;
+
+grant usage on schema public, auth, net, storage to anon, authenticated, service_role;
+grant execute on all functions in schema auth, storage to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to anon, authenticated;
+grant all on storage.objects to service_role;
 
 -- Production keeps btree_gist in public (exclusion constraints on
 -- driver_schedules) and one sequence-backed table.

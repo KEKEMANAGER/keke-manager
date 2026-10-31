@@ -17,6 +17,8 @@ language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
     json_build_object('sub', p_user, 'role', 'authenticated')::text, true);
+  -- PostgREST: signed in as authenticator, switched to the caller's role
+  execute 'set local session authorization authenticator';
   execute 'set local role authenticated';
 end;
 $$;
@@ -26,6 +28,7 @@ create or replace function tests.act_as_anon() returns void
 language plpgsql as $$
 begin
   perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);
+  execute 'set local session authorization authenticator';
   execute 'set local role anon';
 end;
 $$;
@@ -34,6 +37,7 @@ $$;
 create or replace function tests.act_as_owner() returns void
 language plpgsql as $$
 begin
+  execute 'reset session authorization';
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 end;
@@ -61,6 +65,51 @@ begin
 end;
 $$;
 
+
+-- A direct write is refused when it errors for lack of rights or changes no
+-- row (once P0-3 removed the direct-accept rule, no rule lets a driver touch
+-- an open job at all, so his UPDATE simply matches nothing).
+create or replace function tests.refused(p_sql text) returns boolean
+language plpgsql as $$
+declare n int;
+begin
+  execute p_sql;
+  get diagnostics n = row_count;
+  return n = 0;
+exception
+  when insufficient_privilege then
+    return true;
+end;
+$$;
+
+-- Is the booking in this driver's list of open jobs? Through the server
+-- summary once P0-3 has deployed it (the table no longer lists open jobs to
+-- drivers after P0-3 part B), through the table before that.
+create or replace function tests.sees_open_job(p_booking uuid) returns int
+language plpgsql as $$
+declare n int;
+begin
+  if to_regprocedure('public.driver_open_jobs(uuid)') is not null then
+    execute 'select count(*)::int from jsonb_array_elements(public.driver_open_jobs()) e where (e ->> ''id'')::uuid = $1'
+      into n using p_booking;
+  else
+    select count(*)::int into n from public.bookings where id = p_booking;
+  end if;
+  return n;
+end;
+$$;
+
+-- P0-3 part B applied: drivers read a booking's row only once it is theirs.
+create or replace function tests.p0_3_summary_only() returns boolean
+language sql as $$
+  select to_regprocedure('public.driver_open_jobs(uuid)') is not null
+     and exists (
+       select 1 from pg_policies
+        where schemaname = 'public' and tablename = 'bookings'
+          and policyname = 'bookings_select_participants'
+          and qual not like '%current_driver_can_take_jobs%'
+          and qual not like '%role = %')
+$$;
 
 -- Short names for the fake ids, so the tests read like the scenarios.
 create or replace function tests.id(p_name text) returns uuid

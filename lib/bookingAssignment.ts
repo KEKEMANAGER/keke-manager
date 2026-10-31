@@ -21,7 +21,14 @@ export type AcceptBookingCode =
   | 'driver_busy'
   | 'vehicle_busy'
   /** The driver declined this open job earlier and cannot take it back. */
-  | 'declined';
+  | 'declined'
+  /**
+   * The driver may not take jobs yet: KEKE has not approved him, he is
+   * blocked, or he has no approved, active car (the server's message says so).
+   */
+  | 'not_eligible'
+  /** The car sent is not one this driver may use (not his, not active or not approved). */
+  | 'vehicle_not_allowed';
 
 export type AcceptBookingResult = {
   ok: boolean;
