@@ -10,6 +10,7 @@ begin
   if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'driver_can_take_jobs') then raise exception 'P0-1 check: P0-3 A is already in place - stop'; end if;
   if to_regclass('public.push_tokens') is not null then raise exception 'P0-1 check: P0-4 A is already in place - stop'; end if;
   if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'cancel_booking_by_company') then raise exception 'P0-1 check: P0-5 is already in place - stop'; end if;
+  if exists (select 1 from pg_trigger where tgrelid = 'public.bookings'::regclass and tgname = 'bookings_guard_ownership' and not tgisinternal) then raise exception 'P0-1 check: P0-6 is already in place - stop'; end if;
 end
 $state$;
 -- all P0 functions: the functions are exactly the rehearsed versions
@@ -26,6 +27,7 @@ begin
     ('find_replacement_driver_for_booking(p_booking_id uuid, p_exclude_driver_id uuid)', '90ba14239c0a80f344771b89e12d6bc9'),
     ('flush_push_outbox(p_limit integer)', '4fa89e8bfccee8e78ed80707389f0bf0'),
     ('guard_users_privileged_columns()', '7f7df914e81a199a32f6710f98ff73c4'),
+    ('is_admin_user()', '4526bbe5dfc90580cadf624658ac85ab'),
     ('reassign_booking_to_driver(p_booking_id uuid, p_new_driver_id uuid, p_vehicle_id uuid, p_display_name text, p_phone text, p_plate text)', '10d6da93781693827d7fe3fb35536679'),
     ('reject_pending_booking_as_driver(p_booking_id uuid)', '0d29d1940c170ff72cd9619479bb42af'),
     ('run_booking_reminders()', '108898ec9038d0aa2faac1907ba65eee')

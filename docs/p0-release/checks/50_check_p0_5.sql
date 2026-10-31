@@ -10,6 +10,7 @@ begin
   if not (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'driver_can_take_jobs')) then raise exception 'P0-5 check: P0-3 A is not in place - stop'; end if;
   if not (to_regclass('public.push_tokens') is not null) then raise exception 'P0-5 check: P0-4 A is not in place - stop'; end if;
   if not (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'cancel_booking_by_company')) then raise exception 'P0-5 check: P0-5 is not in place - stop'; end if;
+  if exists (select 1 from pg_trigger where tgrelid = 'public.bookings'::regclass and tgname = 'bookings_guard_ownership' and not tgisinternal) then raise exception 'P0-5 check: P0-6 is already in place - stop'; end if;
 end
 $state$;
 -- all P0 functions: the functions are exactly the rehearsed versions
@@ -43,6 +44,7 @@ begin
     ('flush_push_outbox(p_limit integer)', '493cc5e5c6ca52009dfefbe8c5cd5a88'),
     ('guard_users_privileged_columns()', '21e702f118371420f30dc646dc792f79'),
     ('guard_vehicles_verification_columns()', 'c210c5ba8f7a64824c2165f1282d9fd0'),
+    ('is_admin_user()', '4526bbe5dfc90580cadf624658ac85ab'),
     ('is_expo_push_token(p_token text)', '02562995a4dda87f14820c51f3a6f28a'),
     ('is_fleet_host_of(p_host uuid, p_driver uuid)', '4b8b395addaaa418324154f9f68bd750'),
     ('notify_booking_event(p_booking_id uuid, p_event text, p_phase text)', 'cd860fc57bed598ac32fd0bc80c85e2a'),

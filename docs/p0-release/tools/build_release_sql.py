@@ -6,8 +6,11 @@ itself, changing nothing, when:
   * a lock is not obtained within 5 s or a statement runs over 120 s;
   * the database is not in the state this step expects (earlier phases present,
     this one absent);
-  * a function this step replaces is not exactly the version that was tested
-    (md5 of its definition, Windows line endings ignored);
+  * a function this step replaces or relies on is not exactly the version
+    that was tested (md5 of its definition, Windows line endings ignored);
+  * for a step that changes a table's RLS policies or triggers (P0-6:
+    bookings), those policies and triggers are not exactly the rehearsed ones,
+    before the step and after it (and after its undo);
   * any existing row of any public table changes, except where the step is
     meant to change it;
   * after the step, a function it created or replaced differs from the
@@ -63,6 +66,17 @@ PHASES = [
          marker="exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
                 "where n.nspname = 'public' and p.proname = 'cancel_booking_by_company')",
          allowed=[], new_tables=[], new_columns=[]),
+    dict(key='P0-6', slug='p0_6', file='supabase/migrations/20261101150000_booking_ownership.sql',
+         undo='supabase/rollback/20261101150000_booking_ownership_undo.sql',
+         version='20261101150000', name='booking_ownership',
+         marker="exists (select 1 from pg_trigger where tgrelid = 'public.bookings'::regclass "
+                "and tgname = 'bookings_guard_ownership' and not tgisinternal)",
+         allowed=[], new_tables=[], new_columns=[],
+         # it replaces the UPDATE policies of bookings and adds a trigger there:
+         # the policies and triggers of bookings must be exactly the rehearsed
+         # ones before and after (and after its undo); and it relies on these
+         # functions it does not replace
+         tables=['bookings'], depends=['is_admin_user', 'driver_can_take_jobs', 'vehicle_usable_by_driver']),
 ]
 
 FIXTURES = ['fixtures/supabase_shim.sql',
@@ -97,6 +111,46 @@ def fingerprints(names):
                f"where n.nspname = 'public' and p.prokind = 'f' and p.proname = any (string_to_array('{arr}', ',')) "
                "order by 1")
     return dict(line.split('|', 1) for line in out.strip().splitlines() if line)
+
+
+POLICIES_MD5 = ("(select md5(coalesce(string_agg(pl.policyname || '|' || pl.permissive || '|' || pl.roles::text || '|' "
+                "|| pl.cmd || '|' || coalesce(pl.qual, '') || '|' || coalesce(pl.with_check, ''), E'\\n' order by pl.policyname), '')) "
+                "from pg_policies pl where pl.schemaname = 'public' and pl.tablename = {t})")
+TRIGGERS_MD5 = ("(select md5(coalesce(string_agg(pg_get_triggerdef(tr.oid) || '|' || tr.tgenabled::text, E'\\n' order by tr.tgname), '')) "
+                "from pg_trigger tr where tr.tgrelid = format('public.%I', {t})::regclass and not tr.tgisinternal)")
+
+
+def table_fps(tables):
+    """{table: (md5 of its RLS policies, md5 of its triggers)}"""
+    out = {}
+    for t in tables:
+        lit = "'" + t + "'"
+        r = psql('-At', '-F', '|', '-c', f"select {POLICIES_MD5.format(t=lit)}, {TRIGGERS_MD5.format(t=lit)}").strip()
+        out[t] = tuple(r.split('|'))
+    return out
+
+
+def tbl_check(label, fps, when):
+    if not fps:
+        return ''
+    values = ',\n    '.join(f"('{t}', '{pol}', '{trg}')" for t, (pol, trg) in sorted(fps.items()))
+    return f"""-- {when}: the RLS policies and triggers of {', '.join(sorted(fps))} are exactly the rehearsed ones
+do $tbl$
+declare bad text;
+begin
+  select string_agg(x.t || x.what, '; ') into bad
+    from (select e.t, case when {POLICIES_MD5.format(t='e.t')} is distinct from e.pol then ' (policies differ)' else '' end
+                   || case when {TRIGGERS_MD5.format(t='e.t')} is distinct from e.trg then ' (triggers differ)' else '' end as what
+            from (values
+    {values}
+            ) as e(t, pol, trg)) x
+   where x.what <> '';
+  if bad is not null then
+    raise exception '{label}: not as rehearsed: % - nothing was applied', bad;
+  end if;
+end
+$tbl$;
+"""
 
 
 def sql_list(items):
@@ -214,12 +268,16 @@ def main():
 
     texts = {p['key']: (ROOT / p['file']).read_text() for p in PHASES}
     undo_texts = {p['key']: (ROOT / p['undo']).read_text() for p in PHASES}
-    all_names = sorted(set(sum((touched_functions(t) for t in texts.values()), [])))
+    all_names = sorted(set(sum((touched_functions(t) for t in texts.values()), [])
+                           + sum((p.get('depends', []) for p in PHASES), [])))
+    all_tables = sorted(set(sum((p.get('tables', []) for p in PHASES), [])))
 
     stages = [fingerprints(all_names)]           # stage 0 = production before P0
+    tstages = [table_fps(all_tables)]
     for p in PHASES:
         psql('-f', str(ROOT / p['file']))
         stages.append(fingerprints(all_names))   # stage k = after phase k
+        tstages.append(table_fps(all_tables))
 
     deploy_dir, undo_dir, check_dir = OUT / 'deploy', OUT / 'rollback', OUT / 'checks'
     for d in (deploy_dir, undo_dir, check_dir):
@@ -230,8 +288,12 @@ def main():
         text = texts[p['key']]
         md5 = hashlib.md5(text.encode()).hexdigest()
         names = touched_functions(text)
-        before = {s: h for s, h in stages[k - 1].items() if s.split('(')[0] in names}
+        deps = p.get('depends', [])
+        tables = p.get('tables', [])
+        before = {s: h for s, h in stages[k - 1].items() if s.split('(')[0] in names + deps}
         after = {s: h for s, h in stages[k].items() if s.split('(')[0] in names}
+        t_before = {t: tstages[k - 1][t] for t in tables}
+        t_after = {t: tstages[k][t] for t in tables}
         label = f"{p['key']} deploy"
         body = header(
             f"KEKE P0 release - {p['key']}: apply {p['file']} (md5 {md5})",
@@ -241,10 +303,12 @@ def main():
         body += "begin isolation level repeatable read;\nset local lock_timeout = '5s';\nset local statement_timeout = '120s';\n\n"
         body += state_check(label, PHASES[:k - 1], PHASES[k - 1:]) + '\n'
         body += fp_check(label, before, 'before') + '\n'
+        body += (tbl_check(label, t_before, 'before') + '\n') if tables else ''
         body += guard_pre([]) + '\n'
         body += f"-- ===== {p['file']} (verbatim) =====\n" + text.rstrip() + f"\n-- ===== end of {p['file']} =====\n\n"
         body += guard_post(p['allowed'], []) + '\n'
         body += fp_check(label, after, 'after') + '\n'
+        body += (tbl_check(label, t_after, 'after') + '\n') if tables else ''
         body += state_check(label + ' (after)', PHASES[:k], PHASES[k:]) + '\n'
         body += (f"insert into supabase_migrations.schema_migrations (version, name, statements, created_by)\n"
                  f"values ('{p['version']}', '{p['name']}', array['-- applied from {p['file']} (md5 {md5}) by the P0 release runbook'], 'p0-release');\n\n")
@@ -259,7 +323,7 @@ def main():
         ub = header(
             f"KEKE P0 release - undo {p['key']}: apply {p['undo']} (md5 {umd5})",
             ['Run as ONE call. Rolls back by itself if a check fails. Undo in reverse order',
-             '(P0-5 first). Rows written meanwhile in tables the phase created are dropped with them;',
+             '(P0-6 first). Rows written meanwhile in tables the phase created are dropped with them;',
              'every other existing row must stay exactly as it is.',
              'Generated by docs/p0-release/tools/build_release_sql.py - do not edit by hand.'])
         ub += "begin isolation level repeatable read;\nset local lock_timeout = '5s';\nset local statement_timeout = '120s';\n\n"
@@ -269,6 +333,7 @@ def main():
         ub += guard_post(p['allowed'], p['new_tables']) + '\n'
         restored = {s: h for s, h in stages[k - 1].items() if s.split('(')[0] in names}
         ub += fp_check(ulabel, restored, 'after the undo') + '\n'
+        ub += (tbl_check(ulabel, t_before, 'after the undo') + '\n') if tables else ''
         ub += state_check(ulabel + ' (after)', PHASES[:k - 1], PHASES[k - 1:]) + '\n'
         ub += f"delete from supabase_migrations.schema_migrations where version = '{p['version']}';\n\n"
         ub += f"select '{p['key']} undone' as result, now() as at;\ncommit;\n"
@@ -279,6 +344,7 @@ def main():
         pc += "begin isolation level repeatable read read only;\n"
         pc += state_check(f"{p['key']} check", PHASES[:k], PHASES[k:])
         pc += fp_check(f"{p['key']} check", {s: h for s, h in stages[k].items()}, 'all P0 functions')
+        pc += tbl_check(f"{p['key']} check", t_after, 'after the step') if tables else ''
         pc += (f"select '{p['key']} is in place' as result,\n"
                f"       (select count(*) from supabase_migrations.schema_migrations where version = '{p['version']}') as history_row,\n"
                f"       (select count(*) from cron.job where active) as active_cron_jobs;\ncommit;\n")
@@ -290,6 +356,7 @@ def main():
     pf += "begin isolation level repeatable read read only;\n"
     pf += state_check('preflight', [], PHASES)
     pf += fp_check('preflight', stages[0], 'pre-P0 production functions')
+    pf += tbl_check('preflight', tstages[0], 'pre-P0 production tables')
     pf += """select (select count(*) from public.push_outbox where sent_at is null) as unsent_pushes,
        (select count(*) from (select booking_id, user_id from public.push_outbox where user_id is not null
                               group by 1, 2 having count(*) > 1) d) as push_outbox_duplicates,
@@ -309,6 +376,8 @@ commit;
             f.write(f'== stage {i} ({"production before P0" if i == 0 else "after " + PHASES[i - 1]["key"]})\n')
             for s, h in sorted(st.items()):
                 f.write(f'{h}  {s}\n')
+            for t, (pol, trg) in sorted(tstages[i].items()):
+                f.write(f'{pol}  policies of {t}\n{trg}  triggers of {t}\n')
     for row in manifest:
         print('%-7s %-22s md5 %s  checks %d before / %d after' % row)
     subprocess.run(['dropdb', DB], check=True)

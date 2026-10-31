@@ -10,6 +10,7 @@ begin
   if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'driver_can_take_jobs') then raise exception 'preflight: P0-3 A is already in place - stop'; end if;
   if to_regclass('public.push_tokens') is not null then raise exception 'preflight: P0-4 A is already in place - stop'; end if;
   if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'cancel_booking_by_company') then raise exception 'preflight: P0-5 is already in place - stop'; end if;
+  if exists (select 1 from pg_trigger where tgrelid = 'public.bookings'::regclass and tgname = 'bookings_guard_ownership' and not tgisinternal) then raise exception 'preflight: P0-6 is already in place - stop'; end if;
 end
 $state$;
 -- pre-P0 production functions: the functions are exactly the rehearsed versions
@@ -26,6 +27,7 @@ begin
     ('find_replacement_driver_for_booking(p_booking_id uuid, p_exclude_driver_id uuid)', '90ba14239c0a80f344771b89e12d6bc9'),
     ('flush_push_outbox(p_limit integer)', '4fa89e8bfccee8e78ed80707389f0bf0'),
     ('guard_users_privileged_columns()', '7f7df914e81a199a32f6710f98ff73c4'),
+    ('is_admin_user()', '4526bbe5dfc90580cadf624658ac85ab'),
     ('reassign_booking_to_driver(p_booking_id uuid, p_new_driver_id uuid, p_vehicle_id uuid, p_display_name text, p_phone text, p_plate text)', '10d6da93781693827d7fe3fb35536679'),
     ('reject_pending_booking_as_driver(p_booking_id uuid)', '3d34577eeb69c7b0517a030a5796a613'),
     ('run_booking_reminders()', '108898ec9038d0aa2faac1907ba65eee')
@@ -42,6 +44,22 @@ begin
   end if;
 end
 $fp$;
+-- pre-P0 production tables: the RLS policies and triggers of bookings are exactly the rehearsed ones
+do $tbl$
+declare bad text;
+begin
+  select string_agg(x.t || x.what, '; ') into bad
+    from (select e.t, case when (select md5(coalesce(string_agg(pl.policyname || '|' || pl.permissive || '|' || pl.roles::text || '|' || pl.cmd || '|' || coalesce(pl.qual, '') || '|' || coalesce(pl.with_check, ''), E'\n' order by pl.policyname), '')) from pg_policies pl where pl.schemaname = 'public' and pl.tablename = e.t) is distinct from e.pol then ' (policies differ)' else '' end
+                   || case when (select md5(coalesce(string_agg(pg_get_triggerdef(tr.oid) || '|' || tr.tgenabled::text, E'\n' order by tr.tgname), '')) from pg_trigger tr where tr.tgrelid = format('public.%I', e.t)::regclass and not tr.tgisinternal) is distinct from e.trg then ' (triggers differ)' else '' end as what
+            from (values
+    ('bookings', '5911e31c131b2a45174098a68e92e84d', '026a10a5c9a886a6953cbfcee1784515')
+            ) as e(t, pol, trg)) x
+   where x.what <> '';
+  if bad is not null then
+    raise exception 'preflight: not as rehearsed: % - nothing was applied', bad;
+  end if;
+end
+$tbl$;
 select (select count(*) from public.push_outbox where sent_at is null) as unsent_pushes,
        (select count(*) from (select booking_id, user_id from public.push_outbox where user_id is not null
                               group by 1, 2 having count(*) > 1) d) as push_outbox_duplicates,

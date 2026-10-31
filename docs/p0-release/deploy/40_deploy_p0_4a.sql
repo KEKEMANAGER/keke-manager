@@ -15,6 +15,7 @@ begin
   if not (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'driver_can_take_jobs')) then raise exception 'P0-4 A deploy: P0-3 A is not in place - stop'; end if;
   if to_regclass('public.push_tokens') is not null then raise exception 'P0-4 A deploy: P0-4 A is already in place - stop'; end if;
   if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'cancel_booking_by_company') then raise exception 'P0-4 A deploy: P0-5 is already in place - stop'; end if;
+  if exists (select 1 from pg_trigger where tgrelid = 'public.bookings'::regclass and tgname = 'bookings_guard_ownership' and not tgisinternal) then raise exception 'P0-4 A deploy: P0-6 is already in place - stop'; end if;
 end
 $state$;
 
@@ -1315,6 +1316,7 @@ begin
   if not (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'driver_can_take_jobs')) then raise exception 'P0-4 A deploy (after): P0-3 A is not in place - stop'; end if;
   if not (to_regclass('public.push_tokens') is not null) then raise exception 'P0-4 A deploy (after): P0-4 A is not in place - stop'; end if;
   if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'cancel_booking_by_company') then raise exception 'P0-4 A deploy (after): P0-5 is already in place - stop'; end if;
+  if exists (select 1 from pg_trigger where tgrelid = 'public.bookings'::regclass and tgname = 'bookings_guard_ownership' and not tgisinternal) then raise exception 'P0-4 A deploy (after): P0-6 is already in place - stop'; end if;
 end
 $state$;
 

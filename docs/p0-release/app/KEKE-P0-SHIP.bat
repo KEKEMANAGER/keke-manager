@@ -1,7 +1,7 @@
 @echo off
 setlocal
 rem KEKE Manager - P0 app update. Run ONLY after the founder approved this step
-rem and the five database steps passed their checks.
+rem and the six database steps (P0-1 .. P0-6) passed their checks.
 rem   1. master on GitHub moves forward to the release branch (fast-forward only);
 rem      Cloudflare then builds kekemanager.com from master by itself.
 rem   2. the phones get the same code as an over-the-air update (production
