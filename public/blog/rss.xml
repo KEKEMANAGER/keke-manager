@@ -5,8 +5,15 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Thu, 29 Oct 2026 07:05:45 GMT</lastBuildDate>
+    <lastBuildDate>Sun, 01 Nov 2026 07:06:59 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[როგორ გავზარდოთ ტურისტული ტრანსპორტის ბიზნესი საქართველოში]]></title>
+      <link>https://kekemanager.com/blog/how-to-scale-tourist-transport-business-georgia</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/how-to-scale-tourist-transport-business-georgia</guid>
+      <pubDate>Sun, 01 Nov 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[სტრატეგიები და პრაქტიკული რჩევები ფლოტის გაფართოებისთვის, მძღოლთა ბაზის ზრდისა და ტექნოლოგიური ტრანსფორმაციისთვის.]]></description>
+    </item>
     <item>
       <title><![CDATA[როგორ მოვაგვაროთ მძღოლის უეცარი გაუქმება ტურის დღეს საქართველოში]]></title>
       <link>https://kekemanager.com/blog/how-to-handle-last-minute-driver-cancellations-georgia</link>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/what-is-keke-manager</guid>
       <pubDate>Tue, 01 Sep 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[KEKE Manager — B2B პლატფორმა, რომელიც ტურ-ოპერატორებს, ტრანსპორტ კომპანიებს და ვერიფიცირებულ მძღოლებს აკავშირებს საქართველოში. გაარკვიეთ როგორ მუშაობს.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[კეკე მენეჯერის დამფუძნებელი — აკაკი ქაჩიბაია]]></title>
-      <link>https://kekemanager.com/blog/akaki-kachibaia-keke-manager-founder-story</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/akaki-kachibaia-keke-manager-founder-story</guid>
-      <pubDate>Tue, 01 Sep 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[აკაკი ქაჩიბაიას ისტორია — მძღოლიდან ტრანსპორტის მენეჯერამდე და კეკე მენეჯერის დაფუძნებამდე. რატომ და როგორ დაიბადა პლატფორმა, რომელიც საქართველოს ტურისტულ ტრანსპორტს ცვლის.]]></description>
     </item>
   </channel>
 </rss>
