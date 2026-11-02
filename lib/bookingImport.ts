@@ -423,28 +423,30 @@ export async function pickBookingPhotos(source: PhotoSource): Promise<PickedImag
  * function always puts a readable message in its body, so read it from there
  * rather than showing "Edge Function returned a non-2xx status code".
  */
-async function functionErrorMessage(error: unknown): Promise<string> {
-  const err = error as { name?: string; message?: string; context?: unknown };
-  const ctx = err.context as { json?: () => Promise<unknown>; body?: unknown } | undefined;
-
-  if (ctx && typeof ctx.json === 'function') {
-    try {
-      const body = (await ctx.json()) as { error?: unknown };
-      if (typeof body?.error === 'string' && body.error.trim()) return body.error;
-    } catch {
-      /* not JSON — fall through */
-    }
-  } else if (typeof ctx?.body === 'string') {
-    try {
-      const parsed = JSON.parse(ctx.body) as { error?: unknown };
-      if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error;
-    } catch {
-      /* fall through */
-    }
+/**
+ * The JSON body of a function's error answer. Read once: the error carries
+ * the raw Response, whose body cannot be read a second time.
+ */
+async function functionErrorBody(error: unknown): Promise<Record<string, unknown> | null> {
+  const ctx = (error as { context?: unknown }).context as { json?: () => Promise<unknown>; body?: unknown } | undefined;
+  try {
+    let body: unknown = null;
+    if (ctx && typeof ctx.json === 'function') body = await ctx.json();
+    else if (typeof ctx?.body === 'string') body = JSON.parse(ctx.body);
+    return body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
+  } catch {
+    return null; // not JSON
   }
+}
 
-  if (err.name === 'FunctionsFetchError') return i18n.t('importBooking.networkError');
+function functionErrorText(error: unknown, body: Record<string, unknown> | null): string {
+  if (typeof body?.error === 'string' && body.error.trim()) return body.error;
+  if ((error as { name?: string }).name === 'FunctionsFetchError') return i18n.t('importBooking.networkError');
   return i18n.t('importBooking.readFailedGeneric');
+}
+
+async function functionErrorMessage(error: unknown): Promise<string> {
+  return functionErrorText(error, await functionErrorBody(error));
 }
 
 async function invokeImport(
@@ -1028,46 +1030,132 @@ export function withFormDefaults(draft: ImportedBookingDraft): ImportedBookingDr
 
 // ------------------------------------------------------------- the review
 
-/** The draft keys each reviewed field is read from — what "the agency changed it" means. */
-const REVIEW_KEYS: Record<ReviewField, (keyof ImportedBookingDraft)[]> = {
-  kind: ['kind'],
-  date: ['date_display', 'tour_days'],
-  time: ['date_display', 'pickup_time'],
-  from_location: ['from_location', 'from_location_type'],
-  to_location: ['to_location', 'to_location_type'],
-  passengers: ['passengers'],
-  vehicle_type: ['vehicle_type'],
-  client_price: ['client_price'],
-  flight_number: ['flight_number'],
-  flight_at: ['flight_at'],
-  tour_days: ['tour_days'],
-  transfer_in: ['transfer_in'],
-  transfer_out: ['transfer_out'],
-};
+/**
+ * The critical fields the server reviews for a kind of service
+ * (booking-import review.ts reviewedFields). After a change of kind, the
+ * fields the new kind adds were never reviewed: each one that holds a value
+ * needs a person's confirmation, here and on the server.
+ */
+export function reviewedFieldsFor(kind: string | null | undefined): ReviewField[] {
+  const base: ReviewField[] = ['kind', 'date', 'time', 'passengers', 'vehicle_type', 'client_price', 'flight_number'];
+  if (kind === 'tour') return [...base, 'tour_days', 'transfer_in', 'transfer_out'];
+  if (kind === 'day_tour') return [...base, 'from_location', 'to_location'];
+  return [...base, 'from_location', 'to_location', 'flight_at'];
+}
 
-/** Did the agency change this field since it was read? A change made by a person is its own confirmation. */
-export function reviewFieldEdited(field: ReviewField, original: ImportedBookingDraft, current: ImportedBookingDraft): boolean {
-  return REVIEW_KEYS[field].some((k) => JSON.stringify(original[k] ?? null) !== JSON.stringify(current[k] ?? null));
+const textOrNull = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+function legReviewValue(leg: ImportedLeg | null | undefined) {
+  if (!leg) return null;
+  const { day, clock } = tbilisiParts(leg.date_display);
+  const time = textOrNull(leg.pickup_time) ?? (clock && clock !== '00:00' ? clock : null);
+  const v = { date: day, time, from: textOrNull(leg.from), to: textOrNull(leg.to), flight: textOrNull(leg.flight) };
+  return v.date || v.time || v.from || v.to || v.flight ? v : null;
 }
 
 /**
- * Reviewed values a person has not yet confirmed, chosen or corrected. A
- * missing value is left to the form's own required-field check
- * (missingRequiredFields), which says it in the form's words.
+ * A reviewed field's value in the draft as it stands, in the form the server
+ * compares it (review.ts criticalValues): a tour day's stops are not its
+ * date, a place's type is not the place.
  */
-export function unresolvedReviewFields(
-  service: ImportedService,
-  original: ImportedBookingDraft,
-  confirmed: readonly string[],
-): ReviewField[] {
+export function reviewFieldValue(field: ReviewField, d: ImportedBookingDraft): unknown {
+  const kind = d.kind ?? 'transfer';
+  const isTour = kind === 'tour';
+  const days = Array.isArray(d.tour_days) && d.tour_days.length > 0 ? d.tour_days.map((x) => (x.date ? x.date.slice(0, 10) : '')) : null;
+  const { day, clock } = tbilisiParts(d.date_display);
+  switch (field) {
+    case 'kind':
+      return kind;
+    case 'date':
+      return isTour ? day ?? days?.filter(Boolean).sort()[0] ?? null : day;
+    case 'time':
+      return textOrNull(d.pickup_time) ?? (clock && clock !== '00:00' ? clock : null);
+    case 'from_location':
+      return textOrNull(d.from_location);
+    case 'to_location':
+      return textOrNull(d.to_location);
+    case 'passengers':
+      return d.passengers ?? null;
+    case 'vehicle_type':
+      return textOrNull(d.vehicle_type);
+    case 'client_price':
+      return d.client_price ?? null;
+    case 'flight_number':
+      return textOrNull(d.flight_number);
+    case 'flight_at':
+      return textOrNull(d.flight_at);
+    case 'tour_days':
+      return isTour ? days : null;
+    case 'transfer_in':
+    case 'transfer_out':
+      return isTour ? legReviewValue(d[field]) : null;
+  }
+}
+
+function reviewValuePresent(v: unknown): boolean {
+  return v != null && v !== '' && !(Array.isArray(v) && v.length === 0);
+}
+
+/** What a confirmation is tied to: the value as it stood when the person confirmed it. */
+export function confirmationKey(field: ReviewField, draft: ImportedBookingDraft): string {
+  return JSON.stringify(reviewFieldValue(field, draft) ?? null);
+}
+
+/**
+ * The confirmations that still hold: a value changed after it was confirmed
+ * (corrected again, or moved with the tour's start) needs confirming again.
+ */
+export function confirmedNow(confirmations: Record<string, string> | null | undefined, draft: ImportedBookingDraft): string[] {
+  return Object.entries(confirmations ?? {})
+    .filter(([field, key]) => key === confirmationKey(field as ReviewField, draft))
+    .map(([field]) => field);
+}
+
+/** Has this field changed since it was read? (Shown as "changed — confirm it"; a change is not a confirmation.) */
+export function reviewFieldEdited(field: ReviewField, original: ImportedBookingDraft, current: ImportedBookingDraft): boolean {
+  return confirmationKey(field, original) !== confirmationKey(field, current);
+}
+
+export type ReviewItem = {
+  field: ReviewField;
+  status: ReviewFieldStatus;
+  reasons: string[];
+  candidates?: unknown[];
+};
+
+/**
+ * Every value on this service that needs a person: those the server flagged
+ * when it read the request, and — after a change of kind — those the new
+ * kind added, which nobody has reviewed. A missing value is left to the
+ * form's own required-field check (missingRequiredFields).
+ */
+export function reviewItems(service: ImportedService): ReviewItem[] {
   const review = service.review;
   if (!review) return [];
-  return review.blocking.filter((field) => {
+  const items: ReviewItem[] = [];
+  const relevant = reviewedFieldsFor(service.draft.kind);
+  for (const field of review.blocking) {
     const r = review.fields[field];
-    if (!r || r.status === 'missing') return false;
-    if (confirmed.includes(field)) return false;
-    return !reviewFieldEdited(field, original, service.draft);
-  });
+    if (!r || r.status === 'missing') continue;
+    // Not part of this kind of service any more, or emptied: nothing of it is stored.
+    if (!relevant.includes(field) || !reviewValuePresent(reviewFieldValue(field, service.draft))) continue;
+    items.push({ field, status: r.status, reasons: r.reasons, candidates: r.candidates });
+  }
+  for (const field of relevant) {
+    if (review.fields[field] || items.some((x) => x.field === field)) continue;
+    if (reviewValuePresent(reviewFieldValue(field, service.draft))) items.push({ field, status: 'unconfirmed', reasons: ['kind_changed'] });
+  }
+  return items;
+}
+
+/**
+ * Reviewed values a person has not yet confirmed as they now stand.
+ * Correcting a value in the form does not settle it: the corrected value is
+ * confirmed in its turn. `confirmed` is confirmedNow(...) — confirmations of
+ * values that have not changed since.
+ */
+export function unresolvedReviewFields(service: ImportedService, confirmed: readonly string[]): ReviewField[] {
+  return reviewItems(service).map((x) => x.field).filter((field) => !confirmed.includes(field));
 }
 
 /** One Tbilisi calendar day at one clock time, as the booking stores it. */
@@ -1127,8 +1215,8 @@ export function reviewValueLabel(field: ReviewField, value: unknown): string {
   if (field === 'client_price' && typeof value === 'number') return `${value}`;
   if (field === 'tour_days' && Array.isArray(value)) return value.filter(Boolean).join(', ') || '—';
   if ((field === 'transfer_in' || field === 'transfer_out') && typeof value === 'object') {
-    const v = value as { date?: string | null; time?: string | null; from?: string | null; to?: string | null };
-    return [v.date, v.time, v.from && v.to ? `${v.from} → ${v.to}` : v.from ?? v.to].filter(Boolean).join(' ');
+    const v = value as { date?: string | null; time?: string | null; from?: string | null; to?: string | null; flight?: string | null };
+    return [v.date, v.time, v.from && v.to ? `${v.from} → ${v.to}` : v.from ?? v.to, v.flight].filter(Boolean).join(' ') || '—';
   }
   if (field === 'flight_at' && typeof value === 'string') {
     const { day, clock } = tbilisiParts(value);
@@ -1168,19 +1256,12 @@ export async function approveImportedService(
     return { ok: false, error: e instanceof Error ? e.message : i18n.t('importBooking.networkError'), issues: [] };
   }
   if (error) {
-    const ctx = (error as { context?: { json?: () => Promise<unknown> } }).context;
-    let issues: ApprovalIssue[] = [];
-    let message = await functionErrorMessage(error);
-    if (ctx && typeof ctx.json === 'function') {
-      try {
-        const body = (await ctx.json()) as { issues?: ApprovalIssue[]; error?: string };
-        if (Array.isArray(body?.issues)) issues = body.issues;
-        if (typeof body?.error === 'string' && body.error.trim()) message = body.error;
-      } catch {
-        /* the message above stands */
-      }
-    }
-    return { ok: false, error: message, issues };
+    // The message and the list of fields come from one reading of the answer.
+    const body = await functionErrorBody(error);
+    const issues = Array.isArray(body?.issues)
+      ? (body.issues as unknown[]).filter((x): x is ApprovalIssue => !!x && typeof (x as ApprovalIssue).field === 'string' && typeof (x as ApprovalIssue).code === 'string')
+      : [];
+    return { ok: false, error: functionErrorText(error, body), issues };
   }
   const id = (data as { ok?: boolean; approvalId?: unknown } | null)?.approvalId;
   if ((data as { ok?: boolean } | null)?.ok === true && typeof id === 'string' && id) return { ok: true, approvalId: id };
@@ -1196,8 +1277,8 @@ export type CreateImportedResult =
 
 /**
  * One reviewed service into one booking, in the only order that is safe:
- * the form's required fields, then every reviewed value confirmed or
- * corrected by a person, then the server's approval, then the booking —
+ * the form's required fields, then every reviewed value confirmed by a
+ * person as it now stands, then the server's approval, then the booking —
  * carrying the approval, so the database checks the values once more.
  *
  * A service from an older server has no review; it is created exactly as
@@ -1205,7 +1286,7 @@ export type CreateImportedResult =
  */
 export async function createImportedBooking(o: {
   service: ImportedService;
-  original: ImportedBookingDraft;
+  /** confirmedNow(...): fields confirmed as they now stand. */
   confirmed: readonly string[];
   ctx: { companyUserId: string; companyName: string | null; createdByName?: string | null };
   insert: (row: InsertBookingInput) => Promise<{ id?: string; error: Error | null }>;
@@ -1213,7 +1294,7 @@ export async function createImportedBooking(o: {
 }): Promise<CreateImportedResult> {
   const missing = missingRequiredFields(o.service.draft);
   if (missing.length > 0) return { ok: false, reason: 'missing', missing };
-  const unresolved = unresolvedReviewFields(o.service, o.original, o.confirmed);
+  const unresolved = unresolvedReviewFields(o.service, o.confirmed);
   if (unresolved.length > 0) return { ok: false, reason: 'unconfirmed', fields: unresolved };
 
   const payload = draftToInsertInput(o.service.draft, o.ctx);

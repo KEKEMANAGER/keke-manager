@@ -155,7 +155,8 @@ for a tour its days, arrival and departure:
 ```
 
 A value is **confirmed** only when it was found in the request and nothing
-argues against it; **conflict** when the template and the model read it
+argues against it (a vehicle, a kind of service or a place the model chose
+must be named in the request; a written date is never read as a time); **conflict** when the template and the model read it
 differently (both readings are offered); **unconfirmed** when it needs a look —
 the model was unsure, it was read off a picture, it is not in the request, the
 answer was cut off, a chat's price, AM/PM unclear, a foreign currency or a
@@ -176,9 +177,12 @@ POST /functions/v1/booking-import
 ```
 
 The function checks the token (this company, under 24 hours old), that every
-blocking value was confirmed or changed by the person, the form's required
+blocking value was confirmed by a person as it now stands (a change is not a
+confirmation — moving a tour's start moves its legs and days too), that every
+value a change of service type added was confirmed, the form's required
 fields, a departure picked up after its flight, and that the row to insert
-carries the reviewed values; then it writes the approved values to
+carries the reviewed values (kind, date, time, passengers, vehicle, price,
+flight, a tour's day and leg dates); then it writes the approved values to
 `booking_import_approvals` and answers `{ "ok": true, "approvalId": "…" }`
 (or 422 with `issues`). The app inserts the booking with
 `import_approval_id`, and the trigger `bookings_verify_import_approval` lets

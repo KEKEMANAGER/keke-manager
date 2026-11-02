@@ -368,10 +368,14 @@ async function readForApproval(text: string, ai: Record<string, unknown>) {
 }
 
 function insertFor(d: any) {
+  const leg = (l: any) => (l?.date_display ? { date: l.date_display } : null);
   return {
+    kind: d.kind ?? 'transfer',
     date_display: d.date_display, pickup_time: d.pickup_time, passengers: d.passengers, vehicle_type: d.vehicle_type,
     price_gel: d.client_price, client_price: d.client_price, flight_number: d.flight_number,
     from_location: d.from_location, to_location: d.to_location,
+    tour_days: Array.isArray(d.tour_days) ? d.tour_days.map((x: any) => ({ ...x, date: x.date ?? '' })) : null,
+    transfer_in: leg(d.transfer_in), transfer_out: leg(d.transfer_out),
   };
 }
 
@@ -395,13 +399,79 @@ Deno.test('approve: an unconfirmed value stops creation until it is confirmed', 
   assertEquals(ok.status, 200);
 });
 
-Deno.test('approve: a conflict must be chosen; a value the agency typed needs no extra confirmation', async () => {
+Deno.test('approve: a conflict must be chosen; a value the agency corrected is confirmed in its turn', async () => {
   const s = await readForApproval(variant({ Pax: '6' }), { ...AI_BASE, passengers: 7 });
   const refused = await run({ action: 'approve', reviewToken: s.review.token, draft: s.draft, insert: insertFor(s.draft), confirmed: [] });
   assertEquals(refused.json.issues, [{ field: 'passengers', code: 'choose_value' }]);
+  // corrected in the form: a change is not a confirmation
   const edited = { ...s.draft, passengers: 7 };
-  const ok = await run({ action: 'approve', reviewToken: s.review.token, draft: edited, insert: insertFor(edited), confirmed: [] });
+  const notYet = await run({ action: 'approve', reviewToken: s.review.token, draft: edited, insert: insertFor(edited), confirmed: [] });
+  assertEquals(notYet.json.issues, [{ field: 'passengers', code: 'choose_value' }]);
+  const ok = await run({ action: 'approve', reviewToken: s.review.token, draft: edited, insert: insertFor(edited), confirmed: ['passengers'] });
   assertEquals(ok.status, 200);
+});
+
+const TOUR_TEXT = 'Tour of Georgia 13-15.11.2026: day 1 Tbilisi city tour, day 2 Kazbegi, day 3 back to Tbilisi. 4 guests, minivan, 900 lari. Departure flight TK 383.';
+const TOUR_AI = {
+  kind: 'tour', date: '2026-11-13', passengers: 4, vehicle_type: 'minivan', vehicle_class: 'comfort', client_price: 900, client_price_currency: 'GEL',
+  tour_days: [
+    { day: 1, date: '2026-11-13', fromPlace: 'Tbilisi', toPlace: 'Tbilisi', stops: 'city tour' },
+    { day: 2, date: '2026-11-14', fromPlace: 'Tbilisi', toPlace: 'Kazbegi', stops: 'Kazbegi' },
+    { day: 3, date: '2026-11-15', fromPlace: 'Kazbegi', toPlace: 'Tbilisi', stops: '' },
+  ],
+  transfer_out: { date: '2026-11-15', time: '06:00', from: 'Tbilisi', to: 'Tbilisi International Airport', flight: 'TK 383' },
+  uncertain_fields: [],
+};
+
+Deno.test('approve: after a change of service type, what the new type adds needs confirming', async () => {
+  const r = await run({ text: TOUR_TEXT, ...gate }, { replies: [program(TOUR_AI)] });
+  const s = svc0(r);
+  assertEquals(s.draft.kind, 'tour');
+  // the agency turns it into a transfer and fills the transfer's fields
+  const transfer = { ...s.draft, kind: 'transfer', tour_days: null, transfer_in: null, transfer_out: null,
+    from_location: 'Tbilisi International Airport', to_location: 'Hotel Stamba', date_display: '2026-11-13T06:00:00.000Z', pickup_time: '10:00' };
+  const first = await run({ action: 'approve', reviewToken: s.review.token, draft: transfer, insert: insertFor(transfer), confirmed: s.review.blocking });
+  assertEquals(first.status, 422);
+  // the places were never reviewed; the time was reviewed (missing for the tour) and the agency typed it
+  assertEquals(first.json.issues.filter((i: any) => i.code === 'kind_changed').map((i: any) => i.field).sort(), ['from_location', 'to_location']);
+  const ok = await run({ action: 'approve', reviewToken: s.review.token, draft: transfer, insert: insertFor(transfer),
+    confirmed: [...s.review.blocking, 'from_location', 'to_location'] });
+  assertEquals(ok.status, 200, JSON.stringify(ok.json));
+});
+
+Deno.test('approve: moving a tour’s start moves its legs and days, which still need confirming', async () => {
+  const r = await run({ text: TOUR_TEXT, ...gate }, { replies: [program(TOUR_AI)] });
+  const s = svc0(r);
+  // the departure's 06:00 pickup is nowhere in the request
+  assert(s.review.blocking.includes('transfer_out'), JSON.stringify(s.review.blocking));
+  const day = 86_400_000;
+  const shift = (iso: string | null) => (iso ? new Date(Date.parse(iso) + day).toISOString() : iso);
+  const moved = {
+    ...s.draft,
+    date_display: shift(s.draft.date_display),
+    tour_days: s.draft.tour_days.map((x: any) => ({ ...x, date: x.date ? new Date(Date.parse(x.date) + day).toISOString().slice(0, 10) : x.date })),
+    transfer_out: { ...s.draft.transfer_out, date_display: shift(s.draft.transfer_out.date_display) },
+  };
+  const others = s.review.blocking.filter((f: string) => f !== 'transfer_out');
+  const refused = await run({ action: 'approve', reviewToken: s.review.token, draft: moved, insert: insertFor(moved), confirmed: others });
+  assertEquals(refused.json.issues, [{ field: 'transfer_out', code: 'needs_confirmation' }]);
+  const ok = await run({ action: 'approve', reviewToken: s.review.token, draft: moved, insert: insertFor(moved), confirmed: [...others, 'transfer_out'] });
+  assertEquals(ok.status, 200, JSON.stringify(ok.json));
+});
+
+Deno.test('approve: a tour’s legs and days in the booking must be the reviewed ones', async () => {
+  const r = await run({ text: TOUR_TEXT, ...gate }, { replies: [program(TOUR_AI)] });
+  const s = svc0(r);
+  const ins = insertFor(s.draft);
+  const otherLeg = { ...ins, transfer_out: { date: '2026-11-16T02:00:00.000Z' } };
+  const r1 = await run({ action: 'approve', reviewToken: s.review.token, draft: s.draft, insert: otherLeg, confirmed: s.review.blocking });
+  assert(r1.json.issues.some((i: any) => i.field === 'transfer_out' && i.code === 'insert_mismatch'), JSON.stringify(r1.json.issues));
+  const otherDays = { ...ins, tour_days: ins.tour_days.map((x: any, i: number) => (i === 2 ? { ...x, date: '2026-11-17' } : x)) };
+  const r2 = await run({ action: 'approve', reviewToken: s.review.token, draft: s.draft, insert: otherDays, confirmed: s.review.blocking });
+  assert(r2.json.issues.some((i: any) => i.field === 'tour_days' && i.code === 'insert_mismatch'), JSON.stringify(r2.json.issues));
+  const otherKind = { ...ins, kind: 'transfer' };
+  const r3 = await run({ action: 'approve', reviewToken: s.review.token, draft: s.draft, insert: otherKind, confirmed: s.review.blocking });
+  assert(r3.json.issues.some((i: any) => i.field === 'kind' && i.code === 'insert_mismatch'), JSON.stringify(r3.json.issues));
 });
 
 Deno.test('approve: a tampered or someone else’s review is refused', async () => {

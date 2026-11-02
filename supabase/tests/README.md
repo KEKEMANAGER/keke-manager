@@ -198,7 +198,7 @@ Runs everything below in order. Nothing is sent anywhere: the model's answers
 are written by the tests, the function's tests run without network permission,
 and every database step uses a throwaway local database.
 
-1. `supabase/functions/booking-import/tests` (Deno, 76 tests): times with
+1. `supabase/functions/booking-import/tests` (Deno, 85 tests): times with
    AM/PM and day-part words, prices with separators and currencies, adults +
    children, flight numbers, junk places; the review of every critical value
    (confirmed / conflict / unconfirmed / missing) and its reasons; the signed
@@ -206,11 +206,17 @@ and every database step uses a throwaway local database.
    5.x auto tool with thinking and effort); one retry on 429/529/5xx/network;
    refusals, cut-off answers, more than 25 services, long files; the role
    check and the daily ceiling; logs without the key, file names, names or
-   phones; a written date never read as a time ("20.11.2026" is not 20:11).
+   phones; a written date never read as a time ("20.11.2026" is not 20:11);
+   a vehicle, kind or place the request never names is not confirmed; a
+   corrected value, a value moved with a tour's start, and every value a new
+   service type adds need a person's confirmation.
    The fixtures are invented documents (`make_fixtures.py`).
-2. `import_review_client_check.cjs` (25 checks): the app asks for the review
+2. `import_review_client_check.cjs` (33 checks): the app asks for the review
    on every read, cannot create an imported booking until every flagged value
-   is confirmed or corrected, asks the server to approve it, inserts it with
+   is confirmed as it now stands (a confirmation is tied to the value: a value
+   changed afterwards asks again; typing a day's stops does not), lists what a
+   change of service type adds, reads the server's refusal once (message and
+   fields), asks the server to approve it, inserts it with
    the approval; a booking typed into the form inserts exactly as before; an
    older server's answer works as before; every text in four languages.
 3. `run_import_approval_tests.sh`: the migration

@@ -139,23 +139,65 @@ const DRAFT = {
   client_price: 150, payment_method: null, comment: null, hotel: null, tour_days: null, transfer_in: null, transfer_out: null,
   required_languages: null,
 };
-const reviewed = (blocking, fields) => ({
-  draft: { ...DRAFT }, sources: {}, warnings: [], evidence: null,
-  review: { fields, blocking, ready: blocking.length === 0, token: 'signed.token' },
-});
+/**
+ * A service as the server answers it: every field the server reviews for the
+ * kind it read (`readAs`) has a review — confirmed unless `fields` says otherwise.
+ */
+const reviewed = (blocking, fields, draft = DRAFT, readAs = draft.kind) => {
+  const all = {};
+  for (const f of imp.reviewedFieldsFor(readAs)) all[f] = { status: 'confirmed', value: imp.reviewFieldValue(f, draft), reasons: [], required: false };
+  return {
+    draft: { ...draft }, sources: {}, warnings: [], evidence: null,
+    review: { fields: { ...all, ...fields }, blocking, ready: blocking.length === 0, token: 'signed.token' },
+  };
+};
 const PRICE_UNCONFIRMED = { client_price: { status: 'unconfirmed', value: 150, reasons: ['chat_price'], required: true } };
 
 (async () => {
-  // 1. what still needs a person
+  // 1. what still needs a person; a confirmation holds for the value as it was confirmed
   let s = reviewed(['client_price'], PRICE_UNCONFIRMED);
-  check(same(imp.unresolvedReviewFields(s, DRAFT, []), ['client_price']), 'an unconfirmed price needs the agency');
-  check(same(imp.unresolvedReviewFields(s, DRAFT, ['client_price']), []), 'confirmed as it stands, it is settled');
+  check(same(imp.unresolvedReviewFields(s, []), ['client_price']), 'an unconfirmed price needs the agency');
+  let conf = { client_price: imp.confirmationKey('client_price', s.draft) };
+  check(same(imp.unresolvedReviewFields(s, imp.confirmedNow(conf, s.draft)), []), 'confirmed as it stands, it is settled');
   s.draft = { ...DRAFT, client_price: 180 };
-  check(same(imp.unresolvedReviewFields(s, DRAFT, []), []), 'corrected by the agency, it is settled too');
+  check(same(imp.unresolvedReviewFields(s, imp.confirmedNow(conf, s.draft)), ['client_price']),
+        'corrected afterwards: the confirmation was for 150, so 180 needs confirming (a change is not a confirmation)');
+  conf = { client_price: imp.confirmationKey('client_price', s.draft) };
+  check(same(imp.unresolvedReviewFields(s, imp.confirmedNow(conf, s.draft)), []), 'the corrected value, confirmed, is settled');
   const missingOnly = reviewed(['client_price'], { client_price: { status: 'missing', value: null, reasons: [], required: true } });
-  check(same(imp.unresolvedReviewFields(missingOnly, DRAFT, []), []), 'a missing value is left to the form\'s own required-field check');
+  check(same(imp.unresolvedReviewFields(missingOnly, []), []), 'a missing value is left to the form\'s own required-field check');
   const old = { draft: { ...DRAFT }, sources: {}, warnings: [] };
-  check(same(imp.unresolvedReviewFields(old, DRAFT, []), []), 'a service from an older server (no review) has nothing to settle');
+  check(same(imp.unresolvedReviewFields(old, []), []), 'a service from an older server (no review) has nothing to settle');
+
+  // 1b. the kind changed after the review: what the new kind adds needs a person
+  const ok1 = (value) => ({ status: 'confirmed', value, reasons: [], required: true });
+  const tourFields = { kind: ok1('tour'), date: ok1('2026-11-13'), time: { status: 'missing', value: null, reasons: [], required: false },
+    passengers: ok1(4), vehicle_type: ok1('minivan'), client_price: ok1(150),
+    flight_number: { status: 'missing', value: null, reasons: [], required: false }, tour_days: ok1(['2026-11-13']),
+    transfer_in: { status: 'missing', value: null, reasons: [], required: false }, transfer_out: { status: 'missing', value: null, reasons: [], required: false } };
+  const switched = reviewed([], tourFields, DRAFT, 'tour'); // read as a tour, now a transfer (DRAFT)
+  const items = imp.reviewItems(switched);
+  check(same(items.map((x) => x.field), ['from_location', 'to_location']) && items.every((x) => x.reasons[0] === 'kind_changed'),
+        'a tour turned into a transfer: its places were never reviewed — each needs confirming', items);
+  check(same(imp.unresolvedReviewFields(switched, []), ['from_location', 'to_location']), 'and creation waits for them');
+  // a value flagged for the old kind that the new kind does not have (a tour's days, on a transfer) asks nothing
+  const flaggedDays = reviewed(['tour_days'], { ...tourFields, tour_days: { status: 'unconfirmed', value: ['2026-11-13'], reasons: ['not_in_request'], required: true } }, DRAFT, 'tour');
+  check(!imp.reviewItems(flaggedDays).some((x) => x.field === 'tour_days'), 'a tour\'s flagged days do not follow it into a transfer');
+
+  // 1c. what counts as the same value: a day's stops are not its date; a leg moved with the tour is a new value
+  const TOUR = { ...DRAFT, kind: 'tour', date_display: '2026-11-13T00:00:00.000Z', pickup_time: null, flight_number: null, from_location: null, to_location: null,
+    tour_days: [{ day: 1, date: '2026-11-13', fromPlace: 'Tbilisi', toPlace: 'Tbilisi', stops: 'Old Town' }], transfer_in: null,
+    transfer_out: { date_display: '2026-11-15T02:00:00.000Z', pickup_time: '06:00', from: 'Hotel Stamba', to: 'Tbilisi International Airport', flight: 'TK 383' } };
+  const k0 = imp.confirmationKey('tour_days', TOUR);
+  check(imp.confirmationKey('tour_days', { ...TOUR, tour_days: [{ ...TOUR.tour_days[0], stops: 'Mtatsminda' }] }) === k0,
+        'typing a day\'s stops does not undo the days\' confirmation');
+  check(imp.confirmationKey('tour_days', { ...TOUR, tour_days: [{ ...TOUR.tour_days[0], date: '2026-11-14' }] }) !== k0, 'moving a day does');
+  const legConf = { transfer_out: imp.confirmationKey('transfer_out', TOUR) };
+  const moved = { ...TOUR, transfer_out: { ...TOUR.transfer_out, date_display: '2026-11-16T02:00:00.000Z' } };
+  check(same(imp.confirmedNow(legConf, TOUR), ['transfer_out']) && same(imp.confirmedNow(legConf, moved), []),
+        'a departure moved with the tour\'s start needs confirming again');
+  check(imp.reviewFieldEdited('from_location', DRAFT, { ...DRAFT, from_location_type: 'address' }) === false,
+        'changing a place\'s type is not changing the place');
 
   // 2. picking one of two readings
   let d = imp.applyReviewChoice(DRAFT, 'passengers', 7);
@@ -171,12 +213,12 @@ const PRICE_UNCONFIRMED = { client_price: { status: 'unconfirmed', value: 150, r
   const insert = async (row) => { inserted.push(row); return { id: 'b-1', error: null }; };
   let approveCalls = 0;
   const approve = async (svc, ins, confirmed) => { approveCalls += 1; return { ok: true, approvalId: 'appr-1', confirmed }; };
-  let r = await imp.createImportedBooking({ service: reviewed(['client_price'], PRICE_UNCONFIRMED), original: DRAFT, confirmed: [], ctx, insert, approve });
+  let r = await imp.createImportedBooking({ service: reviewed(['client_price'], PRICE_UNCONFIRMED), confirmed: [], ctx, insert, approve });
   check(r.ok === false && r.reason === 'unconfirmed' && approveCalls === 0 && inserted.length === 0,
         'an unconfirmed value: no approval asked, no booking inserted', r);
 
   // 4. confirmed: approved by the server, inserted with the approval
-  r = await imp.createImportedBooking({ service: reviewed(['client_price'], PRICE_UNCONFIRMED), original: DRAFT, confirmed: ['client_price'], ctx, insert, approve });
+  r = await imp.createImportedBooking({ service: reviewed(['client_price'], PRICE_UNCONFIRMED), confirmed: ['client_price'], ctx, insert, approve });
   check(r.ok === true && approveCalls === 1 && inserted.length === 1 && inserted[0].import_approval_id === 'appr-1',
         'confirmed: the server approves, the booking carries the approval id', { r, approveCalls, ins: inserted[0] && inserted[0].import_approval_id });
   check(inserted[0].passengers === 4 && inserted[0].price_gel === 150 && inserted[0].client_price === 150,
@@ -184,20 +226,20 @@ const PRICE_UNCONFIRMED = { client_price: { status: 'unconfirmed', value: 150, r
 
   // 5. the server refuses: no booking
   inserted.length = 0;
-  r = await imp.createImportedBooking({ service: reviewed([], {}), original: DRAFT, confirmed: [], ctx, insert,
+  r = await imp.createImportedBooking({ service: reviewed([], {}), confirmed: [], ctx, insert,
     approve: async () => ({ ok: false, error: 'refused', issues: [{ field: 'client_price', code: 'needs_confirmation' }] }) });
   check(r.ok === false && r.reason === 'not_approved' && inserted.length === 0, 'refused by the server: no booking is inserted', r);
 
   // 6. the form's own required fields still come first
   const noPrice = reviewed([], {});
   noPrice.draft = { ...DRAFT, client_price: null };
-  r = await imp.createImportedBooking({ service: noPrice, original: DRAFT, confirmed: [], ctx, insert, approve });
+  r = await imp.createImportedBooking({ service: noPrice, confirmed: [], ctx, insert, approve });
   check(r.ok === false && r.reason === 'missing', 'a missing required field stops it before the server', r);
 
   // 7. an older server: created as before, without an approval
   inserted.length = 0;
   approveCalls = 0;
-  r = await imp.createImportedBooking({ service: old, original: DRAFT, confirmed: [], ctx, insert, approve });
+  r = await imp.createImportedBooking({ service: old, confirmed: [], ctx, insert, approve });
   check(r.ok === true && approveCalls === 0 && inserted.length === 1 && !('import_approval_id' in inserted[0] && inserted[0].import_approval_id),
         'an older server (no review): created exactly as before', { r, approveCalls });
 
@@ -212,9 +254,12 @@ const PRICE_UNCONFIRMED = { client_price: { status: 'unconfirmed', value: 150, r
   check(call && call.name === 'booking-import' && call.body.action === 'approve' && call.body.reviewToken === 'signed.token'
         && same(call.body.confirmed, ['client_price']) && call.body.insert.price_gel === 150,
         'the approval request carries the token, the confirmed fields and the booking to insert', call && call.body);
-  invokeAnswer = () => ({ data: null, error: { name: 'FunctionsHttpError', message: 'x', context: { json: async () => ({ error: 'no', issues: [{ field: 'passengers', code: 'choose_value' }] }) } } });
+  // the error carries the raw Response, whose body can be read only once
+  invokeAnswer = () => ({ data: null, error: { name: 'FunctionsHttpError', message: 'x',
+    context: new Response(JSON.stringify({ ok: false, error: 'no', issues: [{ field: 'passengers', code: 'choose_value' }] }), { status: 422, headers: { 'content-type': 'application/json' } }) } });
   const refused = await imp.approveImportedService(svc, ins, []);
-  check(refused.ok === false && same(refused.issues, [{ field: 'passengers', code: 'choose_value' }]), 'a refusal comes back with its issues', refused);
+  check(refused.ok === false && refused.error === 'no' && same(refused.issues, [{ field: 'passengers', code: 'choose_value' }]),
+        'a refusal comes back with its message and the fields it names (one reading of the answer)', refused);
 
   // 9. every read says the app shows the review
   calls.length = 0;

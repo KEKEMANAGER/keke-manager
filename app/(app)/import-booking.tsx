@@ -27,6 +27,8 @@ import { insertBooking } from '../../lib/bookings';
 import {
   applyReviewChoice,
   clockOf,
+  confirmationKey,
+  confirmedNow,
   createImportedBooking,
   draftTimeMissing,
   flightTimeLabel,
@@ -44,6 +46,8 @@ import {
   presetPlaceName,
   reviewFieldChoosable,
   reviewFieldEdited,
+  reviewFieldValue,
+  reviewItems,
   reviewValueLabel,
   tourNights,
   transferPlaces,
@@ -470,10 +474,12 @@ function TwoChoice<T extends string>({
 
 /**
  * The values the server could not vouch for — two readings that disagree, a
- * value the request does not contain, a guess, a reading off a photo. They
- * are filled in the form below so the agency can correct them; here each one
- * is either confirmed as it stands, or (for a disagreement) one reading is
- * picked. Correcting the field in the form settles it too.
+ * value the request does not contain, a guess, a reading off a photo — and,
+ * after a change of service type, the values the new type added. They are
+ * filled in the form below so the agency can correct them; here each one is
+ * confirmed as it now stands, or (for a disagreement) one reading is picked.
+ * Correcting a value does not settle it: the corrected value is confirmed in
+ * its turn, and a confirmed value that changes again needs confirming again.
  */
 function ReviewPanel({
   service,
@@ -489,52 +495,49 @@ function ReviewPanel({
   onChoose: (field: ReviewedField, value: unknown) => void;
 }) {
   const { t } = useTranslation();
-  const review = service.review;
-  if (!review) return null;
-  const items = review.blocking.filter((f) => review.fields[f] && review.fields[f]?.status !== 'missing');
+  const items = reviewItems(service);
   if (items.length === 0) return null;
-  const open = unresolvedReviewFields(service, original, confirmed);
+  const open = items.filter((x) => !confirmed.includes(x.field));
   return (
     <View style={styles.reviewBox} testID="review-panel">
       <Text style={styles.reviewTitle}>
         {open.length > 0 ? t('importBooking.review.title', { count: open.length }) : t('importBooking.review.allDone')}
       </Text>
-      {items.map((field) => {
-        const r = review.fields[field]!;
+      {items.map(({ field, status, reasons: codes, candidates }) => {
         const edited = reviewFieldEdited(field, original, service.draft);
-        const done = edited || confirmed.includes(field);
-        const reasons = r.reasons
+        const done = confirmed.includes(field);
+        const reasons = codes
           .map((x) => t(`importBooking.review.reasons.${x}`, { defaultValue: '' }))
           .filter(Boolean)
           .join(' · ');
+        const choose = !done && !edited && status === 'conflict' && reviewFieldChoosable(field) && Array.isArray(candidates);
         return (
           <View key={field} style={styles.reviewItem}>
             <View style={styles.reviewItemHead}>
               <Text style={styles.reviewField}>{t(`importBooking.review.fields.${field}`)}</Text>
               <Text style={[styles.reviewState, done && styles.reviewStateDone]}>
-                {edited ? t('importBooking.review.edited') : done ? t('importBooking.review.confirmed') : t(`importBooking.review.status.${r.status}`)}
+                {done ? t('importBooking.review.confirmed') : edited ? t('importBooking.review.edited') : t(`importBooking.review.status.${status}`)}
               </Text>
             </View>
-            {!edited ? <Text style={styles.reviewValue}>{reviewValueLabel(field, r.value)}</Text> : null}
+            <Text style={styles.reviewValue}>{reviewValueLabel(field, reviewFieldValue(field, service.draft))}</Text>
             {reasons ? <Text style={styles.reviewReason}>{reasons}</Text> : null}
-            {!done && r.status === 'conflict' && reviewFieldChoosable(field) && Array.isArray(r.candidates) ? (
+            {choose ? (
               <View style={styles.reviewActions}>
-                {r.candidates.map((c, i) => (
-                  <Pressable key={`${field}-c${i}`} style={styles.reviewChoice} onPress={() => onChoose(field, c)}>
+                {candidates!.map((c, i) => (
+                  <Pressable key={`${field}-c${i}`} style={styles.reviewChoice} onPress={() => onChoose(field, c)} testID={`review-choose-${field}-${i}`}>
                     <Text style={styles.reviewChoiceText}>{reviewValueLabel(field, c)}</Text>
                   </Pressable>
                 ))}
               </View>
             ) : null}
-            {!done && r.status === 'conflict' && !reviewFieldChoosable(field) ? (
-              <Text style={styles.reviewReason}>{t('importBooking.review.fixBelow')}</Text>
-            ) : null}
-            {!done && r.status !== 'conflict' ? (
+            {!done && !choose ? (
               <View style={styles.reviewActions}>
                 <Pressable style={styles.reviewConfirm} onPress={() => onConfirm(field)} testID={`review-confirm-${field}`}>
                   <Text style={styles.reviewConfirmText}>✓ {t('importBooking.review.confirm')}</Text>
                 </Pressable>
-                <Text style={styles.reviewHint}>{t('importBooking.review.orFix')}</Text>
+                <Text style={styles.reviewHint}>
+                  {status === 'conflict' && !edited ? t('importBooking.review.fixBelow') : t('importBooking.review.orFix')}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -566,8 +569,11 @@ export default function ImportBookingScreen() {
   const [createdIndexes, setCreatedIndexes] = useState<number[]>([]);
   /** Each service as it was read, to tell a value the agency corrected from one left as read. */
   const [originals, setOriginals] = useState<ImportedBookingDraft[]>([]);
-  /** Reviewed fields the agency has confirmed as they stand, per service. */
-  const [confirmations, setConfirmations] = useState<Record<number, string[]>>({});
+  /**
+   * Reviewed fields the agency has confirmed, per service, each with the value
+   * it had then: a value that changes afterwards needs confirming again.
+   */
+  const [confirmations, setConfirmations] = useState<Record<number, Record<string, string>>>({});
   const [warnings, setWarnings] = useState<string[]>([]);
   const [usedAi, setUsedAi] = useState(false);
   const [readSource, setReadSource] = useState<ReadSource | null>(null);
@@ -642,15 +648,26 @@ export default function ImportBookingScreen() {
     patchDraft((d) => ({ ...d, ...changes }));
   }
 
+  /** This field confirmed as it now stands in the service on screen. */
+  function confirmFieldAs(field: ReviewedField, d: ImportedBookingDraft) {
+    const key = confirmationKey(field, d);
+    setConfirmations((prev) => ({ ...prev, [activeIndex]: { ...(prev[activeIndex] ?? {}), [field]: key } }));
+  }
+
   function confirmField(field: ReviewedField) {
-    setConfirmations((prev) => ({ ...prev, [activeIndex]: [...new Set([...(prev[activeIndex] ?? []), field])] }));
+    if (draft) confirmFieldAs(field, draft);
   }
 
   /** One reading of a disagreement, picked: put in place and counted as the agency's decision. */
   function chooseReviewValue(field: ReviewedField, value: unknown) {
+    if (!draft) return;
     patchDraft((d) => applyReviewChoice(d, field, value));
-    confirmField(field);
+    // Tied to the chosen value; if the draft had moved on meanwhile, it simply asks again.
+    confirmFieldAs(field, applyReviewChoice(draft, field, value));
   }
+
+  /** The confirmations of service i that still hold for its values as they now stand. */
+  const confirmedFor = (i: number) => (services[i] ? confirmedNow(confirmations[i], services[i].draft) : []);
 
   function patchDay(index: number, changes: Partial<ImportedTourDay>) {
     patchDraft((d) => ({
@@ -943,7 +960,7 @@ export default function ImportBookingScreen() {
 
     for (const i of pendingIndexes) {
       const missing = missingRequiredFields(services[i].draft);
-      const unresolved = unresolvedReviewFields(services[i], originals[i] ?? services[i].draft, confirmations[i] ?? []);
+      const unresolved = unresolvedReviewFields(services[i], confirmedFor(i));
       if (missing.length > 0 || unresolved.length > 0) {
         setActiveIndex(i);
         const lines = [
@@ -967,8 +984,7 @@ export default function ImportBookingScreen() {
       // after the server has approved the reviewed values (createImportedBooking).
       const res = await createImportedBooking({
         service: services[i],
-        original: originals[i] ?? services[i].draft,
-        confirmed: confirmations[i] ?? [],
+        confirmed: confirmedFor(i),
         ctx: {
           companyUserId: user.id,
           companyName: companyDisplayName(profile, user),
@@ -1234,7 +1250,7 @@ export default function ImportBookingScreen() {
                 key={`review-${activeIndex}`}
                 service={active}
                 original={originals[activeIndex] ?? active.draft}
-                confirmed={confirmations[activeIndex] ?? []}
+                confirmed={confirmedFor(activeIndex)}
                 onConfirm={confirmField}
                 onChoose={chooseReviewValue}
               />

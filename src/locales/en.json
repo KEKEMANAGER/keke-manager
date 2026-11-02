@@ -2123,9 +2123,9 @@
       "allDone": "Every doubtful field has been checked",
       "confirm": "Correct",
       "confirmed": "Confirmed",
-      "edited": "Corrected",
-      "orFix": "or correct it below",
-      "fixBelow": "Correct it in the form below",
+      "edited": "Changed — confirm it",
+      "orFix": "or correct it below first, then confirm",
+      "fixBelow": "Correct it in the form below, then confirm",
       "needs": "Needs checking: {{field}}",
       "status": {
         "conflict": "Two readings",
@@ -2171,6 +2171,8 @@
         "date_far": "Date is more than a year away",
         "pickup_long_before_flight": "Pickup is 12+ hours before the flight",
         "vehicle_unknown": "Unknown vehicle type",
+        "flight_next_day": "The flight is after midnight — check the pickup day",
+        "kind_changed": "The service type changed — this value was not checked yet",
         "day_without_date": "A day has no date",
         "flight_unclear": "The flight needs checking",
         "time_unreadable": "Could not read the time"

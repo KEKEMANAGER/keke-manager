@@ -445,3 +445,40 @@ export function dateInSource(ymd: string | null | undefined, source: string | nu
   }
   return false;
 }
+
+/**
+ * Every vehicle type a request names ("sedan or minivan" names two) — the
+ * same words the form reader knows. A vehicle the model chose that the
+ * request never names is the model's guess.
+ */
+export function vehiclesNamed(text: string | null | undefined): Set<string> {
+  const s = String(text ?? '').toLowerCase();
+  const out = new Set<string>();
+  if (/სედან|sedan|седан/u.test(s)) out.add('sedan');
+  if (/მინივენ|minivan|\bvan\b|минивэн|минивен|vito|viano/u.test(s)) out.add('minivan');
+  if (/მიკროავტობუს|microbus|minibus|sprinter|микроавтобус/u.test(s)) out.add('microbus');
+  if (/(?<!მიკრო)ავტობუს|\bbus\b|(?<!микро)автобус/u.test(s)) out.add('bus');
+  if (/\bsuv\b|джип|ჯიპ|\bjeep\b/u.test(s)) out.add('suv');
+  if (/off[\s-]?road|4x4|4х4|внедорожник|ოფროუდ/u.test(s)) out.add('offroad');
+  return out;
+}
+
+/**
+ * Every kind of service a request names in words. "Tour operator" and
+ * "tourist" name none. A kind the model chose that the request never names
+ * is the model's reading of its shape, not something the request says.
+ */
+export function kindsNamed(text: string | null | undefined): Set<string> {
+  const s = String(text ?? '')
+    .toLowerCase()
+    .replace(/tour[\s-]?operator|туроператор|ტუროპერატორ|tourist|турист|ტურისტ|tourism|туризм|ტურიზმ/gu, ' ');
+  const out = new Set<string>();
+  if (/ტრანსფერ|transfer|трансфер/u.test(s)) out.add('transfer');
+  // A one-day tour, taken out before looking for a tour ("8 day tour" is not one).
+  // "1-day tour" is one; "8-day tour", "11 day tour", "two-day trip" are not.
+  const DAY_TOUR = /(?:ერთდღიან\S*|one[\s-]?day|(?<!(?:[2-9]|\d\d|two|three|four|five|six|seven|eight|nine|ten|multi|several)[\s-]?)day[\s-]?(?:tour|trip)|однодневн\S*|excursion|экскурси\S*|ექსკურსი\S*)(?:\s+(?:ტურ\S*|tours?|trip|тур\S*))?/giu;
+  if (DAY_TOUR.test(s)) out.add('day_tour');
+  const rest = s.replace(DAY_TOUR, ' ');
+  if (/ტურ|\btours?\b|(?<![а-яё])тур(?![а-яё]*(?:ист|изм))|programme|program\b|программ|პროგრამ|itinerary/u.test(rest)) out.add('tour');
+  return out;
+}

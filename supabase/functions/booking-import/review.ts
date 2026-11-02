@@ -13,8 +13,8 @@
 // app's button alone.
 
 import {
-  clockInSource, dateInSource, flightKey, headCountsMentioned, numberInSource, placeInSource,
-  quoteInSource, searchable,
+  clockInSource, dateInSource, flightKey, headCountsMentioned, kindsNamed, numberInSource, placeInSource,
+  quoteInSource, searchable, vehiclesNamed,
 } from './normalize.ts';
 
 export type FieldStatus = 'confirmed' | 'conflict' | 'unconfirmed' | 'missing';
@@ -70,15 +70,18 @@ function isMidnight(iso: unknown): boolean {
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/** A leg's critical parts: when, from where, to where. */
-function legValue(leg: any): { date: string | null; time: string | null; from: string | null; to: string | null } | null {
+type LegValue = { date: string | null; time: string | null; from: string | null; to: string | null; flight: string | null };
+
+/** A leg's critical parts: when, from where, to where, which flight. */
+function legValue(leg: any): LegValue | null {
   if (!leg || typeof leg !== 'object') return null;
   const date = tbilisiDate(leg.date_display);
   const time = str(leg.pickup_time) ?? (leg.date_display && !isMidnight(leg.date_display) ? tbilisiClock(leg.date_display) : null);
   const from = str(leg.from);
   const to = str(leg.to);
-  if (!date && !time && !from && !to) return null;
-  return { date, time, from, to };
+  const flight = str(leg.flight);
+  if (!date && !time && !from && !to && !flight) return null;
+  return { date, time, from, to, flight };
 }
 
 /** The critical values of a draft, in the form they are compared and fingerprinted. */
@@ -92,7 +95,8 @@ export function criticalValues(d: any): Record<CriticalField, unknown> {
   return {
     kind,
     date: isTour ? (tbilisiDate(d?.date_display) ?? firstDay) : tbilisiDate(d?.date_display),
-    time: isTour ? null : (str(d?.pickup_time) ?? (d?.date_display && !isMidnight(d.date_display) ? tbilisiClock(d.date_display) : null)),
+    // A tour's start time too, when it has one: the booking stores it.
+    time: str(d?.pickup_time) ?? (d?.date_display && !isMidnight(d.date_display) ? tbilisiClock(d.date_display) : null),
     from_location: str(d?.from_location),
     to_location: str(d?.to_location),
     passengers: num(d?.passengers),
@@ -149,7 +153,8 @@ export function sameValue(field: CriticalField, a: unknown, b: unknown): boolean
       const x = a as any;
       const y = b as any;
       return (!x.date || !y.date || x.date === y.date) && (!x.time || !y.time || x.time === y.time) &&
-        (!x.from || !y.from || samePlace(x.from, y.from)) && (!x.to || !y.to || samePlace(x.to, y.to));
+        (!x.from || !y.from || samePlace(x.from, y.from)) && (!x.to || !y.to || samePlace(x.to, y.to)) &&
+        (!x.flight || !y.flight || flightKey(x.flight) === flightKey(y.flight));
     }
     default:
       return JSON.stringify(a) === JSON.stringify(b);
@@ -160,6 +165,19 @@ function isEmpty(field: CriticalField, v: unknown): boolean {
   if (v == null || v === '') return true;
   if (field === 'tour_days') return !Array.isArray(v) || v.length === 0;
   return false;
+}
+
+/**
+ * The critical fields reviewed for a kind of service. A flight number is
+ * reviewed for every kind: a tour's booking stores one too. If the agency
+ * changes the kind, the fields the new kind adds were never reviewed, and
+ * approveService asks for each of them to be confirmed.
+ */
+export function reviewedFields(kind: string | null): CriticalField[] {
+  const base: CriticalField[] = ['kind', 'date', 'time', 'passengers', 'vehicle_type', 'client_price', 'flight_number'];
+  if (kind === 'tour') return [...base, 'tour_days', 'transfer_in', 'transfer_out'];
+  if (kind === 'day_tour') return [...base, 'from_location', 'to_location'];
+  return [...base, 'from_location', 'to_location', 'flight_at'];
 }
 
 /** Fields the booking form itself requires for this kind of service. */
@@ -212,12 +230,17 @@ function inRequest(field: CriticalField, value: unknown, evidence: Record<string
     case 'flight_number':
       return flightKey(source).includes(flightKey(String(value)));
     case 'from_location':
-    case 'to_location':
-      return placeInSource(String(value), source) || quoteInSource(ev(field), source);
+    case 'to_location': {
+      // The model's quote counts only if it is in the request AND names this place.
+      const q = ev(field);
+      return placeInSource(String(value), source) || (quoteInSource(q, source) && placeInSource(String(value), q));
+    }
     case 'vehicle_type':
-      return true; // read through a fixed list of words; the list itself is the check
+      // A vehicle the request never names ("7 people") is the model's choice.
+      return vehiclesNamed(source).has(String(value));
     case 'kind':
-      return true;
+      // A kind the request never names is the model's reading of its shape.
+      return kindsNamed(source).has(String(value));
     case 'flight_at':
       return clockInSource(tbilisiClock(value), source);
     case 'tour_days':
@@ -225,7 +248,9 @@ function inRequest(field: CriticalField, value: unknown, evidence: Record<string
     case 'transfer_in':
     case 'transfer_out': {
       const v = value as any;
-      return (!v.date || dateInSource(v.date, source)) && (!v.time || clockInSource(v.time, source));
+      return (!v.date || dateInSource(v.date, source)) && (!v.time || clockInSource(v.time, source)) &&
+        (!v.flight || flightKey(source).includes(flightKey(v.flight))) &&
+        (!v.from || placeInSource(v.from, source)) && (!v.to || placeInSource(v.to, source));
     }
   }
 }
@@ -242,10 +267,7 @@ export function reviewService(input: ReviewInput): ServiceReview {
   const textInput = input.inputKind !== 'visual';
   const fields: Partial<Record<CriticalField, FieldReview>> = {};
 
-  const relevant: CriticalField[] = ['kind', 'date', 'passengers', 'vehicle_type', 'client_price'];
-  if (kind === 'tour') relevant.push('tour_days', 'transfer_in', 'transfer_out');
-  else relevant.push('time', 'from_location', 'to_location');
-  if (isTransfer) relevant.push('flight_number', 'flight_at');
+  const relevant = reviewedFields(kind);
 
   for (const field of relevant) {
     const value = cur[field];
@@ -328,6 +350,9 @@ function plausibility(field: CriticalField, value: unknown, cur: Record<Critical
     const pickup = cur.date && cur.time ? Date.parse(`${cur.date}T${cur.time}:00+04:00`) : NaN;
     const f = Date.parse(String(value));
     if (Number.isFinite(pickup) && Number.isFinite(f) && f - pickup > 12 * 3600e3) out.push('pickup_long_before_flight');
+    // A flight after midnight: is the pickup the evening before, or that same night? Read
+    // wrongly, the car comes a day late. A person says which.
+    if (cur.date && tbilisiDate(value) && tbilisiDate(value) !== cur.date) out.push('flight_next_day');
   }
   if (field === 'vehicle_type' && !VEHICLES.has(String(value))) out.push('vehicle_unknown');
   return out;
@@ -368,6 +393,8 @@ const REASON_KA: Record<string, string> = {
   flight_unclear: 'რეისი დასაზუსტებელია',
   no_days: 'ტურის დღეები არ არის',
   time_unreadable: 'დრო ვერ წავიკითხე',
+  flight_next_day: 'რეისი შუაღამის შემდეგაა — გადაამოწმე აყვანის დღე',
+  kind_changed: 'სერვისის ტიპი შეიცვალა — ეს ველი ჯერ არ შემოწმებულა',
 };
 
 function show(field: CriticalField, v: unknown): string {
@@ -375,7 +402,7 @@ function show(field: CriticalField, v: unknown): string {
   if (field === 'tour_days') return (v as string[]).filter(Boolean).join(', ') || '—';
   if (field === 'transfer_in' || field === 'transfer_out') {
     const x = v as any;
-    return [x.date, x.time, x.from && x.to ? `${x.from} → ${x.to}` : x.from ?? x.to].filter(Boolean).join(' ');
+    return [x.date, x.time, x.from && x.to ? `${x.from} → ${x.to}` : x.from ?? x.to, x.flight].filter(Boolean).join(' ');
   }
   if (field === 'flight_at') {
     const t = Date.parse(String(v));
@@ -467,12 +494,18 @@ export function withholdUnconfirmed(draft: any, review: ServiceReview): any {
         clearTime();
         break;
       case 'tour_days':
-        if (Array.isArray(d.tour_days) && d.tour_days[0]) d.tour_days[0] = { ...d.tour_days[0], date: null };
+        // Every day's date: the review does not say which one is in doubt, and
+        // that app's form asks for each day's date.
+        if (Array.isArray(d.tour_days)) d.tour_days = d.tour_days.map((x: any) => ({ ...x, date: null }));
         d.date_display = null;
         break;
       case 'transfer_in':
       case 'transfer_out':
-        if (d[field]) d[field] = { ...d[field], date_display: midnight(d[field].date_display), pickup_time: null };
+        // The leg stays (so it is not quietly dropped) with its date, time, places
+        // and flight to fill in: that app's form asks for each of them.
+        if (d[field]) {
+          d[field] = { ...d[field], date_display: null, pickup_time: null, flight: null, flight_at: null, from: null, from_type: null, from_link: null, to: null, to_type: null, to_link: null };
+        }
         break;
     }
   }
@@ -608,9 +641,11 @@ export function requiredIssues(d: any, now: number): Issue[] {
 /**
  * The server's decision on the agency's final draft. The booking may be
  * created only if every critical value that was not confirmed when the
- * request was read has since been confirmed or corrected by a person, the
- * form's required fields are filled, and the booking about to be inserted
- * carries exactly the values that were reviewed.
+ * request was read has since been confirmed by a person (as it now stands —
+ * correcting a value is followed by confirming it), every value the kind of
+ * service gained after a change of kind is confirmed too, the form's required
+ * fields are filled, and the booking about to be inserted carries exactly the
+ * values that were reviewed.
  */
 export async function approveService(o: {
   token: string;
@@ -629,24 +664,44 @@ export async function approveService(o: {
   const issues: Issue[] = [];
   const values = criticalValues(o.draft);
   const confirmed = new Set(o.confirmed.map(String));
-  for (const [field, [status, fp]] of Object.entries(payload.f) as [CriticalField, [FieldStatus, string]][]) {
+  // A value not confirmed when the request was read needs a person's
+  // confirmation now. A change is not a confirmation: moving a tour's start
+  // moves its legs and days too, values nobody looked at. (A value that was
+  // missing is the form's: a person types it, and requiredIssues checks it.)
+  const kind = String(o.draft?.kind ?? 'transfer');
+  const relevant = new Set(reviewedFields(kind));
+  for (const [field, [status]] of Object.entries(payload.f) as [CriticalField, [FieldStatus, string]][]) {
     if (status === 'confirmed' || status === 'missing') continue;
-    const now = await fingerprint(field, values[field]);
-    const unchanged = now === fp;
-    if (unchanged && !confirmed.has(field)) issues.push({ field, code: status === 'conflict' ? 'choose_value' : 'needs_confirmation' });
+    // Not part of this kind of service any more, or emptied: none of it is
+    // stored (and a required value that was emptied is requiredIssues' to report).
+    if (!relevant.has(field) || isEmpty(field, values[field])) continue;
+    if (!confirmed.has(field)) issues.push({ field, code: status === 'conflict' ? 'choose_value' : 'needs_confirmation' });
+  }
+  // The kind of service was changed after the review: whatever the new kind
+  // adds (a transfer's pickup time and places, a tour's days and legs) was
+  // never reviewed, so each value it holds needs a person's confirmation.
+  for (const field of relevant) {
+    if (payload.f[field] || isEmpty(field, values[field])) continue;
+    if (!confirmed.has(field)) issues.push({ field, code: 'kind_changed' });
   }
   issues.push(...requiredIssues(o.draft, o.now));
 
   // The booking about to be inserted must carry the reviewed values.
   const ins = o.insert ?? {};
-  const kind = String(o.draft?.kind ?? 'transfer');
   const mismatch = (field: string) => issues.push({ field, code: 'insert_mismatch' });
+  if (String(ins.kind ?? 'transfer') !== kind) mismatch('kind');
   if (Number(ins.passengers) !== Number(o.draft?.passengers)) mismatch('passengers');
   if (Number(ins.price_gel) !== Number(o.draft?.client_price) || Number(ins.client_price) !== Number(o.draft?.client_price)) mismatch('client_price');
   if (String(ins.vehicle_type ?? '').toLowerCase() !== String(o.draft?.vehicle_type ?? '').toLowerCase()) mismatch('vehicle_type');
   if (flightKey(ins.flight_number) !== flightKey(o.draft?.flight_number)) mismatch('flight_number');
   if (kind === 'tour') {
     if (tbilisiDate(ins.date_display) !== (values.date as string | null)) mismatch('date');
+    for (const key of ['transfer_in', 'transfer_out'] as const) {
+      const inserted = typeof ins[key]?.date === 'string' ? ins[key].date : null;
+      if (inserted !== str(o.draft?.[key]?.date_display)) mismatch(key);
+    }
+    const dates = (days: unknown) => (Array.isArray(days) ? days.map((x: any) => String(x?.date ?? '')).sort().join(',') : '');
+    if (dates(ins.tour_days) !== dates(o.draft?.tour_days)) mismatch('tour_days');
   } else {
     if (String(ins.date_display ?? '') !== String(o.draft?.date_display ?? '')) mismatch('date');
     if ((str(ins.pickup_time) ?? null) !== (str(o.draft?.pickup_time) ?? null)) mismatch('time');

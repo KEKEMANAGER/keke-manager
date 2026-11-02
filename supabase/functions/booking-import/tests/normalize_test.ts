@@ -2,8 +2,8 @@
 import { assertEquals } from './assert.ts';
 import {
   clockInSource, dateInSource, extractFlightNumber, headCountsMentioned, looksLikeJunkPlace, numberInSource,
-  parseAmount, parseClock, parseNumberToken, parsePassengers, placeInSource, quoteInSource, splitNameAndPhone,
-  withoutDates,
+  kindsNamed, parseAmount, parseClock, parseNumberToken, parsePassengers, placeInSource, quoteInSource, splitNameAndPhone,
+  vehiclesNamed, withoutDates,
 } from '../normalize.ts';
 
 Deno.test('clock: 12-hour times with AM/PM', () => {
@@ -46,6 +46,17 @@ Deno.test('clock: a written date is not a time ("20.11.2026" is not 20:11)', () 
   assertEquals(clockInSource('14:05', 'arrive 14.05'), false, 'day.month or a time: needs a look');
   assertEquals(clockInSource('10:30', 'в 10.30'), true, 'minutes past 12 can only be a time');
   assertEquals(clockInSource('10:00', 'Date: 20.11.2026, 10:00'), true);
+});
+
+Deno.test('vehicles and kinds a request names in words', () => {
+  assertEquals([...vehiclesNamed('Mercedes Sprinter for 14')], ['microbus']);
+  assertEquals([...vehiclesNamed('მიკროავტობუსი')], ['microbus'], 'a microbus is not also a bus');
+  assertEquals([...vehiclesNamed('sedan or minivan')].sort(), ['minivan', 'sedan']);
+  assertEquals([...vehiclesNamed('7 people, airport pickup')], []);
+  assertEquals([...kindsNamed('We are a tour operator: airport pickup tomorrow')], [], '"tour operator" names no tour');
+  assertEquals([...kindsNamed('transfer from the airport')], ['transfer']);
+  for (const t of ['8-day tour', '8 day tour', '11-day tour', 'multi-day tour', 'тур по Грузии']) assertEquals([...kindsNamed(t)], ['tour'], t);
+  for (const t of ['1-day tour', 'one-day tour', 'day trip to Kazbegi', 'ერთდღიანი ტური', 'экскурсия']) assertEquals([...kindsNamed(t)], ['day_tour'], t);
 });
 
 Deno.test('numbers: thousands and decimal separators', () => {
