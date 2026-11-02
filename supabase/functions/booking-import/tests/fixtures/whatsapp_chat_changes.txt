@@ -1,0 +1,11 @@
+[28/10/2026, 11:02:15] Nino (Caucasus Travel): გამარჯობა! 15 ნოემბერს ჯგუფი ჩამოდის, 4 ადამიანი
+[28/10/2026, 11:02:40] Nino (Caucasus Travel): ჩამოფრენა 15/11 22:50, რეისი A9 692
+[28/10/2026, 11:05:03] KEKE Transport: გამარჯობა ნინო, რა ტრანსპორტი გინდათ?
+[28/10/2026, 11:06:12] Nino (Caucasus Travel): მინივენი, 6 ჩემოდანი აქვთ და ბავშვის სავარძელი სჭირდებათ
+[28/10/2026, 11:07:30] Nino (Caucasus Travel): 16-ში ქალაქის ტური, 17-ში ყაზბეგი (ღამე ყაზბეგში, Rooms Hotel), 18-ში ყაზბეგიდან ბათუმამდე
+[28/10/2026, 11:20:44] KEKE Transport: 4 დღე მინივენით 1100 ლარი
+[28/10/2026, 11:25:02] Nino (Caucasus Travel): ок, договорились. Отель в Тбилиси — Rooms Hotel Tbilisi
+[29/10/2026, 09:14:55] Nino (Caucasus Travel): sorry, change: 6 people not 4, and they land at 23:40, flight changed to A9 694
+[29/10/2026, 09:15:30] Nino (Caucasus Travel): and the last day 19/11 Batumi airport, flight 07:20, pickup from Hilton Batumi
+[29/10/2026, 09:40:12] KEKE Transport: 6 ადამიანზე მინივენი ვიწრო იქნება ჩემოდნებით, სპრინტერი ჯობია?
+[29/10/2026, 09:45:31] Nino (Caucasus Travel): კი, სპრინტერი. ფასი?

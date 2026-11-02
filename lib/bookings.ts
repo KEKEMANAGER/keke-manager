@@ -527,6 +527,13 @@ export type InsertBookingInput = {
   voucher_code?: string | null;
   /** Skip driver push when inserting coordinator / internal rows. */
   skip_driver_notifications?: boolean;
+  /**
+   * Set only by the import screen: the server approval this booking's critical
+   * values were checked against (booking-import, action "approve"). The
+   * database then accepts the booking only with exactly those values. Never
+   * set for a booking typed into the form.
+   */
+  import_approval_id?: string | null;
 };
 
 /** Localized booking status label */
@@ -1050,6 +1057,11 @@ export async function insertBooking(row: InsertBookingInput) {
     }
     if (row.group_code?.trim()) {
       body.group_code = row.group_code.trim();
+    }
+    // Sent only for a booking created from an imported request, so a booking
+    // typed into the form inserts exactly as before.
+    if (row.import_approval_id) {
+      body.import_approval_id = row.import_approval_id;
     }
 
     if (opts.includeKindColumn) {

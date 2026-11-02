@@ -140,10 +140,31 @@ export type ImportedBookingDraft = {
  * programme — an arrival transfer, sightseeing days, a departure transfer — so
  * the importer returns a list, and a single-booking file is simply a list of one.
  */
+/** The server's review of one critical value (booking-import review.ts). */
+export type ReviewFieldStatus = 'confirmed' | 'conflict' | 'unconfirmed' | 'missing';
+
+export type ReviewField =
+  | 'kind' | 'date' | 'time' | 'from_location' | 'to_location' | 'passengers' | 'vehicle_type' | 'client_price'
+  | 'flight_number' | 'flight_at' | 'tour_days' | 'transfer_in' | 'transfer_out';
+
+export type ImportReview = {
+  fields: Partial<Record<ReviewField, { status: ReviewFieldStatus; value: unknown; candidates?: unknown[]; reasons: string[]; required: boolean }>>;
+  /** Fields a person must confirm, choose or fill before this service can be created. */
+  blocking: ReviewField[];
+  ready: boolean;
+  /** Signed by the server; sent back with the approval request. */
+  token?: string;
+};
+
 export type ImportedService = {
   draft: ImportedBookingDraft;
   sources: Partial<Record<keyof ImportedBookingDraft, ImportFieldSource>>;
   warnings: string[];
+  /**
+   * Which critical values the agency can rely on. Absent from an older server,
+   * which then behaves exactly as before.
+   */
+  review?: ImportReview | null;
   /**
    * The document's own wording for each field the model read, so the company can
    * check the reading without reopening the file. Keyed by the tool's field
@@ -432,7 +453,10 @@ async function invokeImport(
   let data: unknown;
   let error: unknown;
   try {
-    ({ data, error } = await supabase.functions.invoke('booking-import', { body }));
+    // clientGate 2: this app shows the review and confirms each value, so the
+  // server hands unconfirmed values over in place (marked) instead of leaving
+  // the fields empty.
+  ({ data, error } = await supabase.functions.invoke('booking-import', { body: { ...body, clientGate: 2 } }));
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : i18n.t('importBooking.networkError') };
   }
@@ -999,4 +1023,206 @@ export function withFormDefaults(draft: ImportedBookingDraft): ImportedBookingDr
     price_includes_fuel: kind === 'transfer' ? null : draft.price_includes_fuel ?? true,
     driver_overnight_by: kind === 'tour' ? draft.driver_overnight_by ?? 'keke' : null,
   };
+}
+
+
+// ------------------------------------------------------------- the review
+
+/** The draft keys each reviewed field is read from — what "the agency changed it" means. */
+const REVIEW_KEYS: Record<ReviewField, (keyof ImportedBookingDraft)[]> = {
+  kind: ['kind'],
+  date: ['date_display', 'tour_days'],
+  time: ['date_display', 'pickup_time'],
+  from_location: ['from_location', 'from_location_type'],
+  to_location: ['to_location', 'to_location_type'],
+  passengers: ['passengers'],
+  vehicle_type: ['vehicle_type'],
+  client_price: ['client_price'],
+  flight_number: ['flight_number'],
+  flight_at: ['flight_at'],
+  tour_days: ['tour_days'],
+  transfer_in: ['transfer_in'],
+  transfer_out: ['transfer_out'],
+};
+
+/** Did the agency change this field since it was read? A change made by a person is its own confirmation. */
+export function reviewFieldEdited(field: ReviewField, original: ImportedBookingDraft, current: ImportedBookingDraft): boolean {
+  return REVIEW_KEYS[field].some((k) => JSON.stringify(original[k] ?? null) !== JSON.stringify(current[k] ?? null));
+}
+
+/**
+ * Reviewed values a person has not yet confirmed, chosen or corrected. A
+ * missing value is left to the form's own required-field check
+ * (missingRequiredFields), which says it in the form's words.
+ */
+export function unresolvedReviewFields(
+  service: ImportedService,
+  original: ImportedBookingDraft,
+  confirmed: readonly string[],
+): ReviewField[] {
+  const review = service.review;
+  if (!review) return [];
+  return review.blocking.filter((field) => {
+    const r = review.fields[field];
+    if (!r || r.status === 'missing') return false;
+    if (confirmed.includes(field)) return false;
+    return !reviewFieldEdited(field, original, service.draft);
+  });
+}
+
+/** One Tbilisi calendar day at one clock time, as the booking stores it. */
+function tbilisiInstant(day: string, clock: string | null): string | null {
+  const t = Date.parse(`${day}T${clock ?? '00:00'}:00+04:00`);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+function tbilisiParts(iso: string | null | undefined): { day: string | null; clock: string | null } {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return { day: null, clock: null };
+  const s = new Date(t + 4 * 3600 * 1000).toISOString();
+  return { day: s.slice(0, 10), clock: s.slice(11, 16) };
+}
+
+/**
+ * The draft with one of the two readings of a conflicting field put in place.
+ * Only fields with a single plain value can be chosen this way; a conflict on
+ * a tour's days or legs is corrected in the form itself.
+ */
+export function applyReviewChoice(draft: ImportedBookingDraft, field: ReviewField, value: unknown): ImportedBookingDraft {
+  switch (field) {
+    case 'passengers':
+    case 'client_price':
+      return typeof value === 'number' ? { ...draft, [field]: value } : draft;
+    case 'flight_number':
+    case 'vehicle_type':
+    case 'from_location':
+    case 'to_location':
+      return typeof value === 'string' ? { ...draft, [field]: value } : draft;
+    case 'kind':
+      return value === 'transfer' || value === 'day_tour' || value === 'tour' ? withFormDefaults({ ...draft, kind: value }) : draft;
+    case 'date': {
+      if (typeof value !== 'string') return draft;
+      const { clock } = tbilisiParts(draft.date_display);
+      const keepClock = draft.pickup_time ?? (clock && clock !== '00:00' ? clock : null);
+      return { ...draft, date_display: tbilisiInstant(value, keepClock) };
+    }
+    case 'time': {
+      if (typeof value !== 'string') return draft;
+      const { day } = tbilisiParts(draft.date_display);
+      return day ? { ...draft, date_display: tbilisiInstant(day, value), pickup_time: value } : draft;
+    }
+    default:
+      return draft;
+  }
+}
+
+/** Fields whose conflict can be settled with one tap on either reading. */
+export function reviewFieldChoosable(field: ReviewField): boolean {
+  return ['passengers', 'client_price', 'flight_number', 'vehicle_type', 'from_location', 'to_location', 'kind', 'date', 'time'].includes(field);
+}
+
+/** A reviewed value as the screen shows it. */
+export function reviewValueLabel(field: ReviewField, value: unknown): string {
+  if (value == null || value === '') return '—';
+  if (field === 'client_price' && typeof value === 'number') return `${value}`;
+  if (field === 'tour_days' && Array.isArray(value)) return value.filter(Boolean).join(', ') || '—';
+  if ((field === 'transfer_in' || field === 'transfer_out') && typeof value === 'object') {
+    const v = value as { date?: string | null; time?: string | null; from?: string | null; to?: string | null };
+    return [v.date, v.time, v.from && v.to ? `${v.from} → ${v.to}` : v.from ?? v.to].filter(Boolean).join(' ');
+  }
+  if (field === 'flight_at' && typeof value === 'string') {
+    const { day, clock } = tbilisiParts(value);
+    return day ? `${day.slice(8, 10)}.${day.slice(5, 7)} ${clock}` : value;
+  }
+  if (field === 'kind' && typeof value === 'string') return i18n.t(`importBooking.kinds.${value}`);
+  return String(value);
+}
+
+// ------------------------------------------------------- approval, create
+
+export type ApprovalIssue = { field: string; code: string };
+
+export type ApprovalResult =
+  | { ok: true; approvalId: string }
+  | { ok: false; error: string; issues: ApprovalIssue[] };
+
+/**
+ * The server's own check of the final draft, made just before the booking is
+ * created: every value that was not confirmed when the request was read must
+ * have been confirmed or corrected here, and the booking about to be inserted
+ * must carry exactly these values. The booking is then inserted with the
+ * approval's id, and the database accepts it only with those values.
+ */
+export async function approveImportedService(
+  service: ImportedService,
+  insert: InsertBookingInput,
+  confirmed: readonly string[],
+): Promise<ApprovalResult> {
+  let data: unknown;
+  let error: unknown;
+  try {
+    ({ data, error } = await supabase.functions.invoke('booking-import', {
+      body: { action: 'approve', reviewToken: service.review?.token ?? '', draft: service.draft, insert, confirmed: [...confirmed] },
+    }));
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : i18n.t('importBooking.networkError'), issues: [] };
+  }
+  if (error) {
+    const ctx = (error as { context?: { json?: () => Promise<unknown> } }).context;
+    let issues: ApprovalIssue[] = [];
+    let message = await functionErrorMessage(error);
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const body = (await ctx.json()) as { issues?: ApprovalIssue[]; error?: string };
+        if (Array.isArray(body?.issues)) issues = body.issues;
+        if (typeof body?.error === 'string' && body.error.trim()) message = body.error;
+      } catch {
+        /* the message above stands */
+      }
+    }
+    return { ok: false, error: message, issues };
+  }
+  const id = (data as { ok?: boolean; approvalId?: unknown } | null)?.approvalId;
+  if ((data as { ok?: boolean } | null)?.ok === true && typeof id === 'string' && id) return { ok: true, approvalId: id };
+  return { ok: false, error: i18n.t('importBooking.readFailedGeneric'), issues: [] };
+}
+
+export type CreateImportedResult =
+  | { ok: true; id: string }
+  | { ok: false; reason: 'missing'; missing: string[] }
+  | { ok: false; reason: 'unconfirmed'; fields: ReviewField[] }
+  | { ok: false; reason: 'not_approved'; error: string; issues: ApprovalIssue[] }
+  | { ok: false; reason: 'insert_failed'; error: string };
+
+/**
+ * One reviewed service into one booking, in the only order that is safe:
+ * the form's required fields, then every reviewed value confirmed or
+ * corrected by a person, then the server's approval, then the booking —
+ * carrying the approval, so the database checks the values once more.
+ *
+ * A service from an older server has no review; it is created exactly as
+ * before (the form's checks only).
+ */
+export async function createImportedBooking(o: {
+  service: ImportedService;
+  original: ImportedBookingDraft;
+  confirmed: readonly string[];
+  ctx: { companyUserId: string; companyName: string | null; createdByName?: string | null };
+  insert: (row: InsertBookingInput) => Promise<{ id?: string; error: Error | null }>;
+  approve?: typeof approveImportedService;
+}): Promise<CreateImportedResult> {
+  const missing = missingRequiredFields(o.service.draft);
+  if (missing.length > 0) return { ok: false, reason: 'missing', missing };
+  const unresolved = unresolvedReviewFields(o.service, o.original, o.confirmed);
+  if (unresolved.length > 0) return { ok: false, reason: 'unconfirmed', fields: unresolved };
+
+  const payload = draftToInsertInput(o.service.draft, o.ctx);
+  if (o.service.review?.token) {
+    const approval = await (o.approve ?? approveImportedService)(o.service, payload, o.confirmed);
+    if (!approval.ok) return { ok: false, reason: 'not_approved', error: approval.error, issues: approval.issues };
+    payload.import_approval_id = approval.approvalId;
+  }
+  const { id, error } = await o.insert(payload);
+  if (error || !id) return { ok: false, reason: 'insert_failed', error: error?.message ?? i18n.t('importBooking.createFailed') };
+  return { ok: true, id };
 }

@@ -11,15 +11,22 @@ letting a bad parse reach the database.
 
 Three rules, in order of importance:
 
-1. **Nothing is written to the database here.** The function returns a draft.
-   The company reviews it on screen and the normal booking-creation path runs,
-   so every existing validation, the review gate and the availability check
-   still apply.
-2. **The deterministic template parser runs first and always wins** on the
-   fields it recognises. The model only fills what the template could not find.
+1. **No booking is written here.** The function returns a draft. The company
+   reviews it on screen and the normal booking-creation path runs, so every
+   existing validation, the review gate and the availability check still
+   apply. The only row it writes besides its log is an approval (see
+   "Review and approval"), which holds no guest name or phone.
+2. **The deterministic template parser runs first** and its value stays in the
+   draft on the fields it recognises; the model fills what the template could
+   not find. Where the two read a critical value differently, the value is a
+   **conflict** that a person resolves — neither reader wins silently.
 3. **If the model is unavailable, misconfigured, or returns nonsense, the
    function still succeeds** with whatever the template found, plus warnings.
    The feature degrades; it never breaks booking creation.
+4. **A critical value nobody confirmed is never treated as confirmed.** It is
+   kept in the draft so the company can check and correct it, but the booking
+   cannot be created until a person has confirmed or changed it — checked on
+   the server and in the database, not only by the app's button.
 
 ## Deploy
 
@@ -34,9 +41,26 @@ supabase functions deploy booking-import
 # simply come back with fewer fields filled and a warning saying so.
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
-# Optional. Only set this if the API reports the default model is unavailable.
-supabase secrets set BOOKING_IMPORT_MODEL=claude-sonnet-4-5
+# Optional. The model; default claude-sonnet-4-5. A 4.x id uses the classic
+# request (forced tool call); a 5.x id (claude-sonnet-5-5) the 5.x request
+# (tool call left to the model, thinking between tools, effort, room for
+# thinking, no temperature) — see ai.ts. Change it only after the paid
+# evaluation; the 5.x request has not yet been tried against the real API.
+supabase secrets set BOOKING_IMPORT_MODEL=claude-sonnet-4-6
+
+# Optional, 5.x models only: low | medium | high (default medium).
+supabase secrets set BOOKING_IMPORT_EFFORT=medium
+
+# Optional. Reads a company may start in 24 hours (default 300; 0 = no ceiling).
+supabase secrets set BOOKING_IMPORT_DAILY_LIMIT=300
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` (set by the platform) is also used to sign each
+review: the signing key is derived from it, so a review cannot be forged or
+moved to another company.
+
+Only a company account (or KEKE's admin) may use the function; any other
+account gets a 403 before anything is read.
 
 ## Request
 
@@ -113,6 +137,74 @@ A pasted message or a picture with nothing bookable in it is answered with a
 `sources` is what the review screen uses to mark which fields were read
 straight from the document and which the model inferred — the company should
 look hardest at the `ai` ones.
+
+## Review and approval
+
+Every service in `services` carries a `review` of its critical values — kind,
+date, time, from, to, passengers, vehicle, price, flight number and time, and
+for a tour its days, arrival and departure:
+
+```jsonc
+"review": {
+  "fields": { "client_price": { "status": "unconfirmed", "reasons": ["currency_foreign"], "value": 140, "required": true },
+              "time": { "status": "conflict", "reasons": ["readers_disagree"], "value": "10:00", "candidates": ["10:00", "11:00"], "required": true }, ... },
+  "blocking": ["client_price", "time"],   // a person must confirm or change these
+  "ready": false,
+  "token": "…"                            // signed: company, time, each field's status and value
+}
+```
+
+A value is **confirmed** only when it was found in the request and nothing
+argues against it; **conflict** when the template and the model read it
+differently (both readings are offered); **unconfirmed** when it needs a look —
+the model was unsure, it was read off a picture, it is not in the request, the
+answer was cut off, a chat's price, AM/PM unclear, a foreign currency or a
+per-person price, an implausible value (a 2 lari price, more people than
+seats, a past date); **missing** when there is none.
+
+An app that shows the review sends `"clientGate": 2` with every read and gets
+every value in the draft, flagged. To an older app, unconfirmed and
+conflicting critical values are left out of the draft fields (they stay in
+the review and the warnings), so its own required-field check makes a person
+enter them.
+
+Before creating the booking, the app sends the final draft back:
+
+```http
+POST /functions/v1/booking-import
+{ "action": "approve", "reviewToken": "…", "draft": { … }, "insert": { … the booking row … }, "confirmed": ["time"] }
+```
+
+The function checks the token (this company, under 24 hours old), that every
+blocking value was confirmed or changed by the person, the form's required
+fields, a departure picked up after its flight, and that the row to insert
+carries the reviewed values; then it writes the approved values to
+`booking_import_approvals` and answers `{ "ok": true, "approvalId": "…" }`
+(or 422 with `issues`). The app inserts the booking with
+`import_approval_id`, and the trigger `bookings_verify_import_approval` lets
+it in only with exactly the approved values, once, within 2 hours. A booking
+typed into the form has no `import_approval_id` and is not touched.
+
+## Logs
+
+`booking_import_log` and the function logs keep codes only: the file type and
+a hash instead of the file name, the review's codes, and for a failed model
+call a line like `ai_failed kind=http status=400 type=invalid_request_error
+hint=… attempts=1 model=… req=req_…` — never the API key, the API's own text,
+the request's content, a guest's name or phone. Text that does reach a log is
+passed through `maskForLog` (keys, tokens, emails, links and digit runs
+masked).
+
+## Tests
+
+```bash
+cd supabase/functions/booking-import/tests
+deno test --allow-read --allow-env --config deno.json   # no network permission: nothing can leave
+```
+
+`supabase/tests/run_import_safety_tests.sh` runs these together with the app
+side, the database check and the cross-layer check (see
+`supabase/tests/README.md`).
 
 ## Supported files
 

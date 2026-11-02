@@ -25,9 +25,10 @@ import { COLORS, RADIUS, SHADOWS, SPACING } from '../../constants/theme';
 import { useAuth, type Profile } from '../../contexts/AuthContext';
 import { insertBooking } from '../../lib/bookings';
 import {
+  applyReviewChoice,
   clockOf,
+  createImportedBooking,
   draftTimeMissing,
-  draftToInsertInput,
   flightTimeLabel,
   importBookingFromFile,
   legPlaces,
@@ -41,8 +42,12 @@ import {
   placeFields,
   prepareDroppedFiles,
   presetPlaceName,
+  reviewFieldChoosable,
+  reviewFieldEdited,
+  reviewValueLabel,
   tourNights,
   transferPlaces,
+  unresolvedReviewFields,
   withFormDefaults,
   type BookingImportFailure,
   type BookingImportResult,
@@ -52,6 +57,7 @@ import {
   type ImportedTourDay,
   type PhotoSource,
   type PickedImage,
+  type ReviewField as ReviewedField,
 } from '../../lib/bookingImport';
 import type { LocationValue } from '../../lib/bookingLocations';
 import { fetchCompanyMembers, type CompanyMember } from '../../lib/companyMembers';
@@ -462,6 +468,82 @@ function TwoChoice<T extends string>({
   );
 }
 
+/**
+ * The values the server could not vouch for — two readings that disagree, a
+ * value the request does not contain, a guess, a reading off a photo. They
+ * are filled in the form below so the agency can correct them; here each one
+ * is either confirmed as it stands, or (for a disagreement) one reading is
+ * picked. Correcting the field in the form settles it too.
+ */
+function ReviewPanel({
+  service,
+  original,
+  confirmed,
+  onConfirm,
+  onChoose,
+}: {
+  service: ImportedService;
+  original: ImportedBookingDraft;
+  confirmed: string[];
+  onConfirm: (field: ReviewedField) => void;
+  onChoose: (field: ReviewedField, value: unknown) => void;
+}) {
+  const { t } = useTranslation();
+  const review = service.review;
+  if (!review) return null;
+  const items = review.blocking.filter((f) => review.fields[f] && review.fields[f]?.status !== 'missing');
+  if (items.length === 0) return null;
+  const open = unresolvedReviewFields(service, original, confirmed);
+  return (
+    <View style={styles.reviewBox} testID="review-panel">
+      <Text style={styles.reviewTitle}>
+        {open.length > 0 ? t('importBooking.review.title', { count: open.length }) : t('importBooking.review.allDone')}
+      </Text>
+      {items.map((field) => {
+        const r = review.fields[field]!;
+        const edited = reviewFieldEdited(field, original, service.draft);
+        const done = edited || confirmed.includes(field);
+        const reasons = r.reasons
+          .map((x) => t(`importBooking.review.reasons.${x}`, { defaultValue: '' }))
+          .filter(Boolean)
+          .join(' · ');
+        return (
+          <View key={field} style={styles.reviewItem}>
+            <View style={styles.reviewItemHead}>
+              <Text style={styles.reviewField}>{t(`importBooking.review.fields.${field}`)}</Text>
+              <Text style={[styles.reviewState, done && styles.reviewStateDone]}>
+                {edited ? t('importBooking.review.edited') : done ? t('importBooking.review.confirmed') : t(`importBooking.review.status.${r.status}`)}
+              </Text>
+            </View>
+            {!edited ? <Text style={styles.reviewValue}>{reviewValueLabel(field, r.value)}</Text> : null}
+            {reasons ? <Text style={styles.reviewReason}>{reasons}</Text> : null}
+            {!done && r.status === 'conflict' && reviewFieldChoosable(field) && Array.isArray(r.candidates) ? (
+              <View style={styles.reviewActions}>
+                {r.candidates.map((c, i) => (
+                  <Pressable key={`${field}-c${i}`} style={styles.reviewChoice} onPress={() => onChoose(field, c)}>
+                    <Text style={styles.reviewChoiceText}>{reviewValueLabel(field, c)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            {!done && r.status === 'conflict' && !reviewFieldChoosable(field) ? (
+              <Text style={styles.reviewReason}>{t('importBooking.review.fixBelow')}</Text>
+            ) : null}
+            {!done && r.status !== 'conflict' ? (
+              <View style={styles.reviewActions}>
+                <Pressable style={styles.reviewConfirm} onPress={() => onConfirm(field)} testID={`review-confirm-${field}`}>
+                  <Text style={styles.reviewConfirmText}>✓ {t('importBooking.review.confirm')}</Text>
+                </Pressable>
+                <Text style={styles.reviewHint}>{t('importBooking.review.orFix')}</Text>
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function ImportBookingScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -482,6 +564,10 @@ export default function ImportBookingScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   /** Services already sent, so a second tap cannot duplicate them. */
   const [createdIndexes, setCreatedIndexes] = useState<number[]>([]);
+  /** Each service as it was read, to tell a value the agency corrected from one left as read. */
+  const [originals, setOriginals] = useState<ImportedBookingDraft[]>([]);
+  /** Reviewed fields the agency has confirmed as they stand, per service. */
+  const [confirmations, setConfirmations] = useState<Record<number, string[]>>({});
   const [warnings, setWarnings] = useState<string[]>([]);
   const [usedAi, setUsedAi] = useState(false);
   const [readSource, setReadSource] = useState<ReadSource | null>(null);
@@ -554,6 +640,16 @@ export default function ImportBookingScreen() {
 
   function patch(changes: Partial<ImportedBookingDraft>) {
     patchDraft((d) => ({ ...d, ...changes }));
+  }
+
+  function confirmField(field: ReviewedField) {
+    setConfirmations((prev) => ({ ...prev, [activeIndex]: [...new Set([...(prev[activeIndex] ?? []), field])] }));
+  }
+
+  /** One reading of a disagreement, picked: put in place and counted as the agency's decision. */
+  function chooseReviewValue(field: ReviewedField, value: unknown) {
+    patchDraft((d) => applyReviewChoice(d, field, value));
+    confirmField(field);
   }
 
   function patchDay(index: number, changes: Partial<ImportedTourDay>) {
@@ -660,7 +756,10 @@ export default function ImportBookingScreen() {
       res.services ?? [{ draft: res.draft, sources: res.sources ?? {}, warnings: res.warnings ?? [] }];
     // The form's defaults where the request said nothing — comfort, fuel
     // included, KEKE arranging the driver's nights — all visible and editable.
-    setServices(list.map((s) => ({ ...s, draft: withFormDefaults(s.draft) })));
+    const ready = list.map((s) => ({ ...s, draft: withFormDefaults(s.draft) }));
+    setServices(ready);
+    setOriginals(ready.map((s) => s.draft));
+    setConfirmations({});
     setActiveIndex(0);
     setCreatedIndexes([]);
     setWarnings(res.warnings ?? []);
@@ -671,6 +770,8 @@ export default function ImportBookingScreen() {
   /** Back to the inputs. The pasted message stays, ready to be fixed and read again. */
   function startOver() {
     setServices([]);
+    setOriginals([]);
+    setConfirmations({});
     setActiveIndex(0);
     setCreatedIndexes([]);
     setWarnings([]);
@@ -842,13 +943,16 @@ export default function ImportBookingScreen() {
 
     for (const i of pendingIndexes) {
       const missing = missingRequiredFields(services[i].draft);
-      if (missing.length > 0) {
+      const unresolved = unresolvedReviewFields(services[i], originals[i] ?? services[i].draft, confirmations[i] ?? []);
+      if (missing.length > 0 || unresolved.length > 0) {
         setActiveIndex(i);
+        const lines = [
+          ...missing.map((m) => `• ${m}`),
+          ...unresolved.map((f) => `• ${t('importBooking.review.needs', { field: t(`importBooking.review.fields.${f}`) })}`),
+        ].join('\n');
         notify(
           t('importBooking.missingTitle'),
-          services.length > 1
-            ? `${serviceLabel(services[i], i)}\n\n${missing.map((m) => `• ${m}`).join('\n')}`
-            : missing.map((m) => `• ${m}`).join('\n'),
+          services.length > 1 ? `${serviceLabel(services[i], i)}\n\n${lines}` : lines,
         );
         return;
       }
@@ -859,16 +963,33 @@ export default function ImportBookingScreen() {
     let failure: string | null = null;
 
     for (const i of pendingIndexes) {
-      // Field for field what the new-booking form sends for the same booking.
-      const payload = draftToInsertInput(services[i].draft, {
-        companyUserId: user.id,
-        companyName: companyDisplayName(profile, user),
-        createdByName: operatorName ?? profile?.full_name ?? null,
+      // Field for field what the new-booking form sends for the same booking —
+      // after the server has approved the reviewed values (createImportedBooking).
+      const res = await createImportedBooking({
+        service: services[i],
+        original: originals[i] ?? services[i].draft,
+        confirmed: confirmations[i] ?? [],
+        ctx: {
+          companyUserId: user.id,
+          companyName: companyDisplayName(profile, user),
+          createdByName: operatorName ?? profile?.full_name ?? null,
+        },
+        insert: insertBooking,
       });
-
-      const { id, error } = await insertBooking(payload);
-      if (error || !id) {
-        failure = error?.message ?? t('importBooking.createFailed');
+      if (!res.ok) {
+        setActiveIndex(i);
+        if (res.reason === 'not_approved') {
+          const fields = res.issues
+            .map((x) => (x.field === '*' ? '' : t(`importBooking.review.fields.${x.field}`, { defaultValue: x.field })))
+            .filter(Boolean);
+          failure = [res.error, ...[...new Set(fields)].map((f) => `• ${f}`)].join('\n');
+        } else if (res.reason === 'insert_failed') {
+          failure = res.error;
+        } else if (res.reason === 'missing') {
+          failure = res.missing.map((m) => `• ${m}`).join('\n');
+        } else {
+          failure = res.fields.map((f) => `• ${t('importBooking.review.needs', { field: t(`importBooking.review.fields.${f}`) })}`).join('\n');
+        }
         break;
       }
       done.push(i);
@@ -1106,6 +1227,17 @@ export default function ImportBookingScreen() {
                   </Text>
                 ))}
               </View>
+            ) : null}
+
+            {active ? (
+              <ReviewPanel
+                key={`review-${activeIndex}`}
+                service={active}
+                original={originals[activeIndex] ?? active.draft}
+                confirmed={confirmations[activeIndex] ?? []}
+                onConfirm={confirmField}
+                onChoose={chooseReviewValue}
+              />
             ) : null}
 
             {services.length > 1 ? (
@@ -1794,6 +1926,40 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   warnText: { fontSize: 13, color: '#92400E', lineHeight: 19 },
+  reviewBox: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    borderRadius: RADIUS.sm,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  reviewTitle: { fontSize: 14, fontWeight: '800', color: '#9A3412' },
+  reviewItem: { gap: 4, paddingTop: SPACING.xs, borderTopWidth: 1, borderTopColor: '#FED7AA' },
+  reviewItemHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: SPACING.sm },
+  reviewField: { fontSize: 13, fontWeight: '700', color: COLORS.text, flexShrink: 1 },
+  reviewState: { fontSize: 12, fontWeight: '700', color: '#C2410C' },
+  reviewStateDone: { color: '#047857' },
+  reviewValue: { fontSize: 14, color: COLORS.text },
+  reviewReason: { fontSize: 12, color: '#9A3412', lineHeight: 17 },
+  reviewActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: SPACING.sm },
+  reviewChoice: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: '#FB923C',
+    backgroundColor: COLORS.white,
+  },
+  reviewChoiceText: { fontSize: 13, fontWeight: '700', color: '#9A3412' },
+  reviewConfirm: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+    backgroundColor: '#047857',
+  },
+  reviewConfirmText: { fontSize: 13, fontWeight: '700', color: COLORS.white },
+  reviewHint: { fontSize: 12, color: COLORS.textSecondary },
   card: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,

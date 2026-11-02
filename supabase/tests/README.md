@@ -187,3 +187,44 @@ recording Supabase client: the call to `cancel_booking_by_company` and each of
 its answers, the fallback for a server without it, when the cancel button
 shows, the convoy status rule, and every text in all four languages (34
 checks).
+
+## Booking import — an imported booking carries only values a person or the server confirmed
+
+```bash
+PGHOST=<local socket or host> PGPORT=<port> PGUSER=<superuser> DENO=<deno 2> supabase/tests/run_import_safety_tests.sh
+```
+
+Runs everything below in order. Nothing is sent anywhere: the model's answers
+are written by the tests, the function's tests run without network permission,
+and every database step uses a throwaway local database.
+
+1. `supabase/functions/booking-import/tests` (Deno, 73 tests): times with
+   AM/PM and day-part words, prices with separators and currencies, adults +
+   children, flight numbers, junk places; the review of every critical value
+   (confirmed / conflict / unconfirmed / missing) and its reasons; the signed
+   review and the `approve` action; the two model profiles (4.x forced tool,
+   5.x auto tool with thinking and effort); one retry on 429/529/5xx/network;
+   refusals, cut-off answers, more than 25 services, long files; the role
+   check and the daily ceiling; logs without the key, file names, names or
+   phones. The fixtures are invented documents (`make_fixtures.py`).
+2. `import_review_client_check.cjs` (25 checks): the app asks for the review
+   on every read, cannot create an imported booking until every flagged value
+   is confirmed or corrected, asks the server to approve it, inserts it with
+   the approval; a booking typed into the form inserts exactly as before; an
+   older server's answer works as before; every text in four languages.
+3. `run_import_approval_tests.sh`: the migration
+   `20261102100000_booking_import_approvals.sql` on the P0-1..P0-6 database —
+   `import_approval.test.sql` (18 checks: manual bookings untouched, an
+   approved import goes in once, any other value is refused, expired / other
+   company / invented approvals refused, the approvals table is the server's),
+   the P0-6 and P0-5 suites and reproductions with it in place, undo and
+   apply again, and the P0 release tools (`docs/p0-release`): the smoke test
+   passes with the check in place; the P0-6 check and undo refuse while it is
+   in place ("triggers differ") and work again once it is undone — so a
+   rollback undoes this migration before P0-6.
+4. `run_import_e2e.sh` (14 checks): the app's own `draftToInsertInput` and
+   `insertBooking` build the request body, the server's review approves it,
+   and the database — written to the way PostgREST writes a POST, as the
+   company — accepts exactly that body and refuses it with the passengers,
+   price, date or a tour day changed after approval; the same body without an
+   approval (a booking typed into the form) goes in as before.
