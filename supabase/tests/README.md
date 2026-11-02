@@ -198,7 +198,7 @@ Runs everything below in order. Nothing is sent anywhere: the model's answers
 are written by the tests, the function's tests run without network permission,
 and every database step uses a throwaway local database.
 
-1. `supabase/functions/booking-import/tests` (Deno, 73 tests): times with
+1. `supabase/functions/booking-import/tests` (Deno, 76 tests): times with
    AM/PM and day-part words, prices with separators and currencies, adults +
    children, flight numbers, junk places; the review of every critical value
    (confirmed / conflict / unconfirmed / missing) and its reasons; the signed
@@ -206,7 +206,8 @@ and every database step uses a throwaway local database.
    5.x auto tool with thinking and effort); one retry on 429/529/5xx/network;
    refusals, cut-off answers, more than 25 services, long files; the role
    check and the daily ceiling; logs without the key, file names, names or
-   phones. The fixtures are invented documents (`make_fixtures.py`).
+   phones; a written date never read as a time ("20.11.2026" is not 20:11).
+   The fixtures are invented documents (`make_fixtures.py`).
 2. `import_review_client_check.cjs` (25 checks): the app asks for the review
    on every read, cannot create an imported booking until every flagged value
    is confirmed or corrected, asks the server to approve it, inserts it with

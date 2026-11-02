@@ -52,7 +52,7 @@ import JSZip from 'https://esm.sh/jszip@3.10.1';
 import { type AiFailure, buildRequest, callTool, failureCode, failureMessageKa } from './ai.ts';
 import {
   CURRENCIES, currenciesIn, extractFlightNumber, hasMeridiem, looksLikeJunkPlace, parseAmount, parseClock,
-  parsePassengers, splitNameAndPhone,
+  parsePassengers, splitNameAndPhone, withoutDates,
 } from './normalize.ts';
 import {
   approveService, type CriticalField, type InputKind, reviewCodes, reviewService, reviewWarnings, type ServiceReview,
@@ -950,7 +950,10 @@ function parseDateTime(dateStr: string, timeStr?: string | null): string | null 
 
   let hh = 0;
   let mi = 0;
-  const timeSource = `${timeStr ?? ''} ${d}`;
+  // The time comes from timeStr, or from what is left of dateStr once its
+  // date is taken out: "20.11.2026" alone is that day at midnight (no time
+  // known), never a pickup at 20:11.
+  const timeSource = `${timeStr ?? ''} ${withoutDates(d)}`;
   const t = /(\d{1,2})[:.](\d{2})/.exec(timeSource);
   if (t) {
     hh = Number(t[1]);
@@ -962,6 +965,9 @@ function parseDateTime(dateStr: string, timeStr?: string | null): string | null 
   const utc = Date.UTC(y, mo - 1, da, hh - 4, mi, 0);
   const dt = new Date(utc);
   if (Number.isNaN(dt.getTime())) return null;
+  // A day the month does not have (31.11.2026) is not quietly the next month's first.
+  const local = new Date(utc + 4 * 3600e3);
+  if (local.getUTCFullYear() !== y || local.getUTCMonth() !== mo - 1 || local.getUTCDate() !== da) return null;
   return dt.toISOString();
 }
 

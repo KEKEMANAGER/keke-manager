@@ -67,6 +67,37 @@ Deno.test('AM/PM: "4:30 PM" is 16:30, and both readers agree', async () => {
   assertEquals(status(r, 'time'), 'confirmed');
 });
 
+Deno.test('a date with no time: no pickup is invented from it ("20.11.2026" is not 20:11)', async () => {
+  const noTime = BASE.split('\n').filter((l) => !l.startsWith('Pickup time')).join('\n');
+  // the model finds no time either: the time is missing, and creation waits for it
+  let r = await run({ ...textFile(noTime), ...gate }, { replies: [single({ ...AI_BASE, time: null })] });
+  let s = svc0(r);
+  assertEquals(s.draft.pickup_time, null);
+  assertEquals(tb(s.draft.date_display), '2026-11-20 00:00');
+  assertEquals(s.review.fields.time.status, 'missing');
+  assert(s.review.blocking.includes('time'), 'time blocks');
+  // the model offers a time the request never gives: kept, but not confirmed — and no made-up 20:11 to choose
+  r = await run({ ...textFile(noTime), ...gate }, { replies: [single({ ...AI_BASE, time: '10:00' })] });
+  s = svc0(r);
+  assertEquals(s.review.fields.time.status, 'unconfirmed');
+  assert(s.review.fields.time.reasons.includes('not_in_request'), 'not in the request');
+  assert(!JSON.stringify(s.review).includes('20:11'), 'no 20:11 anywhere');
+  // a flight cell carrying the date has no flight time in it
+  r = await run({ ...textFile(variant({ Flight: 'TK 382 20.11.2026' })), ...gate }, { replies: [single(AI_BASE)] });
+  s = svc0(r);
+  assertEquals(s.draft.flight_number, 'TK 382');
+  assert(!JSON.stringify(s.draft).includes('20:11') && s.draft.flight_at == null, 'no flight time from the date');
+  assertEquals(s.review.ready, true);
+});
+
+Deno.test('a day the month does not have is not moved to the next month', async () => {
+  const r = await run({ ...textFile(variant({ Date: '31.11.2026' })), ...gate }, { replies: [single({ ...AI_BASE, date: null })] });
+  const s = svc0(r);
+  assertEquals(s.draft.date_display, null);
+  assertEquals(s.review.fields.date.status, 'missing');
+  assert(s.review.blocking.includes('date'), 'date blocks');
+});
+
 Deno.test('prices: "1,250 GEL" is 1250, not 1.25', async () => {
   const r = await run({ ...textFile(variant({ Price: '1,250 GEL' })), ...gate }, { replies: [single({ ...AI_BASE, client_price: 1250 })] });
   assertEquals(svc0(r).draft.client_price, 1250);

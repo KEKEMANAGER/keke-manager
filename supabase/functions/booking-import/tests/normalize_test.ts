@@ -3,6 +3,7 @@ import { assertEquals } from './assert.ts';
 import {
   clockInSource, dateInSource, extractFlightNumber, headCountsMentioned, looksLikeJunkPlace, numberInSource,
   parseAmount, parseClock, parseNumberToken, parsePassengers, placeInSource, quoteInSource, splitNameAndPhone,
+  withoutDates,
 } from '../normalize.ts';
 
 Deno.test('clock: 12-hour times with AM/PM', () => {
@@ -31,6 +32,22 @@ Deno.test('clock: 24-hour times; ambiguous when the document uses AM/PM elsewher
   assertEquals(parseClock('25:00').hhmm, null);
 });
 
+Deno.test('clock: a written date is not a time ("20.11.2026" is not 20:11)', () => {
+  for (const t of ['20.11.2026', ' 20.11.2026', 'TK 382 20.11.2026', '2026.11.20', '20/11/26', '2026-11-20', '1.12.2026 / 2.12.2026']) {
+    assertEquals(parseClock(t).hhmm, null, t);
+  }
+  assertEquals(parseClock('20.11.2026 10.30').hhmm, '10:30');
+  assertEquals(parseClock('TK 382, 20/11/2026 14:30').hhmm, '14:30');
+  assertEquals(parseClock('вылет 21.15').hhmm, '21:15');
+  assertEquals(withoutDates('Date: 20.11.2026, 10:00').includes('20.11'), false);
+  // the check that confirms a model's time against the request
+  assertEquals(clockInSource('20:11', 'Date: 20.11.2026'), false);
+  assertEquals(clockInSource('11:20', 'Date: 2026.11.20'), false);
+  assertEquals(clockInSource('14:05', 'arrive 14.05'), false, 'day.month or a time: needs a look');
+  assertEquals(clockInSource('10:30', 'в 10.30'), true, 'minutes past 12 can only be a time');
+  assertEquals(clockInSource('10:00', 'Date: 20.11.2026, 10:00'), true);
+});
+
 Deno.test('numbers: thousands and decimal separators', () => {
   const cases: [string, number][] = [
     ['1,250', 1250], ['1.250', 1250], ['1 250', 1250], ['2,450.00', 2450], ['2.450,00', 2450], ['12,50', 12.5],
@@ -50,6 +67,14 @@ Deno.test('amount: currency, per person, several amounts', () => {
   assertEquals(parseAmount('150').currency, null);
   assertEquals(parseAmount('35 USD per person').reason, 'price_per_person');
   assertEquals(parseAmount('150 / 200 GEL').reason, 'amount_several');
+  // per person in every language the operators write in
+  for (const t of ['150 ლარი ერთ პირზე', '150 ლარი თითო კაცზე', '60 ₾ 1 მგზავრზე', '40$ с чел.', '40 EUR за персону', '45 USD с человека',
+    '35 USD/pax', '35 USD per guest', '30 EUR each', '50 GEL pp']) {
+    assertEquals(parseAmount(t).perPerson, true, t);
+  }
+  for (const t of ['150 GEL each way', '150 GEL', '150 ლარი', '150 лари за машину', '2 450 ₾ ჯგუფზე']) {
+    assertEquals(parseAmount(t).perPerson, false, t);
+  }
 });
 
 Deno.test('passengers: adults + children, sums, ranges', () => {

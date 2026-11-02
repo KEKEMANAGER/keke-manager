@@ -67,14 +67,27 @@ const EN_PART: Record<string, 'morning' | 'day' | 'evening' | 'night'> = {
 };
 
 /**
+ * A written calendar date with its year: "20.11.2026", "20/11/26",
+ * "2026-11-20", "2026.11.20". Its digits are never a time of day — read as
+ * one, "20.11.2026" became a 20:11 pickup. Use only with replace().
+ */
+export const DATE_TOKEN = /\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.](?:\d{4}|\d{2})\b/g;
+
+/** The text with every written date blanked out, for reading times from. */
+export function withoutDates(text: string): string {
+  return String(text ?? '').replace(DATE_TOKEN, ' ');
+}
+
+/**
  * The first time of day in a piece of text.
  *
  * `docHasMeridiem` says the document writes AM/PM somewhere: then a bare
  * "7:30" with no marker of its own could be either 07:30 or 19:30, and the
- * reader must not decide that for the agency.
+ * reader must not decide that for the agency. Dates in the text are not
+ * times ("TK 382 20.11.2026" has no time).
  */
 export function parseClock(text: string, opts: { docHasMeridiem?: boolean } = {}): ClockRead {
-  const s = String(text ?? '');
+  const s = withoutDates(text);
   const none: ClockRead = { hhmm: null, ambiguous: false, reason: null };
   if (!s.trim()) return none;
 
@@ -152,7 +165,14 @@ export type AmountRead = {
   reason: string | null;
 };
 
-const PER_PERSON = /per\s+person|per\s+pax|\bp\.?\s?p\.?\b|pro\s+person|за\s+человека|с\s+человека|на\s+человека|ერთ\s+ადამიანზე|თითო\s+ადამიანზე|ადამიანზე/iu;
+// ("150 GEL each way" is per direction, not per person.) Cyrillic and Georgian
+// words end with a lookahead: \b sees only ASCII letters.
+const PER_PERSON = new RegExp([
+  String.raw`per\s+(?:person|pax|guest|head|passenger)`, String.raw`\/\s?(?:person|pers|pax|guest|чел(?![а-яё]))`,
+  String.raw`\bp\.?\s?p\.?\b`, String.raw`pro\s+person`, String.raw`\beach\b(?!\s+way)`,
+  String.raw`(?:за|с|на)\s+(?:1\s+|одного\s+)?(?:человека|чел(?![а-яё])\.?|персону|персоны|пассажира|гостя)`,
+  String.raw`(?:ერთ\s+|თითო\s+|1\s+)?(?:ადამიანზე|პირზე|კაცზე|მგზავრზე|სტუმარზე)(?![ა-ჰ])`, 'თითოეულზე',
+].join('|'), 'iu');
 
 /**
  * One number as it is written for money: "1,250", "1.250", "1 250", "2,450.00",
@@ -376,12 +396,17 @@ export function placeInSource(place: string | null | undefined, source: string |
 /** Is this clock time written in the request, in any of the ways people write it? */
 export function clockInSource(hhmm: string | null | undefined, source: string | null): boolean {
   if (!hhmm || !source) return false;
-  const docHasMeridiem = hasMeridiem(source);
-  const parts = String(source).split(/\n|(?<=[.;!?])\s+/);
+  // A date's digits are not a time: "20.11.2026" does not confirm 20:11.
+  const text = withoutDates(source);
+  const docHasMeridiem = hasMeridiem(text);
+  const parts = text.split(/\n|(?<=[.;!?])\s+/);
   for (const part of parts) {
     // Read every time in this piece, not only the first.
     const re = /(\d{1,2})(?:[:.](\d{2}))?\s*(?:[ap]\.?\s?m\.?|утра|дня|вечера|ночи|in the morning|in the afternoon|in the evening|at night)?/giu;
     for (const m of part.matchAll(re)) {
+      // "20.11" or "14.05" on its own is as likely a day and month as a time:
+      // it does not confirm one ("10.30" can only be a time).
+      if (/^\d{1,2}\.\d{2}$/.test(m[0].trim()) && Number(m[2]) <= 12) continue;
       const start = Math.max(0, (m.index ?? 0) - 12);
       const window = part.slice(start, (m.index ?? 0) + m[0].length + 2);
       const read = parseClock(window, { docHasMeridiem });
