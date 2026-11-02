@@ -1013,6 +1013,21 @@
     "checkAgain": "Check status again",
     "contactHint": "Questions? Write to info@kekemanager.com"
   },
+  "companyProfileFix": {
+    "title": "Update your company profile",
+    "subtitle": "To keep using KEKE Manager, enter your company's correct name and upload its logo. Access is restored automatically as soon as you save.",
+    "nameLabel": "Company name",
+    "namePlaceholder": "Your company's official name",
+    "nameWas": "Currently: {{name}}",
+    "logoLabel": "Company logo",
+    "logoPick": "Upload logo",
+    "logoChange": "Change logo",
+    "save": "Save",
+    "missing": {
+      "company_name": "Enter your company's correct name — it must differ from the current one.",
+      "logo": "Upload your company's logo."
+    }
+  },
   "authScreen": {
     "signIn": "Sign in",
     "signUp": "Register",
