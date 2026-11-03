@@ -5,8 +5,15 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Sun, 01 Nov 2026 07:06:59 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 03 Nov 2026 07:06:22 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[როგორ მოვამზადოთ მძღოლთა ფლოტი შემოდგომის ტურისტულ სეზონზე საქართველოში]]></title>
+      <link>https://kekemanager.com/blog/how-to-prepare-driver-fleet-for-autumn-tourism-season-georgia-2</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/how-to-prepare-driver-fleet-for-autumn-tourism-season-georgia-2</guid>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[შემოდგომის ტურისტული სეზონის მომზადება: ფლოტის დაგეგმვა, მძღოლების ტრენინგი, ტექნიკური მომსახურება და B2B პლატფორმები.]]></description>
+    </item>
     <item>
       <title><![CDATA[როგორ გავზარდოთ ტურისტული ტრანსპორტის ბიზნესი საქართველოში]]></title>
       <link>https://kekemanager.com/blog/how-to-scale-tourist-transport-business-georgia</link>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/kakheti-grape-harvest-season-transport-guide</guid>
       <pubDate>Mon, 07 Sep 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[როგორ დავგეგმოთ და მოვაწყოთ ტრანსპორტი კახეთის რთველის ტურებისთვის სექტემბერ-ოქტომბერში — მარშრუტები, ავტომობილების ტიპები, ლოჯისტიკა.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[რა არის KEKE Manager? სრული გზამკვლევი 2026]]></title>
-      <link>https://kekemanager.com/blog/what-is-keke-manager</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/what-is-keke-manager</guid>
-      <pubDate>Tue, 01 Sep 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[KEKE Manager — B2B პლატფორმა, რომელიც ტურ-ოპერატორებს, ტრანსპორტ კომპანიებს და ვერიფიცირებულ მძღოლებს აკავშირებს საქართველოში. გაარკვიეთ როგორ მუშაობს.]]></description>
     </item>
   </channel>
 </rss>
