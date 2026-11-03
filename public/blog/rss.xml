@@ -5,8 +5,15 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Tue, 03 Nov 2026 07:06:22 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 03 Nov 2026 07:22:04 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[როგორ მოვამზადოთ ავტოპარკი ზამთრის სეზონისთვის საქართველოში]]></title>
+      <link>https://kekemanager.com/blog/how-to-prepare-fleet-for-winter-season-georgia</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/how-to-prepare-fleet-for-winter-season-georgia</guid>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[ზამთრის ტურისტული სეზონის წარმატებული მართვა: ავტოპარკის მომზადება, მძღოლთა ტრენინგი და რისკების მინიმიზაცია მთიან რეგიონებში.]]></description>
+    </item>
     <item>
       <title><![CDATA[როგორ მოვამზადოთ მძღოლთა ფლოტი შემოდგომის ტურისტულ სეზონზე საქართველოში]]></title>
       <link>https://kekemanager.com/blog/how-to-prepare-driver-fleet-for-autumn-tourism-season-georgia-2</link>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/svaneti-winter-tour-transport-guide</guid>
       <pubDate>Thu, 10 Sep 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[როგორ მოვამზადოთ და მოვაწყოთ უსაფრთხო, მომგებიანი ზამთრის ტური სვანეთში — ტრანსპორტის არჩევანი, მძღოლის მოთხოვნები და ლოგისტიკური გამოწვევები.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[კახეთის რთველის სეზონი: ტრანსპორტის სრული გიდი ტუროპერატორებისთვის]]></title>
-      <link>https://kekemanager.com/blog/kakheti-grape-harvest-season-transport-guide</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/kakheti-grape-harvest-season-transport-guide</guid>
-      <pubDate>Mon, 07 Sep 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[როგორ დავგეგმოთ და მოვაწყოთ ტრანსპორტი კახეთის რთველის ტურებისთვის სექტემბერ-ოქტომბერში — მარშრუტები, ავტომობილების ტიპები, ლოჯისტიკა.]]></description>
     </item>
   </channel>
 </rss>
