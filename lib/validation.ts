@@ -207,7 +207,9 @@ export function validateSignUpFields(input: SignUpFormInput): SignUpFieldErrors 
     errors.accountType = t('validation.roleRequired');
   }
   if (!input.fullName.trim()) {
-    errors.fullName = t('validation.nameRequired');
+    // A company signs up under its company name, not a person's.
+    errors.fullName =
+      input.accountType === 'company' ? t('validation.companyNameRequired') : t('validation.nameRequired');
   }
   const passErr = validatePassword(input.password);
   if (passErr) errors.password = passErr.replace(/\.$/, '');

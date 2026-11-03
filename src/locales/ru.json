@@ -820,6 +820,7 @@
     "passengerCapacityRange": "Количество мест: от 1 до 100",
     "roleRequired": "Выберите роль",
     "nameRequired": "Введите полное имя и фамилию",
+    "companyNameRequired": "Введите название компании",
     "emailAlreadyRegistered": "Этот email уже зарегистрирован — перейдите ко входу.",
     "genericInvalid": "Неверные данные или запрос не выполнен.",
     "alertTitle": "Форма не заполнена",

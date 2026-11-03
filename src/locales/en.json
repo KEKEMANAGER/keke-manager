@@ -978,6 +978,7 @@
     "passengerCapacityRange": "Seat capacity must be 1–100",
     "roleRequired": "Select a role",
     "nameRequired": "Enter full name and surname",
+    "companyNameRequired": "Enter the company name",
     "emailAlreadyRegistered": "This email is already registered — go to Sign in.",
     "genericInvalid": "Invalid data or request could not be completed.",
     "alertTitle": "Incomplete form",

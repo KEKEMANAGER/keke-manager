@@ -261,7 +261,7 @@ export default function SignUpScreen() {
 
         <View style={styles.card}>
           <AuthInput
-            label={t('authScreen.fullName')}
+            label={isCompany ? t('authScreen.companyName') : t('authScreen.fullName')}
             value={fullName}
             onChangeText={setFullName}
             error={fieldErrors.fullName}
