@@ -51,8 +51,11 @@ Deno.test('an app without the review: an unconfirmed leg is emptied (not dropped
     transfer_out: { date_display: '2026-11-15T02:00:00.000Z', pickup_time: '06:00', from: 'Hotel Stamba', to: 'Tbilisi International Airport', flight: 'TK 383', flight_at: null },
   };
   // the model read the departure's time and the days; neither is in the request
-  const r = reviewService({ ...base, draft: tour, templateDraft: null, aiDraft: tour, inputKind: 'prose', sourceText: 'Tour 13-14 Nov 2026, 6 people, microbus, 2000 GEL' });
+  const r = reviewService({ ...base, draft: tour, templateDraft: null, aiDraft: tour, inputKind: 'prose', sourceText: 'Two-day tour in November 2026, 6 people, microbus, 2000 GEL' });
   assert(r.blocking.includes('transfer_out') && r.blocking.includes('tour_days'), JSON.stringify(r.blocking));
+  // a span of days in the request names each day in it
+  const span = reviewService({ ...base, draft: tour, templateDraft: null, aiDraft: tour, inputKind: 'prose', sourceText: 'Tour 13-14 Nov 2026, 6 people, microbus, 2000 GEL' });
+  assertEquals(span.fields.tour_days?.status, 'confirmed', JSON.stringify(span.fields.tour_days));
   const d = withholdUnconfirmed(tour, r);
   assert(d.transfer_out != null, 'the leg is still there, to be filled in');
   assertEquals([d.transfer_out.date_display, d.transfer_out.pickup_time, d.transfer_out.from, d.transfer_out.to, d.transfer_out.flight], [null, null, null, null, null]);

@@ -127,6 +127,21 @@ select matches(tests.insert_tour('[{"day":1,"date":"2026-11-13"},{"day":2,"date"
 select is(tests.insert_tour('[{"day":1,"date":"2026-11-13"},{"day":2,"date":"2026-11-14"}]'), 'ok',
   'T2 the approved tour is created');
 
+-- 7. one approval per reviewed service (review_key): a second one for the same review is refused
+select tests.act_as_owner();
+insert into public.booking_import_approvals (company_id, approved, review_key)
+  values (tests.p5('C1'), '{}'::jsonb, repeat('a', 64));
+select is(tests.try_sql(format('insert into public.booking_import_approvals (company_id, approved, review_key) values (%L, ''{}'', %L)',
+  tests.p5('C1'), repeat('a', 64))), -2, 'K1 a second approval for the same review is refused (unique review_key)');
+select is(tests.try_sql(format('insert into public.booking_import_approvals (company_id, approved, review_key) values (%L, ''{}'', %L)',
+  tests.p5('C1'), repeat('b', 64))), 1, 'K2 another review gets its own approval');
+select is(tests.try_sql(format('insert into public.booking_import_approvals (company_id, approved) values (%L, ''{}''), (%L, ''{}'')',
+  tests.p5('C1'), tests.p5('C1'))), 2, 'K3 approvals without a review key (older function) are not limited');
+select is((select count(*)::int from pg_indexes where indexname = 'booking_import_approvals_review_key'), 1,
+  'K4 the review key index exists');
+select is((select strpos(prosrc, chr(92)) from pg_proc where proname = 'bookings_verify_import_approval'), 0,
+  'K5 the check has no backslash in it (it can be pasted into the SQL editor as is)');
+
 select tests.act_as_owner();
 select * from finish();
 rollback;

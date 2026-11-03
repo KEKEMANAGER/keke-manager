@@ -220,7 +220,7 @@ and every database step uses a throwaway local database.
    the approval; a booking typed into the form inserts exactly as before; an
    older server's answer works as before; every text in four languages.
 3. `run_import_approval_tests.sh`: the migration
-   `20261102100000_booking_import_approvals.sql` on the P0-1..P0-6 database —
+   `20261103200000_booking_import_approvals.sql` on the P0-1..P0-6 database —
    `import_approval.test.sql` (18 checks: manual bookings untouched, an
    approved import goes in once, any other value is refused, expired / other
    company / invented approvals refused, the approvals table is the server's),

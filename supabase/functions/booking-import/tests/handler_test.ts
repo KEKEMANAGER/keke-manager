@@ -527,3 +527,163 @@ Deno.test('the WhatsApp chat with changes: later values read, the stale minivan 
   assertEquals(status(r, 'passengers'), 'unconfirmed');
   assertEquals(svc0(r).review.ready, false);
 });
+
+// ------------------------------------------------- duplicates and double taps
+
+/** One of the company's bookings, as stored (the BASE transfer unless overridden). */
+const stored = (o: Record<string, unknown> = {}) => ({
+  id: 'b-1', company_id: COMPANY, voucher_code: 'KEKE-AB12CD', kind: 'transfer', status: 'pending',
+  date_display: '2026-11-20T06:00:00.000Z', pickup_time: '10:00', from_location: 'Tbilisi International Airport',
+  to_location: 'Hotel Stamba, Tbilisi', route: null, flight_number: 'TK382', passengers: 4,
+  passenger_name: 'Pieter de Vries', passenger_phone: '+31 6 1234 5678', ...o,
+});
+const approveBody = (s: any, extra: Record<string, unknown> = {}) =>
+  ({ action: 'approve', reviewToken: s.review.token, draft: s.draft, insert: insertFor(s.draft), confirmed: [], ...extra });
+
+Deno.test('duplicate: the same flight already booked that day is a question, not an approval', async () => {
+  const s = await readForApproval(BASE, AI_BASE);
+  const r = await run(approveBody(s), { bookings: [stored()] });
+  assertEquals(r.status, 409);
+  assertEquals(r.json.code, 'possible_duplicate');
+  assertEquals(r.json.duplicates.map((d: any) => [d.reason, d.voucher, d.time, d.passengers]), [['same_flight', 'KEKE-AB12CD', '10:00', 4]]);
+  assertEquals(r.approvals.length, 0);
+  const text = JSON.stringify(r.json) + r.consoleLines.join('\n');
+  assert(!text.includes('Pieter') && !text.includes('1234'), 'no guest data in the answer or the log');
+});
+
+Deno.test('duplicate: the agency says it is another group — then it is approved', async () => {
+  const s = await readForApproval(BASE, AI_BASE);
+  const r = await run(approveBody(s, { allowDuplicate: true }), { bookings: [stored()] });
+  assertEquals(r.status, 200, JSON.stringify(r.json));
+  assertEquals(r.approvals.length, 1);
+  assertEquals(r.bookingReads, 0);
+});
+
+Deno.test('duplicate: a cancelled booking, another day, another company or another flight is not asked about', async () => {
+  const s = await readForApproval(BASE, AI_BASE);
+  const others = [
+    stored({ status: 'cancelled' }),
+    stored({ id: 'b-2', date_display: '2026-11-21T06:00:00.000Z' }),
+    stored({ id: 'b-3', company_id: '00000000-0000-4000-8000-0000000000c2' }),
+    stored({ id: 'b-4', flight_number: 'A9 652' }),
+  ];
+  const r = await run(approveBody(s), { bookings: others });
+  assertEquals(r.status, 200, JSON.stringify(r.json));
+});
+
+Deno.test('duplicate: when the check cannot run, nothing is approved (try again)', async () => {
+  const s = await readForApproval(BASE, AI_BASE);
+  const r = await run(approveBody(s), { bookingsFail: true });
+  assertEquals([r.status, r.json.code, r.approvals.length], [503, 'try_again', 0]);
+});
+
+Deno.test('double tap: the same review approved twice is one approval, refreshed', async () => {
+  const s = await readForApproval(BASE, AI_BASE);
+  const first = await run(approveBody(s));
+  assertEquals(first.status, 200);
+  assert(typeof first.approvals[0].review_key === 'string' && first.approvals[0].review_key.length === 64);
+  assert(!JSON.stringify(first.approvals).includes(s.review.token), 'the token itself is never stored');
+  const second = await run(approveBody(s), { approvalsBefore: first.approvals });
+  assertEquals(second.status, 200);
+  assertEquals(second.json.approvalId, first.json.approvalId);
+  assertEquals(second.approvals.length, 1);
+  assertEquals(second.approvals[0].updated, 1);
+});
+
+Deno.test('double tap: once the approval made a booking, the answer is that booking', async () => {
+  const s = await readForApproval(BASE, AI_BASE);
+  const first = await run(approveBody(s));
+  const used = first.approvals.map((a) => ({ ...a, used_at: '2026-11-01T10:00:05Z', used_booking_id: 'b-1' }));
+  const again = await run(approveBody(s), { approvalsBefore: used, bookings: [stored()] });
+  assertEquals(again.status, 409);
+  assertEquals([again.json.code, again.json.voucher, again.json.bookingId], ['already_created', 'KEKE-AB12CD', 'b-1']);
+  assertEquals(again.approvals.length, 1);
+  assert(!JSON.stringify(again.json).includes('Pieter'));
+});
+
+Deno.test('double tap: two requests at once — the second takes the first one’s approval', async () => {
+  const s = await readForApproval(BASE, AI_BASE);
+  const solo = await run(approveBody(s));
+  const key = solo.approvals[0].review_key;
+  const parallel = { id: '00000000-0000-4000-8000-0000000000aa', company_id: COMPANY, approved: {}, review_key: key, used_at: null, used_booking_id: null };
+  const r = await run(approveBody(s), { race: { at: 'insert', approval: parallel } });
+  assertEquals(r.status, 200, JSON.stringify(r.json));
+  assertEquals(r.json.approvalId, parallel.id);
+  assertEquals(r.approvals.length, 1);
+  // the parallel one made its booking just before this one's insert
+  const done = { ...parallel, used_at: '2026-11-01T10:00:01Z', used_booking_id: 'b-1' };
+  const r2 = await run(approveBody(s), { race: { at: 'insert', approval: done, bookings: [stored()] } });
+  assertEquals([r2.status, r2.json.code, r2.json.voucher], [409, 'already_created', 'KEKE-AB12CD']);
+  // … or before this one's duplicate check: still "already created", not "a similar booking"
+  const r3 = await run(approveBody(s), { race: { at: 'first_read', approval: done, bookings: [stored()] } });
+  assertEquals([r3.status, r3.json.code, r3.json.voucher], [409, 'already_created', 'KEKE-AB12CD']);
+});
+
+Deno.test('every failure answer carries a code the app can translate', async () => {
+  const r1 = await run({ text: 'hi', ...gate });
+  assertEquals(r1.json.code, 'text_too_short');
+  const r2 = await run({ fileName: 'x.pdf', ...gate });
+  assert(typeof r2.json.code === 'string' && r2.json.code.length > 0, JSON.stringify(r2.json));
+  const r3 = await run({ ...textFile(BASE), ...gate }, { role: 'driver' });
+  assertEquals(r3.json.code, 'not_company');
+  const r4 = await run({ ...textFile(BASE), ...gate }, { importsToday: 10_000 });
+  assertEquals(r4.json.code, 'daily_limit');
+});
+
+// --------------------------------------- transfer, day tour, multi-day tour
+
+const PROGRAMME = 'Group of 6, 13-15.11.2026. Day 1 Tbilisi city tour, day 2 Kazbegi, day 3 Mtskheta and back. Minivan. 900 GEL.';
+const THREE_DAYS = [
+  { day: 1, date: '2026-11-13', fromPlace: 'Tbilisi', toPlace: 'Tbilisi', stops: 'city tour' },
+  { day: 2, date: '2026-11-14', fromPlace: 'Tbilisi', toPlace: 'Kazbegi', stops: 'Kazbegi' },
+  { day: 3, date: '2026-11-15', fromPlace: 'Kazbegi', toPlace: 'Tbilisi', stops: 'Mtskheta' },
+];
+const programmeAs = (kind: string | null, days: unknown[] = THREE_DAYS) =>
+  ({ kind, date: '2026-11-13', passengers: 6, vehicle_type: 'minivan', client_price: 900, client_price_currency: 'GEL', tour_days: days, uncertain_fields: [] });
+
+Deno.test('kind: several days are never a transfer or a day tour — read as a tour, every day kept, and asked', async () => {
+  for (const label of ['transfer', 'day_tour', null]) {
+    const r = await run({ text: PROGRAMME, ...gate }, { replies: [program(programmeAs(label))] });
+    const s = svc0(r);
+    assertEquals([s.draft.kind, s.draft.tour_days.length], ['tour', 3], String(label));
+    assertEquals(s.review.fields.kind.status, 'unconfirmed', String(label));
+    assert(s.review.fields.kind.reasons.includes('several_days'), JSON.stringify(s.review.fields.kind));
+    assert(s.review.blocking.includes('kind'), String(label));
+    // "13-15.11.2026" names each of the three days
+    assertEquals(s.review.fields.tour_days.status, 'confirmed', JSON.stringify(s.review.fields.tour_days));
+  }
+});
+
+Deno.test('kind: a labelled "Service: Transfer" over a programme the model reads as days is a tour', async () => {
+  const text = ['Service: Transfer', 'Date: 13.11.2026', 'Pax: 6', 'Vehicle: Minivan', 'Price: 900 GEL',
+    'Day 1: Tbilisi city tour', 'Day 2: Kazbegi', 'Day 3: Mtskheta and back to Tbilisi'].join('\n');
+  const r = await run({ ...textFile(text), ...gate }, { replies: [program(programmeAs('transfer'))] });
+  const s = svc0(r);
+  assertEquals([s.draft.kind, s.draft.tour_days.length], ['tour', 3]);
+  assert(s.review.blocking.includes('kind'), JSON.stringify(s.review.blocking));
+});
+
+Deno.test('kind: one day of sightseeing stays a day tour; two parts of the same day are still one day', async () => {
+  const one = await run({ text: 'Day tour 14.11.2026 from Hotel Stamba to Kazbegi and back, 6 people, minivan, 400 GEL', ...gate }, {
+    replies: [program({ kind: 'day_tour', date: '2026-11-14', time: '09:00', from_location: 'Hotel Stamba', to_location: 'Hotel Stamba', route: 'Ananuri, Gudauri, Kazbegi', passengers: 6, vehicle_type: 'minivan', client_price: 400, client_price_currency: 'GEL', uncertain_fields: [] })],
+  });
+  assertEquals(svc0(one).draft.kind, 'day_tour');
+  assert(!(svc0(one).review.fields.kind?.reasons ?? []).includes('several_days'));
+  const halves = [
+    { day: 1, date: '2026-11-14', fromPlace: 'Tbilisi', toPlace: 'Mtskheta', stops: 'morning: Jvari' },
+    { day: 1, date: '2026-11-14', fromPlace: 'Mtskheta', toPlace: 'Tbilisi', stops: 'afternoon: Svetitskhoveli' },
+  ];
+  const r = await run({ text: 'Day tour 14.11.2026 Mtskheta, 6 people, minivan, 400 GEL', ...gate }, { replies: [program(programmeAs('day_tour', halves))] });
+  assertEquals(svc0(r).draft.kind, 'day_tour');
+});
+
+Deno.test('kind: a programme of a tour and its separate transfers keeps each one’s kind', async () => {
+  const text = 'Arrival 12.11.2026 TK 382 at 23:40, transfer to Hotel Stamba. Tour 13-15.11.2026 (Tbilisi, Kazbegi, Mtskheta). Separate transfer 16.11.2026 10:00 Hotel Stamba to Kutaisi airport. 6 pax, minivan.';
+  const r = await run({ text, ...gate }, { replies: [program(
+    { kind: 'transfer', date: '2026-11-12', time: '23:40', from_location: 'Tbilisi International Airport', to_location: 'Hotel Stamba', flight_number: 'TK 382', flight_direction: 'arrival', passengers: 6, vehicle_type: 'minivan', uncertain_fields: [] },
+    programmeAs('tour'),
+    { kind: 'transfer', date: '2026-11-16', time: '10:00', from_location: 'Hotel Stamba', to_location: 'Kutaisi International Airport', flight_direction: 'departure', passengers: 6, vehicle_type: 'minivan', uncertain_fields: [] },
+  )] });
+  assertEquals(r.json.services.map((s: any) => s.draft.kind), ['transfer', 'tour', 'transfer']);
+  assertEquals(r.json.services[1].draft.tour_days.length, 3);
+});

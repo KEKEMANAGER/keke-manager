@@ -2175,8 +2175,59 @@
         "kind_changed": "The service type changed — this value was not checked yet",
         "day_without_date": "A day has no date",
         "flight_unclear": "The flight needs checking",
-        "time_unreadable": "Could not read the time"
+        "time_unreadable": "Could not read the time",
+        "several_days": "A programme of several days — read as a tour, check it"
       }
+    },
+    "errors": {
+      "bad_request": "The request could not be sent — update the app and try again.",
+      "auth_required": "Your session has expired — sign out and sign in again.",
+      "not_company": "Importing bookings is only for company accounts.",
+      "daily_limit": "Today's limit is used up. Try again later or fill in the booking by hand.",
+      "try_again": "That didn't work just now — try again in a few seconds.",
+      "too_many_photos": "Choose at most 5 photos at a time.",
+      "photo_empty": "The photo is empty — choose it again.",
+      "photo_too_big": "The photo is too large — choose a smaller one or take a screenshot.",
+      "photo_unsupported": "This picture can't be read — use a JPG or PNG photo or a screenshot.",
+      "text_too_short": "Paste the text of the message.",
+      "text_too_long": "The text is too long — paste only the messages with the booking.",
+      "no_file": "No file arrived — choose it again.",
+      "file_too_big": "The file is too large (max 8 MB). Export a WhatsApp chat “without media”.",
+      "file_damaged": "The file is empty or damaged.",
+      "no_text": "No text found in the file.",
+      "old_doc": "The old .doc format can't be read. Save it as .docx in Word and upload it again.",
+      "pdf_scan": "This PDF has no text (it is a scan). Upload photos of its pages or the original file.",
+      "pdf_broken": "The PDF could not be opened — it may be damaged or password-protected.",
+      "zip_no_chat": "No chat text found in this archive. In WhatsApp choose “Export chat” → “Without media”, or simply paste the messages.",
+      "unsupported_format": "This format can't be read. Upload a PDF, .docx, .xlsx, .txt, a WhatsApp chat or a photo.",
+      "ai_timeout": "Reading took too long. Try again, or paste only the booking part.",
+      "ai_refused": "This document could not be read automatically. Fill in the booking by hand.",
+      "ai_incomplete": "The document could not be read to the end. Try again or upload it in parts.",
+      "ai_busy": "The reading service is busy right now. Try again in a minute.",
+      "ai_unavailable": "Automatic reading is temporarily unavailable. Try later or fill in the booking by hand.",
+      "nothing_found": "No booking details found (date, place or passengers). Check it is the right message, or try a clearer photo.",
+      "read_failed": "Could not read it — please try again.",
+      "approve_issues": "Before the booking is created, these fields must be confirmed or filled in:",
+      "possible_duplicate": "You already have a similar booking on the same day.",
+      "already_created": "This booking has already been created.",
+      "approval_stale": "The details changed after they were approved — press “Create the booking” again."
+    },
+    "duplicate": {
+      "title": "You already have a similar booking",
+      "intro": "On the same day you already have:",
+      "reasons": {
+        "same_flight": "same flight",
+        "same_trip": "same route at about the same time",
+        "same_tour": "a tour starting the same day"
+      },
+      "passengers": "{{count}} pax",
+      "question": "Is this a different booking? If so, create it anyway. If it is the same one, don't create it.",
+      "webHint": "OK — create anyway · Cancel — don't create",
+      "create": "Create anyway",
+      "skip": "Don't create",
+      "skipped": "Not created (already booked): {{count}}",
+      "wasCreated": "Already created earlier: {{vouchers}}",
+      "nothingCreated": "No new booking was created."
     }
   },
   "priceRequest": {

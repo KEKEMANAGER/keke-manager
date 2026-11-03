@@ -417,31 +417,80 @@ export function clockInSource(hhmm: string | null | undefined, source: string | 
 }
 
 /** Is a calendar day (YYYY-MM-DD) written in the request? Day-first, as Georgian operators write. */
+const MONTH_NAMES: string[][] = [
+  ['jan', 'январ', 'янв', 'იანვ'], ['feb', 'феврал', 'февр', 'თებ'], ['mar', 'март', 'მარტ'], ['apr', 'апрел', 'апр', 'აპრ'],
+  ['may', 'мая', 'май', 'მაის'], ['jun', 'июн', 'ივნ'], ['jul', 'июл', 'ივლ'], ['aug', 'август', 'авг', 'აგვ'],
+  ['sep', 'сентябр', 'сент', 'სექტ'], ['oct', 'октябр', 'окт', 'ოქტ'], ['nov', 'ноябр', 'нояб', 'ნოემ'], ['dec', 'декабр', 'дек', 'დეკ'],
+];
+
+/** A two- or four-digit year as a full year. */
+const fullYear = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
+
+/**
+ * Does the request name this date (YYYY-MM-DD)? As written in tour operators'
+ * requests in Georgian, English and Russian: 20.11.2026, 20/11, 2026-11-20,
+ * "20 ნოემბერს", "ноября 20", "November 20th", 11/20/2026 (only when it cannot
+ * be day/month), and a span of days that contains it — "18-22.11.2026",
+ * "18.11-22.11", "18–22 ноября", "November 18-22", "18-დან 22-მდე ნოემბერი".
+ */
 export function dateInSource(ymd: string | null | undefined, source: string | null): boolean {
   if (!ymd || !source) return false;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
   if (!m) return false;
-  const [, y, mo, d] = m;
-  const day = Number(d);
-  const month = Number(mo);
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
   const s = String(source);
   if (s.includes(ymd)) return true;
-  for (const t of s.matchAll(/\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/g)) {
-    if (Number(t[1]) === day && Number(t[2]) === month) {
-      if (!t[3]) return true;
-      const yy = t[3].length === 2 ? 2000 + Number(t[3]) : Number(t[3]);
-      if (yy === Number(y)) return true;
-    }
+  const target = Date.UTC(year, month - 1, day);
+  const yearOk = (y: string | undefined) => !y || fullYear(y) === year;
+  /** Is the target inside a span of at most a month (the span's year, else the target's)? */
+  const within = (d1: number, m1: number, d2: number, m2: number, y?: string) => {
+    if (y && !yearOk(y)) return false;
+    if (d1 < 1 || d1 > 31 || d2 < 1 || d2 > 31 || m1 < 1 || m1 > 12 || m2 < 1 || m2 > 12) return false;
+    const end = Date.UTC(year, m2 - 1, d2);
+    const start = Date.UTC(m1 > m2 ? year - 1 : year, m1 - 1, d1);
+    return end >= start && end - start <= 31 * 86_400_000 && target >= start && target <= end;
+  };
+
+  // 2026.11.20, 2026/11/20: year first.
+  for (const t of s.matchAll(/(?<!\d)(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?!\d)/g)) {
+    if (Number(t[1]) === year && Number(t[2]) === month && Number(t[3]) === day) return true;
   }
-  const MONTHS: string[][] = [
-    ['jan', 'января', 'январ', 'იანვ'], ['feb', 'февр', 'თებ'], ['mar', 'марта', 'მარტ'], ['apr', 'апр', 'აპრ'],
-    ['may', 'мая', 'მაის'], ['jun', 'июн', 'ივნ'], ['jul', 'июл', 'ივლ'], ['aug', 'авг', 'აგვ'],
-    ['sep', 'сент', 'სექტ'], ['oct', 'окт', 'ოქტ'], ['nov', 'нояб', 'ნოემ'], ['dec', 'дек', 'დეკ'],
-  ];
+  // Every numeric date, overlapping ("13-15.11.2026" holds 15.11.2026 too). A
+  // number right after a dot or a slash is a month or a year, not a day.
+  for (const t of s.matchAll(/(?<![\d./])(?=(\d{1,2})[./-](\d{1,2})(?:[./-](\d{4}|\d{2})(?!\d))?(?![\d:]))/g)) {
+    const a = Number(t[1]);
+    const b = Number(t[2]);
+    if (a === day && b === month && yearOk(t[3])) return true;
+    // 11/20/2026: month first, unmistakably (20 is not a month).
+    if (b > 12 && a === month && b === day && yearOk(t[3])) return true;
+  }
+  // A span of days in one month, or from one date to another.
+  for (const t of s.matchAll(/(?<![\d./])(\d{1,2})\s*[-–—]\s*(\d{1,2})[./](\d{1,2})(?:[./](\d{4}|\d{2}))?(?!\d)/g)) {
+    if (within(Number(t[1]), Number(t[3]), Number(t[2]), Number(t[3]), t[4])) return true;
+  }
+  for (const t of s.matchAll(/(?<![\d./])(\d{1,2})[./](\d{1,2})(?:[./](\d{4}|\d{2}))?\s*[-–—]\s*(\d{1,2})[./](\d{1,2})(?:[./](\d{4}|\d{2}))?(?!\d)/g)) {
+    if (within(Number(t[1]), Number(t[2]), Number(t[4]), Number(t[5]), t[6] ?? t[3])) return true;
+  }
+
   const lower = s.toLowerCase();
-  for (const name of MONTHS[month - 1]) {
-    const re = new RegExp(`(\\b${day}\\s*(?:-?ში|-?ს)?\\s*${name})|(${name}\\p{L}*\\.?\\s*${day}\\b)`, 'iu');
-    if (re.test(lower)) return true;
+  const ord = '(?:st|nd|rd|th|-?ში|-?ს|-?ე)?';
+  const span = '\\s*(?:[-–—]|to|till|until|по|до)\\s*';
+  for (const name of MONTH_NAMES[month - 1]) {
+    const monthWord = `${name}\\p{L}*\\.?`;
+    const single = new RegExp(`((?<!\\d)${day}${ord}\\s*${monthWord})|(${monthWord}\\s*${day}(?!\\d))`, 'iu');
+    if (single.test(lower)) return true;
+    const spans = [
+      new RegExp(`(?<!\\d)(\\d{1,2})${ord}${span}(\\d{1,2})${ord}\\s*${monthWord}`, 'giu'),
+      new RegExp(`(?<!\\d)(\\d{1,2})-?დან\\s*(\\d{1,2})-?მდე\\s*${monthWord}`, 'giu'),
+      new RegExp(`${monthWord}\\s*(\\d{1,2})${ord}${span}(\\d{1,2})(?!\\d)`, 'giu'),
+    ];
+    for (const re of spans) {
+      for (const t of lower.matchAll(re)) {
+        if (within(Number(t[1]), month, Number(t[2]), month)) return true;
+      }
+    }
   }
   return false;
 }

@@ -31,6 +31,18 @@ export type RunOptions = {
   importsToday?: number;
   /** One reply per model call, in order; the last one repeats. */
   replies?: ModelReply[];
+  /** Approvals already in the table before this request (e.g. the previous run's). */
+  approvalsBefore?: any[];
+  /**
+   * A parallel request for the same review finishes in the middle of this one:
+   * right after this request first reads the approvals, or just before its
+   * first insert. Its approval (and the booking it made, if any) appear then.
+   */
+  race?: { at: 'first_read' | 'insert'; approval: any; bookings?: any[] };
+  /** The company's bookings, as the duplicate check and the voucher lookup read them. */
+  bookings?: any[];
+  /** Reading bookings fails. */
+  bookingsFail?: boolean;
 };
 
 export type RunResult = {
@@ -40,6 +52,8 @@ export type RunResult = {
   logRows: any[];
   rememberCalls: any[];
   approvals: any[];
+  /** How many times the bookings table was read. */
+  bookingReads: number;
   consoleLines: string[];
 };
 
@@ -51,8 +65,22 @@ const state = {
   logRows: [] as any[],
   rememberCalls: [] as any[],
   approvals: [] as any[],
+  approvalSeq: 0,
+  raced: false,
+  bookings: [] as any[],
+  bookingReads: 0,
   replyIndex: 0,
 };
+
+const eqv = (v: string | null) => (v ?? '').replace(/^eq\./, '');
+
+function applyRace(at: 'first_read' | 'insert') {
+  const race = state.opts.race;
+  if (!race || race.at !== at || state.raced) return;
+  state.raced = true;
+  state.approvals.push({ ...race.approval });
+  state.bookings.push(...(race.bookings ?? []));
+}
 
 const j = (v: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json', ...headers } });
@@ -80,10 +108,40 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     return new Response(null, { status: 201 });
   }
   if (url.includes('/rest/v1/booking_import_approvals')) {
+    const p = new URL(url).searchParams;
+    if (method === 'GET') {
+      const rows = state.approvals.filter((a) => a.review_key != null && a.review_key === eqv(p.get('review_key'))).map((a) => ({ ...a }));
+      applyRace('first_read');
+      return j(rows);
+    }
+    if (method === 'PATCH') {
+      const row = state.approvals.find((a) => a.id === eqv(p.get('id')) && (p.get('used_at') !== 'is.null' || !a.used_at));
+      if (!row) return j([]);
+      Object.assign(row, JSON.parse(body || '{}'));
+      row.updated = (row.updated ?? 0) + 1;
+      return j([{ id: row.id }]);
+    }
     const row = JSON.parse(body || '{}');
-    const id = `00000000-0000-4000-8000-${String(state.approvals.length + 1).padStart(12, '0')}`;
-    state.approvals.push({ id, ...row });
+    applyRace('insert');
+    if (row.review_key != null && state.approvals.some((a) => a.review_key === row.review_key)) {
+      return j({ code: '23505', message: 'duplicate key value violates unique constraint "booking_import_approvals_review_key"', details: null, hint: null }, 409);
+    }
+    state.approvalSeq += 1;
+    const id = `00000000-0000-4000-8000-${String(state.approvalSeq).padStart(12, '0')}`;
+    state.approvals.push({ id, used_at: null, used_booking_id: null, ...row });
     return j({ id }, 201);
+  }
+  if (url.includes('/rest/v1/bookings')) {
+    if (o.bookingsFail) return j({ message: 'unavailable' }, 500);
+    state.bookingReads += 1;
+    const p = new URL(url).searchParams;
+    const company = eqv(p.get('company_id'));
+    const all = state.bookings.filter((b) => b.company_id === company);
+    if (p.get('id')) return j(all.filter((b) => b.id === eqv(p.get('id'))));
+    const bound = (op: string) => p.getAll('date_display').find((v) => v.startsWith(op + '.'))?.slice(op.length + 1);
+    const from = bound('gte');
+    const to = bound('lte');
+    return j(all.filter((b) => (!from || b.date_display >= from) && (!to || b.date_display <= to)));
   }
   if (url.includes('/rest/v1/rpc/remember_import_labels')) {
     state.rememberCalls.push(JSON.parse(body || '{}'));
@@ -132,7 +190,11 @@ export async function run(payload: unknown, opts: RunOptions = {}): Promise<RunR
   state.modelRequests = [];
   state.logRows = [];
   state.rememberCalls = [];
-  state.approvals = [];
+  state.approvals = (opts.approvalsBefore ?? []).map((a) => ({ ...a }));
+  state.approvalSeq = state.approvals.length + 100;
+  state.raced = false;
+  state.bookings = [...(opts.bookings ?? [])];
+  state.bookingReads = 0;
   state.replyIndex = 0;
   consoleLines.length = 0;
   if (opts.apiKey === false) Deno.env.delete('ANTHROPIC_API_KEY');
@@ -152,6 +214,7 @@ export async function run(payload: unknown, opts: RunOptions = {}): Promise<RunR
     logRows: state.logRows,
     rememberCalls: state.rememberCalls,
     approvals: state.approvals,
+    bookingReads: state.bookingReads,
     consoleLines: [...consoleLines],
   };
 }

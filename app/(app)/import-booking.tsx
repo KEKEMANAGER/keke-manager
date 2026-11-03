@@ -55,6 +55,7 @@ import {
   withFormDefaults,
   type BookingImportFailure,
   type BookingImportResult,
+  type ImportDuplicate,
   type ImportedBookingDraft,
   type ImportedLeg,
   type ImportedService,
@@ -567,6 +568,8 @@ export default function ImportBookingScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   /** Services already sent, so a second tap cannot duplicate them. */
   const [createdIndexes, setCreatedIndexes] = useState<number[]>([]);
+  /** Services the agency chose not to create: the same trip was already booked. */
+  const [skippedIndexes, setSkippedIndexes] = useState<number[]>([]);
   /** Each service as it was read, to tell a value the agency corrected from one left as read. */
   const [originals, setOriginals] = useState<ImportedBookingDraft[]>([]);
   /**
@@ -613,7 +616,7 @@ export default function ImportBookingScreen() {
   const showMeetGreet = isTransfer || !!draft?.transfer_in || draft?.meet_greet === true;
   const pendingIndexes = services
     .map((_, i) => i)
-    .filter((i) => !createdIndexes.includes(i));
+    .filter((i) => !createdIndexes.includes(i) && !skippedIndexes.includes(i));
 
   /**
    * The answer's top-level warnings repeat the first service's own. Shown here:
@@ -636,6 +639,42 @@ export default function ImportBookingScreen() {
       return;
     }
     Alert.alert(title, message, onClose ? [{ text: t('common.ok'), onPress: onClose }] : undefined);
+  }
+
+  /** A yes/no question; the browser's own confirm box on the web. */
+  function ask(title: string, message: string, yes: string, no: string): Promise<boolean> {
+    if (Platform.OS === 'web') {
+      const answer = typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}\n\n${t('importBooking.duplicate.webHint')}`);
+      return Promise.resolve(answer);
+    }
+    return new Promise((resolve) => {
+      Alert.alert(
+        title,
+        message,
+        [
+          { text: no, style: 'cancel', onPress: () => resolve(false) },
+          { text: yes, onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+  }
+
+  /** The bookings that look like the same trip, one line each: what the agency needs to decide. */
+  function duplicateText(dups: ImportDuplicate[], label: string | null): string {
+    const lines = dups.map((d) => {
+      const parts = [
+        d.voucher,
+        t(`importBooking.kinds.${d.kind}`, { defaultValue: d.kind }),
+        [d.date, d.time].filter(Boolean).join(' '),
+        [d.from, d.to].filter(Boolean).join(' → '),
+        d.passengers != null ? t('importBooking.duplicate.passengers', { count: d.passengers }) : null,
+      ].filter((x): x is string => !!x && x.trim().length > 0);
+      return `• ${parts.join(' · ')} (${t(`importBooking.duplicate.reasons.${d.reason}`)})`;
+    });
+    return [label, t('importBooking.duplicate.intro'), ...lines, '', t('importBooking.duplicate.question')]
+      .filter((x) => x !== null)
+      .join('\n');
   }
 
   function patchDraft(update: (d: ImportedBookingDraft) => ImportedBookingDraft) {
@@ -779,6 +818,7 @@ export default function ImportBookingScreen() {
     setConfirmations({});
     setActiveIndex(0);
     setCreatedIndexes([]);
+    setSkippedIndexes([]);
     setWarnings(res.warnings ?? []);
     setUsedAi(res.usedAi);
     setReadSource(source);
@@ -791,6 +831,7 @@ export default function ImportBookingScreen() {
     setConfirmations({});
     setActiveIndex(0);
     setCreatedIndexes([]);
+    setSkippedIndexes([]);
     setWarnings([]);
     setUsedAi(false);
     setReadSource(null);
@@ -977,21 +1018,48 @@ export default function ImportBookingScreen() {
 
     setSubmitting(true);
     const done: number[] = [];
+    const skipped: number[] = [];
+    const earlier: string[] = [];
     let failure: string | null = null;
 
     for (const i of pendingIndexes) {
       // Field for field what the new-booking form sends for the same booking —
       // after the server has approved the reviewed values (createImportedBooking).
-      const res = await createImportedBooking({
-        service: services[i],
-        confirmed: confirmedFor(i),
-        ctx: {
-          companyUserId: user.id,
-          companyName: companyDisplayName(profile, user),
-          createdByName: operatorName ?? profile?.full_name ?? null,
-        },
-        insert: insertBooking,
-      });
+      const create = (allowDuplicate: boolean) =>
+        createImportedBooking({
+          service: services[i],
+          confirmed: confirmedFor(i),
+          ctx: {
+            companyUserId: user.id,
+            companyName: companyDisplayName(profile, user),
+            createdByName: operatorName ?? profile?.full_name ?? null,
+          },
+          insert: insertBooking,
+          allowDuplicate,
+        });
+      let res = await create(false);
+      if (!res.ok && res.reason === 'possible_duplicate') {
+        // The same trip may be booked already: the agency decides, seeing which booking.
+        setActiveIndex(i);
+        const label = services.length > 1 ? serviceLabel(services[i], i) : null;
+        const createAnyway = await ask(
+          t('importBooking.duplicate.title'),
+          duplicateText(res.duplicates, label),
+          t('importBooking.duplicate.create'),
+          t('importBooking.duplicate.skip'),
+        );
+        if (!createAnyway) {
+          skipped.push(i);
+          continue;
+        }
+        res = await create(true);
+      }
+      if (!res.ok && res.reason === 'already_created') {
+        // Created a moment ago (a second tap, an answer that never arrived): it is done.
+        done.push(i);
+        if (res.voucher) earlier.push(res.voucher);
+        continue;
+      }
       if (!res.ok) {
         setActiveIndex(i);
         if (res.reason === 'not_approved') {
@@ -999,11 +1067,11 @@ export default function ImportBookingScreen() {
             .map((x) => (x.field === '*' ? '' : t(`importBooking.review.fields.${x.field}`, { defaultValue: x.field })))
             .filter(Boolean);
           failure = [res.error, ...[...new Set(fields)].map((f) => `• ${f}`)].join('\n');
-        } else if (res.reason === 'insert_failed') {
+        } else if (res.reason === 'insert_failed' || res.reason === 'possible_duplicate') {
           failure = res.error;
         } else if (res.reason === 'missing') {
           failure = res.missing.map((m) => `• ${m}`).join('\n');
-        } else {
+        } else if (res.reason === 'unconfirmed') {
           failure = res.fields.map((f) => `• ${t('importBooking.review.needs', { field: t(`importBooking.review.fields.${f}`) })}`).join('\n');
         }
         break;
@@ -1012,22 +1080,34 @@ export default function ImportBookingScreen() {
     }
 
     setCreatedIndexes((prev) => [...prev, ...done]);
+    setSkippedIndexes((prev) => [...prev, ...skipped]);
     setSubmitting(false);
+
+    const notes = [
+      earlier.length > 0 ? t('importBooking.duplicate.wasCreated', { vouchers: earlier.join(', ') }) : null,
+      skipped.length > 0 ? t('importBooking.duplicate.skipped', { count: skipped.length }) : null,
+    ].filter((x): x is string => !!x);
 
     if (failure) {
       // Whatever went out stays out — say how much, so nobody re-sends it.
       notify(
         t('common.error'),
-        done.length > 0
-          ? `${t('importBooking.createdSome', { count: done.length })}\n\n${failure}`
-          : failure,
+        [done.length > 0 ? t('importBooking.createdSome', { count: done.length }) : null, ...notes, failure]
+          .filter((x): x is string => !!x)
+          .join('\n\n'),
       );
       return;
     }
 
+    const headline =
+      done.length > 1
+        ? t('importBooking.createdMany', { count: done.length })
+        : done.length === 1
+          ? t('importBooking.created')
+          : t('importBooking.duplicate.nothingCreated');
     notify(
-      t('common.success'),
-      done.length > 1 ? t('importBooking.createdMany', { count: done.length }) : t('importBooking.created'),
+      done.length > 0 ? t('common.success') : t('importBooking.duplicate.title'),
+      [headline, ...notes].join('\n\n'),
       () => {
         // "Back" now returns to the previous screen, so this one is cleared
         // rather than left showing a request that is already sent.
@@ -1261,6 +1341,7 @@ export default function ImportBookingScreen() {
                 {services.map((s, i) => {
                   const isActive = i === activeIndex;
                   const isCreated = createdIndexes.includes(i);
+                  const isSkipped = skippedIndexes.includes(i);
                   return (
                     <Pressable
                       key={`service-${i}`}
@@ -1268,14 +1349,14 @@ export default function ImportBookingScreen() {
                       style={[
                         styles.serviceTab,
                         isActive && styles.serviceTabActive,
-                        isCreated && styles.serviceTabDone,
+                        (isCreated || isSkipped) && styles.serviceTabDone,
                       ]}
                     >
                       <Text
                         numberOfLines={1}
                         style={[styles.serviceTabText, isActive && styles.serviceTabTextActive]}
                       >
-                        {isCreated ? '✅ ' : ''}
+                        {isCreated ? '✅ ' : isSkipped ? '⏭ ' : ''}
                         {i + 1}. {serviceLabel(s, i)}
                       </Text>
                     </Pressable>

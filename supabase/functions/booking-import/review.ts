@@ -393,6 +393,7 @@ const REASON_KA: Record<string, string> = {
   flight_unclear: 'რეისი დასაზუსტებელია',
   no_days: 'ტურის დღეები არ არის',
   time_unreadable: 'დრო ვერ წავიკითხე',
+  several_days: 'რამდენიმე დღის პროგრამაა — ტურად ჩაიწერა',
   flight_next_day: 'რეისი შუაღამის შემდეგაა — გადაამოწმე აყვანის დღე',
   kind_changed: 'სერვისის ტიპი შეიცვალა — ეს ველი ჯერ არ შემოწმებულა',
 };

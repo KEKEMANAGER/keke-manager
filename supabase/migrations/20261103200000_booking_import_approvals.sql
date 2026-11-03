@@ -14,7 +14,12 @@
 -- A booking without import_approval_id — every booking typed into the form —
 -- is not touched: the manual form works exactly as before.
 --
--- Rollback: supabase/rollback/20261102100000_booking_import_approvals_undo.sql
+-- One reviewed service gets one approval (review_key, the fingerprint of its
+-- review token): "Create" pressed twice, or a request sent again after a lost
+-- answer, finds the same approval, and once that approval has made a booking
+-- the function answers with that booking instead of approving a second one.
+--
+-- Rollback: supabase/rollback/20261103200000_booking_import_approvals_undo.sql
 
 create table if not exists public.booking_import_approvals (
   id uuid primary key default gen_random_uuid(),
@@ -24,14 +29,21 @@ create table if not exists public.booking_import_approvals (
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default now() + interval '2 hours',
   used_at timestamptz,
-  used_booking_id uuid
+  used_booking_id uuid,
+  /** SHA-256 of the review token the approval was given for (never the token itself). */
+  review_key text
 );
+
+alter table public.booking_import_approvals add column if not exists review_key text;
 
 comment on table public.booking_import_approvals is
   'Server approvals for bookings created from an imported request (booking-import, action approve). Written only by the service role; checked by bookings_verify_import_approval.';
 
 create index if not exists booking_import_approvals_company_idx
   on public.booking_import_approvals (company_id, created_at desc);
+
+create unique index if not exists booking_import_approvals_review_key
+  on public.booking_import_approvals (review_key) where review_key is not null;
 
 -- With RLS on and no policy, only the service role (the import function) reads or writes it.
 alter table public.booking_import_approvals enable row level security;
@@ -85,8 +97,8 @@ begin
   if lower(new.vehicle_type) is distinct from lower(v ->> 'vehicle_type') then bad := array_append(bad, 'vehicle_type'); end if;
   if new.price_gel is distinct from (v ->> 'price_gel')::numeric then bad := array_append(bad, 'price_gel'); end if;
   if new.client_price is distinct from (v ->> 'client_price')::numeric then bad := array_append(bad, 'client_price'); end if;
-  flight_new := nullif(regexp_replace(upper(coalesce(new.flight_number, '')), '[\s-]+', '', 'g'), '');
-  flight_ok := nullif(regexp_replace(upper(coalesce(v ->> 'flight_number', '')), '[\s-]+', '', 'g'), '');
+  flight_new := nullif(regexp_replace(upper(coalesce(new.flight_number, '')), '[[:space:]-]+', '', 'g'), '');
+  flight_ok := nullif(regexp_replace(upper(coalesce(v ->> 'flight_number', '')), '[[:space:]-]+', '', 'g'), '');
   if flight_new is distinct from flight_ok then bad := array_append(bad, 'flight_number'); end if;
   if new.from_location is distinct from (v ->> 'from_location') then bad := array_append(bad, 'from_location'); end if;
   if new.to_location is distinct from (v ->> 'to_location') then bad := array_append(bad, 'to_location'); end if;

@@ -1,7 +1,7 @@
 // The model-call layer: one request shape per model family, retries only where
 // they help, and failure lines that are safe to log.
 import { assert, assertEquals } from './assert.ts';
-import { buildRequest, callTool, failureCode, failureMessageKa, profileFor } from '../ai.ts';
+import { buildRequest, callTool, callWithFallback, failureClientCode, failureCode, failureMessageKa, profileFor, usageCode } from '../ai.ts';
 
 const tool = { name: 'submit_program', description: 'x', input_schema: { type: 'object', properties: {} } };
 const base = { system: 'S', tool, content: 'C', maxTokens: 8192 };
@@ -108,4 +108,63 @@ Deno.test('failure lines carry status, type, hint and request id — never the k
     assert(!line.includes('sk-ant') && !line.includes('Pieter'));
     assertEquals(failureMessageKa(r.failure), 'AI წაკითხვა დროებით მიუწვდომელია.');
   }
+});
+
+// ---------------------------------------------------------------- a retired model
+
+const fb = (f: typeof fetch, o: Partial<{ model: string; fallbackModel: string | null; deadline: number; now: number }> = {}) =>
+  callWithFallback({
+    apiKey: 'sk-ant-secret-xyz',
+    request: { system: 'S', tool, content: 'C', maxTokens: 8192 },
+    model: o.model ?? 'claude-sonnet-4-5',
+    fallbackModel: o.fallbackModel === undefined ? 'claude-sonnet-4-6' : o.fallbackModel,
+    toolName: 'submit_program',
+    timeoutMs: 1000,
+    deadline: o.deadline ?? 1e15,
+    fetchImpl: f,
+    sleep: async () => {},
+    now: () => o.now ?? 0,
+  });
+const modelOf = (init: RequestInit) => JSON.parse(String(init.body)).model;
+
+Deno.test('a retired model (404, or a 400 that says so): one call to the fallback model', async () => {
+  for (const reply of [err(404, 'not_found_error', 'model: claude-sonnet-4-5'), err(400, 'invalid_request_error', 'The model claude-sonnet-4-5 has been retired')]) {
+    const { f, seen, count } = fakeFetch([reply, ok({ services: [] })]);
+    const r = await fb(f);
+    assert(r.ok && r.fellBack);
+    assertEquals(count(), 2);
+    assertEquals(seen.map(modelOf), ['claude-sonnet-4-5', 'claude-sonnet-4-6']);
+  }
+});
+
+Deno.test('no fallback for other failures, for the same model, without a fallback, or with no time left', async () => {
+  const busy = fakeFetch([err(529, 'overloaded_error', 'x'), err(529, 'overloaded_error', 'x'), ok({})]);
+  const r1 = await fb(busy.f);
+  assert(!r1.ok && !r1.fellBack);
+  assertEquals(busy.seen.map(modelOf), ['claude-sonnet-4-5', 'claude-sonnet-4-5']);
+  const same = fakeFetch([err(404, 'not_found_error', 'x'), ok({})]);
+  assertEquals([(await fb(same.f, { model: 'claude-sonnet-4-6' })).ok, same.count()], [false, 1]);
+  const none = fakeFetch([err(404, 'not_found_error', 'x'), ok({})]);
+  assertEquals([(await fb(none.f, { fallbackModel: null })).ok, none.count()], [false, 1]);
+  const late = fakeFetch([err(404, 'not_found_error', 'x'), ok({})]);
+  assertEquals([(await fb(late.f, { deadline: 1000, now: 0 })).ok, late.count()], [false, 1]);
+});
+
+Deno.test('the app is told what kind of failure it was, with a code it can translate', () => {
+  const f = (kind: string, hint: string | null = null) => ({ kind, hint, status: null, type: null, requestId: null, attempts: 1, model: 'm' }) as any;
+  assertEquals(failureClientCode(f('timeout')), 'ai_timeout');
+  assertEquals(failureClientCode(f('refusal')), 'ai_refused');
+  assertEquals(failureClientCode(f('no_tool')), 'ai_incomplete');
+  assertEquals(failureClientCode(f('context')), 'ai_incomplete');
+  assertEquals(failureClientCode(f('network')), 'ai_busy');
+  assertEquals(failureClientCode(f('no_key')), 'ai_unavailable');
+  for (const h of ['rate_limit', 'overloaded', 'server_error']) assertEquals(failureClientCode(f('http', h)), 'ai_busy');
+  for (const h of ['credit_balance', 'auth', 'model_not_found', null]) assertEquals(failureClientCode(f('http', h)), 'ai_unavailable');
+});
+
+Deno.test('token use is logged as numbers and a model name only', () => {
+  assertEquals(usageCode('claude-sonnet-4-6', { input: 1234.4, output: 567 }), 'ai_usage model=claude-sonnet-4-6 in=1234 out=567');
+  assertEquals(usageCode('claude-sonnet-4-6', { input: 10, output: 2 }, true), 'ai_usage model=claude-sonnet-4-6 in=10 out=2 fallback=1');
+  assertEquals(usageCode('claude-sonnet-4-6', null), null);
+  assert(!String(usageCode('sk-ant-api03-SECRET Pieter +31 6', { input: 1, output: 1 })).includes('Pieter'));
 });

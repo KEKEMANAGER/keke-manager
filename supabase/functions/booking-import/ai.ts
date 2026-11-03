@@ -92,6 +92,8 @@ function hintFor(status: number | null, type: string | null, message: string): s
   if (/\b(temperature|top_p|top_k)\b/.test(m)) return 'sampling_unsupported';
   if (m.includes('thinking')) return 'thinking_setting';
   if (m.includes('max_tokens')) return 'max_tokens_invalid';
+  // A retired or misspelled model: a 404, or a 400 that says so.
+  if (/\bmodel\b/.test(m) && /(retired|deprecat|not found|not_found|does not exist|no longer|unknown)/.test(m)) return 'model_not_found';
   if (status === 401 || type === 'authentication_error') return 'auth';
   if (status === 403 || type === 'permission_error') return 'permission';
   if (status === 404 || type === 'not_found_error') return 'model_not_found';
@@ -206,6 +208,52 @@ export async function callTool(o: CallOptions): Promise<AiResult> {
   return { ok: false, failure: last ?? { kind: 'network', status: null, type: null, hint: null, requestId: null, attempts, model } };
 }
 
+/**
+ * The model to fall back on when the configured one is gone (retired, or a
+ * typo in the setting): the API answers 404 / not_found_error at once, and
+ * every read would fail until someone noticed. One more call with the
+ * fallback, made the way that model takes it, while there is time left.
+ */
+export async function callWithFallback(o: {
+  apiKey: string;
+  request: Omit<RequestOptions, 'model'>;
+  model: string;
+  fallbackModel: string | null;
+  toolName: string;
+  timeoutMs: number;
+  deadline: number;
+  fetchImpl?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+}): Promise<AiResult & { fellBack: boolean }> {
+  const now = o.now ?? Date.now;
+  const call = (model: string) =>
+    callTool({
+      apiKey: o.apiKey,
+      body: buildRequest({ ...o.request, model }),
+      toolName: o.toolName,
+      timeoutMs: o.timeoutMs,
+      deadline: o.deadline,
+      fetchImpl: o.fetchImpl,
+      sleep: o.sleep,
+      now: o.now,
+    });
+  const first = await call(o.model);
+  const fallback = (o.fallbackModel ?? '').trim();
+  if (
+    !first.ok &&
+    first.failure.kind === 'http' &&
+    first.failure.hint === 'model_not_found' &&
+    fallback &&
+    fallback !== o.model &&
+    o.deadline - now() >= MIN_RETRY_MS
+  ) {
+    const second = await call(fallback);
+    return { ...second, fellBack: true };
+  }
+  return { ...first, fellBack: false };
+}
+
 const SAFE = /^[A-Za-z0-9_.:-]{1,80}$/;
 const safe = (v: unknown) => (typeof v === 'string' && SAFE.test(v) ? v : v == null ? '-' : 'x');
 
@@ -220,6 +268,35 @@ export function failureCode(f: AiFailure): string {
     `model=${safe(f.model)}`,
     `req=${safe(f.requestId)}`,
   ].join(' ');
+}
+
+/**
+ * The app's name for a failure, which it shows in the agency's language:
+ * busy (try again shortly), timeout, unavailable (fill the form by hand),
+ * incomplete, refused.
+ */
+export function failureClientCode(f: AiFailure): string {
+  switch (f.kind) {
+    case 'timeout':
+      return 'ai_timeout';
+    case 'refusal':
+      return 'ai_refused';
+    case 'no_tool':
+    case 'context':
+      return 'ai_incomplete';
+    case 'network':
+      return 'ai_busy';
+    case 'no_key':
+      return 'ai_unavailable';
+    case 'http':
+      return f.hint === 'rate_limit' || f.hint === 'overloaded' || f.hint === 'server_error' ? 'ai_busy' : 'ai_unavailable';
+  }
+}
+
+/** One line about a model's token use, for the log (cost tracking). */
+export function usageCode(model: string, usage: AiUsage | null, fellBack = false): string | null {
+  if (!usage) return null;
+  return `ai_usage model=${safe(model)} in=${Math.max(0, Math.round(usage.input))} out=${Math.max(0, Math.round(usage.output))}${fellBack ? ' fallback=1' : ''}`;
 }
 
 /** What the agency is told — plain Georgian, nothing from the API's own text. */

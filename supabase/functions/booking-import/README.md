@@ -41,12 +41,17 @@ supabase functions deploy booking-import
 # simply come back with fewer fields filled and a warning saying so.
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
-# Optional. The model; default claude-sonnet-4-5. A 4.x id uses the classic
-# request (forced tool call); a 5.x id (claude-sonnet-5-5) the 5.x request
-# (tool call left to the model, thinking between tools, effort, room for
-# thinking, no temperature) — see ai.ts. Change it only after the paid
-# evaluation; the 5.x request has not yet been tried against the real API.
+# Optional. The model; default claude-sonnet-4-6 (claude-sonnet-4-5 retires
+# on 30 November 2026). A 4.x id uses the classic request (forced tool call);
+# a 5.x id (claude-sonnet-5-5) the 5.x request (tool call left to the model,
+# thinking between tools, effort, room for thinking, no temperature) — see
+# ai.ts. Change it only after the paid evaluation; the 5.x request has not
+# yet been tried against the real API. Read on every request.
 supabase secrets set BOOKING_IMPORT_MODEL=claude-sonnet-4-6
+
+# Optional. Tried once when the model above is gone (404, or a 400 saying it
+# is retired or unknown). Default claude-sonnet-4-6; set it empty for none.
+supabase secrets set BOOKING_IMPORT_FALLBACK_MODEL=claude-sonnet-4-6
 
 # Optional, 5.x models only: low | medium | high (default medium).
 supabase secrets set BOOKING_IMPORT_EFFORT=medium
@@ -138,6 +143,31 @@ A pasted message or a picture with nothing bookable in it is answered with a
 straight from the document and which the model inferred — the company should
 look hardest at the `ai` ones.
 
+## Errors
+
+Every failure answer is `{ "ok": false, "error": "<Georgian sentence>", "code": "<reason>" }`.
+The app words the reason in the agency's language (`importBooking.errors.<code>`
+in `src/locales/*.json`) and falls back to the sentence. Reasons: `bad_request`,
+`auth_required`, `not_company`, `daily_limit`, `try_again`; for what was sent
+`text_too_short`, `text_too_long`, `no_file`, `file_too_big`, `file_damaged`,
+`no_text`, `old_doc`, `pdf_scan`, `pdf_broken`, `zip_no_chat`,
+`unsupported_format`, `too_many_photos`, `photo_empty`, `photo_too_big`,
+`photo_unsupported`; for the model `ai_timeout`, `ai_refused`, `ai_incomplete`,
+`ai_busy` (overloaded, rate-limited, a dropped connection — try again),
+`ai_unavailable` (no key, credit, a retired model with no fallback),
+`nothing_found`, `read_failed`; for approval `approve_issues`,
+`possible_duplicate`, `already_created`. A model call is retried once on
+408/429/5xx/529 or a dropped connection, and only while time remains.
+
+## Transfer, day tour, tour
+
+The model says which kind each service is; the server holds it to one rule:
+sightseeing on two or more days (not all the same date) is a **tour** —
+whatever the label over it says, "Service: Transfer" or the model's own
+kind — so no day is ever lost by booking a programme as a transfer or a day
+tour. When the label said otherwise, the kind is flagged (`several_days`) and
+a person confirms it. A day the request does not date stays undated.
+
 ## Review and approval
 
 Every service in `services` carries a `review` of its critical values — kind,
@@ -189,12 +219,28 @@ flight, a tour's day and leg dates); then it writes the approved values to
 it in only with exactly the approved values, once, within 2 hours. A booking
 typed into the form has no `import_approval_id` and is not touched.
 
+**Duplicates.** Before approving, the function looks at the company's own
+bookings around that day (cancelled and rejected ones aside). One with the
+same flight, or the same kind of service between the same places within an
+hour (a day tour: from the same place), or a tour starting the same day,
+makes the answer `409 { "code": "possible_duplicate", "duplicates": [ … ] }`
+— voucher, kind, day, time, places, head count, never a guest's name or
+phone. The agency decides: the app asks, and sends the approval again with
+`"allowDuplicate": true` to create it anyway.
+
+**One approval per review.** The approval carries `review_key`, the SHA-256 of
+the review token (never the token): "Create" pressed twice, or a request sent
+again after a lost answer, gets the same approval; once that approval has made
+a booking the answer is `409 { "code": "already_created", "voucher": … }`.
+
 ## Logs
 
 `booking_import_log` and the function logs keep codes only: the file type and
 a hash instead of the file name, the review's codes, and for a failed model
 call a line like `ai_failed kind=http status=400 type=invalid_request_error
-hint=… attempts=1 model=… req=req_…` — never the API key, the API's own text,
+hint=… attempts=1 model=… req=req_…`, and for every model call its token use
+(`ai_usage model=… in=… out=…`, with `fallback=1` when the fallback model
+answered) — never the API key, the API's own text,
 the request's content, a guest's name or phone. Text that does reach a log is
 passed through `maskForLog` (keys, tokens, emails, links and digit runs
 masked).
@@ -230,6 +276,12 @@ Documents from Georgian and Russian operators are **day-first**: `15/05/2026`
 is 15 May. `YYYY-MM-DD` is also accepted. Times are read as local Tbilisi time
 (UTC+4) and stored as an ISO instant, which is what `bookings.date_display`
 holds.
+
+A date counts as written in the request when it is there in any of the usual
+ways — `20.11.2026`, `20/11`, `2026.11.20`, "20 ნოემბერს", "ნოემბრის 20-ში",
+"20 ноября", "November 20th", `11/20/2026` (only when it cannot be day-first) —
+or inside a span of days: "13-15.11.2026", "13.11-15.11", "29.11-02.12.2026",
+"13–15 ноября", "с 13 по 15 ноября", "November 13-15", "13-დან 15-მდე ნოემბერი".
 
 ## Adding a label
 

@@ -27,7 +27,7 @@ psql -X -q -v ON_ERROR_STOP=1 -d "$DB" -c 'create extension if not exists pgtap'
   -f fixtures/prod_p0_4_snapshot_2026-10-31.sql >/dev/null
 for m in 20261031120000_driver_decline_per_driver 20261031150000_reminder_reassign_once 20261031180000_driver_eligibility \
          20261101090000_push_tokens_server_delivery 20261101120000_company_cancellation 20261101150000_booking_ownership \
-         20261102100000_booking_import_approvals; do
+         20261103200000_booking_import_approvals; do
   psql -X -q -v ON_ERROR_STOP=1 -d "$DB" -f "$ROOT/supabase/migrations/$m.sql" >/dev/null 2>&1 || { echo "apply failed: $m"; exit 1; }
 done
 

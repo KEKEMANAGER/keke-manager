@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The import-approval check (20261102100000_booking_import_approvals) on a
+# The import-approval check (20261103200000_booking_import_approvals) on a
 # THROWAWAY local PostgreSQL (15+ with pgTAP and btree_gist): production as of
 # the P0 release (P0-1 .. P0-6), then the new migration. It never connects to
 # Supabase; nothing is sent anywhere. Point PGHOST/PGPORT/PGUSER at a local
@@ -23,8 +23,8 @@ M3A="$ROOT/supabase/migrations/20261031180000_driver_eligibility.sql"
 M4A="$ROOT/supabase/migrations/20261101090000_push_tokens_server_delivery.sql"
 M5="$ROOT/supabase/migrations/20261101120000_company_cancellation.sql"
 M6="$ROOT/supabase/migrations/20261101150000_booking_ownership.sql"
-MI="$ROOT/supabase/migrations/20261102100000_booking_import_approvals.sql"
-UI="$ROOT/supabase/rollback/20261102100000_booking_import_approvals_undo.sql"
+MI="$ROOT/supabase/migrations/20261103200000_booking_import_approvals.sql"
+UI="$ROOT/supabase/rollback/20261103200000_booking_import_approvals_undo.sql"
 DB="${IMPORT_TEST_DB:-keke_import_approval_test}"
 : "${PGHOST:?set PGHOST/PGPORT/PGUSER for a local, disposable PostgreSQL}"
 case "$PGHOST" in *supabase*|*pooler*) echo "refusing: PGHOST looks like a Supabase host" >&2; exit 2;; esac

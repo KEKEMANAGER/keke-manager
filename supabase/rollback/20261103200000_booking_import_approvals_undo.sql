@@ -1,4 +1,4 @@
--- Undo 20261102100000_booking_import_approvals.sql.
+-- Undo 20261103200000_booking_import_approvals.sql.
 --
 -- Stops the check: bookings with an import_approval_id are then inserted like
 -- any other. Nothing is deleted — the column and the approvals stay, so the

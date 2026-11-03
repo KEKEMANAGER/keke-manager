@@ -439,9 +439,18 @@ async function functionErrorBody(error: unknown): Promise<Record<string, unknown
   }
 }
 
+/**
+ * What the agency is told when the function says no: in the app's language
+ * when the answer names its reason (`code`), else the function's own
+ * (Georgian) sentence, else a general one.
+ */
 function functionErrorText(error: unknown, body: Record<string, unknown> | null): string {
+  const code = typeof body?.code === 'string' ? body.code : '';
+  if (/^[a-z_]{2,40}$/.test(code) && typeof i18n.exists === 'function' && i18n.exists(`importBooking.errors.${code}`)) {
+    return i18n.t(`importBooking.errors.${code}`);
+  }
   if (typeof body?.error === 'string' && body.error.trim()) return body.error;
-  if ((error as { name?: string }).name === 'FunctionsFetchError') return i18n.t('importBooking.networkError');
+  if ((error as { name?: string } | null)?.name === 'FunctionsFetchError') return i18n.t('importBooking.networkError');
   return i18n.t('importBooking.readFailedGeneric');
 }
 
@@ -466,10 +475,7 @@ async function invokeImport(
   if (error) return { ok: false, error: await functionErrorMessage(error) };
 
   if (!data || (data as { ok?: boolean }).ok !== true) {
-    return {
-      ok: false,
-      error: (data as { error?: string })?.error || i18n.t('importBooking.readFailedGeneric'),
-    };
+    return { ok: false, error: functionErrorText(null, (data as Record<string, unknown> | null) ?? null) };
   }
 
   const result = data as BookingImportResult;
@@ -1230,9 +1236,49 @@ export function reviewValueLabel(field: ReviewField, value: unknown): string {
 
 export type ApprovalIssue = { field: string; code: string };
 
+/** A booking the company already has that looks like the one about to be created. No guest data. */
+export type ImportDuplicate = {
+  voucher: string | null;
+  kind: string;
+  /** Tbilisi calendar day, YYYY-MM-DD. */
+  date: string | null;
+  /** HH:MM, Tbilisi. */
+  time: string | null;
+  from: string | null;
+  to: string | null;
+  passengers: number | null;
+  status: string | null;
+  reason: 'same_flight' | 'same_trip' | 'same_tour';
+};
+
 export type ApprovalResult =
   | { ok: true; approvalId: string }
-  | { ok: false; error: string; issues: ApprovalIssue[] };
+  /** The same trip seems to be booked already: the agency decides (allowDuplicate). */
+  | { ok: false; reason: 'possible_duplicate'; error: string; duplicates: ImportDuplicate[] }
+  /** This reviewed service already became a booking (a second tap, a lost answer). */
+  | { ok: false; reason: 'already_created'; error: string; voucher: string | null; bookingId: string | null }
+  | { ok: false; reason?: 'refused'; error: string; issues: ApprovalIssue[] };
+
+const DUPLICATE_REASONS = new Set(['same_flight', 'same_trip', 'same_tour']);
+const strOrNull = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+
+function parseDuplicates(v: unknown): ImportDuplicate[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object' && DUPLICATE_REASONS.has(String((x as { reason?: unknown }).reason)))
+    .slice(0, 5)
+    .map((x) => ({
+      voucher: strOrNull(x.voucher),
+      kind: strOrNull(x.kind) ?? 'transfer',
+      date: strOrNull(x.date),
+      time: strOrNull(x.time),
+      from: strOrNull(x.from),
+      to: strOrNull(x.to),
+      passengers: typeof x.passengers === 'number' ? x.passengers : null,
+      status: strOrNull(x.status),
+      reason: x.reason as ImportDuplicate['reason'],
+    }));
+}
 
 /**
  * The server's own check of the final draft, made just before the booking is
@@ -1245,12 +1291,20 @@ export async function approveImportedService(
   service: ImportedService,
   insert: InsertBookingInput,
   confirmed: readonly string[],
+  opts: { allowDuplicate?: boolean } = {},
 ): Promise<ApprovalResult> {
   let data: unknown;
   let error: unknown;
   try {
     ({ data, error } = await supabase.functions.invoke('booking-import', {
-      body: { action: 'approve', reviewToken: service.review?.token ?? '', draft: service.draft, insert, confirmed: [...confirmed] },
+      body: {
+        action: 'approve',
+        reviewToken: service.review?.token ?? '',
+        draft: service.draft,
+        insert,
+        confirmed: [...confirmed],
+        ...(opts.allowDuplicate ? { allowDuplicate: true } : {}),
+      },
     }));
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : i18n.t('importBooking.networkError'), issues: [] };
@@ -1258,6 +1312,19 @@ export async function approveImportedService(
   if (error) {
     // The message and the list of fields come from one reading of the answer.
     const body = await functionErrorBody(error);
+    if (body?.code === 'possible_duplicate') {
+      const duplicates = parseDuplicates(body.duplicates);
+      if (duplicates.length > 0) return { ok: false, reason: 'possible_duplicate', error: functionErrorText(error, body), duplicates };
+    }
+    if (body?.code === 'already_created') {
+      return {
+        ok: false,
+        reason: 'already_created',
+        error: functionErrorText(error, body),
+        voucher: strOrNull(body.voucher),
+        bookingId: strOrNull(body.bookingId),
+      };
+    }
     const issues = Array.isArray(body?.issues)
       ? (body.issues as unknown[]).filter((x): x is ApprovalIssue => !!x && typeof (x as ApprovalIssue).field === 'string' && typeof (x as ApprovalIssue).code === 'string')
       : [];
@@ -1273,7 +1340,13 @@ export type CreateImportedResult =
   | { ok: false; reason: 'missing'; missing: string[] }
   | { ok: false; reason: 'unconfirmed'; fields: ReviewField[] }
   | { ok: false; reason: 'not_approved'; error: string; issues: ApprovalIssue[] }
+  | { ok: false; reason: 'possible_duplicate'; error: string; duplicates: ImportDuplicate[] }
+  | { ok: false; reason: 'already_created'; voucher: string | null; bookingId: string | null }
   | { ok: false; reason: 'insert_failed'; error: string };
+
+/** The database's answer to a booking whose approval no longer fits (bookings_verify_import_approval). */
+const APPROVAL_USED = /import approval was already used/i;
+const APPROVAL_STALE = /import approval (has expired|not found)|not the values that were approved/i;
 
 /**
  * One reviewed service into one booking, in the only order that is safe:
@@ -1291,19 +1364,41 @@ export async function createImportedBooking(o: {
   ctx: { companyUserId: string; companyName: string | null; createdByName?: string | null };
   insert: (row: InsertBookingInput) => Promise<{ id?: string; error: Error | null }>;
   approve?: typeof approveImportedService;
+  /** The agency has seen the similar bookings and creates this one anyway. */
+  allowDuplicate?: boolean;
 }): Promise<CreateImportedResult> {
   const missing = missingRequiredFields(o.service.draft);
   if (missing.length > 0) return { ok: false, reason: 'missing', missing };
   const unresolved = unresolvedReviewFields(o.service, o.confirmed);
   if (unresolved.length > 0) return { ok: false, reason: 'unconfirmed', fields: unresolved };
 
+  const approve = o.approve ?? approveImportedService;
   const payload = draftToInsertInput(o.service.draft, o.ctx);
   if (o.service.review?.token) {
-    const approval = await (o.approve ?? approveImportedService)(o.service, payload, o.confirmed);
-    if (!approval.ok) return { ok: false, reason: 'not_approved', error: approval.error, issues: approval.issues };
+    const approval = await approve(o.service, payload, o.confirmed, { allowDuplicate: o.allowDuplicate === true });
+    if (!approval.ok) {
+      if (approval.reason === 'possible_duplicate') {
+        return { ok: false, reason: 'possible_duplicate', error: approval.error, duplicates: approval.duplicates };
+      }
+      if (approval.reason === 'already_created') {
+        return { ok: false, reason: 'already_created', voucher: approval.voucher, bookingId: approval.bookingId };
+      }
+      return { ok: false, reason: 'not_approved', error: approval.error, issues: approval.issues ?? [] };
+    }
     payload.import_approval_id = approval.approvalId;
   }
   const { id, error } = await o.insert(payload);
-  if (error || !id) return { ok: false, reason: 'insert_failed', error: error?.message ?? i18n.t('importBooking.createFailed') };
-  return { ok: true, id };
+  if (!error && id) return { ok: true, id };
+  const message = error?.message ?? '';
+  if (payload.import_approval_id && APPROVAL_USED.test(message)) {
+    // Another tap created it a moment ago: the server names that booking.
+    const again = await approve(o.service, payload, o.confirmed, { allowDuplicate: true });
+    if (!again.ok && again.reason === 'already_created') {
+      return { ok: false, reason: 'already_created', voucher: again.voucher, bookingId: again.bookingId };
+    }
+  }
+  if (payload.import_approval_id && (APPROVAL_USED.test(message) || APPROVAL_STALE.test(message))) {
+    return { ok: false, reason: 'insert_failed', error: i18n.t('importBooking.errors.approval_stale') };
+  }
+  return { ok: false, reason: 'insert_failed', error: message || i18n.t('importBooking.createFailed') };
 }

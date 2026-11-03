@@ -22,11 +22,13 @@
 //  1. NO BOOKING is ever written here. The function only returns a draft. The
 //     company reviews it and the normal booking-creation path runs, so every
 //     existing validation, the review gate and the availability check still
-//     apply. A bad parse can never create a bad booking. The only two writes
-//     this function makes are bookkeeping: one row in `booking_import_log` —
-//     what was uploaded and whether it parsed — and the label lesson in rule 4.
-//     Both are fire-and-forget: neither changes the answer, neither can fail
-//     the request.
+//     apply. A bad parse can never create a bad booking. The writes this
+//     function makes are bookkeeping: one row in `booking_import_log` — what
+//     was uploaded and whether it parsed — and the label lesson in rule 4,
+//     both fire-and-forget (neither changes the answer, neither can fail the
+//     request); and, when the agency presses "Create", the approval of the
+//     values it checked (`booking_import_approvals`), which the database then
+//     requires of the booking the app inserts.
 //  2. The deterministic template parser runs FIRST and always wins on the
 //     fields it recognises. The model is a fallback for free-form documents,
 //     not the primary path.
@@ -45,11 +47,12 @@
 //
 // Deploy:  supabase functions deploy booking-import
 // Secrets: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-//          (optional) supabase secrets set BOOKING_IMPORT_MODEL=claude-sonnet-4-5
+//          (optional) supabase secrets set BOOKING_IMPORT_MODEL=claude-sonnet-4-6
+//          (optional) supabase secrets set BOOKING_IMPORT_FALLBACK_MODEL=claude-sonnet-4-6
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import JSZip from 'https://esm.sh/jszip@3.10.1';
-import { type AiFailure, buildRequest, callTool, failureCode, failureMessageKa } from './ai.ts';
+import { type AiFailure, type AiUsage, callWithFallback, failureClientCode, failureCode, failureMessageKa, usageCode } from './ai.ts';
 import {
   CURRENCIES, currenciesIn, extractFlightNumber, hasMeridiem, looksLikeJunkPlace, parseAmount, parseClock,
   parsePassengers, splitNameAndPhone, withoutDates,
@@ -59,6 +62,7 @@ import {
   signReview, withholdUnconfirmed,
 } from './review.ts';
 import { maskForLog, safeFileLabel } from './safelog.ts';
+import { type ExistingBooking, findDuplicates, reviewKey, searchWindow } from './duplicates.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -118,7 +122,15 @@ const PASTED_TEXT_NAME = 'ჩასმული ტექსტი';
 /** Picture formats a file upload may carry instead of a document. */
 const IMAGE_FILE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']);
 
-const ANTHROPIC_MODEL = Deno.env.get('BOOKING_IMPORT_MODEL') ?? 'claude-sonnet-4-5';
+/**
+ * The model. claude-sonnet-4-5 retires on 30 November 2026 (Anthropic's model
+ * deprecations page); claude-sonnet-4-6 takes the same request (a forced tool
+ * call) at the same price. A 5.x id (claude-sonnet-5-5) is sent the 5.x
+ * request — see ai.ts — and is chosen only after the paid evaluation.
+ */
+const modelName = () => (Deno.env.get('BOOKING_IMPORT_MODEL') ?? '').trim() || 'claude-sonnet-4-6';
+/** Tried once when the model above is gone (404 / retired / misspelled). Set to empty for none. */
+const fallbackModelName = () => (Deno.env.get('BOOKING_IMPORT_FALLBACK_MODEL') ?? 'claude-sonnet-4-6').trim();
 const ANTHROPIC_VERSION = '2023-06-01';
 
 type FieldSource = 'template' | 'ai' | 'none';
@@ -1696,6 +1708,8 @@ type ProgramRead = {
   truncated: boolean;
   /** Services the model returned past MAX_SERVICES. */
   dropped: number;
+  /** Token use of the call that answered, for the log (cost tracking). */
+  usage?: string | null;
 };
 
 /**
@@ -1707,21 +1721,23 @@ type ProgramRead = {
  */
 async function aiExtractProgram(input: AiInput, apiKey: string, opts: AiCallOptions = {}): Promise<ProgramRead> {
   const timeoutMs = opts.timeoutMs ?? AI_TIMEOUT_MS;
-  const r = await callTool({
+  const r = await callWithFallback({
     apiKey,
-    body: buildRequest({
-      model: ANTHROPIC_MODEL,
+    request: {
       system: PROGRAM_PROMPT,
       tool: PROGRAM_TOOL as any,
       content: aiUserContent(input, opts.documentKind),
       maxTokens: 8192,
       effort: AI_EFFORT,
-    }),
+    },
+    model: modelName(),
+    fallbackModel: fallbackModelName(),
     toolName: 'submit_program',
     timeoutMs,
     deadline: opts.deadline ?? Date.now() + timeoutMs,
   });
   if (!r.ok) return { services: [], failure: r.failure, truncated: false, dropped: 0 };
+  const usage = usageCode(r.model, r.usage as AiUsage | null, r.fellBack);
   const services = (r.toolInput as any)?.services;
   if (!Array.isArray(services) || services.length === 0) {
     return {
@@ -1729,33 +1745,35 @@ async function aiExtractProgram(input: AiInput, apiKey: string, opts: AiCallOpti
       failure: { kind: 'no_tool', status: 200, type: null, hint: r.truncated ? 'truncated' : 'no_services', requestId: r.requestId, attempts: r.attempts, model: r.model },
       truncated: r.truncated,
       dropped: 0,
+      usage,
     };
   }
-  return { services: services.slice(0, MAX_SERVICES), failure: null, truncated: r.truncated, dropped: Math.max(0, services.length - MAX_SERVICES) };
+  return { services: services.slice(0, MAX_SERVICES), failure: null, truncated: r.truncated, dropped: Math.max(0, services.length - MAX_SERVICES), usage };
 }
 
 async function aiExtract(
   input: AiInput,
   apiKey: string,
   opts: AiCallOptions = {},
-): Promise<{ data: any | null; failure: AiFailure | null; truncated: boolean }> {
+): Promise<{ data: any | null; failure: AiFailure | null; truncated: boolean; usage?: string | null }> {
   const timeoutMs = opts.timeoutMs ?? AI_TIMEOUT_MS;
-  const r = await callTool({
+  const r = await callWithFallback({
     apiKey,
-    body: buildRequest({
-      model: ANTHROPIC_MODEL,
+    request: {
       system: SYSTEM_PROMPT,
       tool: EXTRACT_TOOL as any,
       content: aiUserContent(input, opts.documentKind),
       maxTokens: 2048,
       effort: AI_EFFORT,
-    }),
+    },
+    model: modelName(),
+    fallbackModel: fallbackModelName(),
     toolName: 'submit_booking',
     timeoutMs,
     deadline: opts.deadline ?? Date.now() + timeoutMs,
   });
   if (!r.ok) return { data: null, failure: r.failure, truncated: false };
-  return { data: r.toolInput, failure: null, truncated: r.truncated };
+  return { data: r.toolInput, failure: null, truncated: r.truncated, usage: usageCode(r.model, r.usage as AiUsage | null, r.fellBack) };
 }
 
 /** What the model's answer is checked against: the text it read, when it read text. */
@@ -1880,11 +1898,12 @@ function mergeAi(
     sources[key] = 'ai';
   };
 
-  // A "Service: transfer" heading over a whole programme names its first part,
-  // not the job. Several sightseeing days, each with its own date, are a tour —
-  // and booked as a transfer the days would silently vanish.
-  const aiDayCount = Array.isArray(ai.tour_days) ? ai.tour_days.length : 0;
-  if (sources.kind === 'template' && draft.kind !== 'tour' && ai.kind === 'tour' && aiDayCount >= 2) {
+  // Sightseeing on several days is a tour, whatever the label over it says —
+  // a "Service: transfer" heading naming the programme's first part, or the
+  // model's own kind. Booked as a transfer or a day tour, every day but one
+  // would silently vanish. When the label said otherwise the kind is asked
+  // about (aiFlags: several_days), never taken as read.
+  if (draft.kind !== 'tour' && severalDays(ai.tour_days)) {
     draft.kind = 'tour';
     sources.kind = 'ai';
   }
@@ -2479,6 +2498,46 @@ function friendlyExtractError(code: string): string {
   }
 }
 
+/** The app's name for a file the reader could not open (it words it in the agency's language). */
+function extractClientCode(code: string): string {
+  switch (code) {
+    case 'OLD_DOC':
+      return 'old_doc';
+    case 'PDF_NO_TEXT':
+      return 'pdf_scan';
+    case 'PDF_BROKEN':
+      return 'pdf_broken';
+    case 'PDF_ENGINE':
+      return 'try_again';
+    case 'EMPTY_DOCX':
+    case 'EMPTY_XLSX':
+    case 'ZIP_BROKEN':
+      return 'file_damaged';
+    case 'ZIP_NO_CHAT':
+      return 'zip_no_chat';
+    case 'ZIP_TOO_BIG':
+      return 'file_too_big';
+    default:
+      return 'unsupported_format';
+  }
+}
+
+/**
+ * The app's name for a failure, from the code the log keeps: a failed model
+ * call becomes busy / timeout / unavailable / incomplete / refused, "nothing
+ * to book" becomes nothing_found. Anything else: read_failed.
+ */
+function clientCodeOf(logCode: string | undefined): string {
+  const c = String(logCode ?? '');
+  if (c.startsWith('ai_failed')) {
+    const kind = /kind=([a-z_]+)/.exec(c)?.[1] ?? '';
+    const hint = /hint=([A-Za-z_]+)/.exec(c)?.[1] ?? '';
+    return failureClientCode({ kind: kind as AiFailure['kind'], hint, status: null, type: null, requestId: null, attempts: 0, model: '' }) ?? 'read_failed';
+  }
+  if (c === 'nothing_to_book') return 'nothing_found';
+  return 'read_failed';
+}
+
 // ---------------------------------------------------------------------- serve
 
 /** Imports a company may start in 24 hours: a ceiling against a runaway client, not a business rule. */
@@ -2507,10 +2566,102 @@ async function withDeadline<T>(p: PromiseLike<T>, ms: number): Promise<T | 'time
 
 const asList = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => String(x)) : []);
 
+type ApprovalRow = { id: string; company_id: string; used_at: string | null; used_booking_id: string | null };
+
+/** The approval already given for a review, if any. */
+async function approvalFor(admin: any, key: string): Promise<ApprovalRow | null | 'error'> {
+  const res = await withDeadline(
+    admin.from('booking_import_approvals').select('id, company_id, used_at, used_booking_id').eq('review_key', key).maybeSingle(),
+    4000,
+  );
+  if (res === 'timeout' || (res as any).error) {
+    console.error('booking-import: approval read failed', res === 'timeout' ? 'timeout' : maskForLog((res as any).error?.message ?? ''));
+    return 'error';
+  }
+  return ((res as any).data ?? null) as ApprovalRow | null;
+}
+
+/**
+ * One approval per reviewed service. A new review gets a new approval; the
+ * same review sent again refreshes its unused approval with the values just
+ * approved (and its two hours), and an approval that already made a booking
+ * is answered with that booking. Two requests at once: the unique review_key
+ * lets one insert win, and the other takes the winner's row.
+ */
+async function saveApproval(
+  admin: any,
+  companyId: string,
+  key: string,
+  approved: unknown,
+  known: ApprovalRow | null,
+): Promise<{ id: string } | { usedBookingId: string | null } | 'error'> {
+  let row: ApprovalRow | null = known;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (row) {
+      // A review token is signed for one company; another company's row cannot share its key.
+      if (row.company_id !== companyId) return 'error';
+      if (row.used_at) return { usedBookingId: row.used_booking_id };
+      const upd = await withDeadline(
+        admin.from('booking_import_approvals')
+          .update({ approved, expires_at: new Date(Date.now() + 2 * 3600e3).toISOString() })
+          .eq('id', row.id).is('used_at', null).select('id'),
+        4000,
+      );
+      if (upd === 'timeout' || (upd as any).error) {
+        console.error('booking-import: approval update failed', upd === 'timeout' ? 'timeout' : maskForLog((upd as any).error?.message ?? ''));
+        return 'error';
+      }
+      if (Array.isArray((upd as any).data) && (upd as any).data.length === 1) return { id: row.id };
+    } else {
+      const ins = await withDeadline(
+        admin.from('booking_import_approvals').insert({ company_id: companyId, approved, review_key: key }).select('id').single(),
+        4000,
+      );
+      if (ins === 'timeout') {
+        console.error('booking-import: approval insert failed', 'timeout');
+        return 'error';
+      }
+      const id = ((ins as any).data as { id?: string } | null)?.id;
+      if (!(ins as any).error && id) return { id };
+      if ((ins as any).error?.code !== '23505') {
+        console.error('booking-import: approval insert failed', maskForLog((ins as any).error?.message ?? ''));
+        return 'error';
+      }
+    }
+    // Used, or made by a parallel request, a moment ago: read it again.
+    const again = await approvalFor(admin, key);
+    if (again === 'error') return 'error';
+    row = again;
+  }
+  return 'error';
+}
+
+/** The voucher and status of the booking an approval made — nothing about the guests. */
+async function bookingRef(admin: any, companyId: string, bookingId: string | null): Promise<{ voucher: string | null; status: string | null } | null> {
+  if (!bookingId) return null;
+  const res = await withDeadline(
+    admin.from('bookings').select('voucher_code, status').eq('id', bookingId).eq('company_id', companyId).maybeSingle(),
+    3000,
+  );
+  if (res === 'timeout' || (res as any).error || !(res as any).data) return null;
+  const b = (res as any).data as { voucher_code?: string | null; status?: string | null };
+  return { voucher: b.voucher_code ?? null, status: b.status ?? null };
+}
+
 /** Ambiguities the model itself reported about the price. */
+/** Two or more sightseeing days that are not all the same date: a programme, not one trip. */
+function severalDays(days: unknown): boolean {
+  if (!Array.isArray(days) || days.length < 2) return false;
+  const dates = days.map((d: any) => (typeof d?.date === 'string' ? d.date.trim() : ''));
+  const all = dates.every(Boolean);
+  return !(all && new Set(dates).size === 1);
+}
+
 function aiFlags(ai: any): Partial<Record<CriticalField, string[]>> {
   const f: Partial<Record<CriticalField, string[]>> = {};
   if (!ai || typeof ai !== 'object') return f;
+  // The model called it something else but listed several days: read as a tour, and asked.
+  if (ai.kind !== 'tour' && severalDays(ai.tour_days)) f.kind = ['several_days'];
   const cur = typeof ai.client_price_currency === 'string' ? ai.client_price_currency.toUpperCase() : null;
   const price: string[] = [];
   if (cur && cur !== 'GEL') price.push('currency_foreign');
@@ -2544,11 +2695,11 @@ export async function handler(req: Request): Promise<Response> {
       headers: { ...CORS, 'content-type': 'application/json' },
     });
 
-  if (req.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+  if (req.method !== 'POST') return json({ ok: false, error: 'POST only', code: 'bad_request' }, 405);
 
   const authHeader = req.headers.get('Authorization') ?? '';
   if (!authHeader.startsWith('Bearer ')) {
-    return json({ ok: false, error: 'ავტორიზაცია საჭიროა' }, 401);
+    return json({ ok: false, error: 'ავტორიზაცია საჭიროა', code: 'auth_required' }, 401);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -2558,7 +2709,7 @@ export async function handler(req: Request): Promise<Response> {
 
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData?.user) {
-    return json({ ok: false, error: 'ავტორიზაცია ვერ დადასტურდა' }, 401);
+    return json({ ok: false, error: 'ავტორიზაცია ვერ დადასტურდა', code: 'auth_required' }, 401);
   }
 
   const startedAt = Date.now();
@@ -2697,14 +2848,20 @@ export async function handler(req: Request): Promise<Response> {
   }
 
   /** Answer with a failure, and leave a trace of it (a code, never the request's content). */
+  /**
+   * Answer with a failure, and leave a trace of it. `code` is what the log
+   * keeps; `clientCode` is the app's name for it (shown in the agency's
+   * language) — worked out from `code` when not given.
+   */
   async function failWith(
     status: 'empty' | 'error',
     httpStatus: number,
     message: string,
     code?: string,
+    clientCode?: string,
   ): Promise<Response> {
     await logImport(status, { error: code ?? message });
-    return json({ ok: false, error: message }, httpStatus);
+    return json({ ok: false, error: message, code: clientCode ?? clientCodeOf(code) }, httpStatus);
   }
 
   let payload: {
@@ -2718,11 +2875,12 @@ export async function handler(req: Request): Promise<Response> {
     draft?: unknown;
     insert?: unknown;
     confirmed?: unknown;
+    allowDuplicate?: unknown;
   };
   try {
     payload = await req.json();
   } catch {
-    return await failWith('error', 400, 'არასწორი მოთხოვნა');
+    return await failWith('error', 400, 'არასწორი მოთხოვნა', 'bad_request', 'bad_request');
   }
 
   // Only a company (or KEKE's admin) reads requests into bookings. The role is
@@ -2737,10 +2895,10 @@ export async function handler(req: Request): Promise<Response> {
     }
   }
   if (role === 'unavailable') {
-    return json({ ok: false, error: 'ანგარიშის შემოწმება ვერ მოხერხდა — სცადე ხელახლა.' }, 503);
+    return json({ ok: false, error: 'ანგარიშის შემოწმება ვერ მოხერხდა — სცადე ხელახლა.', code: 'try_again' }, 503);
   }
   if (!IMPORT_ROLES.has(role)) {
-    return json({ ok: false, error: 'ჯავშნის იმპორტი მხოლოდ კომპანიის ანგარიშისთვისაა.' }, 403);
+    return json({ ok: false, error: 'ჯავშნის იმპორტი მხოლოდ კომპანიის ანგარიშისთვისაა.', code: 'not_company' }, 403);
   }
 
   // ------------------------------------------------ approval before create
@@ -2753,7 +2911,7 @@ export async function handler(req: Request): Promise<Response> {
   // (bookings_verify_import_approval).
   if (payload.action === 'approve') {
     if (!admin || !serviceKey) {
-      return json({ ok: false, error: 'დადასტურება ახლა მიუწვდომელია — სცადე ხელახლა.' }, 503);
+      return json({ ok: false, error: 'დადასტურება ახლა მიუწვდომელია — სცადე ხელახლა.', code: 'try_again' }, 503);
     }
     const result = await approveService({
       token: String(payload.reviewToken ?? ''),
@@ -2765,17 +2923,66 @@ export async function handler(req: Request): Promise<Response> {
       now: Date.now(),
     });
     if (!result.ok) {
-      return json({ ok: false, error: 'ჯავშნის შექმნამდე ეს ველები უნდა დადასტურდეს ან შეივსოს.', issues: result.issues }, 422);
+      return json({ ok: false, error: 'ჯავშნის შექმნამდე ეს ველები უნდა დადასტურდეს ან შეივსოს.', code: 'approve_issues', issues: result.issues }, 422);
     }
-    const ins = await withDeadline(
-      admin.from('booking_import_approvals').insert({ company_id: companyId, approved: result.approved }).select('id').single(),
-      4000,
-    );
-    if (ins === 'timeout' || ins.error || !(ins.data as { id?: string } | null)?.id) {
-      console.error('booking-import: approval insert failed', ins === 'timeout' ? 'timeout' : maskForLog(ins.error?.message ?? ''));
-      return json({ ok: false, error: 'დადასტურება ვერ შეინახა — სცადე ხელახლა.' }, 503);
+    const key = await reviewKey(String(payload.reviewToken ?? ''));
+    const saveFailed = () => json({ ok: false, error: 'დადასტურება ვერ შეინახა — სცადე ხელახლა.', code: 'try_again' }, 503);
+    const alreadyCreated = async (bookingId: string | null) => {
+      const ref = await bookingRef(admin, companyId, bookingId);
+      console.log('booking-import: approval already used');
+      return json({
+        ok: false,
+        error: ref?.voucher ? `ეს ჯავშანი უკვე შექმნილია (${ref.voucher}).` : 'ეს ჯავშანი უკვე შექმნილია.',
+        code: 'already_created',
+        bookingId,
+        voucher: ref?.voucher ?? null,
+        bookingStatus: ref?.status ?? null,
+      }, 409);
+    };
+
+    // This reviewed service already became a booking ("Create" pressed again,
+    // or an answer that never arrived): that booking is the answer.
+    const prior = await approvalFor(admin, key);
+    if (prior === 'error') return saveFailed();
+    if (prior?.used_at) return await alreadyCreated(prior.used_booking_id);
+
+    // The same trip may already be booked (the same file uploaded again, a
+    // forwarded copy of a request already booked). The agency decides: it may
+    // be a second group on the same flight, so this is a question, not a refusal.
+    if (payload.allowDuplicate !== true) {
+      const w = searchWindow((payload.insert as any)?.date_display);
+      if (w) {
+        const near = await withDeadline(
+          admin.from('bookings')
+            .select('id, voucher_code, kind, status, date_display, pickup_time, from_location, to_location, route, flight_number, passengers')
+            .eq('company_id', companyId).gte('date_display', w.from).lte('date_display', w.to).limit(300),
+          4000,
+        );
+        if (near === 'timeout' || near.error) {
+          console.error('booking-import: duplicate check failed', near === 'timeout' ? 'timeout' : maskForLog(near.error?.message ?? ''));
+          return json({ ok: false, error: 'ვერ შევამოწმე, ეს ჯავშანი უკვე ხომ არ არის შექმნილი — სცადე ხელახლა.', code: 'try_again' }, 503);
+        }
+        const duplicates = findDuplicates(payload.insert, (near.data ?? []) as ExistingBooking[]);
+        if (duplicates.length > 0) {
+          // The "similar booking" may be this very one, made a moment ago by
+          // a parallel request for the same review.
+          const latest = await approvalFor(admin, key);
+          if (latest !== 'error' && latest?.used_at) return await alreadyCreated(latest.used_booking_id);
+          console.log('booking-import: possible duplicate', duplicates.map((d) => d.reason).join(','));
+          return json({
+            ok: false,
+            error: 'იმავე დღეს მსგავსი ჯავშანი უკვე გაქვს. შეამოწმე — თუ ეს სხვა ჯავშანია, შექმენი მაინც.',
+            code: 'possible_duplicate',
+            duplicates,
+          }, 409);
+        }
+      }
     }
-    return json({ ok: true, approvalId: (ins.data as { id: string }).id });
+
+    const saved = await saveApproval(admin, companyId, key, result.approved, prior);
+    if (saved === 'error') return saveFailed();
+    if ('usedBookingId' in saved) return await alreadyCreated(saved.usedBookingId);
+    return json({ ok: true, approvalId: saved.id });
   }
 
   // A ceiling per company per day, so a runaway client cannot run up the bill.
@@ -2786,7 +2993,7 @@ export async function handler(req: Request): Promise<Response> {
       1500,
     );
     if (res !== 'timeout' && !res.error && typeof res.count === 'number' && res.count >= DAILY_LIMIT) {
-      return json({ ok: false, error: `დღიური ლიმიტი ამოიწურა (${DAILY_LIMIT} წაკითხვა 24 საათში). სცადე მოგვიანებით ან შეავსე ჯავშანი ხელით.` }, 429);
+      return json({ ok: false, error: `დღიური ლიმიტი ამოიწურა (${DAILY_LIMIT} წაკითხვა 24 საათში). სცადე მოგვიანებით ან შეავსე ჯავშანი ხელით.`, code: 'daily_limit' }, 429);
     }
   }
 
@@ -2884,7 +3091,7 @@ export async function handler(req: Request): Promise<Response> {
     let aiMore: any[] = [];
 
     if (!apiKey) {
-      failure = { kind: 'no_key', status: null, type: null, hint: 'no_key', requestId: null, attempts: 0, model: ANTHROPIC_MODEL };
+      failure = { kind: 'no_key', status: null, type: null, hint: 'no_key', requestId: null, attempts: 0, model: modelName() };
       if (missingCore || maybeProgram) generalWarnings.push('ფაილი შაბლონს არ ემთხვევა და AI წაკითხვა გამორთულია.');
     } else if (maybeProgram) {
       let read = pdfInput
@@ -2902,6 +3109,7 @@ export async function handler(req: Request): Promise<Response> {
       }
       failure = read.failure;
       truncated = read.truncated;
+      if (read.usage) codes.push(read.usage);
       if (read.dropped > 0) {
         generalWarnings.push(`AI-მ ${read.services.length + read.dropped} სერვისი იპოვა — ნაჩვენებია პირველი ${read.services.length}. დანარჩენი ხელით დაამატე.`);
         codes.push(`services_dropped:${read.dropped}`);
@@ -2926,6 +3134,7 @@ export async function handler(req: Request): Promise<Response> {
       }
       failure = read.failure;
       truncated = read.truncated;
+      if (read.usage) codes.push(read.usage);
       if (read.data) aiFirst = read.data;
     }
 
@@ -3021,6 +3230,7 @@ export async function handler(req: Request): Promise<Response> {
           ? 'შეტყობინების წაკითხვა ახლა ვერ მოხერხდა — სცადე ხელახლა.'
           : 'ამ ტექსტში ჯავშნის დეტალები ვერ ვიპოვე — თარიღი, ადგილი ან მგზავრები. შეამოწმე, სწორი შეტყობინება ჩასვი თუ არა.',
         failure ? failureCode(failure) : 'nothing_to_book',
+        failure && failure.kind !== 'no_tool' ? failureClientCode(failure) : 'nothing_found',
       );
     }
 
@@ -3118,6 +3328,7 @@ export async function handler(req: Request): Promise<Response> {
     const services = await Promise.all(reviewed.map(finish));
     const codes: string[] = [];
     const general: string[] = [];
+    if (read.usage) codes.push(read.usage);
     if (read.truncated) {
       general.push('AI-ს პასუხი არასრული იყო — ყველა ველი გადაამოწმე.');
       codes.push('ai_truncated');
@@ -3153,20 +3364,20 @@ export async function handler(req: Request): Promise<Response> {
     const images = payload.images as { base64?: unknown }[];
     logFileName = images.length === 1 ? 'ფოტო' : `ფოტო ×${images.length}`;
     if (images.length > MAX_IMAGES) {
-      return await failWith('error', 413, `ერთად მაქსიმუმ ${MAX_IMAGES} ფოტო აირჩიე.`);
+      return await failWith('error', 413, `ერთად მაქსიმუმ ${MAX_IMAGES} ფოტო აირჩიე.`, 'too_many_photos', 'too_many_photos');
     }
 
     const blocks: AiBlock[] = [];
     let total = 0;
     for (const image of images) {
       const b64 = cleanBase64(String(image?.base64 ?? ''));
-      if (!b64) return await failWith('error', 400, 'ფოტო ცარიელია — აირჩიე თავიდან.');
+      if (!b64) return await failWith('error', 400, 'ფოტო ცარიელია — აირჩიე თავიდან.', 'photo_empty', 'photo_empty');
       total += b64.length;
       if (total > MAX_IMAGES_TOTAL_BASE64_CHARS) {
-        return await failWith('error', 413, IMAGE_TOO_BIG_ERROR);
+        return await failWith('error', 413, IMAGE_TOO_BIG_ERROR, 'photo_too_big', 'photo_too_big');
       }
       const read = imageBlock(b64);
-      if ('error' in read) return await failWith('error', 415, read.error);
+      if ('error' in read) return await failWith('error', 415, read.error, 'photo_unsupported', 'photo_unsupported');
       blocks.push(read.block);
     }
     logBytes = Math.round((total * 3) / 4);
@@ -3180,11 +3391,11 @@ export async function handler(req: Request): Promise<Response> {
     logFileName = PASTED_TEXT_NAME;
     logBytes = new TextEncoder().encode(pasted).length;
     if (pasted.replace(/\s/g, '').length < 8) {
-      return await failWith('empty', 422, 'ჩასვი შეტყობინების ტექსტი.');
+      return await failWith('empty', 422, 'ჩასვი შეტყობინების ტექსტი.', 'text_too_short', 'text_too_short');
     }
     // A long conversation is fine — it is read from its end. A long anything else is not a booking request.
     if (pasted.length > MAX_TEXT_CHARS && !looksLikeChat(pasted)) {
-      return await failWith('error', 413, 'ტექსტი ძალიან გრძელია — ჩასვი მხოლოდ ის შეტყობინებები, სადაც ჯავშანია.');
+      return await failWith('error', 413, 'ტექსტი ძალიან გრძელია — ჩასვი მხოლოდ ის შეტყობინებები, სადაც ჯავშანია.', 'text_too_long', 'text_too_long');
     }
     return await answerFromText(pasted, { fileName: PASTED_TEXT_NAME, pasted: true });
   }
@@ -3197,17 +3408,17 @@ export async function handler(req: Request): Promise<Response> {
   // Base64 carries a third more than the bytes it encodes.
   logBytes = Math.round((b64.length * 3) / 4);
   if (!fileName || !b64) {
-    return await failWith('error', 400, 'ფაილი არ არის');
+    return await failWith('error', 400, 'ფაილი არ არის', 'no_file', 'no_file');
   }
   if (b64.length > MAX_BASE64_CHARS) {
-    return await failWith('error', 413, 'ფაილი ძალიან დიდია (მაქს. ~8 MB)');
+    return await failWith('error', 413, 'ფაილი ძალიან დიდია (მაქს. ~8 MB)', 'file_too_big', 'file_too_big');
   }
 
   // A photo picked as a file is still a photo.
   const ext = (fileName.split('.').pop() ?? '').toLowerCase();
   if (IMAGE_FILE_EXTENSIONS.has(ext)) {
     const read = imageBlock(b64);
-    if ('error' in read) return await failWith('error', 415, read.error);
+    if ('error' in read) return await failWith('error', 415, read.error, 'photo_unsupported', 'photo_unsupported');
     return await answerFromVisual([read.block], fileName);
   }
 
@@ -3217,7 +3428,7 @@ export async function handler(req: Request): Promise<Response> {
     bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   } catch {
-    return await failWith('error', 400, 'ფაილი დაზიანებულია');
+    return await failWith('error', 400, 'ფაილი დაზიანებულია', 'file_damaged', 'file_damaged');
   }
   logBytes = bytes.length;
 
@@ -3242,11 +3453,11 @@ export async function handler(req: Request): Promise<Response> {
         failMessage: friendlyExtractError(code),
       });
     }
-    return await failWith('error', 415, friendlyExtractError(code), `extract_failed:${code}`);
+    return await failWith('error', 415, friendlyExtractError(code), `extract_failed:${code}`, extractClientCode(code));
   }
 
   if (!text.trim()) {
-    return await failWith('empty', 422, 'ფაილში ტექსტი ვერ ვიპოვე');
+    return await failWith('empty', 422, 'ფაილში ტექსტი ვერ ვიპოვე', 'no_text', 'no_text');
   }
 
   // A PDF with text is still read by the model as the page itself, which is

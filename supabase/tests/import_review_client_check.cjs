@@ -56,6 +56,10 @@ const supabase = {
   auth: { getUser: async () => ({ data: { user: null } }), getSession: async () => ({ data: { session: null } }) },
 };
 
+// i18n answers with the key; "exists" looks in the Georgian texts.
+const KA = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/locales/ka.json'), 'utf8'));
+const kaHas = (key) => key.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), KA) !== undefined;
+
 // --- inert stand-ins for native modules ----------------------------------------
 function inert() {
   const f = function () { return p; };
@@ -77,7 +81,7 @@ Module._load = function (request, parent, isMain) {
   if (/(^|\/)supabase$/.test(request) && parent && parent.filename.startsWith(path.join(ROOT, 'lib'))) {
     return { supabase };
   }
-  if (/src\/lib\/i18n$/.test(request)) return { __esModule: true, default: { t: (k) => k, language: 'ka' } };
+  if (/src\/lib\/i18n$/.test(request)) return { __esModule: true, default: { t: (k) => k, exists: (k) => kaHas(k), language: 'ka' } };
   if (NATIVE.test(request)) return inert();
   return origLoad.apply(this, arguments);
 };
@@ -296,6 +300,100 @@ const PRICE_UNCONFIRMED = { client_price: { status: 'unconfirmed', value: 150, r
   const known = Object.keys(langs[0][1].importBooking.review.reasons);
   const missing = used.filter((x) => !known.includes(x) && !['no_days'].includes(x));
   check(missing.length === 0, 'every reason the server gives has a text', missing);
+
+  // 12. a possible duplicate: the agency is asked, nothing is inserted until it says so
+  const dupBody = { ok: false, code: 'possible_duplicate', error: 'იმავე დღეს…', duplicates: [
+    { voucher: 'KEKE-AB12CD', kind: 'transfer', date: '2026-11-20', time: '10:00', from: 'Airport', to: 'Hotel Stamba', passengers: 4, status: 'pending', reason: 'same_flight', passenger_name: 'Pieter' },
+    { voucher: 'X', reason: 'not_a_reason' },
+  ] };
+  calls.length = 0;
+  invokeAnswer = () => ({ data: null, error: { name: 'FunctionsHttpError', message: 'x',
+    context: new Response(JSON.stringify(dupBody), { status: 409, headers: { 'content-type': 'application/json' } }) } });
+  const dup = await imp.approveImportedService(svc, ins, []);
+  check(dup.ok === false && dup.reason === 'possible_duplicate' && dup.duplicates.length === 1 && dup.duplicates[0].voucher === 'KEKE-AB12CD'
+        && !('passenger_name' in dup.duplicates[0]) && dup.error === 'importBooking.errors.possible_duplicate',
+        'a possible duplicate comes back with the similar bookings (no guest data) and a translated message', dup);
+  check(!('allowDuplicate' in calls.find((c) => c.kind === 'invoke').body), 'the first request does not skip the duplicate check');
+  calls.length = 0;
+  invokeAnswer = () => ({ data: { ok: true, approvalId: 'appr-10' }, error: null });
+  await imp.approveImportedService(svc, ins, [], { allowDuplicate: true });
+  check(calls.find((c) => c.kind === 'invoke').body.allowDuplicate === true, 'the agency\'s "create anyway" is sent as allowDuplicate');
+  invokeAnswer = () => ({ data: null, error: { name: 'FunctionsHttpError', message: 'x',
+    context: new Response(JSON.stringify({ ok: false, code: 'already_created', error: 'x', voucher: 'KEKE-AB12CD', bookingId: 'b-1' }), { status: 409 }) } });
+  const was = await imp.approveImportedService(svc, ins, []);
+  check(was.ok === false && was.reason === 'already_created' && was.voucher === 'KEKE-AB12CD' && was.bookingId === 'b-1',
+        'a booking already made from this review comes back with its voucher', was);
+
+  // 13. createImportedBooking: a duplicate stops before the insert; "create anyway" goes through
+  inserted.length = 0;
+  const seen = [];
+  const dupApprove = async (s1, i1, c1, opts) => {
+    seen.push(opts && opts.allowDuplicate);
+    return opts && opts.allowDuplicate ? { ok: true, approvalId: 'appr-11' } : { ok: false, reason: 'possible_duplicate', error: 'e', duplicates: [{ voucher: 'KEKE-AB12CD' }] };
+  };
+  r = await imp.createImportedBooking({ service: reviewed([], {}), confirmed: [], ctx, insert, approve: dupApprove });
+  check(r.ok === false && r.reason === 'possible_duplicate' && r.duplicates.length === 1 && inserted.length === 0,
+        'a possible duplicate: nothing inserted, the similar booking handed to the screen', r);
+  r = await imp.createImportedBooking({ service: reviewed([], {}), confirmed: [], ctx, insert, approve: dupApprove, allowDuplicate: true });
+  check(r.ok === true && inserted.length === 1 && inserted[0].import_approval_id === 'appr-11' && same(seen, [false, true]),
+        '"create anyway": approved with allowDuplicate and inserted', { r, seen });
+
+  // 14. already created (a second tap): counted as done, nothing inserted again
+  inserted.length = 0;
+  r = await imp.createImportedBooking({ service: reviewed([], {}), confirmed: [], ctx, insert,
+    approve: async () => ({ ok: false, reason: 'already_created', error: 'e', voucher: 'KEKE-AB12CD', bookingId: 'b-1' }) });
+  check(r.ok === false && r.reason === 'already_created' && r.voucher === 'KEKE-AB12CD' && inserted.length === 0,
+        'a booking already made from this review: its voucher, no second booking', r);
+
+  // 15. two taps at once: the database refuses the second insert; the server names the first booking
+  let approvals = 0;
+  r = await imp.createImportedBooking({ service: reviewed([], {}), confirmed: [], ctx,
+    insert: async () => ({ error: new Error('bookings: this import approval was already used') }),
+    approve: async (s1, i1, c1, opts) => {
+      approvals += 1;
+      return approvals === 1 ? { ok: true, approvalId: 'appr-12' } : { ok: false, reason: 'already_created', error: 'e', voucher: 'KEKE-AB12CD', bookingId: 'b-1' };
+    } });
+  check(r.ok === false && r.reason === 'already_created' && r.voucher === 'KEKE-AB12CD' && approvals === 2,
+        'an approval used by a parallel tap: answered with the booking it made', { r, approvals });
+  r = await imp.createImportedBooking({ service: reviewed([], {}), confirmed: [], ctx,
+    insert: async () => ({ error: new Error('bookings: not the values that were approved (passengers) — approve the booking again') }), approve });
+  check(r.ok === false && r.reason === 'insert_failed' && r.error === 'importBooking.errors.approval_stale',
+        'values changed after approval: a plain message, not the database text', r);
+
+  // 16. a failed read is worded in the app's language when the server names the reason
+  invokeAnswer = () => ({ data: null, error: { name: 'FunctionsHttpError', message: 'x',
+    context: new Response(JSON.stringify({ ok: false, error: 'სერვერის ტექსტი', code: 'ai_busy' }), { status: 502 }) } });
+  let readRes = await imp.parseBookingText('Transfer 20/11 10:00 airport to hotel, 4 pax');
+  check(readRes.ok === false && readRes.error === 'importBooking.errors.ai_busy', 'a known reason: the translated text', readRes);
+  invokeAnswer = () => ({ data: null, error: { name: 'FunctionsHttpError', message: 'x',
+    context: new Response(JSON.stringify({ ok: false, error: 'სერვერის ტექსტი', code: 'something_new' }), { status: 502 }) } });
+  readRes = await imp.parseBookingText('Transfer 20/11 10:00 airport to hotel, 4 pax');
+  check(readRes.ok === false && readRes.error === 'სერვერის ტექსტი', 'an unknown reason: the server\'s own sentence', readRes);
+
+  // 17. every reason the function names has a text, in all four languages
+  const fnSrc = ['handler.ts', 'ai.ts'].map((f) => fs.readFileSync(path.join(ROOT, 'supabase/functions/booking-import', f), 'utf8')).join('\n');
+  const named = new Set();
+  // json({ ok: false, error: …, code: 'x' }) answers
+  for (const m of fnSrc.matchAll(/ok: false,[\s\S]{0,400}?code: '([a-z_]+)'/g)) named.add(m[1]);
+  // failWith(status, http, message, logCode, 'clientCode') — the literal just before the call closes
+  for (const m of fnSrc.matchAll(/failWith\(\s*'(?:error|empty)'[\s\S]*?\);/g)) {
+    const last = /'([a-z_]+)',?\s*\);$/.exec(m[0]);
+    if (last) named.add(last[1]);
+  }
+  // what the three mappings return
+  for (const fn of ['extractClientCode', 'failureClientCode', 'clientCodeOf']) {
+    const start = fnSrc.indexOf(`function ${fn}(`);
+    const body = fnSrc.slice(start, fnSrc.indexOf('\n}\n', start));
+    for (const m of body.matchAll(/return '([a-z_]+)'|\? '([a-z_]+)' : '([a-z_]+)'/g)) [m[1], m[2], m[3]].filter(Boolean).forEach((c) => named.add(c));
+  }
+  const internal = ['nothing_to_book', 'error', 'empty', 'ok'];
+  const codes = [...named].filter((c) => !internal.includes(c) && !c.startsWith('ai_failed'));
+  check(codes.length >= 25, 'the function\'s reasons were found', codes);
+  for (const [l, j] of langs) {
+    const have = Object.keys(j.importBooking.errors || {});
+    check(codes.every((c) => have.includes(c)), `every reason the function names has a text in ${l}`, codes.filter((c) => !have.includes(c)));
+    check(same(keysOf(j.importBooking.duplicate || {}).sort(), keysOf(langs[0][1].importBooking.duplicate).sort()), `every duplicate text exists in ${l}`);
+  }
 
   console.log(`1..${n}`);
   if (failed > 0) {

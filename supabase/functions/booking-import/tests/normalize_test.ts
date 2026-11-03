@@ -134,3 +134,39 @@ Deno.test('found in the request: quotes, numbers, places, times, dates', () => {
   assertEquals(dateInSource('2026-11-15', '15 ნოემბერს ჩამოდის'), true);
   assertEquals(dateInSource('2026-12-03', 'Дата: 03.12.2026'), true);
 });
+
+Deno.test('dates in programmes: spans of days, overlapping dates, ordinals, three languages', () => {
+  // a span names every day in it, and only those
+  for (const src of ['Tour 13-15.11.2026: Kazbegi', 'Тур 13–15.11.2026', '13.11-15.11.2026 ტური', '13 - 15/11']) {
+    assertEquals([13, 14, 15].map((d) => dateInSource(`2026-11-${d}`, src)), [true, true, true], src);
+    assertEquals([12, 16].map((d) => dateInSource(`2026-11-${d}`, src)), [false, false], src);
+  }
+  assertEquals(dateInSource('2026-11-14', 'с 13 по 15 ноября'), true);
+  assertEquals(dateInSource('2026-11-14', '13–15 ноября, Казбеги'), true);
+  assertEquals(dateInSource('2026-11-14', 'November 13-15, Kazbegi'), true);
+  assertEquals(dateInSource('2026-11-14', '13 to 15 November'), true);
+  assertEquals(dateInSource('2026-11-14', '13-დან 15-მდე ნოემბერი'), true);
+  assertEquals(dateInSource('2026-11-14', '13-15 ნოემბერს'), true);
+  assertEquals(dateInSource('2026-11-16', '13-15 ნოემბერს'), false);
+  // a span over a month's end
+  assertEquals(dateInSource('2026-12-01', 'Tour 29.11-02.12.2026'), true);
+  assertEquals(dateInSource('2026-12-03', 'Tour 29.11-02.12.2026'), false);
+  // a year that is not the date's
+  assertEquals(dateInSource('2026-11-14', '13-15.11.2025'), false);
+  // ordinals and written months
+  assertEquals(dateInSource('2026-11-13', 'arrival on the 13th of November'), false);
+  assertEquals(dateInSource('2026-11-13', 'arrival 13th November'), true);
+  assertEquals(dateInSource('2026-11-13', 'November 13th, 2026'), true);
+  assertEquals(dateInSource('2026-11-13', '13-ე ნოემბერი'), true);
+  assertEquals(dateInSource('2026-11-13', 'ნოემბრის 13-ში'), true);
+  assertEquals(dateInSource('2026-11-13', '13 ноября'), true);
+  assertEquals(dateInSource('2026-11-01', '11 ноября'), false);
+  assertEquals(dateInSource('2026-11-01', 'ноября 21'), false);
+  // month first only when it cannot be day first
+  assertEquals(dateInSource('2026-11-20', '11/20/2026'), true);
+  assertEquals(dateInSource('2026-11-05', '05/11/2026'), true);
+  assertEquals(dateInSource('2026-05-11', '05/11/2026'), false);
+  assertEquals(dateInSource('2026-11-20', 'Дата 2026.11.20'), true);
+  // a clock is not a date
+  assertEquals(dateInSource('2026-11-10', 'pickup 10.30, 4 pax'), false);
+});
