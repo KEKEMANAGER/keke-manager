@@ -80,7 +80,7 @@ const CRITICAL_LANDING_SHELL = `
     <img src="${LOGO_DATA_URI}" width="112" height="112" alt="KEKE Manager" fetchpriority="high" loading="eager" decoding="sync" />
   </div>
   <p class="hero">ერთი პლატფორმა,</p>
-  <p class="hero-accent">უსაზღვრო შესაძებლობები</p>
+  <p class="hero-accent">უსაზღვრო შესაძლებლობები</p>
 </div>
 <script id="keke-lcp-route-dismiss">
 (function () {
