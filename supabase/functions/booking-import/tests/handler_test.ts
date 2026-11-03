@@ -311,6 +311,10 @@ Deno.test('a long file the model sees only in part: the agency is told', async (
   assert(r.logRows[0].warnings.includes('text_cut'));
   // the rules reader still read the order at the end
   assertEquals(svc0(r).draft.passengers, 5);
+  // and the model reads the start and the end: the order on the last page is in what it is sent
+  const sent = JSON.stringify(r.modelRequests[0].messages);
+  assert(sent.includes('TRANSPORT ORDER') && sent.includes('W6 4318') && sent.includes('Chapter 1.'), 'start and end both sent');
+  assert(sent.includes('characters from the middle of the document are left out'));
 });
 
 Deno.test('a long WhatsApp export is read from its end, and says so', async () => {

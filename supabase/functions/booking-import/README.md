@@ -270,6 +270,10 @@ side, the database check and the cross-layer check (see
 
 Limits: a file ~8 MB; photos 5 at a time, 9.5 MB of base64 each, 20 MB together.
 
+A document longer than 60,000 characters: the model reads its first 40,000 and its last
+20,000 (an order is often on the last page), and the agency is told the middle was not
+read. A chat is read from its end (24,000 characters).
+
 ## Dates
 
 Documents from Georgian and Russian operators are **day-first**: `15/05/2026`

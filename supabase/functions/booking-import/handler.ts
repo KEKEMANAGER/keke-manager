@@ -1673,12 +1673,26 @@ function tbilisiToday(): string {
  */
 type DocumentKind = 'scan' | 'pdf';
 
+/**
+ * What the model reads of a long document: its start and its end. A brochure
+ * or a contract often carries the order on its last page, and a request
+ * forwarded with its history has the newest part at one end or the other.
+ */
+export function textForModel(text: string): string {
+  const t = text.replace(/[\x00\x01]/g, '');
+  if (t.length <= MAX_TEXT_CHARS) return t;
+  const head = Math.floor((MAX_TEXT_CHARS * 2) / 3);
+  const tail = MAX_TEXT_CHARS - head;
+  const left = t.length - head - tail;
+  return `${t.slice(0, head)}\n\n[… ${left.toLocaleString('en-US')} characters from the middle of the document are left out …]\n\n${t.slice(-tail)}`;
+}
+
 function aiUserContent(input: AiInput, documentKind: DocumentKind = 'scan'): string | AiBlock[] {
   const today = `Today in Tbilisi: ${tbilisiToday()}.`;
   if (typeof input === 'string') {
     // The hint marks are an internal signal for the template parser; the
     // model sees the document as printed.
-    return `${today}\n\n<document>\n${input.replace(/[\x00\x01]/g, '').slice(0, MAX_TEXT_CHARS)}\n</document>`;
+    return `${today}\n\n<document>\n${textForModel(input)}\n</document>`;
   }
   const images = input.filter((b) => b.type === 'image').length;
   const what = input.some((b) => b.type === 'document')
@@ -3045,7 +3059,7 @@ export async function handler(req: Request): Promise<Response> {
     return services.flatMap((s, i) => reviewCodes(s.review).map((c) => (services.length > 1 ? `s${i + 1}:${c}` : c)));
   }
 
-  const CUT_WARNING = `დოკუმენტი გრძელია — AI-მ მხოლოდ პირველი ${MAX_TEXT_CHARS.toLocaleString('en-US')} სიმბოლო წაიკითხა. დანარჩენი ნაწილი თავად გადაამოწმე.`;
+  const CUT_WARNING = `დოკუმენტი გრძელია — AI-მ მისი დასაწყისი და ბოლო წაიკითხა (${MAX_TEXT_CHARS.toLocaleString('en-US')} სიმბოლო), შუა ნაწილი არა. თუ ჯავშნის დეტალები შუაშია, თავად გადაამოწმე.`;
 
   /**
    * Text — from a file or pasted from a chat — goes through both readers: the
