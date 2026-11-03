@@ -1206,6 +1206,25 @@
     "months": "January,February,March,April,May,June,July,August,September,October,November,December",
     "weekdays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
   },
+  "vehicleCalendar": {
+    "title": "Vehicle calendar",
+    "subtitle": "Mark the days this vehicle cannot work. On those days it gets no bookings and nobody can take one with it.",
+    "open": "Calendar",
+    "back": "Back",
+    "tapHint": "Tap a day to block it. Tap it again to free it.",
+    "legendBlocked": "Vehicle unavailable",
+    "legendBooked": "Booking",
+    "bookedDayHint": "This vehicle has a booking on that day, so the day cannot be blocked.",
+    "errors": {
+      "not_signed_in": "Please sign in first.",
+      "not_your_vehicle": "This vehicle is not yours.",
+      "not_a_host": "The vehicle calendar is for hosts only (2 or more vehicles).",
+      "past_day": "A past day cannot be changed.",
+      "too_far": "A date that far ahead cannot be marked yet.",
+      "vehicle_has_booking": "The vehicle has a booking on that day, so it could not be blocked.",
+      "generic": "Could not save. Please try again."
+    }
+  },
   "gpsScreen": {
     "title": "GPS / Map",
     "webBody": "Interactive map is available in the iOS and Android app. On web, use the mobile app for tour tracking.",

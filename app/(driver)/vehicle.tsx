@@ -358,6 +358,7 @@ function VehicleListCard({
   onEdit,
   onToggleActive,
   onDelete,
+  onCalendar,
 }: {
   vehicle: VehicleRow;
   index: number;
@@ -368,6 +369,8 @@ function VehicleListCard({
   onEdit: () => void;
   onToggleActive: () => void;
   onDelete: () => void;
+  /** A host's registered car gets its own calendar (vehicle-calendar.tsx). */
+  onCalendar?: () => void;
 }) {
   const { t } = useTranslation();
   const type = normalizeStoredVehicleType(vehicle.type) ?? VEHICLE_TYPES[0];
@@ -457,6 +460,17 @@ function VehicleListCard({
               </Text>
             </Pressable>
 
+            {onCalendar ? (
+              <Pressable
+                onPress={onCalendar}
+                style={({ pressed }) => [styles.cardBtn, pressed && styles.pressed]}
+                testID={`vehicle-calendar-open-${vehicle.id}`}
+              >
+                <Ionicons name="calendar-outline" size={13} color={COLORS.textSecondary} />
+                <Text style={styles.cardBtnText}>{t('vehicleCalendar.open')}</Text>
+              </Pressable>
+            ) : null}
+
             {!vehicle.is_active ? (
               <Pressable onPress={onDelete} style={styles.cardBtnDanger} hitSlop={8}>
                 <Ionicons name="trash-outline" size={15} color={COLORS.error} />
@@ -473,7 +487,7 @@ function VehicleListCard({
 export default function DriverVehiclePhotosScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { user, loading: authLoading, refreshVehicles } = useAuth();
+  const { user, loading: authLoading, refreshVehicles, isHost } = useAuth();
   const insets = useSafeAreaInsets();
   const userId = user?.id;
 
@@ -1067,6 +1081,15 @@ export default function DriverVehiclePhotosScreen() {
                 onEdit={() => handleEdit(v)}
                 onToggleActive={() => void handleToggleActive(v.id)}
                 onDelete={() => handleDelete(v)}
+                onCalendar={
+                  isHost && vehicleIsApproved(v)
+                    ? () =>
+                        router.push({
+                          pathname: '/(driver)/vehicle-calendar',
+                          params: { vehicleId: v.id, name: [v.model?.trim(), v.plate?.trim()].filter(Boolean).join(' · ') },
+                        })
+                    : undefined
+                }
               />
             ))
           )}
