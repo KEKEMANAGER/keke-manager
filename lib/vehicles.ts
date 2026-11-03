@@ -126,6 +126,19 @@ function normalizePlate(plate: string): string {
   return plate.trim().toUpperCase();
 }
 
+/**
+ * The server keeps one card per car on a driver's account: the same plate
+ * twice (spaces, dots, dashes aside) is refused (vehicles_one_plate_per_driver,
+ * 20261103170000). Two cards of one car are what came of adding it again
+ * instead of fixing the rejected one, or of a second tap on save.
+ */
+const SAME_PLATE_MESSAGE = 'ამ ნომრით მანქანა უკვე გაქვს დამატებული. გახსენი ის და იქ შეასწორე.';
+
+function isSamePlateError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return /vehicles_one_plate_per_driver/.test(error.message ?? '') || (error.code === '23505' && /plate/i.test(error.message ?? ''));
+}
+
 function isDriverVehicleLimitError(message: string): boolean {
   const m = message.toLowerCase();
   return (
@@ -138,7 +151,8 @@ function isDriverVehicleLimitError(message: string): boolean {
 
 /**
  * Returns true if the given plate is already registered on another driver's vehicle.
- * Same-driver duplicates are intentionally allowed.
+ * The same plate twice on one driver's account is refused by the server
+ * itself (see SAME_PLATE_MESSAGE).
  */
 async function plateUsedByOtherDriver(
   plate: string,
@@ -218,6 +232,9 @@ export async function insertVehicle(
     .maybeSingle();
 
   if (error) {
+    if (isSamePlateError(error)) {
+      return { data: null, error: new Error(SAME_PLATE_MESSAGE) };
+    }
     if (isDriverVehicleLimitError(error.message)) {
       return {
         data: null,
@@ -462,7 +479,7 @@ export async function saveVehicleDetails(
     .update(payload)
     .eq('id', vehicleId)
     .eq('driver_id', driverId);
-  if (error) return { error: new Error(error.message) };
+  if (error) return { error: new Error(isSamePlateError(error) ? SAME_PLATE_MESSAGE : error.message) };
 
   // Changing the car changes the profile with it — otherwise a driver who
   // swapped a sedan for a minivan keeps telling companies he drives a sedan.
