@@ -1,19 +1,25 @@
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
+import { SITE_URL } from './seoMeta';
 import { supabase } from './supabase';
 
 const APP_SCHEME = 'kekemanager';
 
 /**
- * Redirect URL for Supabase password recovery emails.
- * - Dev (Expo Go): exp://…/--/reset-password
- * - Standalone: kekemanager://reset-password
+ * Where the link in a password recovery email leads.
+ *
+ * Always to the website's reset page, also when the phone app asked for it:
+ * people ask in the app and open the mail on a computer, where an app link
+ * (kekemanager://) opens nothing at all, and the website works on every
+ * phone and computer. The website's own address is used on the website itself
+ * (kekemanager.com, or a local test copy). Supabase only accepts addresses on
+ * its allow list: https://kekemanager.com/reset-password is on it.
  */
 export function getPasswordResetRedirectUrl(): string {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     return `${window.location.origin}/reset-password`;
   }
-  return Linking.createURL('reset-password');
+  return `${SITE_URL}/reset-password`;
 }
 
 /** Also register in Supabase Dashboard → Auth → URL Configuration → Redirect URLs. */
