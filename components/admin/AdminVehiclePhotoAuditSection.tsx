@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { COLORS, SPACING } from '../../constants/theme';
 import {
@@ -10,6 +10,7 @@ import {
   type AdminVehicleVerificationRow,
 } from '../../lib/vehicleVerification';
 import { adminStyles } from './adminStyles';
+import { StorageImage } from '../StorageImage';
 
 const PHOTO_SLOTS: { column: keyof AdminVehicleVerificationRow; labelKey: string }[] = [
   { column: 'photo_front', labelKey: 'vehicleScreen.photoFront' },
@@ -129,7 +130,7 @@ export function AdminVehiclePhotoAuditSection({ searchQuery = '' }: { searchQuer
                     ]}
                   >
                     {url ? (
-                      <Image source={{ uri: url }} style={styles.thumb} resizeMode="cover" />
+                      <StorageImage uri={url} size={{ width: 320, height: 320, quality: 70 }} style={styles.thumb} resizeMode="cover" />
                     ) : (
                       <Text style={styles.thumbEmptyText}>—</Text>
                     )}
@@ -146,11 +147,12 @@ export function AdminVehiclePhotoAuditSection({ searchQuery = '' }: { searchQuer
           <View style={styles.previewCard}>
             <Text style={styles.previewTitle}>{preview?.title}</Text>
             {preview?.url ? (
-              <Image
-                source={{ uri: preview.url }}
+              <StorageImage
+                uri={preview.url}
+                size={{ width: 1600, quality: 80, resize: 'contain' }}
                 style={styles.previewImage}
                 resizeMode="contain"
-                onError={() => setPreview(null)}
+                onFailed={() => setPreview(null)}
               />
             ) : null}
             <Pressable onPress={() => setPreview(null)} style={styles.previewClose}>

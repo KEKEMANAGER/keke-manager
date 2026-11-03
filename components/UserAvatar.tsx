@@ -1,6 +1,7 @@
 import { Image, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useState } from 'react';
 import { COLORS } from '../constants/theme';
+import { StorageImage } from './StorageImage';
 
 function nameInitials(name: string | null | undefined): string {
   const n = (name ?? '').trim();
@@ -14,10 +15,15 @@ type Props = {
   /** Diameter in px. Defaults to 48. */
   size?: number;
   style?: ViewStyle;
+  /**
+   * Show a small copy made by Storage instead of the uploaded original (often
+   * several MB) — for long lists such as the admin support inbox.
+   */
+  thumbnail?: boolean;
 };
 
 /** Round avatar: shows `uri` if set, otherwise gold-filled initials. */
-export function UserAvatar({ name, uri, size = 48, style }: Props) {
+export function UserAvatar({ name, uri, size = 48, style, thumbnail = false }: Props) {
   const [imageFailed, setImageFailed] = useState(false);
   const radius = size / 2;
   const fontSize = Math.max(11, Math.round(size * 0.34));
@@ -33,7 +39,14 @@ export function UserAvatar({ name, uri, size = 48, style }: Props) {
         style,
       ]}
     >
-      {hasImage ? (
+      {hasImage && thumbnail ? (
+        <StorageImage
+          uri={trimmed}
+          size={{ width: size * 3, height: size * 3, quality: 75 }}
+          style={{ width: size, height: size, borderRadius: radius }}
+          onFailed={() => setImageFailed(true)}
+        />
+      ) : hasImage ? (
         <Image
           source={{ uri: trimmed }}
           style={{ width: size, height: size, borderRadius: radius }}

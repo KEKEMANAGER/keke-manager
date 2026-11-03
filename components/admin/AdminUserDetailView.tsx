@@ -3,7 +3,6 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   Modal,
   Platform,
@@ -25,6 +24,7 @@ import type { VehicleRow } from '../../lib/vehicles';
 import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 import { adminStyles } from './adminStyles';
 import { DocumentImage } from '../DocumentImage';
+import { StorageImage } from '../StorageImage';
 import { KekeCertifiedBadge } from '../KekeCertifiedBadge';
 import { fetchKekeCertifiedAt, setKekeCertified } from '../../lib/kekeCertified';
 import { viewableDocumentUri } from '../../lib/documentStorage';
@@ -70,7 +70,7 @@ function VehicleCard({ v }: { v: VehicleRow }) {
   return (
     <View style={styles.vehicleCard}>
       {photo ? (
-        <Image source={{ uri: photo }} style={styles.vehiclePhoto} resizeMode="cover" />
+        <StorageImage uri={photo} size={{ width: 264, height: 198, quality: 70 }} style={styles.vehiclePhoto} resizeMode="cover" />
       ) : (
         <View style={[styles.vehiclePhoto, styles.vehiclePhotoPlaceholder]}>
           <Text style={styles.placeholderText}>—</Text>
@@ -231,10 +231,11 @@ export function AdminUserDetailView({ userId, onClose, onOpenUser }: Props) {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator>
         <View style={styles.heroCard}>
           {u.avatar_url ? (
-            <Image
-              source={{ uri: u.avatar_url }}
+            <StorageImage
+              uri={u.avatar_url}
+              size={{ width: 216, height: 216, quality: 75 }}
               style={styles.avatar}
-              onError={() => setDetail((prev) => (prev ? { ...prev, user: { ...prev.user, avatar_url: null } } : prev))}
+              onFailed={() => setDetail((prev) => (prev ? { ...prev, user: { ...prev.user, avatar_url: null } } : prev))}
             />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>

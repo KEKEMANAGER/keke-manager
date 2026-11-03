@@ -159,7 +159,7 @@ export function AdminSupportInbox() {
             onPress={() => openThread(row)}
             style={({ pressed }) => [styles.row, unread && styles.rowUnread, pressed && { opacity: 0.9 }]}
           >
-            <UserAvatar name={row.user_name} uri={row.user_avatar_url} size={50} />
+            <UserAvatar name={row.user_name} uri={row.user_avatar_url} size={50} thumbnail />
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={styles.rowTop}>
                 <Text style={[styles.name, unread && styles.nameUnread]} numberOfLines={1}>

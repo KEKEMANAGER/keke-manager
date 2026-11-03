@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import type { VerificationDocSlot } from './verificationDocs';
+import { shrinkImageForUpload } from './webImageShrink';
 
 /**
  * Read local image URI (Expo native / web) into an ArrayBuffer for Supabase Storage.
@@ -31,7 +32,9 @@ function contentTypeForBlob(source: Blob, override?: string): string {
 
 /**
  * Upload to bucket `media` at `objectPath`.
- * - **Web + `Blob` (e.g. `File`)**: passes the body through to Storage as-is (no ArrayBuffer conversion).
+ * - **Web**: a photo is first made smaller (lib/webImageShrink.ts: at most
+ *   1920 px, a few hundred KB); anything the browser cannot read goes as it is.
+ *   A `File` / `Blob` is passed through without an ArrayBuffer conversion.
  * - **Native + string URI**: `fetch` → `ArrayBuffer` (existing behavior).
  */
 export async function uploadMediaObject(
@@ -45,11 +48,17 @@ export async function uploadMediaObject(
   let contentType: string;
 
   if (Platform.OS === 'web' && typeof Blob !== 'undefined' && source instanceof Blob) {
-    body = source;
-    contentType = contentTypeForBlob(source, options?.contentType);
+    ({ body, contentType } = await shrinkImageForUpload(source, contentTypeForBlob(source, options?.contentType)));
   } else if (typeof source === 'string') {
     contentType = options?.contentType ?? guessContentType(source);
-    body = await readImageAsArrayBuffer(source);
+    if (Platform.OS === 'web' && /^(blob|data):/i.test(source)) {
+      // The image picker on the web hands back a data: or blob: address.
+      const res = await fetch(source);
+      if (!res.ok) throw new Error(`ფოტოს წაკითხვა ვერ მოხერხდა (${res.status})`);
+      ({ body, contentType } = await shrinkImageForUpload(await res.blob(), contentType));
+    } else {
+      body = await readImageAsArrayBuffer(source);
+    }
   } else {
     throw new Error('ატვირთვის წყარო არასწორია');
   }

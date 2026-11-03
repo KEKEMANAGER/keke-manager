@@ -1,4 +1,4 @@
-import { storagePublicUrlBase, withCacheBust } from './mediaUpload';
+import { storagePublicUrlBase } from './mediaUpload';
 import { supabase } from './supabase';
 import type { VehiclePhotoKey, VehicleRow } from './vehicles';
 
@@ -197,9 +197,19 @@ export type AdminVehicleVerificationRow = VehicleRow & {
 
 const ADMIN_VEHICLE_SELECT = `id, driver_id, is_active, photo_front, photo_left, photo_right, photo_interior, photo_rear, photo_meta, type, class, model, color, year, plate, make_id, model_id, passenger_capacity, is_verified, verification_status, rejection_reason, tech_passport_front, tech_passport_back, updated_at`;
 
-function bustUrl(url: string | null | undefined): string | null {
-  if (!url?.trim()) return null;
-  return withCacheBust(url.trim()) ?? url.trim();
+/**
+ * A photo address that changes only when the photo does: `?v=` is when that
+ * photo was uploaded (photo_meta), or when the vehicle was last saved. It used
+ * to be the moment the list was opened, so the browser downloaded every photo
+ * again — whole — on every visit to the admin panel.
+ */
+function versionedUrl(url: string | null | undefined, stamp: string | null | undefined): string | null {
+  const u = url?.trim();
+  if (!u) return null;
+  if (!/^https?:\/\//i.test(u)) return u;
+  const base = storagePublicUrlBase(u);
+  const ms = stamp ? Date.parse(stamp) : NaN;
+  return Number.isFinite(ms) ? `${base}?v=${ms}` : base;
 }
 
 async function fetchDriverNamesById(
@@ -226,15 +236,17 @@ function mapAdminVehicleRows(
 ): AdminVehicleVerificationRow[] {
   return vehicles.map((v) => {
     const u = usersById.get(v.driver_id);
+    const meta = v.photo_meta ?? {};
+    const photo = (key: VehiclePhotoKey) => versionedUrl(v[key], meta[key]?.updatedAt ?? v.updated_at);
     return {
       ...v,
-      tech_passport_front: bustUrl(v.tech_passport_front),
-      tech_passport_back: bustUrl(v.tech_passport_back),
-      photo_front: bustUrl(v.photo_front),
-      photo_left: bustUrl(v.photo_left),
-      photo_right: bustUrl(v.photo_right),
-      photo_interior: bustUrl(v.photo_interior),
-      photo_rear: bustUrl(v.photo_rear),
+      tech_passport_front: versionedUrl(v.tech_passport_front, v.updated_at),
+      tech_passport_back: versionedUrl(v.tech_passport_back, v.updated_at),
+      photo_front: photo('photo_front'),
+      photo_left: photo('photo_left'),
+      photo_right: photo('photo_right'),
+      photo_interior: photo('photo_interior'),
+      photo_rear: photo('photo_rear'),
       driver_name: u?.full_name ?? null,
       driver_email: u?.email ?? null,
     };

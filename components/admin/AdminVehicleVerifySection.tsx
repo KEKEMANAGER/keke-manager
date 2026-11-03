@@ -235,7 +235,7 @@ export function AdminVehicleVerifySection({
         style={({ pressed }) => [styles.tile, pressed && url && styles.tilePressed]}
       >
         {url ? (
-          <DocumentImage uri={url} style={styles.tileImage} resizeMode="cover" />
+          <DocumentImage uri={url} size={{ width: 480, height: 360, quality: 70 }} style={styles.tileImage} resizeMode="cover" />
         ) : (
           <View style={[styles.tileImage, styles.tileEmpty]}>
             <Text style={styles.tileEmptyText}>{t('adminVerify.noDocument')}</Text>
@@ -325,6 +325,7 @@ export function AdminVehicleVerifySection({
             {preview?.url ? (
               <DocumentImage
                 uri={preview.url}
+                size={{ width: 1600, quality: 80, resize: 'contain' }}
                 style={styles.previewImage}
                 resizeMode="contain"
                 onError={() => setPreview(null)}
