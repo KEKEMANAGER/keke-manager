@@ -58,7 +58,9 @@ begin
          ('the road point carries the server''s arrival time, not the app''s',
           (select created_at = now() from public.driver_location_trail where driver_id = d)),
          ('the phone''s clock was measured: right',
-          (select abs(extract(epoch from skew)) < 120 from public.gps_device_clock where driver_id = d));
+          (select abs(extract(epoch from skew)) < 120 from public.gps_device_clock where driver_id = d)),
+         ('the road point says it came in during the trip',
+          (select trip_check = 'trip' from public.driver_location_trail where driver_id = d));
 
   -- the company and the admin during the trip
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
@@ -94,6 +96,9 @@ begin
   insert into _smoke (check_name, ok) values ('after the trip: a point from before the end, sent late (clock checked), is stored', n = 1);
   insert into _smoke (check_name, ok) values ('the driver still sees himself', exists (select 1 from public.driver_locations where driver_id = d));
   execute 'reset role';
+  insert into _smoke (check_name, ok)
+  values ('what was skipped is counted for the day',
+          (select coalesce(sum(sc.n), 0) >= 2 from public.gps_skip_counts sc where sc.day = (now() at time zone 'Asia/Tbilisi')::date));
 
   -- the company and the admin after the trip
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
@@ -114,6 +119,6 @@ end
 $smoke$;
 
 select n, check_name, ok from _smoke order by n;
-select case when bool_and(ok) and count(*) = 18 then 'ALL SMOKE CHECKS PASSED' else 'SMOKE FAILED - see the rows above' end as result
+select case when bool_and(ok) and count(*) = 20 then 'ALL SMOKE CHECKS PASSED' else 'SMOKE FAILED - see the rows above' end as result
   from _smoke;
 rollback;

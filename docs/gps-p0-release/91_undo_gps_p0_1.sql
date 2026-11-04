@@ -1,5 +1,5 @@
 -- KEKE GPS P0 - UNDO P0-1
--- Source: supabase/rollback/20261104150000_gps_position_only_during_trip_undo.sql (md5 362a49d91afcd26e4929a0dd4adb456b)
+-- Source: supabase/rollback/20261104150000_gps_position_only_during_trip_undo.sql (md5 4cded1a47e9f097da5ef30ae1f960b8b)
 -- Run as ONE call (Supabase SQL editor). It commits only if every check passes;
 -- otherwise it rolls back and nothing changes. No row is changed by this file.
 -- Built by docs/gps-p0-release/build.sh - do not edit by hand.
@@ -12,10 +12,11 @@ do $state$
 declare step text := 'undo GPS P0-1 (before)';
 begin
   if (select count(*) from pg_policies q where q.schemaname = 'public'
-        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read', 'driver_location_trail_company_read')
-        and q.qual like '%in_progress%') <> 3
+        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read') and q.qual like '%in_progress%') <> 2
      or not exists (select 1 from pg_policies q where q.schemaname = 'public' and q.policyname = 'driver_locations_fleet_host_read'
                      and q.qual like '%gps_fleet_owner_sees%')
+     or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_locations')
+        is distinct from 'driver_locations_admin_read,driver_locations_company_booking_read,driver_locations_fleet_host_read,driver_locations_self'
      or to_regprocedure('public.gps_fleet_owner_sees(uuid)') is null
      or to_regprocedure('public.gps_admin_open_access(uuid,text,integer)') is null
      or to_regprocedure('public.gps_admin_close_access(uuid)') is null
@@ -33,13 +34,13 @@ end
 $state$;
 
 create temp table _rows on commit drop as select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x) as h;
 
 -- ===== supabase/rollback/20261104150000_gps_position_only_during_trip_undo.sql, verbatim =====
--- Undo 20261104150000_gps_position_only_during_trip.sql: the four read rules
--- exactly as production had them before (captured 2026-11-04,
+-- Undo 20261104150000_gps_position_only_during_trip.sql: the three read rules
+-- of the live position exactly as production had them before (captured 2026-11-04,
 -- supabase/tests/fixtures/prod_gps_snapshot_2026-11-04.sql and the GPS backup
 -- of that day), and the admin exception removed. No row changes.
 --
@@ -73,13 +74,6 @@ create policy driver_locations_admin_read on public.driver_locations
    FROM users u
   WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text)))));
 
-drop policy if exists driver_location_trail_company_read on public.driver_location_trail;
-create policy driver_location_trail_company_read on public.driver_location_trail
-  as permissive for select to authenticated
-  using (((booking_id IS NOT NULL) AND (EXISTS ( SELECT 1
-   FROM bookings b
-  WHERE ((b.id = driver_location_trail.booking_id) AND (b.company_id = auth.uid()))))));
-
 drop function if exists public.gps_fleet_owner_sees(uuid);
 drop function if exists public.gps_admin_open_access(uuid, text, integer);
 drop function if exists public.gps_admin_close_access(uuid);
@@ -103,13 +97,14 @@ declare step text := 'undo GPS P0-1 (after)';
 begin
   if (select count(*) from (values ('driver_locations','driver_locations_company_booking_read','8ad9d669e756c76ed04f307c11ee41c1'),
     ('driver_locations','driver_locations_fleet_host_read','9c393869a27ca520d9d767924909296a'),
-    ('driver_locations','driver_locations_admin_read','a8889e5322f8467f00a2b22b9827e4a1'),
-    ('driver_location_trail','driver_location_trail_company_read','f5bdff939db84023dc2b17c2d07ab05a')) v(t, p, h)
-       join pg_policies q on q.schemaname = 'public' and q.tablename = v.t and q.policyname = v.p and md5(coalesce(q.qual, '')) = v.h) <> 4 then
-    raise exception '%: the four read rules are not production''s of 2026-11-04 - stop', step;
+    ('driver_locations','driver_locations_admin_read','a8889e5322f8467f00a2b22b9827e4a1')) v(t, p, h)
+       join pg_policies q on q.schemaname = 'public' and q.tablename = v.t and q.policyname = v.p and md5(coalesce(q.qual, '')) = v.h) <> 3
+     or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_locations')
+        is distinct from 'driver_locations_admin_read,driver_locations_company_booking_read,driver_locations_fleet_host_read,driver_locations_self' then
+    raise exception '%: the read rules of driver positions are not production''s of 2026-11-04 - stop', step;
   end if;
   if (select h from _rows) is distinct from (select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x)) then
     raise exception '%: rows of the GPS tables changed - stop', step;

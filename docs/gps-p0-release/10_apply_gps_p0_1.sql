@@ -1,5 +1,5 @@
 -- KEKE GPS P0 - step 1 of 3: P0-1, who sees a driver
--- Source: supabase/migrations/20261104150000_gps_position_only_during_trip.sql (md5 30a2960ef85a3cab747ad2cfc84f79a6)
+-- Source: supabase/migrations/20261104150000_gps_position_only_during_trip.sql (md5 7b347788a72bfb70d501f4e208c8d3e2)
 -- Run as ONE call (Supabase SQL editor). It commits only if every check passes;
 -- otherwise it rolls back and nothing changes. No row is changed by this file.
 -- Built by docs/gps-p0-release/build.sh - do not edit by hand.
@@ -13,19 +13,20 @@ declare step text := 'GPS P0-1 (before)';
 begin
   if (select count(*) from (values ('driver_locations','driver_locations_company_booking_read','8ad9d669e756c76ed04f307c11ee41c1'),
     ('driver_locations','driver_locations_fleet_host_read','9c393869a27ca520d9d767924909296a'),
-    ('driver_locations','driver_locations_admin_read','a8889e5322f8467f00a2b22b9827e4a1'),
-    ('driver_location_trail','driver_location_trail_company_read','f5bdff939db84023dc2b17c2d07ab05a')) v(t, p, h)
-       join pg_policies q on q.schemaname = 'public' and q.tablename = v.t and q.policyname = v.p and md5(coalesce(q.qual, '')) = v.h) <> 4 then
-    raise exception '%: the four read rules are not production''s of 2026-11-04 - stop', step;
+    ('driver_locations','driver_locations_admin_read','a8889e5322f8467f00a2b22b9827e4a1')) v(t, p, h)
+       join pg_policies q on q.schemaname = 'public' and q.tablename = v.t and q.policyname = v.p and md5(coalesce(q.qual, '')) = v.h) <> 3
+     or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_locations')
+        is distinct from 'driver_locations_admin_read,driver_locations_company_booking_read,driver_locations_fleet_host_read,driver_locations_self' then
+    raise exception '%: the read rules of driver positions are not production''s of 2026-11-04 - stop', step;
   end if;
-  if to_regclass('public.gps_admin_access') is not null or to_regprocedure('public.gps_fleet_owner_sees(uuid)') is not null then
+  if to_regprocedure('public.gps_fleet_owner_sees(uuid)') is not null or to_regprocedure('public.gps_admin_open_access(uuid,text,integer)') is not null then
     raise exception '%: P0-1 objects exist already - stop', step;
   end if;
 end
 $state$;
 
 create temp table _rows on commit drop as select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x) as h;
 
@@ -57,16 +58,13 @@ create temp table _rows on commit drop as select (select count(*) || ':' || md5(
 --     app, and gps_admin_close_access(driver) ends it early;
 --   * the driver himself: always (unchanged).
 --
--- The road (driver_location_trail), for the trip's company: while the trip
--- runs; afterwards the points that reached the server during the trip
--- (created_at: the server's time of arrival, P0-2) or were recorded up to two
--- minutes after it was completed; for a trip cancelled after it started, the
--- points that arrived before it was cancelled. A booking that never ran has no
--- road. Fleet owner, admin and driver rules for the road are unchanged; no
--- road point can be stored outside a trip any more (P0-2).
+-- The road (driver_location_trail) - what is stored and who reads it - is
+-- P0-2's.
 --
--- Realtime sends a person only the rows these rules let him read. Nothing is
--- deleted or rewritten here; only who may read changes.
+-- Realtime sends a person only the rows these rules let him read (inserts and
+-- updates; Supabase sends deletes to every subscriber as the bare key, which
+-- is the driver's id). Nothing is deleted or rewritten here; only who may
+-- read changes.
 --
 -- Rollback: supabase/rollback/20261104150000_gps_position_only_during_trip_undo.sql
 
@@ -202,35 +200,17 @@ create policy driver_locations_admin_read on public.driver_locations
                        and g.closed_at is null
                        and g.expires_at > now()))
   );
-
--- the company's road ----------------------------------------------------------------
-drop policy if exists driver_location_trail_company_read on public.driver_location_trail;
-create policy driver_location_trail_company_read on public.driver_location_trail
-  as permissive for select to authenticated
-  using (
-    booking_id is not null
-    and exists (select 1 from public.bookings b
-                 where b.id = driver_location_trail.booking_id
-                   and b.company_id = auth.uid()
-                   and (b.status = 'in_progress'
-                        or (b.status = 'completed'
-                            and b.completed_at is not null
-                            and (driver_location_trail.created_at <= b.completed_at + interval '2 minutes'
-                                 or driver_location_trail.recorded_at <= b.completed_at + interval '2 minutes'))
-                        or (b.status = 'cancelled'
-                            and b.cancelled_at is not null
-                            and driver_location_trail.created_at <= b.cancelled_at + interval '2 minutes')))
-  );
 -- ===== end =====
 
 do $after$
 declare step text := 'GPS P0-1 (after)';
 begin
   if (select count(*) from pg_policies q where q.schemaname = 'public'
-        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read', 'driver_location_trail_company_read')
-        and q.qual like '%in_progress%') <> 3
+        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read') and q.qual like '%in_progress%') <> 2
      or not exists (select 1 from pg_policies q where q.schemaname = 'public' and q.policyname = 'driver_locations_fleet_host_read'
                      and q.qual like '%gps_fleet_owner_sees%')
+     or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_locations')
+        is distinct from 'driver_locations_admin_read,driver_locations_company_booking_read,driver_locations_fleet_host_read,driver_locations_self'
      or to_regprocedure('public.gps_fleet_owner_sees(uuid)') is null
      or to_regprocedure('public.gps_admin_open_access(uuid,text,integer)') is null
      or to_regprocedure('public.gps_admin_close_access(uuid)') is null
@@ -245,7 +225,7 @@ begin
     raise exception '%: the P0-1 rules are not as expected - stop', step;
   end if;
   if (select h from _rows) is distinct from (select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x)) then
     raise exception '%: rows of the GPS tables changed - stop', step;

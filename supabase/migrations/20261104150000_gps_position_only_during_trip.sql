@@ -25,16 +25,13 @@
 --     app, and gps_admin_close_access(driver) ends it early;
 --   * the driver himself: always (unchanged).
 --
--- The road (driver_location_trail), for the trip's company: while the trip
--- runs; afterwards the points that reached the server during the trip
--- (created_at: the server's time of arrival, P0-2) or were recorded up to two
--- minutes after it was completed; for a trip cancelled after it started, the
--- points that arrived before it was cancelled. A booking that never ran has no
--- road. Fleet owner, admin and driver rules for the road are unchanged; no
--- road point can be stored outside a trip any more (P0-2).
+-- The road (driver_location_trail) - what is stored and who reads it - is
+-- P0-2's.
 --
--- Realtime sends a person only the rows these rules let him read. Nothing is
--- deleted or rewritten here; only who may read changes.
+-- Realtime sends a person only the rows these rules let him read (inserts and
+-- updates; Supabase sends deletes to every subscriber as the bare key, which
+-- is the driver's id). Nothing is deleted or rewritten here; only who may
+-- read changes.
 --
 -- Rollback: supabase/rollback/20261104150000_gps_position_only_during_trip_undo.sql
 
@@ -169,23 +166,4 @@ create policy driver_locations_admin_read on public.driver_locations
                        and g.driver_id = driver_locations.driver_id
                        and g.closed_at is null
                        and g.expires_at > now()))
-  );
-
--- the company's road ----------------------------------------------------------------
-drop policy if exists driver_location_trail_company_read on public.driver_location_trail;
-create policy driver_location_trail_company_read on public.driver_location_trail
-  as permissive for select to authenticated
-  using (
-    booking_id is not null
-    and exists (select 1 from public.bookings b
-                 where b.id = driver_location_trail.booking_id
-                   and b.company_id = auth.uid()
-                   and (b.status = 'in_progress'
-                        or (b.status = 'completed'
-                            and b.completed_at is not null
-                            and (driver_location_trail.created_at <= b.completed_at + interval '2 minutes'
-                                 or driver_location_trail.recorded_at <= b.completed_at + interval '2 minutes'))
-                        or (b.status = 'cancelled'
-                            and b.cancelled_at is not null
-                            and driver_location_trail.created_at <= b.cancelled_at + interval '2 minutes')))
   );

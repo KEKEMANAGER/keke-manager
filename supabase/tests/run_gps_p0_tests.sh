@@ -7,7 +7,7 @@
 # PGHOST/PGPORT/PGUSER at a local server you can drop databases on; PGUSER
 # must be "postgres" (the production snapshot trusts that session user).
 #
-#   1. production today: all 21 GPS problems are there (7 P0-1, 10 P0-2, 4 P0-3);
+#   1. production today: all 22 GPS problems are there (6 P0-1, 12 P0-2, 4 P0-3);
 #   2. the three migrations one at a time: each removes exactly its own
 #      problems; all three can run twice;
 #   3. the GPS suite (gps_p0.test.sql);
@@ -105,19 +105,19 @@ fingerprint() { # the GPS objects: rules, functions, triggers, jobs, columns
   psql -X -qAt -d "$DB" <<'SQL'
 select 'policies ' || tablename || ' ' || md5(string_agg(policyname || '|' || permissive || '|' || roles::text || '|' || cmd || '|' || coalesce(qual, '') || '|' || coalesce(with_check, ''), E'\n' order by policyname))
   from pg_policies where schemaname = 'public' and tablename in ('driver_locations', 'driver_location_trail', 'trip_events', 'locations', 'trip_gps_watch',
-                                                                 'booking_day_logs', 'gps_admin_access', 'gps_device_clock')
+                                                                 'booking_day_logs', 'gps_admin_access', 'gps_device_clock', 'gps_skip_counts')
  group by tablename order by 1;
 select 'function ' || p.oid::regprocedure::text || ' ' || md5(pg_get_functiondef(p.oid)) || ' ' || coalesce(array_to_string(p.proacl, ','), 'default')
   from pg_proc p where p.pronamespace = 'public'::regnamespace
    and p.proname in ('watch_trip_gps', 'send_expo_silent_push', 'trip_events_queue_company_email', 'gps_tidy_pins',
                      'gps_trip_accepts_point', 'driver_locations_trip_guard', 'driver_location_trail_keep_trip_points',
                      'driver_locations_server_time', 'driver_locations_device_clock', 'gps_admin_open_access',
-                     'gps_admin_close_access', 'gps_fleet_owner_sees', 'close_tour_day', 'complete_tour_booking_as_driver',
-                     'tour_day_plan') order by 1;
+                     'gps_admin_close_access', 'gps_fleet_owner_sees', 'gps_road_point_kind', 'gps_road_point_visible',
+                     'gps_count_skip', 'close_tour_day', 'complete_tour_booking_as_driver', 'tour_day_plan') order by 1;
 select 'tables ' || coalesce(string_agg(c.relname || ':' || coalesce(array_to_string(c.relacl, ','), 'default'), ' ' order by c.relname), '')
   from pg_class c where c.relnamespace = 'public'::regnamespace
    and c.relname in ('driver_locations', 'driver_location_trail', 'trip_events', 'trip_gps_watch', 'locations',
-                     'booking_day_logs', 'gps_device_clock', 'gps_admin_access');
+                     'booking_day_logs', 'gps_device_clock', 'gps_admin_access', 'gps_skip_counts');
 select 'triggers ' || coalesce(string_agg(t.tgrelid::regclass::text || '.' || t.tgname, ',' order by 1), '')
   from pg_trigger t where t.tgrelid in ('public.driver_locations'::regclass, 'public.driver_location_trail'::regclass,
                                         'public.trip_events'::regclass, 'public.trip_gps_watch'::regclass) and not t.tgisinternal;
@@ -131,12 +131,12 @@ SQL
 
 echo "== 1/7 production today: every GPS problem is there"
 build "$DB"
-gps_held "7 10 4"
+gps_held "6 12 4"
 PROD_FP=$(fingerprint)
 baseline
 
 echo "== 2/7 the three migrations, one at a time"
-apply "$G1"; gps_held "0 10 4"
+apply "$G1"; gps_held "0 12 4"
 apply "$G2"; gps_held "0 0 4"
 apply "$G3"; gps_held "0 0 0"
 apply "$G1" "$G2" "$G3"; echo "   each applied a second time:"; gps_held "0 0 0"
@@ -153,7 +153,7 @@ SAVED="$DB"; DB="${SAVED}_staged"
 build "$DB" "$ROOT/supabase/staged/20261031180100_open_jobs_summary_only.sql" "$ROOT/supabase/staged/20261101090100_push_tokens_private.sql"
 declare -A MAIN_BEFORE; for f in $SUITES; do MAIN_BEFORE[$f]=${BEFORE[$f]}; done
 baseline
-gps_held "7 10 4"
+gps_held "6 12 4"
 apply "$G1" "$G2" "$G3"; gps_held "0 0 0"
 tap gps_p0.test.sql; suites
 held p0_4_bug_reproduction.sql 0
@@ -169,13 +169,13 @@ dropdb "$TPL"
 
 echo "== 7/7 undo"
 echo "-- each undo alone brings back only its own problems:"
-apply "$U1"; gps_held "7 0 0"; apply "$G1"
-apply "$U2"; gps_held "0 10 0"; apply "$G2"
+apply "$U1"; gps_held "6 0 0"; apply "$G1"
+apply "$U2"; gps_held "0 12 0"; apply "$G2"
 apply "$U3"; gps_held "0 0 4"; apply "$G3"
 gps_held "0 0 0"
 echo "-- all three undone, newest first:"
 apply "$U3" "$U2" "$U1"
-gps_held "7 10 4"
+gps_held "6 12 4"
 if [ "$(fingerprint)" != "$PROD_FP" ]; then
   echo "   the GPS objects differ from production after the undo:"; diff <(echo "$PROD_FP") <(fingerprint) || true; exit 1
 fi

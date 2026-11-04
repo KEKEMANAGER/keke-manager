@@ -24,7 +24,9 @@
 --   * quiet for 20 minutes - background, open-screen only, or no position at
 --     all since the watch first saw the trip - the driver is told, by day
 --     (08:00-21:59 Tbilisi), at most 3 times per trip and 2 hours apart;
---   * quiet for more than 12 hours: a trip left open, nobody is told.
+--   * quiet for more than 12 hours, or still "in progress" more than 12 hours
+--     after its last planned day (the booking's start + its days): a trip
+--     left open, nobody is told or woken - also on the day this runs.
 -- The counts belong to the trip: they reset only when the driver's next trip
 -- starts, and the watch row goes when the trip ends. A driver with two trips
 -- in progress at once is watched on the newest one, always the same one.
@@ -94,7 +96,9 @@ declare
 begin
   for r in
     select distinct on (b.driver_id)
-           b.driver_id, b.id as booking_id, dl.updated_at as loc_at, dl.gps_mode
+           b.driver_id, b.id as booking_id, dl.updated_at as loc_at, dl.gps_mode,
+           public.parse_booking_start_ts(b.date_display)
+             + make_interval(days => public.tour_day_count(b.id)) + interval '12 hours' as left_open_after
       from public.bookings b
       left join public.driver_locations dl on dl.driver_id = b.driver_id
      where b.status = 'in_progress'
@@ -119,6 +123,13 @@ begin
       -- A row the old watch made: seen from now on.
       update public.trip_gps_watch set trip_seen_at = p_now where driver_id = r.driver_id;
       w.trip_seen_at := p_now;
+    end if;
+
+    -- Still "in progress" half a day after its last planned day: a trip left
+    -- open, not one under way - nobody is woken or told (also when the watch
+    -- sees it for the first time, e.g. the day this runs).
+    if r.left_open_after is not null and p_now > r.left_open_after then
+      continue;
     end if;
 
     -- Live: a quiet spell that was going on is over; the trip's totals stay.

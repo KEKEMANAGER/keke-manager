@@ -1,5 +1,5 @@
--- KEKE GPS P0 - step 2 of 3: P0-2, sharing stops after the trip; the server checks the phone's clock
--- Source: supabase/migrations/20261104150100_gps_stop_sharing_after_trip.sql (md5 5d53fcbb8b8059415e5b5d6920f9337f)
+-- KEKE GPS P0 - step 2 of 3: P0-2, sharing stops after the trip; the road holds only the trip, timed and read as the server says
+-- Source: supabase/migrations/20261104150100_gps_stop_sharing_after_trip.sql (md5 caa208678a8233a23ff93b1cb5abe444)
 -- Run as ONE call (Supabase SQL editor). It commits only if every check passes;
 -- otherwise it rolls back and nothing changes. No row is changed by this file.
 -- Built by docs/gps-p0-release/build.sh - do not edit by hand.
@@ -11,36 +11,45 @@ set local statement_timeout = '60s';
 do $state$
 declare step text := 'GPS P0-2 (before)';
 begin
-  if exists (select 1 from pg_trigger where not tgisinternal
+  if (select count(*) from (values ('driver_location_trail','driver_location_trail_company_read','f5bdff939db84023dc2b17c2d07ab05a'),
+    ('driver_location_trail','driver_location_trail_fleet_host_read','9d6cc7b9d05fd40e122728721bad8077'),
+    ('driver_location_trail','driver_location_trail_admin_read','21596870c5ee5a2a50a4de36d42ffa21')) v(t, p, h)
+       join pg_policies q on q.schemaname = 'public' and q.tablename = v.t and q.policyname = v.p and md5(coalesce(q.qual, '')) = v.h) <> 3
+     or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_location_trail')
+        is distinct from 'driver_location_trail_admin_read,driver_location_trail_company_read,driver_location_trail_driver_insert,driver_location_trail_driver_read,driver_location_trail_fleet_host_read'
+     or exists (select 1 from pg_trigger where not tgisinternal
                and tgrelid in ('public.driver_locations'::regclass, 'public.driver_location_trail'::regclass)
                and tgname <> 'driver_locations_20_server_time')
      or to_regclass('public.gps_device_clock') is not null
+     or to_regclass('public.gps_skip_counts') is not null
+     or exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'driver_location_trail' and column_name = 'trip_check')
      or exists (select 1 from cron.job where jobname = 'gps-tidy-pins')
      or (select command from cron.job where jobname = 'trail-cleanup') is distinct from 'delete from public.driver_location_trail where recorded_at < now() - interval ''30 days'';' then
-    raise exception '%: positions, road, clock table or jobs are not production''s of 2026-11-04 - stop', step;
+    raise exception '%: road rules, positions, clock or jobs are not production''s of 2026-11-04 - stop', step;
   end if;
 end
 $state$;
 
 create temp table _rows on commit drop as select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x) as h;
 
 -- ===== supabase/migrations/20261104150100_gps_stop_sharing_after_trip.sql, verbatim =====
 -- GPS P0-2: a driver's position stops being shared when his trip ends, also
--- for the app versions already installed; and the server, not the phone,
--- decides when a road point happened.
+-- for the app versions already installed; the road holds only the trip, timed
+-- by the server; and nobody but the driver reads a road point from outside it.
 --
 -- Today the phone stops sharing only when the trip is finished from the GPS
 -- screen or the bookings list. Finished anywhere else - the hired driver's
 -- panel, the day-by-day screen of a multi-day tour, KEKE ending it - the trip's
 -- background task keeps running: it keeps writing the driver's position and
--- keeps adding points to the finished trip's road, which that trip's company
--- can read. The road takes the phone's own clock for when a point happened, so
--- a phone whose clock is behind can still put points from after the trip into
--- the finished trip's road. And the server never removed a position: 30 were
--- stored on 2026-11-04, none of them on a trip, the oldest from 27 September.
+-- keeps adding points to the finished trip's road, which that trip's company,
+-- the driver's fleet owner and KEKE's admins can read. The road takes the
+-- phone's own clock for when a point happened, so a phone whose clock is
+-- behind can still put points from after the trip into the finished trip's
+-- road. And the server never removed a position: 30 were stored on
+-- 2026-11-04, none of them on a trip, the oldest from 27 September.
 --
 -- The app update fixes the phone side. This migration makes the server hold
 -- the line for the app versions already installed, without ever answering
@@ -48,43 +57,55 @@ create temp table _rows on commit drop as select (select count(*) || ':' || md5(
 -- same points forever, lib/locationTrail.ts):
 --
 --   1. The phone's clock is checked. Every app version sends its own clock
---      with each position (updated_at); the server keeps, per driver, how far
---      it is from the server's clock (gps_device_clock - the server's own
---      table, no app can read or write it).
---   2. driver_location_trail: a driver's own point is stored only if it
---      belongs to his own trip (he is its driver) and
---        - the trip is in progress when the point arrives; if his phone's
---          clock is more than 2 minutes off, the point's time is corrected by
---          the measured difference; or
---        - the trip is completed, the point says it was recorded no later than
---          two minutes after the end, it arrives within 48 hours (a phone that
---          was offline), AND the phone's clock was checked from an hour before
---          the end until now and never found more than 2 minutes off. A clock
---          that is off, was off, or is unknown cannot place a late point
---          before the end, so such a point is not stored.
---      created_at is always the server's time of arrival. Anything else - a
---      finished trip's later points, a cancelled or declined booking, a job
---      not started, a point with no booking, the fleet owner's own phone on
---      his driver's trip - is skipped quietly (the insert "succeeds", nothing
---      is written).
---   3. driver_locations: a position the trip's background task sends
+--      with each position report (updated_at); the server notes, per driver,
+--      how far it is from the server's clock and when it was last found more
+--      than 2 minutes off (gps_device_clock - the server's own table, no app
+--      can read or write it). Every report counts, also one that is not
+--      stored (below).
+--   2. driver_location_trail: a driver's own point is stored only for his own
+--      trip (he is its driver), not from before its planned start (12 hours of
+--      slack) nor older than 31 days, and
+--        - while the trip is in progress ("trip"), or
+--        - for his completed trip, sent late ("late"): recorded no later than
+--          two minutes after the end, arriving within 48 hours (a phone that
+--          was offline), and only if his phone's clock was not found more
+--          than 2 minutes off from an hour before the end until now. A clock
+--          known to be off cannot place a late point before the end.
+--      created_at is always the server's time of arrival; trip_check says
+--      which of the two let the point in. Anything else - a finished trip's
+--      later points, a cancelled or declined booking, a job not started, a
+--      point with no booking, the fleet owner's own phone on his driver's
+--      trip - is skipped quietly (the insert "succeeds", nothing is written)
+--      and counted in gps_skip_counts, so a rollout can watch what is skipped.
+--   3. Who reads the road: the trip's company, the fleet owner (his driver's
+--      trip, or a trip he gave out) and KEKE's admins read only points the
+--      server checked - while the trip runs; afterwards those that arrived
+--      during it (or up to two minutes after the end) and the checked late
+--      ones; for a trip cancelled under way, those that arrived before the
+--      cancellation. Never a point from after the trip, never an unchecked
+--      one (stored before this migration). The driver reads all of his own.
+--   4. driver_locations: a position the trip's background task sends
 --      (gps_mode 'background', freshly stamped) while the driver has no trip
 --      in progress is skipped the same way. Positions without a fresh mode
 --      (apps from before 24 October 2026, the open GPS screen) are stored, and
 --      nobody but the driver sees them outside a trip (P0-1).
---   4. gps_tidy_pins(), every 5 minutes: removes the position of a driver who
+--   5. gps_tidy_pins(), every 5 minutes: removes the position of a driver who
 --      has no trip in progress if it came from a trip's background task, or if
---      it is older than 24 hours. Only positions (driver_locations): never a
---      road point, a passenger mark or a tour day.
---   5. The existing 30-day road clean-up (trail-cleanup) counts from when a
---      point reached the server, no longer from the phone's clock: a phone
---      whose clock is behind can no longer get its fresh points deleted.
+--      it is older than 15 minutes - so the next trip never starts with an old
+--      one. Only positions (driver_locations): never a road point, a passenger
+--      mark or a tour day.
+--   6. The existing 30-day road clean-up (trail-cleanup) no longer deletes a
+--      trip's road: only points that were never checked or have no trip. How
+--      long trip roads are kept is the owner's decision (retention period);
+--      until it is set, they are kept.
 --
 -- The checks look only at a driver's own rows: anything else is left to the
 -- row-level rules, which refuse it as before - so the answer never tells
 -- anyone whether some driver is on a trip. None of the new functions can be
 -- called by the apps (Supabase lets anon and authenticated execute every new
--- function in public unless told otherwise).
+-- function in public unless told otherwise), except the read check of point
+-- 3, which the read rules need and which answers only about the asker's own
+-- trips.
 --
 -- The first run of gps_tidy_pins() removes the positions left over today
 -- (stored positions only, no booking changes; the GPS backup of 2026-11-04
@@ -92,12 +113,38 @@ create temp table _rows on commit drop as select (select count(*) || ':' || md5(
 --
 -- Rollback: supabase/rollback/20261104150100_gps_stop_sharing_after_trip_undo.sql
 
+-- 0. what was skipped, by day: for watching a rollout ---------------------------
+create table if not exists public.gps_skip_counts (
+  day date not null,
+  kind text not null,
+  n bigint not null default 0,
+  primary key (day, kind)
+);
+alter table public.gps_skip_counts enable row level security;
+revoke all on table public.gps_skip_counts from public, anon, authenticated;
+grant all on table public.gps_skip_counts to service_role;
+
+create or replace function public.gps_count_skip(p_kind text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.gps_skip_counts as s (day, kind, n)
+  values ((now() at time zone 'Asia/Tbilisi')::date, p_kind, 1)
+  on conflict (day, kind) do update set n = s.n + 1;
+exception when others then
+  null;  -- counting must never cost the driver anything
+end;
+$$;
+revoke all on function public.gps_count_skip(text) from public, anon, authenticated;
+
 -- 1. the phone's clock -------------------------------------------------------------
 create table if not exists public.gps_device_clock (
   driver_id uuid primary key references auth.users (id) on delete cascade,
   -- the phone's clock minus the server's, as last measured; kept steady (it
-  -- moves only when the difference changes by more than 30 seconds), so a
-  -- corrected time comes out the same when a phone sends a point twice
+  -- moves only when the difference changes by more than 30 seconds)
   skew interval not null,
   measured_at timestamptz not null,
   -- the last time the phone's clock was found more than 2 minutes off
@@ -142,43 +189,54 @@ end;
 $$;
 revoke all on function public.driver_locations_device_clock() from public, anon, authenticated;
 
+-- First among the position's triggers: a report that is then skipped (no trip)
+-- still says what the phone's clock is.
 drop trigger if exists driver_locations_15_device_clock on public.driver_locations;
-create trigger driver_locations_15_device_clock
+drop trigger if exists driver_locations_05_device_clock on public.driver_locations;
+create trigger driver_locations_05_device_clock
   before insert or update on public.driver_locations
   for each row execute function public.driver_locations_device_clock();
 
--- 2. the road: only points of a running or just-completed trip ---------------
-create or replace function public.gps_trip_accepts_point(p_driver uuid, p_booking uuid, p_at timestamptz)
-returns boolean
+-- 2. the road: only points of the driver's running or just-completed trip ------
+alter table public.driver_location_trail
+  add column if not exists trip_check text;
+alter table public.driver_location_trail
+  drop constraint if exists driver_location_trail_trip_check_check;
+alter table public.driver_location_trail
+  add constraint driver_location_trail_trip_check_check check (trip_check in ('trip', 'late'));
+create index if not exists driver_location_trail_created_idx on public.driver_location_trail (created_at);
+
+drop function if exists public.gps_trip_accepts_point(uuid, uuid, timestamptz);
+create or replace function public.gps_road_point_kind(p_driver uuid, p_booking uuid, p_at timestamptz)
+returns text
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select p_driver is not null and p_booking is not null and p_at is not null
-     and exists (
-       select 1 from public.bookings b
-        where b.id = p_booking
-          and b.driver_id = p_driver
-          and (b.status = 'in_progress'
-               or (b.status = 'completed'
-                   and b.completed_at is not null
-                   and p_at <= b.completed_at + interval '2 minutes'
-                   and now() <= b.completed_at + interval '48 hours'
-                   -- the phone's clock: checked from an hour before the end until
-                   -- now, never found more than 2 minutes off
-                   and exists (select 1 from public.gps_device_clock c
-                                where c.driver_id = p_driver
-                                  and c.measured_at >= b.completed_at - interval '1 hour'
-                                  and abs(extract(epoch from c.skew)) <= 120
-                                  and (c.off_seen_at is null
-                                       or c.off_seen_at < b.completed_at - interval '1 hour'))))
-     );
+  select case
+           when b.status = 'in_progress' then 'trip'
+           when b.status = 'completed'
+                and b.completed_at is not null
+                and p_at <= b.completed_at + interval '2 minutes'
+                and now() <= b.completed_at + interval '48 hours'
+                and not exists (select 1 from public.gps_device_clock c
+                                 where c.driver_id = p_driver
+                                   and (abs(extract(epoch from c.skew)) > 120
+                                        or c.off_seen_at >= b.completed_at - interval '1 hour'))
+             then 'late'
+         end
+    from public.bookings b
+   where p_driver is not null and p_at is not null
+     and b.id = p_booking
+     and b.driver_id = p_driver
+     and p_at >= greatest(public.parse_booking_start_ts(b.date_display) - interval '12 hours',
+                          coalesce(b.completed_at, now()) - interval '31 days');
 $$;
 -- The server's own check (the trigger below runs it as the owner): no app may
 -- call it to ask whether someone else's booking is under way.
-revoke all on function public.gps_trip_accepts_point(uuid, uuid, timestamptz) from public, anon, authenticated;
-grant execute on function public.gps_trip_accepts_point(uuid, uuid, timestamptz) to service_role;
+revoke all on function public.gps_road_point_kind(uuid, uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.gps_road_point_kind(uuid, uuid, timestamptz) to service_role;
 
 create or replace function public.driver_location_trail_keep_trip_points()
 returns trigger
@@ -186,7 +244,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare v_skew interval;
+declare v_kind text;
 begin
   -- Someone else's row: the row-level rules decide (and refuse it), as before.
   if new.driver_id is distinct from auth.uid() then
@@ -194,19 +252,12 @@ begin
   end if;
   -- When the point reached the server is the server's to say.
   new.created_at := now();
-  if not public.gps_trip_accepts_point(new.driver_id, new.booking_id, new.recorded_at) then
+  v_kind := public.gps_road_point_kind(new.driver_id, new.booking_id, new.recorded_at);
+  if v_kind is null then
+    perform public.gps_count_skip('road_point');
     return null;  -- skipped, not refused: an installed app must not retry it forever
   end if;
-  -- A running trip's point from a phone whose clock is more than 2 minutes
-  -- off (measured in the last 2 hours): its time is put right.
-  select c.skew into v_skew
-    from public.gps_device_clock c
-   where c.driver_id = new.driver_id
-     and c.measured_at > now() - interval '2 hours'
-     and abs(extract(epoch from c.skew)) > 120;
-  if v_skew is not null then
-    new.recorded_at := new.recorded_at - v_skew;
-  end if;
+  new.trip_check := v_kind;
   return new;
 end;
 $$;
@@ -217,7 +268,57 @@ create trigger driver_location_trail_10_trip_points
   before insert on public.driver_location_trail
   for each row execute function public.driver_location_trail_keep_trip_points();
 
--- 3. the live position: a trip's background report needs a trip ---------------
+-- 3. who reads the road ------------------------------------------------------------
+-- Answers only about the asker: whether this checked point of this booking is
+-- one he may read as the trip's company, its fleet owner or an admin.
+create or replace function public.gps_road_point_visible(p_as text, p_booking uuid, p_created timestamptz, p_check text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select auth.uid() is not null and p_booking is not null and p_check is not null
+     and exists (
+       select 1 from public.bookings b
+        where b.id = p_booking
+          and case p_as
+                when 'company' then b.company_id = auth.uid()
+                when 'fleet' then b.host_driver_id = auth.uid()
+                                  or exists (select 1 from public.driver_fleet f
+                                              where f.host_driver_id = auth.uid()
+                                                and f.sub_driver_id = b.driver_id
+                                                and f.status = 'accepted')
+                when 'admin' then exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'admin')
+                else false
+              end
+          and (b.status = 'in_progress'
+               or (b.status = 'completed' and b.completed_at is not null
+                   and (p_check = 'late'
+                        or p_created <= b.completed_at + interval '2 minutes'))
+               or (b.status = 'cancelled' and b.cancelled_at is not null
+                   and p_check = 'trip'
+                   and p_created <= b.cancelled_at + interval '2 minutes')));
+$$;
+revoke all on function public.gps_road_point_visible(text, uuid, timestamptz, text) from public, anon, authenticated;
+grant execute on function public.gps_road_point_visible(text, uuid, timestamptz, text) to authenticated, service_role;
+
+drop policy if exists driver_location_trail_company_read on public.driver_location_trail;
+create policy driver_location_trail_company_read on public.driver_location_trail
+  as permissive for select to authenticated
+  using (public.gps_road_point_visible('company', booking_id, created_at, trip_check));
+
+drop policy if exists driver_location_trail_fleet_host_read on public.driver_location_trail;
+create policy driver_location_trail_fleet_host_read on public.driver_location_trail
+  as permissive for select to authenticated
+  using (public.gps_road_point_visible('fleet', booking_id, created_at, trip_check));
+
+drop policy if exists driver_location_trail_admin_read on public.driver_location_trail;
+create policy driver_location_trail_admin_read on public.driver_location_trail
+  as permissive for select to authenticated
+  using (public.gps_road_point_visible('admin', booking_id, created_at, trip_check));
+
+-- 4. the live position: a trip's background report needs a trip ---------------
 create or replace function public.driver_locations_trip_guard()
 returns trigger
 language plpgsql
@@ -237,6 +338,7 @@ begin
      and not exists (select 1 from public.bookings b
                       where b.status = 'in_progress'
                         and (b.driver_id = new.driver_id or b.host_driver_id = new.driver_id)) then
+    perform public.gps_count_skip('background_position');
     return null;  -- skipped, not refused
   end if;
   return new;
@@ -249,7 +351,7 @@ create trigger driver_locations_10_trip_guard
   before insert or update on public.driver_locations
   for each row execute function public.driver_locations_trip_guard();
 
--- 4. positions left over from finished trips, and old ones ---------------------
+-- 5. positions left over from finished trips, and old ones ---------------------
 create or replace function public.gps_tidy_pins(p_now timestamptz default now())
 returns integer
 language plpgsql
@@ -262,7 +364,7 @@ begin
    where not exists (select 1 from public.bookings b
                       where b.status = 'in_progress'
                         and (b.driver_id = dl.driver_id or b.host_driver_id = dl.driver_id))
-     and (dl.gps_mode = 'background' or dl.updated_at < p_now - interval '24 hours');
+     and (dl.gps_mode = 'background' or dl.updated_at < p_now - interval '15 minutes');
   get diagnostics n = row_count;
   return n;
 end;
@@ -270,14 +372,14 @@ $$;
 revoke all on function public.gps_tidy_pins(timestamptz) from public, anon, authenticated;
 grant execute on function public.gps_tidy_pins(timestamptz) to service_role;
 
--- 5. the schedules ----------------------------------------------------------------
+-- 6. the schedules ----------------------------------------------------------------
 do $cron$
 begin
   if to_regprocedure('cron.schedule(text,text,text)') is not null then
     perform cron.schedule('gps-tidy-pins', '*/5 * * * *', 'select public.gps_tidy_pins();');
     if exists (select 1 from cron.job where jobname = 'trail-cleanup') then
       perform cron.schedule('trail-cleanup', '17 3 * * *',
-        'delete from public.driver_location_trail where created_at < now() - interval ''30 days'';');
+        'delete from public.driver_location_trail where created_at < now() - interval ''30 days'' and (trip_check is null or booking_id is null);');
     end if;
   else
     raise notice 'pg_cron is not installed here: gps-tidy-pins is not scheduled';
@@ -290,21 +392,29 @@ do $after$
 declare step text := 'GPS P0-2 (after)';
 begin
   if (select count(*) from pg_trigger where not tgisinternal and tgenabled = 'O'
-        and tgname in ('driver_locations_10_trip_guard', 'driver_locations_15_device_clock', 'driver_location_trail_10_trip_points')) <> 3
-     or to_regclass('public.gps_device_clock') is null
+        and tgname in ('driver_locations_05_device_clock', 'driver_locations_10_trip_guard', 'driver_location_trail_10_trip_points')) <> 3
+     or (select count(*) from pg_policies q where q.schemaname = 'public' and q.tablename = 'driver_location_trail'
+          and q.policyname in ('driver_location_trail_company_read', 'driver_location_trail_fleet_host_read', 'driver_location_trail_admin_read')
+          and q.qual like '%gps_road_point_visible%') <> 3
+     or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_location_trail')
+        is distinct from 'driver_location_trail_admin_read,driver_location_trail_company_read,driver_location_trail_driver_insert,driver_location_trail_driver_read,driver_location_trail_fleet_host_read'
+     or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'driver_location_trail' and column_name = 'trip_check')
+     or to_regclass('public.gps_device_clock') is null or to_regclass('public.gps_skip_counts') is null
      or not (select relrowsecurity from pg_class where oid = 'public.gps_device_clock'::regclass)
-     or has_table_privilege('authenticated', 'public.gps_device_clock', 'select')
-     or has_table_privilege('anon', 'public.gps_device_clock', 'select')
-     or exists (select 1 from unnest(array['public.gps_trip_accepts_point(uuid,uuid,timestamptz)', 'public.driver_location_trail_keep_trip_points()',
+     or not (select relrowsecurity from pg_class where oid = 'public.gps_skip_counts'::regclass)
+     or exists (select 1 from unnest(array['public.gps_device_clock', 'public.gps_skip_counts']) t, unnest(array['anon', 'authenticated']) r,
+                     unnest(array['select', 'insert', 'update', 'delete']) p where has_table_privilege(r, t, p))
+     or exists (select 1 from unnest(array['public.gps_road_point_kind(uuid,uuid,timestamptz)', 'public.driver_location_trail_keep_trip_points()',
                                         'public.driver_locations_trip_guard()', 'public.driver_locations_device_clock()',
-                                        'public.gps_tidy_pins(timestamptz)']) f, unnest(array['anon', 'authenticated']) r
+                                        'public.gps_tidy_pins(timestamptz)', 'public.gps_count_skip(text)']) f, unnest(array['anon', 'authenticated']) r
                  where has_function_privilege(r, f, 'execute'))
+     or has_function_privilege('anon', 'public.gps_road_point_visible(text,uuid,timestamptz,text)', 'execute')
      or (select schedule || ' ' || command from cron.job where jobname = 'gps-tidy-pins') is distinct from '*/5 * * * * select public.gps_tidy_pins();'
-     or (select command from cron.job where jobname = 'trail-cleanup') is distinct from 'delete from public.driver_location_trail where created_at < now() - interval ''30 days'';' then
+     or (select command from cron.job where jobname = 'trail-cleanup') is distinct from 'delete from public.driver_location_trail where created_at < now() - interval ''30 days'' and (trip_check is null or booking_id is null);' then
     raise exception '%: the P0-2 objects are not as expected - stop', step;
   end if;
   if (select h from _rows) is distinct from (select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x)) then
     raise exception '%: rows of the GPS tables changed - stop', step;

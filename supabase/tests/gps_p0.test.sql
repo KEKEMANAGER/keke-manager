@@ -7,7 +7,7 @@
 -- Everything is rolled back.
 begin;
 \ir fixtures/gps_p0_seed.sql
-select plan(177);
+select plan(185);
 
 -- ============================================================ P0-1: who reads where a driver is
 select is(tests.pins_seen_by(tests.gp('CA')), 'D1,S',
@@ -74,8 +74,9 @@ select is(tests.admin_open(tests.gp('D1'), tests.gp('D8'), 'driver reports his p
   '42501 42501 42501', 'P0-1: a driver, a company or a fleet owner cannot open anyone''s position');
 select ok(not has_function_privilege('anon', 'public.gps_admin_open_access(uuid,text,integer)', 'execute')
           and not has_function_privilege('anon', 'public.gps_admin_close_access(uuid)', 'execute')
-          and not has_function_privilege('anon', 'public.gps_fleet_owner_sees(uuid)', 'execute'),
-  'P0-1: someone not signed in cannot even call it (nor the fleet owner''s check)');
+          and not has_function_privilege('anon', 'public.gps_fleet_owner_sees(uuid)', 'execute')
+          and not has_function_privilege('anon', 'public.gps_road_point_visible(text,uuid,timestamptz,text)', 'execute'),
+  'P0-1: someone not signed in cannot even call it (nor the fleet owner''s or the road''s read checks)');
 select is(tests.try_as(tests.gp('CA'), format('select 1 where public.gps_fleet_owner_sees(%L::uuid)', tests.gp('S'))), '0',
   'P0-1: asked by anyone but his fleet owner, the fleet check says nothing about S''s trip');
 select is(tests.admin_open(tests.gp('ADM'), tests.gp('D8'), 'driver reports his phone lost after the trip', 30), '1',
@@ -104,11 +105,13 @@ select is(tests.try_as(tests.gp('ADM'), format('select public.gps_admin_close_ac
 select is(tests.pins_seen_by(tests.gp('ADM')), 'D1,D6,D9,S', 'P0-1: ... and no longer sees D8');
 select is((select count(*)::int from public.gps_admin_access), 2, 'P0-1: both openings stay in the log');
 
--- the road
+-- the road: who reads it
 select is(tests.trail_seen_by(tests.gp('CA')), 'DONE_A8:1,DONE_S2:2,FLT_A:1,LIVE_A:3',
-  'P0-1: CA reads the road of its own trips (running, and the finished ones up to their end)');
-select is(tests.trail_seen_by(tests.gp('CB')), 'DONE_B:2,TOUR_9:2', 'P0-1: CB reads the road of its finished trip and of its tour');
-select is(tests.trail_seen_by(tests.gp('CC')), '', 'P0-1: CC reads no road');
+  'P0-2: CA reads the road of its own trips (running, and the finished ones up to their end)');
+select is(tests.trail_seen_by(tests.gp('CB')), 'DONE_B:2,TOUR_9:2', 'P0-2: CB reads the road of its finished trip and of its tour');
+select is(tests.trail_seen_by(tests.gp('CC')), '', 'P0-2: CC reads no road');
+select is(tests.trail_seen_by(tests.gp('H')), 'DONE_S2:2,FLT_A:1', 'P0-2: fleet owner H reads the roads of his drivers'' trips');
+select is(tests.trail_seen_by(tests.gp('ADM')), 'DONE_A8:1,DONE_B:2,DONE_S2:2,FLT_A:1,LIVE_A:3,TOUR_9:2', 'P0-2: an admin reads every trip''s road');
 set local session_replication_role = replica;  -- points an installed app might have sent before P0-2
 insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude)
 select tests.gp('D1'), tests.gp('DONE_B'), b.completed_at + x, 41.72, 44.81
@@ -117,8 +120,10 @@ select tests.gp('D1'), tests.gp('DONE_B'), b.completed_at + x, 41.72, 44.81
 insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude)
 values (tests.gp('D2'), tests.gp('CNL_B'), now() - interval '7 minutes', 41.72, 44.81);
 set local session_replication_role = origin;
-select is(tests.trail_seen_by(tests.gp('CB')), 'DONE_B:3,TOUR_9:2',
-  'P0-1: of the points after its trip was completed, CB reads only the one within two minutes - not later ones, not a cancelled booking''s');
+select is(tests.trail_seen_by(tests.gp('CB')), 'DONE_B:2,TOUR_9:2',
+  'P0-2: points stored before P0-2 that the server never checked (after the trip, a cancelled booking''s): CB reads none of them');
+select is(tests.trail_seen_by(tests.gp('ADM')) || '|' || tests.trail_seen_by(tests.gp('H')),
+  'DONE_A8:1,DONE_B:2,DONE_S2:2,FLT_A:1,LIVE_A:3,TOUR_9:2|DONE_S2:2,FLT_A:1', 'P0-2: ... nor the admin, nor a fleet owner');
 -- a trip cancelled after it had started: its road up to the cancellation stays the company's
 insert into public.bookings (id, company_id, driver_id, kind, status, date_display, from_location, to_location,
                              price_gel, vehicle_type, vehicle_class, passengers, voucher_code, cancelled_at)
@@ -130,11 +135,12 @@ insert into public.driver_location_trail (driver_id, booking_id, recorded_at, la
 values (tests.gp('D4'), tests.gp('CNL_RUN'), now() - interval '31 minutes', 41.7, 44.8, now() - interval '30 minutes'),
        (tests.gp('D4'), tests.gp('CNL_RUN'), now() - interval '21 minutes', 41.7, 44.8, now() - interval '20 minutes'),
        (tests.gp('D4'), tests.gp('CNL_RUN'), now() - interval '1 minute', 41.7, 44.8, now());
+update public.driver_location_trail set trip_check = 'trip'
+ where booking_id = tests.gp('CNL_RUN') and created_at < now() - interval '15 minutes';  -- the two that came in during the trip
 set local session_replication_role = origin;
 select is(tests.trail_seen_by(tests.gp('CC')), 'CNL_RUN:2',
-  'P0-1: CC reads the road of its trip cancelled under way, up to the cancellation (2 of 3 points)');
-select is(tests.trail_seen_by(tests.gp('D1')), 'DONE_B:5,LIVE_A:3', 'P0-1: the driver still reads all of his own road');
-select is(tests.trail_seen_by(tests.gp('ADM')) ~ 'DONE_B:5', true, 'P0-1: KEKE''s admin reads every point');
+  'P0-2: CC reads the road of its trip cancelled under way, up to the cancellation (2 of 3 points)');
+select is(tests.trail_seen_by(tests.gp('D1')), 'DONE_B:5,LIVE_A:3', 'P0-2: the driver still reads all of his own road');
 
 -- passenger marks and the old table: as before
 select is(tests.events_seen_by(tests.gp('CA')), 1, 'P0-1: CA reads the passenger marks of its trips (1)');
@@ -202,32 +208,49 @@ select is(tests.app_report(tests.gp('S2'), null, 41.73, 44.83), '1', 'P0-2: S2 s
 select is(tests.clock_skew(tests.gp('S2')), -0.4::double precision, 'P0-2: ... measured right');
 select is(tests.app_trail(tests.gp('S2'), tests.gp('DONE_S2'), now() - interval '15 minutes'), '0',
   'P0-2: ... but a clock found off since the trip''s last hour cannot date late points: still kept out');
--- D3: a trip completed 5 minutes ago; his phone's clock never seen, then seen right
+-- D3: a trip completed 5 minutes ago; his phone's clock never seen, then seen off, then right since long ago
 insert into public.bookings (id, company_id, driver_id, kind, status, date_display, from_location, to_location,
                              price_gel, vehicle_type, vehicle_class, passengers, voucher_code)
 values (tests.gp('DONE_D3'), tests.gp('CC'), tests.gp('D3'), 'transfer', 'completed', (now() - interval '1 hour')::text,
         'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 2, 'GPS-DONE_D3');
 update public.bookings set completed_at = now() - interval '5 minutes' where id = tests.gp('DONE_D3');
 insert into tests.gnames values (tests.gp('DONE_D3'), 'DONE_D3') on conflict do nothing;
-select is(tests.app_trail(tests.gp('D3'), tests.gp('DONE_D3'), now() - interval '7 minutes'), '0',
-  'P0-2: a late point from a phone whose clock was never checked: kept out');
-select is(tests.app_report(tests.gp('D3'), 'foreground'), '1', 'P0-2: D3''s open screen reports; his clock is right');
 select is(tests.app_trail(tests.gp('D3'), tests.gp('DONE_D3'), now() - interval '7 minutes'), '1',
-  'P0-2: ... now his point from before the end, sent late, is stored');
+  'P0-2: a point from before the end, sent late by a phone whose clock was never seen off: stored (an offline phone keeps its road)');
 select is(tests.trail_seen_by(tests.gp('CC')), 'CNL_RUN:2,DONE_D3:1', 'P0-2: ... and CC reads it');
-update public.gps_device_clock set measured_at = now() - interval '3 hours' where driver_id = tests.gp('D3');
-select is(tests.app_trail(tests.gp('D3'), tests.gp('DONE_D3'), now() - interval '8 minutes'), '0',
-  'P0-2: a clock last checked more than an hour before the trip ended: kept out');
--- D6 on a running trip, his phone two hours ahead: the point is kept, at the right time
+-- after his trip, D3's old app (its trip task still running) moves its clock 40 minutes back
+select is(tests.app_report(tests.gp('D3'), 'background', 41.79, 44.89, now() - interval '40 minutes'), '0',
+  'P0-2: D3''s trip task reports after the trip: skipped ...');
+select is(tests.clock_skew(tests.gp('D3')), -2400::double precision, 'P0-2: ... but the report''s clock is still read: 40 minutes behind');
+select is(tests.app_trail(tests.gp('D3'), tests.gp('DONE_D3'), now() - interval '40 minutes'), '0',
+  'P0-2: ... so a point it dates "40 minutes ago" (before the end, by that clock) is kept out of the finished trip');
+select is(tests.app_trail(tests.gp('D3'), tests.gp('DONE_D3'), now() - interval '6 minutes'), '0',
+  'P0-2: ... as is any late point from that phone now');
+update public.gps_device_clock set skew = interval '0.4 seconds', off_seen_at = now() - interval '2 days' where driver_id = tests.gp('D3');
+select is(tests.app_trail(tests.gp('D3'), tests.gp('DONE_D3'), now() - interval '8 minutes'), '1',
+  'P0-2: a clock found off two days before the trip and right since: its late points count');
+-- S on FLT_A had no internet for the last 90 minutes of the trip; fleet owner H finishes it for him
+select tests.set_pin(tests.gp('S'), 'background', now() - interval '95 minutes');
+update public.bookings set status = 'completed' where id = tests.gp('FLT_A');
+select is(tests.app_trail(tests.gp('S'), tests.gp('FLT_A'), now() - interval '85 minutes')
+          || tests.app_trail(tests.gp('S'), tests.gp('FLT_A'), now() - interval '40 minutes')
+          || tests.app_trail(tests.gp('S'), tests.gp('FLT_A'), now() - interval '1 minute'), '111',
+  'P0-2: back online, S''s phone sends the road it kept: all three points from before the end are stored');
+select is(tests.trail_seen_by(tests.gp('CA')) ~ 'FLT_A:4' and tests.trail_seen_by(tests.gp('H')) ~ 'FLT_A:4', true,
+  'P0-2: ... and CA and H read the whole road');
+update public.bookings set status = 'in_progress' where id = tests.gp('FLT_A');
+select tests.set_pin(tests.gp('S'), 'background', now());
+-- points the phone dates before the trip could have started
+select is(tests.app_trail(tests.gp('D1'), tests.gp('LIVE_A'), now() - interval '14 hours')
+          || tests.app_trail(tests.gp('D1'), tests.gp('LIVE_A'), timestamptz '2007-01-01 10:00+00'), '00',
+  'P0-2: a point the phone dates 13 hours before the trip''s planned start, or in 2007 (an old cached fix): kept out');
+-- D6 on a running trip, his phone two hours ahead
 select is(tests.app_report(tests.gp('D6'), 'foreground', 41.7, 44.8, now() + interval '2 hours'), '1', 'P0-2: D6, clock two hours ahead, reports');
 select is(tests.clock_skew(tests.gp('D6')), 7200::double precision, 'P0-2: ... measured: two hours ahead');
 select is(tests.app_trail(tests.gp('D6'), tests.gp('LIVE_B6'), now() + interval '1 hour 50 minutes'), '1',
-  'P0-2: a point of his running trip is stored ...');
-select is(tests.trail_times(tests.gp('LIVE_B6')), '-10', 'P0-2: ... dated ten minutes ago - when it happened - not in 110 minutes');
+  'P0-2: a point of his running trip is stored, as the phone dated it');
 select is(tests.app_report(tests.gp('D6'), 'foreground', 41.7, 44.8, now() + interval '2 hours 10 seconds'), '1', 'P0-2: D6 reports, 10 s of delay');
 select is(tests.clock_skew(tests.gp('D6')), 7200::double precision, 'P0-2: ... a few seconds of delay do not move the measured difference');
-select is(tests.app_trail(tests.gp('D6'), tests.gp('LIVE_B6'), now() + interval '1 hour 50 minutes'), '0',
-  'P0-2: ... so the same point sent twice is stored once');
 select is(tests.app_report(tests.gp('D6'), 'foreground', 41.7, 44.8, now() + interval '2 hours 45 seconds'), '1', 'P0-2: D6''s clock moves by 45 s');
 select is(tests.clock_skew(tests.gp('D6')), 7245::double precision, 'P0-2: ... a real change of more than 30 s is taken');
 select is(tests.app_report(tests.gp('D6'), 'foreground'), '1', 'P0-2: D6 sets his clock right');
@@ -240,6 +263,12 @@ select is(tests.app_trail(tests.gp('H'), tests.gp('FLT_A'), now() - interval '2 
 select is(tests.try_as(tests.gp('D5'), $$update public.driver_locations set latitude = 41.8 where driver_id = tests.gp('D5')$$), '1',
   'P0-2: an update that sends no time still works ...');
 select is(tests.clock_skew(tests.gp('D5')), -0.4::double precision, 'P0-2: ... and says nothing about the clock');
+select is((select string_agg(distinct coalesce(trip_check, '-'), ',' order by coalesce(trip_check, '-')) from public.driver_location_trail
+             where booking_id in (tests.gp('DONE_D3'), tests.gp('LIVE_B6'))), 'late,trip',
+  'P0-2: every point the server stored says how it was checked (during the trip, or late)');
+select ok((select n from public.gps_skip_counts where kind = 'road_point') >= 10
+          and (select n from public.gps_skip_counts where kind = 'background_position') >= 4,
+  'P0-2: what was skipped is counted by day (road points, trip-task reports), for watching a rollout');
 
 select is(tests.pins(), 'D1,D2,D3,D4,D5,D6,D8,D9,H,S,S2', 'P0-2: before the tidy job: eleven positions');
 create temp table history_before as select tests.history_rows() h, tests.trail_seen_by(tests.gp('CA')) ca_road;
@@ -250,24 +279,30 @@ select is(tests.history_rows(), (select h from history_before),
   'item 4: the tidy job removes positions only - every road point, passenger mark, tour day and old location row is still there');
 select is(tests.trail_seen_by(tests.gp('CA')), (select ca_road from history_before), 'item 4: CA reads exactly the same roads after the tidy job');
 select is(tests.trail_seen_by(tests.gp('CA')) ~ 'DONE_S2:2', true, 'item 4: ... among them the finished trip of S2');
-select tests.set_pin(tests.gp('D3'), 'foreground', now() - interval '23 hours');
-select tests.set_pin(tests.gp('D5'), 'foreground', now() - interval '25 hours');
-select tests.set_pin(tests.gp('S2'), null, now() - interval '25 hours');
-select is(public.gps_tidy_pins(), 2, 'P0-2: an open-screen or old-app position without a trip goes after 24 hours ...');
-select is(tests.pins(), 'D1,D3,D6,D9,H,S', 'P0-2: ... (D5 and S2, 25 hours) and not before (D3, 23 hours)');
+select tests.set_pin(tests.gp('D3'), 'foreground', now() - interval '14 minutes');
+select tests.set_pin(tests.gp('D5'), 'foreground', now() - interval '16 minutes');
+select tests.set_pin(tests.gp('S2'), null, now() - interval '16 minutes');
+select is(public.gps_tidy_pins(), 2, 'P0-2: an open-screen or old-app position without a trip goes after 15 minutes ...');
+select is(tests.pins(), 'D1,D3,D6,D9,H,S', 'P0-2: ... (D5 and S2, 16 minutes) and not before (D3, 14 minutes): the next trip never starts with an old one');
 select is(tests.history_rows(), (select h from history_before), 'item 4: ... still no road point, mark or tour day touched');
 select tests.set_pin(tests.gp('D5'), 'foreground', now());
 
 -- ============================================================ item 4: the 30-day road clean-up
-select is(tests.app_trail(tests.gp('D1'), tests.gp('LIVE_A'), now() - interval '40 days'), '1',
-  'item 4: a running trip''s point that its phone dates 40 days back: stored');
 set local session_replication_role = replica;
-insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude, created_at)
-values (tests.gp('D1'), tests.gp('DONE_B'), now() - interval '31 days', 41.7, 44.8, now() - interval '31 days');
+insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude, created_at, trip_check)
+values (tests.gp('D1'), tests.gp('DONE_B'), now() - interval '31 days 1 minute', 41.7, 44.8, now() - interval '31 days', 'trip'),
+       (tests.gp('D1'), tests.gp('DONE_B'), now() - interval '33 days', 41.7, 44.8, now() - interval '33 days', 'late'),
+       (tests.gp('D1'), tests.gp('DONE_B'), now() - interval '32 days', 41.7, 44.8, now() - interval '32 days', null),
+       (tests.gp('D1'), null, now() - interval '34 days', 41.7, 44.8, now() - interval '34 days', null);
 set local session_replication_role = origin;
-select is(tests.run_trail_cleanup(), 1, 'item 4: the clean-up removes the one point that reached the server more than 30 days ago ...');
-select is(tests.trail_created(tests.gp('D1'), now() - interval '40 days'), now(),
-  'item 4: ... and keeps the one that reached it today, whatever the phone''s clock said');
+create temp table roads_before as select tests.trail_seen_by(tests.gp('CB')) cb, tests.trail_seen_by(tests.gp('ADM')) adm;
+select is(tests.run_trail_cleanup(), 2,
+  'item 4: the clean-up removes only the two old points that were never checked or have no trip ...');
+select is(tests.trail_created(tests.gp('D1'), now() - interval '31 days 1 minute') || ' ' || tests.trail_created(tests.gp('D1'), now() - interval '33 days'),
+          (now() - interval '31 days') || ' ' || (now() - interval '33 days'),
+  'item 4: ... a trip''s road stays, however old (how long is the owner''s decision)');
+select is(tests.trail_seen_by(tests.gp('CB')) || '|' || tests.trail_seen_by(tests.gp('ADM')),
+          (select cb || '|' || adm from roads_before), 'item 4: ... CB and the admin read the same roads as before it');
 
 -- ============================================================ item 3: a multi-day tour, start to end
 select is(tests.app_report(tests.gp('D9'), 'background'), '1', 'tour: D9''s trip task on day 3: stored');
@@ -414,6 +449,20 @@ select ok(not exists (select 1 from public.trip_gps_watch where driver_id = test
 update public.bookings set status = 'accepted' where id = tests.gp('FUT_C');
 update public.bookings set status = 'in_progress' where id in (tests.gp('LIVE_A'), tests.gp('LIVE_B6'), tests.gp('LIVE_C7'));
 
+-- a trip left "in progress" ten days ago, first seen by the watch (as on the day the migration runs)
+delete from public.trip_gps_watch; delete from net.http_calls; delete from public.notifications;
+insert into public.bookings (id, company_id, driver_id, kind, status, date_display, from_location, to_location,
+                             price_gel, vehicle_type, vehicle_class, passengers, voucher_code)
+values (tests.gp('LEFT_4'), tests.gp('CC'), tests.gp('D4'), 'transfer', 'in_progress', (now() - interval '10 days')::text,
+        'Test airport', 'Test hotel', 150, 'sedan', 'comfort', 2, 'GPS-LEFT_4');
+select tests.set_pin(tests.gp('D4'), 'background', now() - interval '10 days');
+select public.watch_trip_gps(tests.noon());
+select tests.gps_advance(25);
+select public.watch_trip_gps(tests.noon());
+select is(tests.wakes_to('D4') || '/' || tests.gps_notices('D4'), '0/0',
+  'P0-3: a trip left in progress for ten days, first seen now: its driver is neither woken nor told (his phone would report again)');
+delete from public.bookings where id = tests.gp('LEFT_4');
+
 -- ============================================================ P0-2: finishing a trip, by every road
 select is(tests.try_as(tests.gp('D1'), $$select public.complete_in_progress_booking_as_driver(tests.gp('LIVE_A'))$$), '1',
   'P0-2: D1 finishes his trip with the app''s call');
@@ -437,18 +486,18 @@ select is(tests.trail_seen_by(tests.gp('CA')) ~ 'LIVE_A:', true, 'P0-1: CA still
 select is((select schedule || ' ' || command from cron.job where jobname = 'gps-tidy-pins'),
   '*/5 * * * * select public.gps_tidy_pins();', 'jobs: the tidy job runs every 5 minutes');
 select is((select string_agg(jobname || ' ' || schedule || ' ' || command, ' | ' order by jobname) from cron.job where jobname <> 'gps-tidy-pins'),
-  'trail-cleanup 17 3 * * * delete from public.driver_location_trail where created_at < now() - interval ''30 days''; | watch-trip-gps */2 * * * * select public.watch_trip_gps();',
-  'jobs: the road clean-up keeps its schedule and counts from arrival; the watch is still called without arguments');
+  'trail-cleanup 17 3 * * * delete from public.driver_location_trail where created_at < now() - interval ''30 days'' and (trip_check is null or booking_id is null); | watch-trip-gps */2 * * * * select public.watch_trip_gps();',
+  'jobs: the road clean-up keeps its schedule and spares trip roads; the watch is still called without arguments');
 select is((select string_agg(f || ':' || r, ' ' order by f, r) from
              unnest(array['public.watch_trip_gps(timestamptz)', 'public.gps_tidy_pins(timestamptz)',
-                          'public.gps_trip_accepts_point(uuid,uuid,timestamptz)', 'public.driver_locations_trip_guard()',
+                          'public.gps_road_point_kind(uuid,uuid,timestamptz)', 'public.driver_locations_trip_guard()',
                           'public.driver_location_trail_keep_trip_points()', 'public.driver_locations_server_time()',
-                          'public.driver_locations_device_clock()']) f,
+                          'public.driver_locations_device_clock()', 'public.gps_count_skip(text)']) f,
              unnest(array['anon', 'authenticated']) r
             where has_function_privilege(r, f, 'execute')), null,
   'rights: no app (signed in or not) can run any of the new functions - not the watch, not the tidy job, not the trip or clock checks');
 select is((select string_agg(t || ':' || r || ':' || p, ' ' order by t, r, p) from
-             unnest(array['public.gps_device_clock', 'public.gps_admin_access']) t,
+             unnest(array['public.gps_device_clock', 'public.gps_admin_access', 'public.gps_skip_counts']) t,
              unnest(array['anon', 'authenticated']) r,
              unnest(array['select', 'insert', 'update', 'delete']) p
             where has_table_privilege(r, t, p)), 'public.gps_admin_access:authenticated:select',

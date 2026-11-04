@@ -1,5 +1,5 @@
 -- KEKE GPS P0 - step 3 of 3: P0-3, the watch on every trip; positions carry the server's time
--- Source: supabase/migrations/20261104150200_gps_watch_every_trip.sql (md5 f2db0703a8bbee4f5fa01eb9e8b1a4e4)
+-- Source: supabase/migrations/20261104150200_gps_watch_every_trip.sql (md5 36301781af7178a2049f93373e936580)
 -- Run as ONE call (Supabase SQL editor). It commits only if every check passes;
 -- otherwise it rolls back and nothing changes. No row is changed by this file.
 -- Built by docs/gps-p0-release/build.sh - do not edit by hand.
@@ -25,7 +25,7 @@ end
 $state$;
 
 create temp table _rows on commit drop as select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x) as h;
 
@@ -56,7 +56,9 @@ create temp table _rows on commit drop as select (select count(*) || ':' || md5(
 --   * quiet for 20 minutes - background, open-screen only, or no position at
 --     all since the watch first saw the trip - the driver is told, by day
 --     (08:00-21:59 Tbilisi), at most 3 times per trip and 2 hours apart;
---   * quiet for more than 12 hours: a trip left open, nobody is told.
+--   * quiet for more than 12 hours, or still "in progress" more than 12 hours
+--     after its last planned day (the booking's start + its days): a trip
+--     left open, nobody is told or woken - also on the day this runs.
 -- The counts belong to the trip: they reset only when the driver's next trip
 -- starts, and the watch row goes when the trip ends. A driver with two trips
 -- in progress at once is watched on the newest one, always the same one.
@@ -126,7 +128,9 @@ declare
 begin
   for r in
     select distinct on (b.driver_id)
-           b.driver_id, b.id as booking_id, dl.updated_at as loc_at, dl.gps_mode
+           b.driver_id, b.id as booking_id, dl.updated_at as loc_at, dl.gps_mode,
+           public.parse_booking_start_ts(b.date_display)
+             + make_interval(days => public.tour_day_count(b.id)) + interval '12 hours' as left_open_after
       from public.bookings b
       left join public.driver_locations dl on dl.driver_id = b.driver_id
      where b.status = 'in_progress'
@@ -151,6 +155,13 @@ begin
       -- A row the old watch made: seen from now on.
       update public.trip_gps_watch set trip_seen_at = p_now where driver_id = r.driver_id;
       w.trip_seen_at := p_now;
+    end if;
+
+    -- Still "in progress" half a day after its last planned day: a trip left
+    -- open, not one under way - nobody is woken or told (also when the watch
+    -- sees it for the first time, e.g. the day this runs).
+    if r.left_open_after is not null and p_now > r.left_open_after then
+      continue;
     end if;
 
     -- Live: a quiet spell that was going on is over; the trip's totals stay.
@@ -259,7 +270,7 @@ begin
     raise exception '%: the P0-3 objects are not as expected - stop', step;
   end if;
   if (select h from _rows) is distinct from (select (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.driver_id), '')) from public.driver_locations x)
-    || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.driver_location_trail x)
+    || '|' || (select count(*) || ':' || md5(coalesce(string_agg((x.id, x.driver_id, x.booking_id, x.recorded_at, x.latitude, x.longitude, x.created_at)::text, ',' order by x.id), '')) from public.driver_location_trail x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.trip_events x)
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x)) then
     raise exception '%: rows of the GPS tables changed - stop', step;

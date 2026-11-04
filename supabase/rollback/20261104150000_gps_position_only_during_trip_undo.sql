@@ -1,5 +1,5 @@
--- Undo 20261104150000_gps_position_only_during_trip.sql: the four read rules
--- exactly as production had them before (captured 2026-11-04,
+-- Undo 20261104150000_gps_position_only_during_trip.sql: the three read rules
+-- of the live position exactly as production had them before (captured 2026-11-04,
 -- supabase/tests/fixtures/prod_gps_snapshot_2026-11-04.sql and the GPS backup
 -- of that day), and the admin exception removed. No row changes.
 --
@@ -32,13 +32,6 @@ create policy driver_locations_admin_read on public.driver_locations
   using ((EXISTS ( SELECT 1
    FROM users u
   WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text)))));
-
-drop policy if exists driver_location_trail_company_read on public.driver_location_trail;
-create policy driver_location_trail_company_read on public.driver_location_trail
-  as permissive for select to authenticated
-  using (((booking_id IS NOT NULL) AND (EXISTS ( SELECT 1
-   FROM bookings b
-  WHERE ((b.id = driver_location_trail.booking_id) AND (b.company_id = auth.uid()))))));
 
 drop function if exists public.gps_fleet_owner_sees(uuid);
 drop function if exists public.gps_admin_open_access(uuid, text, integer);

@@ -27,7 +27,8 @@
 -- D6 (open screen, live), D8 (background, live - left over from DONE_A8),
 -- S2 (no mode, live - after DONE_S2), D9 (background, live, on the tour).
 -- Road points carry the time they reached the server (created_at) a minute
--- after they were recorded.
+-- after they were recorded, and (where the server checks them) count as
+-- received during their trips.
 
 create schema if not exists tests;
 grant usage on schema tests to public;
@@ -489,6 +490,13 @@ select tests.gp(d), tests.gp(b), now() - make_interval(mins => m), 41.70, 44.80,
                ('S', 'FLT_A', 20), ('D8', 'DONE_A8', 60),
                ('S2', 'DONE_S2', 40), ('S2', 'DONE_S2', 20),
                ('D9', 'TOUR_9', 2700), ('D9', 'TOUR_9', 1300)) as t(d, b, m);
+-- where the server checks road points (P0-2), these all came in during their trips
+do $tc$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+              and table_name = 'driver_location_trail' and column_name = 'trip_check') then
+    execute 'update public.driver_location_trail set trip_check = ''trip''';
+  end if;
+end $tc$;
 insert into public.trip_events (booking_id, driver_id, kind, happened_at, latitude, longitude, client_event_id)
 values (tests.gp('LIVE_A'), tests.gp('D1'), 'pickup', now() - interval '50 minutes', 41.70, 44.80, 'gps-ev-1'),
        (tests.gp('DONE_B'), tests.gp('D1'), 'pickup', now() - interval '25 hours', 41.70, 44.80, 'gps-ev-2'),

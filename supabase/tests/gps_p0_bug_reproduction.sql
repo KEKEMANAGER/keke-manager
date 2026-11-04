@@ -1,12 +1,12 @@
 -- GPS P0: the problems the 2026-11-04 audit found, as checks. Each check
 -- passes ("ok ... BUG(P0-n): ...") while the problem is there. On production
--- as it is (the snapshot + the migrations production ran) all 21 hold; after
+-- as it is (the snapshot + the migrations production ran) all 22 hold; after
 -- 20261104150000 the P0-1 ones fail, after 20261104150100 the P0-2 ones,
 -- after 20261104150200 the P0-3 ones - which is what the runner expects.
 -- Fake data only (fixtures/gps_p0_seed.sql); everything is rolled back.
 begin;
 \ir fixtures/gps_p0_seed.sql
-select plan(21);
+select plan(22);
 
 -- P0-1: who reads where a driver is --------------------------------------------
 select ok(tests.pins_seen_by(tests.gp('CB')) ~ '(^|,)D1(,|$)',
@@ -23,7 +23,13 @@ insert into public.driver_location_trail (driver_id, booking_id, recorded_at, la
 values (tests.gp('D1'), tests.gp('DONE_B'), now() - interval '5 minutes', 41.72, 44.81);
 set local session_replication_role = origin;
 select ok(tests.trail_seen_by(tests.gp('CB')) ~ 'DONE_B:3',
-  'BUG(P0-1): CB reads a road point D1 recorded a day after their trip was completed');
+  'BUG(P0-2): CB reads a road point D1 recorded a day after their trip was completed');
+set local session_replication_role = replica;
+insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude)
+values (tests.gp('S2'), tests.gp('DONE_S2'), now() - interval '4 minutes', 41.74, 44.84);
+set local session_replication_role = origin;
+select ok(tests.trail_seen_by(tests.gp('H')) ~ 'DONE_S2:3',
+  'BUG(P0-2): fleet owner H reads a road point S2''s phone stored after S2''s trip had ended');
 select ok(tests.pins_seen_by(tests.gp('H')) ~ '(^|,)S2(,|$)',
   'BUG(P0-1): fleet owner H reads where S2 is - S2''s trip ended 10 minutes ago and his app (no mode) keeps sending');
 select ok(tests.pins_seen_by(tests.gp('ADM')) ~ '(^|,)D8(,|$)',

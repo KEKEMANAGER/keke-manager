@@ -246,27 +246,29 @@ node supabase/tests/gps_p0_client_check.cjs     # the app side, no server needed
 Three migrations, each undone on its own (`supabase/rollback/<same name>_undo.sql`):
 
 - `20261104150000_gps_position_only_during_trip.sql` (P0-1): others see a
-  driver's position only while he drives a trip in progress - the trip's company,
-  his fleet owner (his driver, or a trip he gave out), KEKE's admins - whatever
-  app version he has. The admins' one exception: `gps_admin_open_access(driver,
-  reason, minutes)` - a reason of 10+ characters, 1-60 minutes, for that admin
-  only, kept in the log `gps_admin_access`. A company's road: while the trip runs;
-  afterwards what reached the server during it (or was recorded up to two minutes
-  after the end); a trip cancelled under way, up to the cancellation.
-- `20261104150100_gps_stop_sharing_after_trip.sql` (P0-2): the server measures
-  each phone's clock from its position reports (`gps_device_clock`); a driver's
-  own road points are stored only for his trip in progress (time corrected when
-  his clock is more than 2 minutes off) or, sent late, for his completed trip if
-  recorded before its end, within 48 hours, and his clock was checked and never
-  off from an hour before the end; `created_at` is the server's; a trip task's
-  reports with no trip in progress are skipped quietly (installed apps never get
-  an error to retry forever); every 5 minutes `gps_tidy_pins()` removes positions
-  left over from finished trips and any older than 24 hours (positions only); the
-  30-day road clean-up counts from arrival, not from the phone's clock.
+  driver's live position only while he drives a trip in progress - the trip's
+  company, his fleet owner (his driver, or a trip he gave out), KEKE's admins -
+  whatever app version he has. The admins' one exception:
+  `gps_admin_open_access(driver, reason, minutes)` - a reason of 10+ characters,
+  1-60 minutes, for that admin only, kept in the log `gps_admin_access`.
+- `20261104150100_gps_stop_sharing_after_trip.sql` (P0-2): the server reads each
+  phone's clock from every position report, also a skipped one
+  (`gps_device_clock`); a driver's own road point is stored only for his trip
+  (not from before its planned start, nor older than 31 days) - while it runs
+  (`trip_check` 'trip'), or sent late for his completed trip if recorded before
+  its end, within 48 hours, and his phone's clock was not found off from an hour
+  before the end (`trip_check` 'late'); `created_at` is the server's; the trip's
+  company, the fleet owner and the admins read only checked points of the trip;
+  a trip task's reports with no trip in progress are skipped quietly (installed
+  apps never get an error to retry forever) and every skip is counted
+  (`gps_skip_counts`); every 5 minutes `gps_tidy_pins()` removes positions left
+  over from finished trips and any outside a trip older than 15 minutes
+  (positions only); the 30-day road clean-up no longer deletes a trip's road.
 - `20261104150200_gps_watch_every_trip.sql` (P0-3): `watch_trip_gps()` watches
   every trip in progress (open-screen-only drivers and trips with no position
   too), counts per trip (at most 12 silent wake-ups and 3 notices a trip, by day),
-  and positions carry the server's time.
+  and positions carry the server's time; a trip still "in progress" 12 hours
+  after its last planned day is left alone (nobody woken or told).
 
 The runner builds production as it is (the snapshots, every migration production
 ran, `fixtures/prod_gps_snapshot_2026-11-04.sql`,
@@ -274,13 +276,14 @@ ran, `fixtures/prod_gps_snapshot_2026-11-04.sql`,
 and authenticated execute every new function in public unless a migration takes
 it away. Then:
 
-1. `gps_p0_bug_reproduction.sql` — the 21 problems hold (7 P0-1, 10 P0-2, 4 P0-3);
+1. `gps_p0_bug_reproduction.sql` — the 22 problems hold (6 P0-1, 12 P0-2, 4 P0-3);
 2. the migrations one at a time — each removes exactly its own; each runs twice;
-3. `gps_p0.test.sql` (177 pgTAP checks: three companies, two admins, a fleet
+3. `gps_p0.test.sql` (185 pgTAP checks: three companies, two admins, a fleet
    owner with two drivers and nine other drivers in every booking state, a
    three-day tour from start to end; the app's own writes as PostgREST makes them,
-   phone clocks behind, ahead and unknown; the admin exception; the clean-ups;
-   the watch with its own clock);
+   phone clocks behind, ahead, unknown and moved after a trip; a phone offline
+   at the end of its trip; old cached fixes; the admin exception; the
+   clean-ups; the watch with its own clock and a trip left open);
 4. every older suite ends exactly as on production without the GPS changes
    (`vehicle_calendar.test.sql` has date-dependent checks; the runner compares
    with production as it is) and the P0-4..P0-6 reproductions are as before;
