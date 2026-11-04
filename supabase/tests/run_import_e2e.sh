@@ -17,7 +17,10 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 COMPANY=$(psql -X -qAt -d postgres -c "select md5('keke-p0-5-test:C1')::uuid")
 cd "$HERE"
-node import_e2e_app_side.cjs "$WORK/drafts.json" "$COMPANY"
+# Besides two hand-made bookings: services exactly as the real AI read them in the
+# 2026-11-04 test run (invented documents, no real guests).
+REAL="${IMPORT_E2E_REAL:-$HERE/fixtures/import_real_reads_2026-11-04.json}"
+node import_e2e_app_side.cjs "$WORK/drafts.json" "$COMPANY" "$REAL"
 "$DENO" run --quiet --allow-read --allow-write --config "$ROOT/supabase/functions/booking-import/tests/deno.json" "$ROOT/supabase/functions/booking-import/tests/e2e_server_side.ts" "$WORK/drafts.json" "$WORK/approved.json" "$COMPANY"
 
 dropdb --if-exists "$DB" >/dev/null 2>&1; createdb "$DB"

@@ -15,12 +15,23 @@ function inert() {
 }
 // A Supabase client that only records: the body the app hands to
 // supabase.from('bookings').insert(...) is exactly what PostgREST receives.
+// It refuses a kind that production's bookings_kind_check refuses (checked
+// 2026-11-04: transfer, tour, one_day_tour), so the app's own retry runs as it does there.
 const sent = [];
+const PROD_KINDS = new Set(['transfer', 'tour', 'one_day_tour']);
+const KIND_REFUSED = 'new row for relation "bookings" violates check constraint "bookings_kind_check"';
 function builder(table) {
+  let row = null;
   const chain = new Proxy({}, {
     get(_t, prop) {
-      if (prop === 'then') return (resolve) => resolve(table === 'bookings' ? { data: { id: 'recorded' }, error: null } : { data: null, error: null });
-      return (...args) => { if (table === 'bookings' && prop === 'insert') sent.push(args[0]); return chain; };
+      if (prop === 'then') {
+        return (resolve) => {
+          if (table !== 'bookings') return resolve({ data: null, error: null });
+          if (row && row.kind != null && !PROD_KINDS.has(row.kind)) return resolve({ data: null, error: { message: KIND_REFUSED } });
+          return resolve({ data: { id: 'recorded' }, error: null });
+        };
+      }
+      return (...args) => { if (table === 'bookings' && prop === 'insert') { row = args[0]; sent.push(args[0]); } return chain; };
     },
   });
   return chain;
@@ -98,6 +109,45 @@ const APPROVAL = '00000000-0000-4000-8000-0000000000e2';
     if (sent[0].import_approval_id !== APPROVAL) { console.error(`${name}: the approval id was not sent`); process.exit(1); }
     cases.push({ name, draft, insert, body: sent[0] });
   }
+
+  // Services as the real AI read them (argv[4], e.g. fixtures/import_real_reads_*.json):
+  // the operator does what the form makes them do — type a missing price,
+  // confirm every value the server flagged — and the app's own
+  // createImportedBooking sends the approval request and the booking.
+  const realPath = process.argv[4];
+  const real = realPath ? JSON.parse(fs.readFileSync(realPath, 'utf8')) : [];
+  for (const r of real) {
+    const name = `real ${r.name}`;
+    const draft = imp.withFormDefaults(JSON.parse(JSON.stringify(r.draft)));
+    if (draft.client_price == null) draft.client_price = 450; // the operator types the price the request left out
+    const service = { draft, review: { ...r.review, token: 'signed-by-the-server' } };
+    const missing = imp.missingRequiredFields(draft);
+    if (missing.length) { console.error(`${name}: the form would still refuse it: ${missing.join('; ')}`); process.exit(1); }
+    const confirmed = imp.reviewItems(service).map((x) => x.field); // each one tapped "confirm"
+    let asked = null;
+    const result = await imp.createImportedBooking({
+      service,
+      confirmed,
+      ctx,
+      approve: async (svc, payload, conf) => {
+        asked = { draft: JSON.parse(JSON.stringify(svc.draft)), insert: JSON.parse(JSON.stringify(payload)), confirmed: [...conf] };
+        return { ok: true, approvalId: APPROVAL };
+      },
+      insert: async (row) => {
+        sent.length = 0;
+        const res = await bookings.insertBooking({ ...row, skip_driver_notifications: true });
+        return { id: res.error ? undefined : 'e2e-booking', error: res.error || null };
+      },
+    });
+    if (!result.ok) { console.error(`${name}: the app did not create it: ${JSON.stringify(result)}`); process.exit(1); }
+    if (!asked) { console.error(`${name}: the app created it without asking the server`); process.exit(1); }
+    // The body the database keeps: the last one sent (a refused kind is retried by insertBooking).
+    const body = sent[sent.length - 1];
+    if (!body || !PROD_KINDS.has(body.kind) || body.import_approval_id !== APPROVAL) { console.error(`${name}: the booking was not sent with its approval`); process.exit(1); }
+    if (sent.length > 1) console.log(`  ${name}: ${sent.map((b) => `kind=${b.kind}/booking_type=${b.booking_type}`).join(' -> ')}`);
+    cases.push({ name, real: true, readDraft: r.draft, review: r.review, draft: asked.draft, insert: asked.insert, confirmed: asked.confirmed, body });
+  }
+
   fs.writeFileSync(process.argv[2], JSON.stringify(cases, null, 1));
-  console.log(`app side: ${cases.length} bookings built with the app's own draftToInsertInput and insertBooking`);
+  console.log(`app side: ${cases.length} bookings built with the app's own draftToInsertInput and insertBooking${real.length ? ` (${real.length} from real AI reads)` : ''}`);
 })().catch((e) => { console.error(e); process.exit(1); });

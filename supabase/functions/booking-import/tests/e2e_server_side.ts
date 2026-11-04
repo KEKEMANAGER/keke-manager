@@ -11,9 +11,19 @@ const secret = 'e2e-secret';
 const now = Date.parse('2026-11-01T10:00:00Z');
 const out = [];
 for (const c of cases) {
-  const review = reviewService({ draft: c.draft, sources: {}, templateDraft: c.draft, aiDraft: c.draft, aiUncertain: [], aiEvidence: null, flags: {}, inputKind: 'form', sourceText: null, truncated: false, now });
-  const token = await signReview(company, review, c.draft, secret, now);
-  const r = await approveService({ token, secret, companyId: company, draft: c.draft, insert: c.insert, confirmed: review.blocking, now });
+  let token: string;
+  let confirmed: string[];
+  if (c.real) {
+    // A real read: the review the server returned, signed over the values it
+    // read; the operator's confirmations as the app sent them.
+    token = await signReview(company, c.review, c.readDraft, secret, now);
+    confirmed = c.confirmed;
+  } else {
+    const review = reviewService({ draft: c.draft, sources: {}, templateDraft: c.draft, aiDraft: c.draft, aiUncertain: [], aiEvidence: null, flags: {}, inputKind: 'form', sourceText: null, truncated: false, now });
+    token = await signReview(company, review, c.draft, secret, now);
+    confirmed = review.blocking;
+  }
+  const r = await approveService({ token, secret, companyId: company, draft: c.draft, insert: c.insert, confirmed, now });
   if (!r.ok) {
     console.error(`${c.name}: the server refused: ${JSON.stringify(r.issues)}`);
     Deno.exit(1);
