@@ -32,7 +32,7 @@ import {
   type DriverLocationPin,
 } from '../../lib/locations';
 import { fetchTrail, type TrailPoint } from '../../lib/locationTrail';
-import { isSignalLost, lostAtLabel } from '../../lib/signalAge';
+import { isSignalLost, lostAtLabel, signalColor, signalState } from '../../lib/signalAge';
 import { supabase } from '../../lib/supabase';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 import { useAndroidRouterBack } from '../../hooks/useAndroidRouterBack';
@@ -80,8 +80,13 @@ function StatusBadge({ status, t }: { status: string; t: (k: string) => string }
   );
 }
 
+/** Not live any more: a weak signal or lost (lib/signalAge.ts, the same rule on every map). */
 function pinStale(iso: string): boolean {
-  return Date.now() - new Date(iso).getTime() > 60_000;
+  return signalState(iso) !== 'live';
+}
+
+function pinLost(iso: string): boolean {
+  return signalState(iso) === 'lost';
 }
 
 export default function CompanyTrackingScreen() {
@@ -296,8 +301,7 @@ export default function CompanyTrackingScreen() {
         route: isHost ? route || null : null,
         phone: isHost ? (booking?.driver_phone ?? null) : null,
         updatedAt: pin?.updated_at ?? null,
-        dotColor:
-          !pin || pinStale(pin.updated_at) ? COLORS.textMuted : isHost ? COLORS.gold : COLORS.blue,
+        dotColor: !pin ? COLORS.textMuted : signalColor(pin.updated_at, isHost ? COLORS.gold : COLORS.blue),
       };
     });
 
@@ -468,6 +472,7 @@ export default function CompanyTrackingScreen() {
           {pins.map((pin) => {
             const isHost = pin.driver_id === driverId;
             const stale = pinStale(pin.updated_at);
+            const lost = pinLost(pin.updated_at);
             return (
               <Marker
                 key={pin.driver_id}
@@ -481,6 +486,7 @@ export default function CompanyTrackingScreen() {
                       styles.markerDot,
                       isHost ? styles.markerDotHost : styles.markerDotSub,
                       stale && styles.markerDotStale,
+                      lost && styles.markerDotLost,
                     ]}
                   >
                     <Ionicons name="car" size={16} color={COLORS.white} />
@@ -490,6 +496,7 @@ export default function CompanyTrackingScreen() {
                       styles.markerTail,
                       isHost ? styles.markerTailHost : styles.markerTailSub,
                       stale && styles.markerTailStale,
+                      lost && styles.markerTailLost,
                     ]}
                   />
                 </View>
@@ -690,6 +697,7 @@ const styles = StyleSheet.create({
   markerDotHost: { backgroundColor: COLORS.gold },
   markerDotSub: { backgroundColor: COLORS.blue },
   markerDotStale: { backgroundColor: COLORS.textMuted },
+  markerDotLost: { backgroundColor: COLORS.error },
   markerTail: {
     width: 0,
     height: 0,
@@ -703,6 +711,7 @@ const styles = StyleSheet.create({
   markerTailHost: { borderTopColor: COLORS.gold },
   markerTailSub: { borderTopColor: COLORS.blue },
   markerTailStale: { borderTopColor: COLORS.textMuted },
+  markerTailLost: { borderTopColor: COLORS.error },
   infoCard: {
     position: 'absolute',
     left: SPACING.md,

@@ -16,7 +16,7 @@ import {
   isBackgroundLocationRunning,
   setBackgroundTrackingConsent,
   startBackgroundLocation,
-  stopBackgroundLocation,
+  stopTripSharing,
 } from '../../lib/backgroundLocation';
 import {
   completeBooking,
@@ -26,7 +26,7 @@ import {
 import { getSupabaseErrorMessage } from '../../lib/errorHandler';
 import { batteryPromptAsked, markBatteryPromptAsked } from '../../lib/gpsBatteryPrompt';
 import { addTrailPoints, uploadTrail } from '../../lib/locationTrail';
-import { clearDriverLocation, reportDriverLocation, resetLocationReporting } from '../../lib/locations';
+import { reportDriverLocation } from '../../lib/locations';
 import { hasTripNavigationTargets, openPlaceNavigation, tripNavigationTargets, type TripNavBooking } from '../../lib/openExternalNavigation';
 import { supabase } from '../../lib/supabase';
 import { completeTourTripWithOdometer, odometerErrorMessageKey } from '../../lib/tourTripLifecycle';
@@ -485,15 +485,12 @@ export default function DriverGpsScreen() {
 
   async function stopTracking() {
     stopWatch();
-    await stopBackgroundLocation();
+    // The trip's task, its stored trip, the pace of the next report (turned
+    // back on later, the first position is written at once) and the position
+    // on the maps: all off together, the same way every screen ends a trip.
+    await stopTripSharing(user?.id);
     bgRunningRef.current = false;
     setIsTracking(false);
-    // Turned back on later, the first position is written at once.
-    resetLocationReporting();
-    if (user?.id) {
-      const { error } = await clearDriverLocation(user.id);
-      if (error && __DEV__) console.warn('[gps] clearDriverLocation:', error.message);
-    }
   }
 
   function alertStartTripFirst() {

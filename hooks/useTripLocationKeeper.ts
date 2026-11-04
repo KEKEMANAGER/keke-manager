@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { fetchActiveTripId } from '../lib/activeTrip';
-import { isTripTaskCurrent, resumeTripLocation } from '../lib/backgroundLocation';
+import { checkTripGps } from '../lib/tripGpsKeeper';
 
 /**
  * Keeps a running trip's background GPS alive.
@@ -14,6 +13,12 @@ import { isTripTaskCurrent, resumeTripLocation } from '../lib/backgroundLocation
  * front during an in-progress trip, this checks the task and restarts it if it
  * is gone. It asks for nothing and shows nothing; it only resumes what the
  * driver already turned on (see resumeTripLocation).
+ *
+ * The other way round too: when the trip's GPS still runs but the server says
+ * the trip is no longer in progress - finished or cancelled where the phone
+ * was not told, by KEKE for instance - it stops sharing (stopTripSharing).
+ * Only a sure answer stops it; without internet nothing changes. The look
+ * itself is lib/tripGpsKeeper.ts (checkTripGps).
  */
 export function useTripLocationKeeper(driverId: string | null | undefined): void {
   const { t } = useTranslation();
@@ -26,15 +31,7 @@ export function useTripLocationKeeper(driverId: string | null | undefined): void
       if (busy.current) return;
       busy.current = true;
       try {
-        // Running with this version's options: nothing to do. Running with an
-        // older version's (a trip already under way when the update came) or
-        // not running at all: resumeTripLocation applies the current ones.
-        if (await isTripTaskCurrent()) return;
-        const tripId = await fetchActiveTripId(driverId);
-        if (!tripId) return;
-        await resumeTripLocation({
-          driverId,
-          bookingId: tripId,
+        await checkTripGps(driverId, {
           notificationTitle: t('gpsScreen.bgServiceTitle'),
           notificationBody: t('gpsScreen.bgServiceBody'),
           arrivalTitle: t('gpsScreen.arrivalTitle'),

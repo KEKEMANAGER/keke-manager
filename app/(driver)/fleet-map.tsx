@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { LeafletDriverMap, type LeafletMapPin } from '../../components/LeafletDriverMap';
 import { MapErrorBoundary } from '../../components/maps/MapErrorBoundary';
 import { COLORS, SPACING } from '../../constants/theme';
+import { lostAtLabel, signalColor, signalState } from '../../lib/signalAge';
 import {
   fetchDriverLocation,
   subscribeToDriverLocation,
@@ -42,6 +43,12 @@ export default function FleetMapScreen() {
   const [loc, setLoc] = useState<DriverLocationRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapEpoch, setMapEpoch] = useState(0);
+  // A position goes from live to weak to lost without a new one arriving: look again every 15 s.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 15_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const reload = useCallback(async () => {
     if (!driverId) {
@@ -129,9 +136,24 @@ export default function FleetMapScreen() {
             initialRegion={TBILISI}
           >
             <Marker
+              // Re-drawn when the state changes: live, weak signal or lost, with
+              // the same rule and colours as every map (lib/signalAge.ts).
+              key={signalState(loc.updated_at)}
               coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
               title={driverName}
-            />
+              description={
+                signalState(loc.updated_at) === 'lost'
+                  ? t('tracking.signalLostAt', { time: lostAtLabel(loc.updated_at) })
+                  : signalState(loc.updated_at) === 'live'
+                    ? t('tracking.live')
+                    : t('tracking.weakSignal')
+              }
+              tracksViewChanges={false}
+            >
+              <View style={[styles.pin, { backgroundColor: signalColor(loc.updated_at, COLORS.blue) }]}>
+                <Ionicons name="car" size={16} color={COLORS.white} />
+              </View>
+            </Marker>
           </MapView>
         </MapErrorBoundary>
       )}
@@ -141,6 +163,15 @@ export default function FleetMapScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.background },
+  pin: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

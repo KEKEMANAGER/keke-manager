@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../../../constants/theme';
 import { useAuth } from '../../../contexts/AuthContext';
 import { NavigablePlaceChips } from '../../../components/NavigablePlaceChips';
+import { stopTripSharingFor } from '../../../lib/backgroundLocation';
 import { fetchBookingById, routeSummary, type BookingRow } from '../../../lib/bookings';
 import { splitTourStops } from '../../../lib/openExternalNavigation';
 import { readTourDayHotel, readTourDayHotelLink } from '../../../lib/tourDays';
@@ -190,6 +191,10 @@ export default function TourDaysScreen() {
       void load('refresh');
       return;
     }
+
+    // The last day is closed and the tour is over: its GPS and the driver's
+    // position on the maps too.
+    await stopTripSharingFor(bookingId, user?.id, { evenIfNoneShared: true });
 
     const s = res.summary;
     const lines = [

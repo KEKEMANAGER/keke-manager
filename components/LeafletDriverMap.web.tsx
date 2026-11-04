@@ -1,6 +1,7 @@
 import { createElement, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { loadLeaflet } from '../lib/loadLeaflet.web';
+import { signalColor } from '../lib/signalAge';
 import { COLORS } from '../constants/theme';
 import type { LeafletDriverMapProps, LeafletMapPin } from './LeafletDriverMap';
 
@@ -13,15 +14,11 @@ const DEFAULT_ZOOM = 12;
  */
 const USER_MOVE_PAUSE_MS = 60_000;
 
-function isStale(updatedAt: string, maxAgeMs = 60_000): boolean {
-  return Date.now() - new Date(updatedAt).getTime() > maxAgeMs;
-}
-
+/** Live: the driver's colour; a weak signal grey, a lost one red (lib/signalAge.ts). */
 function markerColor(pin: LeafletMapPin, hostDriverId?: string): string {
   if (pin.color) return pin.color;
-  if (isStale(pin.updated_at)) return COLORS.textMuted;
   const isHost = pin.isHost ?? (hostDriverId ? pin.driver_id === hostDriverId : true);
-  return isHost ? COLORS.gold : COLORS.blue;
+  return signalColor(pin.updated_at, isHost ? COLORS.gold : COLORS.blue);
 }
 
 function markerHtml(color: string, selected: boolean, label: string): string {

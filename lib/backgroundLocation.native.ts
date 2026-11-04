@@ -2,8 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
+import { fetchTripRunState, type TripRunState } from './activeTrip';
 import { addTrailPoints, uploadTrail } from './locationTrail';
-import { reportDriverLocation, resetLocationReporting } from './locations';
+import { clearDriverLocation, reportDriverLocation, resetLocationReporting } from './locations';
 import { supabase } from './supabase';
 import { flushTripEventQueue } from './tripEvents';
 import { notifyArrival, recordPoint } from './tripProgress';
@@ -70,6 +71,27 @@ async function resolveBookingId(): Promise<string | null> {
   }
 }
 
+/**
+ * Where the trip this task runs for stands, asked at most once a minute. A trip
+ * can end where nothing stops the phone's GPS - KEKE ending it, a screen of an
+ * older app version - and the task would go on sending the driver's position
+ * for a trip that is over. Only a sure "over" (finished, cancelled, declined)
+ * stops it; without an answer the task carries on and asks again later.
+ */
+const TRIP_CHECK_MS = 60_000;
+let tripCheck: { bookingId: string; at: number; state: TripRunState } | null = null;
+
+async function tripState(bookingId: string, force = false): Promise<TripRunState> {
+  const now = Date.now();
+  if (!force && tripCheck && tripCheck.bookingId === bookingId && now - tripCheck.at < TRIP_CHECK_MS) {
+    return tripCheck.state;
+  }
+  const state = await fetchTripRunState(bookingId);
+  const before = tripCheck && tripCheck.bookingId === bookingId ? tripCheck.state : 'unknown';
+  tripCheck = { bookingId, at: now, state: state === 'unknown' ? before : state };
+  return tripCheck.state;
+}
+
 async function resolveArrivalCopy(): Promise<{ title: string; body: string }> {
   try {
     const raw = await AsyncStorage.getItem(ARRIVAL_COPY_KEY);
@@ -111,9 +133,18 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
     }
     const bookingId = await resolveBookingId();
 
+    // The trip ended somewhere that did not stop this task: stop sharing now,
+    // before anything of this batch is sent.
+    const trip = bookingId ? await tripState(bookingId) : 'unknown';
+    if (trip === 'ended') {
+      await stopTripSharing(driverId);
+      return;
+    }
+
     // The road, kept on the phone first: GPS works without mobile data, the
-    // upload below does not (lib/locationTrail.ts).
-    if (bookingId) {
+    // upload below does not (lib/locationTrail.ts). Only the trip's own road:
+    // nothing from before it starts (GPS turned on early, a job accepted).
+    if (bookingId && trip !== 'waiting') {
       try {
         await addTrailPoints(
           driverId,
@@ -259,6 +290,7 @@ export async function startBackgroundLocation(
     await AsyncStorage.setItem(ACTIVE_DRIVER_KEY, id);
     await storeServiceCopy(notificationTitle, notificationBody);
     const trip = bookingId?.trim() ?? '';
+    tripCheck = null;  // a trip just started or resumed: ask afresh
     if (trip) {
       await AsyncStorage.setItem(ACTIVE_BOOKING_KEY, trip);
       await AsyncStorage.setItem(
@@ -463,6 +495,7 @@ export async function resumeTripLocation(options: ResumeTripLocationOptions): Pr
 
     await AsyncStorage.setItem(ACTIVE_DRIVER_KEY, id);
     await AsyncStorage.setItem(ACTIVE_BOOKING_KEY, trip);
+    tripCheck = null;
     await storeServiceCopy(options.notificationTitle, options.notificationBody);
     await AsyncStorage.setItem(
       ARRIVAL_COPY_KEY,
@@ -477,6 +510,50 @@ export async function resumeTripLocation(options: ResumeTripLocationOptions): Pr
     if (__DEV__) console.warn('[bg-location] resume failed:', e);
     return false;
   }
+}
+
+/**
+ * Everything that shares the driver's position for a trip, turned off at once:
+ * the trip's background task and its stored trip, the pace of the next report,
+ * and his position on the maps. Called wherever a trip ends - the GPS screen,
+ * the bookings list, the hired driver's panel, a multi-day tour's last day, a
+ * trip he cancelled - and by the task itself when it finds its trip over.
+ */
+export async function stopTripSharing(driverId?: string | null): Promise<void> {
+  await stopBackgroundLocation();
+  tripCheck = null;
+  resetLocationReporting();
+  const id = driverId?.trim();
+  if (!id) return;
+  try {
+    const { error } = await clearDriverLocation(id);
+    if (error && __DEV__) console.warn('[bg-location] clear position failed:', error.message);
+  } catch (e) {
+    if (__DEV__) console.warn('[bg-location] clear position failed:', e);
+  }
+}
+
+/** The trip whose position the phone is sharing now, if any. */
+export async function activeTripBookingId(): Promise<string | null> {
+  return resolveBookingId();
+}
+
+/**
+ * stopTripSharing for this booking only: when it is the trip being shared -
+ * or, with evenIfNoneShared, when no trip is shared (the driver's pin of the
+ * trip he just finished still goes). Another trip being shared is left alone:
+ * a fleet owner finishing his driver's trip from his own phone keeps his own.
+ */
+export async function stopTripSharingFor(
+  bookingId: string,
+  driverId?: string | null,
+  options: { evenIfNoneShared?: boolean } = {},
+): Promise<boolean> {
+  const active = await resolveBookingId();
+  const id = bookingId?.trim();
+  if (active ? active !== id : !options.evenIfNoneShared) return false;
+  await stopTripSharing(driverId);
+  return true;
 }
 
 /** Stop background updates (no-op if not running) and clear stored trip context. */
@@ -562,6 +639,11 @@ export async function reviveTripGps(): Promise<ReviveTripGpsResult> {
     driverId = null;
   }
   if (!driverId) return 'no_trip';
+  // Woken for a trip that is over (ended where the phone was not told): stop.
+  if ((await tripState(bookingId, true)) === 'ended') {
+    await stopTripSharing(driverId);
+    return 'no_trip';
+  }
   try {
     const fg = await Location.getForegroundPermissionsAsync();
     if (fg.status !== 'granted') return 'failed';

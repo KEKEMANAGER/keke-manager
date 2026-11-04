@@ -67,8 +67,7 @@ import {
   odometerErrorMessageKey,
   startTourTripWithOdometer,
 } from '../../lib/tourTripLifecycle';
-import { stopBackgroundLocation } from '../../lib/backgroundLocation';
-import { clearDriverLocation } from '../../lib/locations';
+import { stopTripSharingFor } from '../../lib/backgroundLocation';
 import { notifyNewOpenBookingIfMatchesDriver } from '../../lib/localNotifications';
 import i18n from '../../src/lib/i18n';
 
@@ -525,11 +524,9 @@ export default function DriverBookingsScreen() {
       void load('silent');
       return;
     }
-    if (Platform.OS !== 'web') {
-      await stopBackgroundLocation();
-      const { error: clearErr } = await clearDriverLocation(user.id);
-      if (clearErr && __DEV__) console.warn('[bookings] clearDriverLocation:', clearErr.message);
-    }
+    // The trip is over: its GPS and the driver's position on the maps too (not
+    // another trip's, if this phone shares one - a fleet owner's own).
+    await stopTripSharingFor(item.id, user.id, { evenIfNoneShared: true });
     crossInfoAlert(t('common.success'), t('bookings.completeSuccess'));
     void load('silent');
     setTab('completed');
@@ -548,6 +545,8 @@ export default function DriverBookingsScreen() {
       void load('silent');
       return;
     }
+    // Cancelling the trip the phone is sharing ends the sharing too.
+    await stopTripSharingFor(item.id, user.id);
     crossInfoAlert(t('common.success'), t('bookings.cancelSuccess'));
     void load('silent');
   }

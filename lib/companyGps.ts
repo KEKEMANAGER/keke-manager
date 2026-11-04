@@ -1,5 +1,6 @@
 import { fetchFleetDriverIdsAround } from './fleet';
 import { fetchLocationsForDriverIds, type GpsMode } from './locations';
+import { SIGNAL_LIVE_MS, signalState } from './signalAge';
 import { supabase } from './supabase';
 
 export type CompanyGpsDriverPin = {
@@ -23,12 +24,11 @@ export type CompanyGpsDriverPin = {
   is_assigned_driver: boolean;
 };
 
-/** Stale location threshold — matches admin GPS maps (~5 min). */
-export const COMPANY_GPS_STALE_MS = 5 * 60_000;
+/** A position older than this is not live any more: the same rule on every map (lib/signalAge.ts). */
+export const COMPANY_GPS_STALE_MS = SIGNAL_LIVE_MS;
 
 export function isCompanyGpsLocationStale(updatedAt: string | null | undefined): boolean {
-  if (!updatedAt) return true;
-  return Date.now() - new Date(updatedAt).getTime() > COMPANY_GPS_STALE_MS;
+  return signalState(updatedAt) !== 'live';
 }
 
 type ActiveBookingRow = {
@@ -67,7 +67,12 @@ function routeLine(meta: DriverMeta): string | null {
   return parts.length ? parts.join(' → ') : null;
 }
 
-/** Active-booking drivers for a company map (assigned driver + fleet expansion). */
+/**
+ * The drivers of this company's trips in progress, for its map (assigned
+ * driver + fleet expansion). Only trips under way: a company sees where a
+ * driver is while he drives its trip, not for an accepted job that has not
+ * started (the database refuses that too, GPS P0-1).
+ */
 export async function fetchCompanyActiveGpsDrivers(
   companyUserId: string,
 ): Promise<CompanyGpsDriverPin[]> {
@@ -80,7 +85,7 @@ export async function fetchCompanyActiveGpsDrivers(
       'id, driver_id, status, from_location, to_location, route, vehicle_type, vehicle_class, driver_display_name, driver_phone, host_driver_id',
     )
     .eq('company_id', companyId)
-    .in('status', ['accepted', 'in_progress'])
+    .eq('status', 'in_progress')
     .not('driver_id', 'is', null);
 
   if (error || !bookings?.length) return [];

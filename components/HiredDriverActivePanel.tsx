@@ -20,6 +20,7 @@ import {
   startTourTripWithOdometer,
 } from '../lib/tourTripLifecycle';
 import { COLORS, RADIUS, SHADOWS, SPACING } from '../constants/theme';
+import { stopTripSharingFor } from '../lib/backgroundLocation';
 import { hasTripNavigationTargets } from '../lib/openExternalNavigation';
 import { navigateToTripGps } from '../lib/tripGpsNavigation';
 import { shareVoucherPDF } from '../lib/voucher';
@@ -68,6 +69,10 @@ export function HiredDriverActivePanel({ booking, driverUserId, onTripUpdated }:
           mapSupabaseError(err) || t(odometerErrorMessageKey(err)),
         );
         return;
+      }
+      if (action === 'complete') {
+        // The trip is over: its GPS and the driver's position on the maps too.
+        await stopTripSharingFor(booking.id, driverUserId, { evenIfNoneShared: true });
       }
       onTripUpdated?.();
       if (action === 'start') {

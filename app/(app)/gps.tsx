@@ -29,7 +29,7 @@ import {
 } from '../../lib/companyGps';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchLocationsForDriverIds, subscribeToDriverLocations } from '../../lib/locations';
-import { isSignalLost, lostAtLabel } from '../../lib/signalAge';
+import { isSignalLost, lostAtLabel, signalColor, signalState } from '../../lib/signalAge';
 import { supabase } from '../../lib/supabase';
 import { vehicleClassLabel, vehicleTypeLabel } from '../../lib/vehicleCatalog';
 
@@ -234,7 +234,8 @@ export default function CompanyGpsScreen() {
     updated_at: pin.updated_at,
     full_name: pin.full_name,
     isHost: pin.is_assigned_driver,
-    color: isCompanyGpsLocationStale(pin.updated_at) ? COLORS.textMuted : undefined,
+    // Live: the map's own colour; a weak signal grey, a lost one red (lib/signalAge.ts).
+    color: signalState(pin.updated_at) === 'live' ? undefined : signalColor(pin.updated_at, COLORS.blue),
   }));
 
   const detailPanel = selectedPin ? (
@@ -362,7 +363,6 @@ export default function CompanyGpsScreen() {
 
     const fullRows: FullScreenDriverRow[] = pins.map((pin) => {
       const locOk = pin.latitude != null && pin.updated_at != null;
-      const stale = locOk ? isCompanyGpsLocationStale(pin.updated_at) : true;
       return {
         id: pin.driver_id,
         name: driverDisplayName(pin, t),
@@ -370,7 +370,9 @@ export default function CompanyGpsScreen() {
         route: pin.route,
         phone: pin.driver_phone,
         updatedAt: locOk ? pin.updated_at : null,
-        dotColor: stale ? COLORS.textMuted : pin.is_assigned_driver ? COLORS.gold : COLORS.blue,
+        dotColor: !locOk
+          ? COLORS.textMuted
+          : signalColor(pin.updated_at, pin.is_assigned_driver ? COLORS.gold : COLORS.blue),
       };
     });
 
@@ -404,7 +406,6 @@ export default function CompanyGpsScreen() {
             <Text style={styles.webSidebarTitle}>{t('tracking.driversOnMap')}</Text>
             {pins.map((pin) => {
               const locOk = pin.latitude != null && pin.updated_at != null;
-              const stale = locOk ? isCompanyGpsLocationStale(pin.updated_at) : true;
               const name = driverDisplayName(pin, t);
               return (
                 <Pressable
@@ -418,11 +419,7 @@ export default function CompanyGpsScreen() {
                       {
                         backgroundColor: !locOk
                           ? COLORS.textMuted
-                          : stale
-                            ? COLORS.textMuted
-                            : pin.is_assigned_driver
-                              ? COLORS.gold
-                              : COLORS.blue,
+                          : signalColor(pin.updated_at, pin.is_assigned_driver ? COLORS.gold : COLORS.blue),
                       },
                     ]}
                   />
@@ -492,6 +489,7 @@ export default function CompanyGpsScreen() {
         >
           {mapPins.map((pin) => {
             const stale = isCompanyGpsLocationStale(pin.updated_at);
+            const lost = signalState(pin.updated_at) === 'lost';
             return (
               <Marker
                 key={pin.driver_id}
@@ -506,6 +504,7 @@ export default function CompanyGpsScreen() {
                       styles.markerDot,
                       pin.is_assigned_driver ? styles.markerDotHost : styles.markerDotSub,
                       stale && styles.markerDotStale,
+                      lost && styles.markerDotLost,
                     ]}
                   >
                     <Ionicons name="car" size={16} color={COLORS.white} />
@@ -515,6 +514,7 @@ export default function CompanyGpsScreen() {
                       styles.markerTail,
                       pin.is_assigned_driver ? styles.markerTailHost : styles.markerTailSub,
                       stale && styles.markerTailStale,
+                      lost && styles.markerTailLost,
                     ]}
                   />
                 </View>
@@ -637,6 +637,7 @@ const styles = StyleSheet.create({
   markerDotHost: { backgroundColor: COLORS.gold },
   markerDotSub: { backgroundColor: COLORS.blue },
   markerDotStale: { backgroundColor: COLORS.textMuted },
+  markerDotLost: { backgroundColor: COLORS.error },
   markerTail: {
     width: 0,
     height: 0,
@@ -650,6 +651,7 @@ const styles = StyleSheet.create({
   markerTailHost: { borderTopColor: COLORS.gold },
   markerTailSub: { borderTopColor: COLORS.blue },
   markerTailStale: { borderTopColor: COLORS.textMuted },
+  markerTailLost: { borderTopColor: COLORS.error },
   nativeDriverStrip: {
     position: 'absolute',
     top: 48,
