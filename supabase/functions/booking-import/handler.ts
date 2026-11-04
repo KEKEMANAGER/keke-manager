@@ -907,7 +907,14 @@ function resolveLabel(
 
 function splitLabelValue(line: string): [string, string] | null {
   const tab = line.indexOf('\t');
-  const colon = line.search(/[:：]/);
+  // The colon of a clock ("10:00-ზე", "at 7:30") is not a label's.
+  let colon = -1;
+  for (const m of line.matchAll(/[:：]/g)) {
+    const i = m.index ?? -1;
+    if (/\d/.test(line[i - 1] ?? '') && /\d/.test(line[i + 1] ?? '')) continue;
+    colon = i;
+    break;
+  }
   if (tab >= 0 && (colon < 0 || tab < colon)) {
     return [line.slice(0, tab), line.slice(tab + 1)];
   }
@@ -3297,10 +3304,12 @@ export async function handler(req: Request): Promise<Response> {
     if (read.services.length === 0) {
       const code = read.failure ? failureCode(read.failure) : 'ai_failed kind=no_tool';
       console.error('booking-import: picture read failed', code);
+      // A picture the service could not open will not open on a second try.
+      const rejected = read.failure?.kind === 'http' && read.failure.hint === 'image_rejected';
       return await failWith(
         'error',
-        502,
-        opts.failMessage ?? (read.failure ? `${failureMessageKa(read.failure)} სცადე ხელახლა.` : 'წაკითხვა ვერ მოხერხდა — სცადე ხელახლა.'),
+        rejected ? 415 : 502,
+        opts.failMessage ?? (read.failure ? `${failureMessageKa(read.failure)}${rejected ? '' : ' სცადე ხელახლა.'}` : 'წაკითხვა ვერ მოხერხდა — სცადე ხელახლა.'),
         code,
       );
     }

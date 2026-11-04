@@ -57,6 +57,8 @@ Deno.test('vehicles and kinds a request names in words', () => {
   assertEquals([...kindsNamed('transfer from the airport')], ['transfer']);
   for (const t of ['8-day tour', '8 day tour', '11-day tour', 'multi-day tour', 'тур по Грузии']) assertEquals([...kindsNamed(t)], ['tour'], t);
   for (const t of ['1-day tour', 'one-day tour', 'day trip to Kazbegi', 'ერთდღიანი ტური', 'экскурсия']) assertEquals([...kindsNamed(t)], ['day_tour'], t);
+  // a table row: the clock before the service is not a number of days
+  for (const t of ['06.12.2026\t09:30\tDay tour\tHotel Biltmore', '22.12 08:00 Day tour Batumi']) assertEquals([...kindsNamed(t)], ['day_tour'], t);
 });
 
 Deno.test('numbers: thousands and decimal separators', () => {

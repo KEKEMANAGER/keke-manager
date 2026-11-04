@@ -94,6 +94,9 @@ function hintFor(status: number | null, type: string | null, message: string): s
   if (m.includes('max_tokens')) return 'max_tokens_invalid';
   // A retired or misspelled model: a 404, or a 400 that says so.
   if (/\bmodel\b/.test(m) && /(retired|deprecat|not found|not_found|does not exist|no longer|unknown)/.test(m)) return 'model_not_found';
+  // A picture the service could not open (damaged, cut off, or a kind it
+  // does not take). Trying again will not help; another picture will.
+  if ((status === 400 || type === 'invalid_request_error') && /\bimages?\b/.test(m)) return 'image_rejected';
   if (status === 401 || type === 'authentication_error') return 'auth';
   if (status === 403 || type === 'permission_error') return 'permission';
   if (status === 404 || type === 'not_found_error') return 'model_not_found';
@@ -289,6 +292,7 @@ export function failureClientCode(f: AiFailure): string {
     case 'no_key':
       return 'ai_unavailable';
     case 'http':
+      if (f.hint === 'image_rejected') return 'photo_unsupported';
       return f.hint === 'rate_limit' || f.hint === 'overloaded' || f.hint === 'server_error' ? 'ai_busy' : 'ai_unavailable';
   }
 }
@@ -314,6 +318,7 @@ export function failureMessageKa(f: AiFailure): string {
     case 'no_key':
       return 'AI წაკითხვა გამორთულია.';
     case 'http':
+      if (f.hint === 'image_rejected') return 'ეს სურათი ვერ იკითხება — გამოიყენე JPG ან PNG ფოტო ან სქრინშოტი.';
       if (f.hint === 'rate_limit' || f.hint === 'overloaded' || f.hint === 'server_error') {
         return 'AI სერვისი ახლა გადატვირთულია — სცადე ცოტა ხანში.';
       }

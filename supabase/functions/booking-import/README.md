@@ -155,7 +155,9 @@ in `src/locales/*.json`) and falls back to the sentence. Reasons: `bad_request`,
 `photo_unsupported`; for the model `ai_timeout`, `ai_refused`, `ai_incomplete`,
 `ai_busy` (overloaded, rate-limited, a dropped connection — try again),
 `ai_unavailable` (no key, credit, a retired model with no fallback),
-`nothing_found`, `read_failed`; for approval `approve_issues`,
+`nothing_found`, `read_failed`. A picture the AI service itself refuses to
+open (a 400 that names the image: damaged, cut off) is `photo_unsupported`
+too, with no "try again" — the log says `hint=image_rejected`; for approval `approve_issues`,
 `possible_duplicate`, `already_created`. A model call is retried once on
 408/429/5xx/529 or a dropped connection, and only while time remains.
 

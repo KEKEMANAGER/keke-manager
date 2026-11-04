@@ -160,6 +160,27 @@ Deno.test('the app is told what kind of failure it was, with a code it can trans
   assertEquals(failureClientCode(f('no_key')), 'ai_unavailable');
   for (const h of ['rate_limit', 'overloaded', 'server_error']) assertEquals(failureClientCode(f('http', h)), 'ai_busy');
   for (const h of ['credit_balance', 'auth', 'model_not_found', null]) assertEquals(failureClientCode(f('http', h)), 'ai_unavailable');
+  assertEquals(failureClientCode(f('http', 'image_rejected')), 'photo_unsupported');
+});
+
+Deno.test('a picture the service cannot open: told to use another picture, not to wait, and no retry', async () => {
+  for (const text of ['Could not process image', 'messages.0.content.0.image.source.base64: invalid base64 data', 'Image does not match the provided media type image/png']) {
+    const { f, count } = fakeFetch([err(400, 'invalid_request_error', text), ok({})]);
+    const r = await call(f);
+    assertEquals([r.ok, count()], [false, 1], text);
+    if (!r.ok) {
+      assertEquals(r.failure.hint, 'image_rejected', text);
+      assertEquals(failureClientCode(r.failure), 'photo_unsupported');
+      assertEquals(failureMessageKa(r.failure), 'ეს სურათი ვერ იკითხება — გამოიყენე JPG ან PNG ფოტო ან სქრინშოტი.');
+    }
+  }
+  // Other 400s keep their own meaning, even when "image" is nowhere near.
+  const credit = fakeFetch([err(400, 'invalid_request_error', 'Your credit balance is too low'), ok({})]);
+  const c = await call(credit.f);
+  if (!c.ok) assertEquals(c.failure.hint, 'credit_balance');
+  const model = fakeFetch([err(400, 'invalid_request_error', 'model: claude-x is retired'), ok({})]);
+  const m = await call(model.f);
+  if (!m.ok) assertEquals(m.failure.hint, 'model_not_found');
 });
 
 Deno.test('token use is logged as numbers and a model name only', () => {

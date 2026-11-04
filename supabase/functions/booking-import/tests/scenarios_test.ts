@@ -392,3 +392,11 @@ Deno.test('S39 the model’s answer cut off: never ready, and the agency is told
   assert(!ready(r));
   assert((r.json.warnings ?? []).length > 0);
 });
+
+Deno.test('S40 a picture the AI service cannot open: "use another picture", not "try again later"', async () => {
+  const bad = { kind: 'http' as const, status: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'Could not process image' } } };
+  const r = await run({ images: [{ base64: PNG }], ...gate }, { replies: [bad] });
+  assertEquals([r.status, r.json.code], [415, 'photo_unsupported']);
+  assert(!String(r.json.error ?? '').includes('სცადე ხელახლა'), String(r.json.error));
+  assert(JSON.stringify(r.logRows).includes('hint=image_rejected'));
+});

@@ -7,7 +7,7 @@
 //   3. nothing in the logs gives away a key or a guest's personal data.
 import { assert, assertEquals } from './assert.ts';
 import {
-  COMPANY, FAKE_API_KEY, fixtureFile, fixtureText, program, run, single, tb, textFile,
+  COMPANY, FAKE_API_KEY, fixtureFile, fixtureText, internals, program, run, single, tb, textFile,
 } from './harness.ts';
 
 const gate = { clientGate: 2 };
@@ -690,4 +690,12 @@ Deno.test('kind: a programme of a tour and its separate transfers keeps each one
   )] });
   assertEquals(r.json.services.map((s: any) => s.draft.kind), ['transfer', 'tour', 'transfer']);
   assertEquals(r.json.services[1].draft.tour_days.length, 3);
+});
+
+Deno.test('template: the colon of a clock is not a label’s ("…10:00-ზე სასტუმრო სტამბიდან" is no place)', () => {
+  const parse = (text: string) => (internals as any).parseTemplate(text, undefined, { prose: true }).draft;
+  const d = parse('სერვისი: ტრანსფერი\nაყვანა ყოველ დღე 10:00-ზე სასტუმრო სტამბიდან.');
+  assertEquals([d.kind, d.from_location], ['transfer', null]);
+  assertEquals(parse('Pickup time: 10:00\nFrom: Hotel Stamba').from_location, 'Hotel Stamba');
+  assertEquals(parse('Pickup time: 10:00').pickup_time ?? tb(parse('Date: 20.11.2026\nPickup time: 10:00').date_display), '2026-11-20 10:00');
 });

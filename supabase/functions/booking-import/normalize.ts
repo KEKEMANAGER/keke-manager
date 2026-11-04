@@ -525,7 +525,8 @@ export function kindsNamed(text: string | null | undefined): Set<string> {
   if (/ტრანსფერ|transfer|трансфер/u.test(s)) out.add('transfer');
   // A one-day tour, taken out before looking for a tour ("8 day tour" is not one).
   // "1-day tour" is one; "8-day tour", "11 day tour", "two-day trip" are not.
-  const DAY_TOUR = /(?:ერთდღიან\S*|one[\s-]?day|(?<!(?:[2-9]|\d\d|two|three|four|five|six|seven|eight|nine|ten|multi|several)[\s-]?)day[\s-]?(?:tour|trip)|однодневн\S*|excursion|экскурси\S*|ექსკურსი\S*)(?:\s+(?:ტურ\S*|tours?|trip|тур\S*))?/giu;
+  // The count is a number of its own: "09:30 Day tour" in a table row is a day tour at 09:30.
+  const DAY_TOUR = /(?:ერთდღიან\S*|one[\s-]?day|(?<!(?:(?<![\d:.])(?:[2-9]|\d\d)|two|three|four|five|six|seven|eight|nine|ten|multi|several)[\s-]?)day[\s-]?(?:tour|trip)|однодневн\S*|excursion|экскурси\S*|ექსკურსი\S*)(?:\s+(?:ტურ\S*|tours?|trip|тур\S*))?/giu;
   if (DAY_TOUR.test(s)) out.add('day_tour');
   const rest = s.replace(DAY_TOUR, ' ');
   if (/ტურ|\btours?\b|(?<![а-яё])тур(?![а-яё]*(?:ист|изм))|programme|program\b|программ|პროგრამ|itinerary/u.test(rest)) out.add('tour');
