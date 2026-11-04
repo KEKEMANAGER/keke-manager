@@ -15,10 +15,14 @@ function inert() {
 }
 // A Supabase client that only records: the body the app hands to
 // supabase.from('bookings').insert(...) is exactly what PostgREST receives.
-// It refuses a kind that production's bookings_kind_check refuses (checked
-// 2026-11-04: transfer, tour, one_day_tour), so the app's own retry runs as it does there.
+// It refuses a kind that production's bookings_kind_check refuses, so the app's
+// own retry runs as it does there. Production allowed transfer, tour and
+// one_day_tour until 20261104120000_bookings_kind_day_tour.sql added day_tour;
+// IMPORT_E2E_KINDS=before checks the old rule.
 const sent = [];
-const PROD_KINDS = new Set(['transfer', 'tour', 'one_day_tour']);
+const PROD_KINDS = new Set(process.env.IMPORT_E2E_KINDS === 'before'
+  ? ['transfer', 'tour', 'one_day_tour']
+  : ['transfer', 'tour', 'day_tour', 'one_day_tour']);
 const KIND_REFUSED = 'new row for relation "bookings" violates check constraint "bookings_kind_check"';
 function builder(table) {
   let row = null;
@@ -145,6 +149,11 @@ const APPROVAL = '00000000-0000-4000-8000-0000000000e2';
     const body = sent[sent.length - 1];
     if (!body || !PROD_KINDS.has(body.kind) || body.import_approval_id !== APPROVAL) { console.error(`${name}: the booking was not sent with its approval`); process.exit(1); }
     if (sent.length > 1) console.log(`  ${name}: ${sent.map((b) => `kind=${b.kind}/booking_type=${b.booking_type}`).join(' -> ')}`);
+    // With day tours allowed, a day tour is stored as one, in a single insert.
+    if (PROD_KINDS.has('day_tour') && draft.kind === 'day_tour' && (sent.length !== 1 || body.kind !== 'day_tour' || body.booking_type !== 'day_tour')) {
+      console.error(`${name}: a day tour was not stored as a day tour: ${sent.map((b) => b.kind + '/' + b.booking_type).join(' -> ')}`);
+      process.exit(1);
+    }
     cases.push({ name, real: true, readDraft: r.draft, review: r.review, draft: asked.draft, insert: asked.insert, confirmed: asked.confirmed, body });
   }
 
