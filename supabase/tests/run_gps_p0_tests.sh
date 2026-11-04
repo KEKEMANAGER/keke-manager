@@ -2,12 +2,12 @@
 # Runs every GPS P0 check on a THROWAWAY local PostgreSQL (15+ with pgTAP and
 # btree_gist), built like production today: the snapshots, every migration
 # production has run (P0-1 .. P0-6, vehicle calendar, fleet invites, import
-# approvals, day tour) and the GPS snapshot of 2026-11-04. It never connects
+# approvals, day tour) and the GPS and multi-day tour snapshots of 2026-11-04. It never connects
 # to Supabase; nothing is sent anywhere (net.http_post only records). Point
 # PGHOST/PGPORT/PGUSER at a local server you can drop databases on; PGUSER
 # must be "postgres" (the production snapshot trusts that session user).
 #
-#   1. production today: all 15 GPS problems are there (5 P0-1, 6 P0-2, 4 P0-3);
+#   1. production today: all 21 GPS problems are there (7 P0-1, 10 P0-2, 4 P0-3);
 #   2. the three migrations one at a time: each removes exactly its own
 #      problems; all three can run twice;
 #   3. the GPS suite (gps_p0.test.sql);
@@ -30,10 +30,10 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 MIG="$ROOT/supabase/migrations"
 RB="$ROOT/supabase/rollback"
-G1="$MIG/20261104150000_gps_company_sees_live_trip_only.sql"
+G1="$MIG/20261104150000_gps_position_only_during_trip.sql"
 G2="$MIG/20261104150100_gps_stop_sharing_after_trip.sql"
 G3="$MIG/20261104150200_gps_watch_every_trip.sql"
-U1="$RB/20261104150000_gps_company_sees_live_trip_only_undo.sql"
+U1="$RB/20261104150000_gps_position_only_during_trip_undo.sql"
 U2="$RB/20261104150100_gps_stop_sharing_after_trip_undo.sql"
 U3="$RB/20261104150200_gps_watch_every_trip_undo.sql"
 DB="${GPS_P0_TEST_DB:-keke_gps_p0_test}"
@@ -60,7 +60,7 @@ build() { # $1 database, then any staged parts to apply before the GPS snapshot
   # authenticated unless its migration takes that away.
   psql -X -q -v ON_ERROR_STOP=1 -d "$DB_BUILDING" \
     -c 'alter default privileges for role postgres in schema public grant execute on functions to anon, authenticated, service_role' >/dev/null
-  apply_to "$DB_BUILDING" fixtures/prod_gps_snapshot_2026-11-04.sql
+  apply_to "$DB_BUILDING" fixtures/prod_gps_snapshot_2026-11-04.sql fixtures/prod_tour_days_snapshot_2026-11-04.sql
 }
 apply_to() { local db=$1; shift; local f; for f in "$@"; do
   psql -X -q -v ON_ERROR_STOP=1 -d "$db" -f "$f" >/dev/null 2>&1 || { echo "apply failed: $f"; psql -X -q -v ON_ERROR_STOP=1 -d "$db" -f "$f" 2>&1 | tail -3; exit 1; }; done; }
@@ -104,30 +104,39 @@ suites() { # every older suite ends exactly as it did before the GPS changes
 fingerprint() { # the GPS objects: rules, functions, triggers, jobs, columns
   psql -X -qAt -d "$DB" <<'SQL'
 select 'policies ' || tablename || ' ' || md5(string_agg(policyname || '|' || permissive || '|' || roles::text || '|' || cmd || '|' || coalesce(qual, '') || '|' || coalesce(with_check, ''), E'\n' order by policyname))
-  from pg_policies where schemaname = 'public' and tablename in ('driver_locations', 'driver_location_trail', 'trip_events', 'locations', 'trip_gps_watch')
+  from pg_policies where schemaname = 'public' and tablename in ('driver_locations', 'driver_location_trail', 'trip_events', 'locations', 'trip_gps_watch',
+                                                                 'booking_day_logs', 'gps_admin_access', 'gps_device_clock')
  group by tablename order by 1;
 select 'function ' || p.oid::regprocedure::text || ' ' || md5(pg_get_functiondef(p.oid)) || ' ' || coalesce(array_to_string(p.proacl, ','), 'default')
   from pg_proc p where p.pronamespace = 'public'::regnamespace
    and p.proname in ('watch_trip_gps', 'send_expo_silent_push', 'trip_events_queue_company_email', 'gps_tidy_pins',
                      'gps_trip_accepts_point', 'driver_locations_trip_guard', 'driver_location_trail_keep_trip_points',
-                     'driver_locations_server_time') order by 1;
+                     'driver_locations_server_time', 'driver_locations_device_clock', 'gps_admin_open_access',
+                     'gps_admin_close_access', 'gps_fleet_owner_sees', 'close_tour_day', 'complete_tour_booking_as_driver',
+                     'tour_day_plan') order by 1;
+select 'tables ' || coalesce(string_agg(c.relname || ':' || coalesce(array_to_string(c.relacl, ','), 'default'), ' ' order by c.relname), '')
+  from pg_class c where c.relnamespace = 'public'::regnamespace
+   and c.relname in ('driver_locations', 'driver_location_trail', 'trip_events', 'trip_gps_watch', 'locations',
+                     'booking_day_logs', 'gps_device_clock', 'gps_admin_access');
 select 'triggers ' || coalesce(string_agg(t.tgrelid::regclass::text || '.' || t.tgname, ',' order by 1), '')
   from pg_trigger t where t.tgrelid in ('public.driver_locations'::regclass, 'public.driver_location_trail'::regclass,
                                         'public.trip_events'::regclass, 'public.trip_gps_watch'::regclass) and not t.tgisinternal;
 select 'jobs ' || string_agg(jobname || ' ' || schedule || ' ' || command, ' | ' order by jobname) from cron.job;
-select 'columns trip_gps_watch ' || string_agg(column_name || ':' || data_type, ',' order by ordinal_position)
-  from information_schema.columns where table_schema = 'public' and table_name = 'trip_gps_watch';
+select 'columns ' || table_name || ' ' || string_agg(column_name || ':' || data_type, ',' order by ordinal_position)
+  from information_schema.columns where table_schema = 'public'
+   and table_name in ('trip_gps_watch', 'driver_locations', 'driver_location_trail', 'trip_events', 'booking_day_logs')
+ group by table_name order by table_name;
 SQL
 }
 
 echo "== 1/7 production today: every GPS problem is there"
 build "$DB"
-gps_held "5 6 4"
+gps_held "7 10 4"
 PROD_FP=$(fingerprint)
 baseline
 
 echo "== 2/7 the three migrations, one at a time"
-apply "$G1"; gps_held "0 6 4"
+apply "$G1"; gps_held "0 10 4"
 apply "$G2"; gps_held "0 0 4"
 apply "$G3"; gps_held "0 0 0"
 apply "$G1" "$G2" "$G3"; echo "   each applied a second time:"; gps_held "0 0 0"
@@ -144,7 +153,7 @@ SAVED="$DB"; DB="${SAVED}_staged"
 build "$DB" "$ROOT/supabase/staged/20261031180100_open_jobs_summary_only.sql" "$ROOT/supabase/staged/20261101090100_push_tokens_private.sql"
 declare -A MAIN_BEFORE; for f in $SUITES; do MAIN_BEFORE[$f]=${BEFORE[$f]}; done
 baseline
-gps_held "5 6 4"
+gps_held "7 10 4"
 apply "$G1" "$G2" "$G3"; gps_held "0 0 0"
 tap gps_p0.test.sql; suites
 held p0_4_bug_reproduction.sql 0
@@ -160,17 +169,17 @@ dropdb "$TPL"
 
 echo "== 7/7 undo"
 echo "-- each undo alone brings back only its own problems:"
-apply "$U1"; gps_held "5 0 0"; apply "$G1"
-apply "$U2"; gps_held "0 6 0"; apply "$G2"
+apply "$U1"; gps_held "7 0 0"; apply "$G1"
+apply "$U2"; gps_held "0 10 0"; apply "$G2"
 apply "$U3"; gps_held "0 0 4"; apply "$G3"
 gps_held "0 0 0"
 echo "-- all three undone, newest first:"
 apply "$U3" "$U2" "$U1"
-gps_held "5 6 4"
+gps_held "7 10 4"
 if [ "$(fingerprint)" != "$PROD_FP" ]; then
   echo "   the GPS objects differ from production after the undo:"; diff <(echo "$PROD_FP") <(fingerprint) || true; exit 1
 fi
-echo "   the GPS objects are exactly as production has them (rules, functions, triggers, jobs, columns)"
+echo "   the GPS objects are exactly as production has them (rules, functions and execute rights, triggers, jobs, columns, tables and their rights)"
 suites
 echo "-- applied again:"
 apply "$G1" "$G2" "$G3"; gps_held "0 0 0"; tap gps_p0.test.sql

@@ -5,8 +5,8 @@
 -- database owner inside the test's transaction, which is rolled back.
 -- Ids are tests.gp('<name>').
 --
--- Accounts: companies CA CB CC, admin ADM, drivers D1..D8, fleet owner H with
--- his driver S.
+-- Accounts: companies CA CB CC, admins ADM ADM2, drivers D1..D9, fleet owner
+-- H with his drivers S and S2.
 -- Bookings:
 --   LIVE_A   CA's trip in progress, driver D1
 --   DONE_B   CB's trip with D1, completed yesterday
@@ -18,9 +18,16 @@
 --   LIVE_C7  CC's trip in progress, driver D7 (no position at all)
 --   FLT_A    CA's trip in progress, given by fleet owner H to his driver S
 --   DONE_A8  CA's trip with D8, completed 30 minutes ago (his app kept sending)
+--   DONE_S2  CA's trip given by H to S2, completed 10 minutes ago (an app from
+--            before 24 October: it sends no mode and kept sending)
+--   TOUR_9   CB's three-day tour with D9, in progress since the day before
+--            yesterday; day 1 closed
 -- Positions (driver_locations): D1 S (background, live), D2 (open screen, two
 -- days old), D3 D5 H (open screen, live), D4 (background, two days old),
--- D6 (open screen, live), D8 (background, live - left over from DONE_A8).
+-- D6 (open screen, live), D8 (background, live - left over from DONE_A8),
+-- S2 (no mode, live - after DONE_S2), D9 (background, live, on the tour).
+-- Road points carry the time they reached the server (created_at) a minute
+-- after they were recorded.
 
 create schema if not exists tests;
 grant usage on schema tests to public;
@@ -117,7 +124,8 @@ $$;
 -- (insert ... on conflict (driver_id) do update), as the driver. Returns the
 -- rows written (0 = skipped quietly) or the SQLSTATE of an error.
 create or replace function tests.app_report(p_driver uuid, p_mode text, p_lat double precision default 41.70,
-                                           p_lng double precision default 44.80, p_phone_time timestamptz default now())
+                                           p_lng double precision default 44.80,
+                                           p_phone_time timestamptz default now() - interval '0.4 seconds')
 returns text
 language plpgsql as $$
 declare n int; st text;
@@ -147,15 +155,22 @@ end;
 $$;
 
 -- The app's road upload: upsert ... on conflict do nothing, as the driver.
-create or replace function tests.app_trail(p_driver uuid, p_booking uuid, p_at timestamptz) returns text
+create or replace function tests.app_trail(p_driver uuid, p_booking uuid, p_at timestamptz,
+                                          p_created timestamptz default null) returns text
 language plpgsql as $$
 declare n int; st text;
 begin
   perform tests.act_as(p_driver);
   begin
-    insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude)
-    values (p_driver, p_booking, p_at, 41.71, 44.79)
-    on conflict (driver_id, recorded_at) do nothing;
+    if p_created is null then
+      insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude)
+      values (p_driver, p_booking, p_at, 41.71, 44.79)
+      on conflict (driver_id, recorded_at) do nothing;
+    else
+      insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude, created_at)
+      values (p_driver, p_booking, p_at, 41.71, 44.79, p_created)
+      on conflict (driver_id, recorded_at) do nothing;
+    end if;
     get diagnostics n = row_count;
     st := n::text;
   exception when others then
@@ -330,36 +345,102 @@ begin
 end;
 $$;
 
+-- The phone clock the server measured for a driver: seconds it is off (null:
+-- never measured, or no such bookkeeping on this database).
+create or replace function tests.clock_skew(p_driver uuid) returns double precision
+language plpgsql security definer set search_path = public as $$
+declare v double precision;
+begin
+  if to_regclass('public.gps_device_clock') is null then return null; end if;
+  execute 'select extract(epoch from skew)::double precision from public.gps_device_clock where driver_id = $1'
+    into v using p_driver;
+  return v;
+end;
+$$;
+
+create or replace function tests.clock_was_off(p_driver uuid) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare v boolean;
+begin
+  if to_regclass('public.gps_device_clock') is null then return null; end if;
+  execute 'select off_seen_at is not null from public.gps_device_clock where driver_id = $1' into v using p_driver;
+  return v;
+end;
+$$;
+
+-- A booking's road as minutes from now, oldest first ("-50,-40,-30").
+create or replace function tests.trail_times(p_booking uuid) returns text
+language sql security definer set search_path = public as $$
+  select coalesce(string_agg(round(extract(epoch from (recorded_at - now())) / 60)::text, ',' order by recorded_at), '')
+    from public.driver_location_trail where booking_id = p_booking
+$$;
+
+-- When a stored point reached the server, as the database has it.
+create or replace function tests.trail_created(p_driver uuid, p_recorded timestamptz) returns timestamptz
+language sql security definer set search_path = public as $$
+  select created_at from public.driver_location_trail where driver_id = p_driver and recorded_at = p_recorded
+$$;
+
+-- Rows in the GPS tables that hold history (not the live positions).
+create or replace function tests.history_rows() returns text
+language sql security definer set search_path = public as $$
+  select (select count(*) from public.driver_location_trail) || '/' || (select count(*) from public.trip_events)
+         || '/' || (select count(*) from public.booking_day_logs) || '/' || (select count(*) from public.locations)
+$$;
+
+-- production's 30-day road clean-up, exactly as its schedule holds it; rows deleted
+create or replace function tests.run_trail_cleanup() returns int
+language plpgsql as $$
+declare n int;
+begin
+  execute (select command from cron.job where jobname = 'trail-cleanup');
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+-- An admin's exception: opens a driver's position (rows, or the SQLSTATE).
+create or replace function tests.admin_open(p_admin uuid, p_driver uuid, p_reason text, p_minutes int) returns text
+language plpgsql as $$
+begin
+  return tests.try_as(p_admin, format('select public.gps_admin_open_access(%L::uuid, %L, %s)',
+                                      p_driver, p_reason, coalesce(p_minutes::text, 'null')));
+end;
+$$;
+
 grant execute on all functions in schema tests to public;
 
 -- people ---------------------------------------------------------------------
 insert into tests.gnames (id, name)
 select tests.gp(x), x
-  from unnest(array['CA','CB','CC','ADM','D1','D2','D3','D4','D5','D6','D7','D8','H','S',
-                    'LIVE_A','DONE_B','FUT_C','CNL_B','OFF_A','REJ_C','LIVE_B6','LIVE_C7','FLT_A','DONE_A8']) x
+  from unnest(array['CA','CB','CC','ADM','ADM2','D1','D2','D3','D4','D5','D6','D7','D8','D9','H','S','S2',
+                    'LIVE_A','DONE_B','FUT_C','CNL_B','OFF_A','REJ_C','LIVE_B6','LIVE_C7','FLT_A','DONE_A8',
+                    'DONE_S2','TOUR_9']) x
 on conflict (id) do nothing;
 
 insert into auth.users (id, email)
 select tests.gp(x), 'gps-' || lower(x) || '@test.invalid'
-  from unnest(array['CA','CB','CC','ADM','D1','D2','D3','D4','D5','D6','D7','D8','H','S']) x;
+  from unnest(array['CA','CB','CC','ADM','ADM2','D1','D2','D3','D4','D5','D6','D7','D8','D9','H','S','S2']) x;
 
 insert into public.users (id, role, full_name, company_name, email, is_verified, verification_status, is_available)
 select tests.gp(x),
-       case when x in ('CA', 'CB', 'CC') then 'company' when x = 'ADM' then 'admin' else 'driver' end,
+       case when x in ('CA', 'CB', 'CC') then 'company' when x in ('ADM', 'ADM2') then 'admin' else 'driver' end,
        'Test ' || x,
        case when x in ('CA', 'CB', 'CC') then 'Test Tours ' || x end,
        'gps-' || lower(x) || '@test.invalid',
        true, 'approved', true
-  from unnest(array['CA','CB','CC','ADM','D1','D2','D3','D4','D5','D6','D7','D8','H','S']) x;
+  from unnest(array['CA','CB','CC','ADM','ADM2','D1','D2','D3','D4','D5','D6','D7','D8','D9','H','S','S2']) x;
 
 insert into public.profiles (id, full_name, is_verified, push_token)
 select tests.gp(x), 'Test ' || x, true, tests.gtok(x)
-  from unnest(array['CA','CB','CC','ADM','D1','D2','D3','D4','D5','D6','D7','D8','H','S']) x;
+  from unnest(array['CA','CB','CC','ADM','ADM2','D1','D2','D3','D4','D5','D6','D7','D8','D9','H','S','S2']) x;
 
 insert into public.vehicles (id, driver_id, type, class, model, plate, verification_status, is_verified, is_active)
-values (tests.gp('vH'), tests.gp('H'), 'minivan', 'comfort', 'Test model', 'TEST-GPS-vH', 'approved', true, true);
+values (tests.gp('vH'), tests.gp('H'), 'minivan', 'comfort', 'Test model', 'TEST-GPS-vH', 'approved', true, true),
+       (tests.gp('vH2'), tests.gp('H'), 'sedan', 'comfort', 'Test model', 'TEST-GPS-vH2', 'approved', true, true);
 insert into public.driver_fleet (host_driver_id, sub_driver_id, vehicle_id, status)
-values (tests.gp('H'), tests.gp('S'), tests.gp('vH'), 'accepted');
+values (tests.gp('H'), tests.gp('S'), tests.gp('vH'), 'accepted'),
+       (tests.gp('H'), tests.gp('S2'), tests.gp('vH2'), 'accepted');
 
 -- bookings -------------------------------------------------------------------
 insert into public.bookings (id, company_id, driver_id, host_driver_id, kind, status, date_display, from_location,
@@ -377,22 +458,37 @@ select tests.gp(b), tests.gp(co), tests.gp(d), case when h is null then null els
     ('LIVE_B6', 'CB', 'D6', null, 'in_progress',   -45),
     ('LIVE_C7', 'CC', 'D7', null, 'in_progress',   -40),
     ('FLT_A',   'CA', 'S',  'H',  'in_progress',   -30),
-    ('DONE_A8', 'CA', 'D8', null, 'completed',    -150)
+    ('DONE_A8', 'CA', 'D8', null, 'completed',    -150),
+    ('DONE_S2', 'CA', 'S2', 'H',  'completed',    -130)
   ) as x(b, co, d, h, st, m);
+
+-- the three-day tour: started the day before yesterday (Tbilisi), day 1 closed
+insert into public.bookings (id, company_id, driver_id, kind, status, date_display, from_location, to_location,
+                             price_gel, vehicle_type, vehicle_class, passengers, voucher_code, tour_days)
+select tests.gp('TOUR_9'), tests.gp('CB'), tests.gp('D9'), 'tour', 'in_progress', (d - 2)::text,
+       'Test hotel', 'Test mountains', 900, 'minivan', 'comfort', 6, 'GPS-TOUR_9',
+       jsonb_build_array(jsonb_build_object('date', (d - 2)::text), jsonb_build_object('date', (d - 1)::text),
+                         jsonb_build_object('date', d::text))
+  from (select (now() at time zone 'Asia/Tbilisi')::date d) t;
+insert into public.booking_day_logs (booking_id, day_index, day_date, driver_id, closed_at, odometer_value)
+select tests.gp('TOUR_9'), 1, (now() at time zone 'Asia/Tbilisi')::date - 2, tests.gp('D9'), now() - interval '30 hours', 10500;
 
 -- positions (written past the triggers: the scene, not an app) --------------
 select tests.set_pin(tests.gp(x), mode, now() - make_interval(mins => age))
   from (values ('D1', 'background', 0), ('S', 'background', 0), ('D2', 'foreground', 2880),
                ('D3', 'foreground', 1), ('D5', 'foreground', 1), ('H', 'foreground', 1),
-               ('D4', 'background', 2880), ('D6', 'foreground', 1), ('D8', 'background', 0)) as p(x, mode, age);
+               ('D4', 'background', 2880), ('D6', 'foreground', 1), ('D8', 'background', 0),
+               ('S2', null, 0), ('D9', 'background', 0)) as p(x, mode, age);
 
 -- the road and the passenger marks of the trips so far ----------------------
 set local session_replication_role = replica;
-insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude)
-select tests.gp(d), tests.gp(b), now() - make_interval(mins => m), 41.70, 44.80
+insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude, created_at)
+select tests.gp(d), tests.gp(b), now() - make_interval(mins => m), 41.70, 44.80, now() - make_interval(mins => m - 1)
   from (values ('D1', 'LIVE_A', 50), ('D1', 'LIVE_A', 40), ('D1', 'LIVE_A', 30),
                ('D1', 'DONE_B', 1500), ('D1', 'DONE_B', 1490),
-               ('S', 'FLT_A', 20), ('D8', 'DONE_A8', 60)) as t(d, b, m);
+               ('S', 'FLT_A', 20), ('D8', 'DONE_A8', 60),
+               ('S2', 'DONE_S2', 40), ('S2', 'DONE_S2', 20),
+               ('D9', 'TOUR_9', 2700), ('D9', 'TOUR_9', 1300)) as t(d, b, m);
 insert into public.trip_events (booking_id, driver_id, kind, happened_at, latitude, longitude, client_event_id)
 values (tests.gp('LIVE_A'), tests.gp('D1'), 'pickup', now() - interval '50 minutes', 41.70, 44.80, 'gps-ev-1'),
        (tests.gp('DONE_B'), tests.gp('D1'), 'pickup', now() - interval '25 hours', 41.70, 44.80, 'gps-ev-2'),

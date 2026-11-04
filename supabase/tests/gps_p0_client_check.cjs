@@ -11,7 +11,8 @@
 // task's own check that its trip is still under way, reviveTripGps;
 // lib/tripGpsKeeper.ts (what the app does when it comes to the front); every
 // screen that ends a trip calls stopTripSharing; (P0-1) lib/companyGps.ts asks
-// only for trips in progress; (P0-3) lib/signalAge.ts - live / weak / lost and
+// only for trips in progress, the company map shows a finished trip's road;
+// (P0-3) lib/signalAge.ts - live / weak / lost and
 // their colours - used by every company and fleet map, its texts in all four
 // languages.
 'use strict';
@@ -355,6 +356,23 @@ function scene(status, { running = true, booking = TRIP } = {}) {
     check(['live', 'weakSignal', 'signalLostAt'].every((k) => typeof tr[k] === 'string' && tr[k].trim())
           && tr.signalLostAt.includes('{{time}}'),
           `P0-3: the three states have their texts in ${lang}`);
+  }
+
+  // (P0-1) a trip that is over: the company map shows its road, not "GPS not started"
+  const trackingSrc = fs.readFileSync(path.join(ROOT, 'app/(app)/tracking.tsx'), 'utf8');
+  check(/const tripOver = booking\?\.status === 'completed' \|\| booking\?\.status === 'cancelled';/.test(trackingSrc)
+        && /const trailForMap = activePin \? \(activePin\.driver_id === driverId \? trail : \[\]\) : tripOver \? trail : \[\];/.test(trackingSrc),
+        'P0-1: the company map draws a finished or cancelled trip\'s road when no live position is shown');
+  check((trackingSrc.match(/\{offBadgeText\}/g) || []).length === 2 && (trackingSrc.match(/\{offHintText\}/g) || []).length === 2
+        && !/t\('tracking\.noSignalHint'\)\}/.test(trackingSrc),
+        'P0-1: ... and says so on the phone and on the web, instead of "the driver has not started GPS"');
+  check(/fitToCoordinates\(/.test(trackingSrc)
+        && /pinCountRef\.current === 0/.test(fs.readFileSync(path.join(ROOT, 'components/LeafletDriverMap.web.tsx'), 'utf8')),
+        'P0-1: ... and brings that road into view (phone and web)');
+  for (const lang of ['ka', 'en', 'ru', 'hy']) {
+    const tr = JSON.parse(fs.readFileSync(path.join(ROOT, `src/locales/${lang}.json`), 'utf8')).tracking || {};
+    check(['tripNotLive', 'tripNotLiveRoute', 'tripNotLiveNoRoute'].every((k) => typeof tr[k] === 'string' && tr[k].trim()),
+          `P0-1: the "trip not in progress" texts exist in ${lang}`);
   }
 
   console.log(`1..${n}`);

@@ -85,6 +85,8 @@ export function LeafletDriverMap({
   const markersRef = useRef<Map<string, any>>(new Map());
   const onSelectRef = useRef(onSelectPin);
   const lastUserMoveRef = useRef(0);
+  const pinCountRef = useRef(pins.length);
+  pinCountRef.current = pins.length;
   const prevSelectedRef = useRef<string | null | undefined>(undefined);
   const [mapReady, setMapReady] = useState(false);
   onSelectRef.current = onSelectPin;
@@ -240,6 +242,11 @@ export function LeafletDriverMap({
         .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
         .map((p) => [p.latitude, p.longitude] as [number, number]);
       if (pts.length < 2) return;
+      // A road with no live position on the map (a trip that is over): bring the road into view.
+      const map = mapRef.current;
+      if (map && pinCountRef.current === 0 && Date.now() - lastUserMoveRef.current >= USER_MOVE_PAUSE_MS) {
+        map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 15, animate: true });
+      }
       L.polyline(pts, { color: '#FFFFFF', weight: 8, opacity: 0.9, interactive: false }).addTo(layer);
       L.polyline(pts, { color: COLORS.gold, weight: 4, opacity: 0.95, interactive: false }).addTo(layer);
       L.circleMarker(pts[0], {

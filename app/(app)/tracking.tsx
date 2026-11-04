@@ -252,8 +252,29 @@ export default function CompanyTrackingScreen() {
   const isLost = activePin ? isSignalLost(activePin.updated_at) : false;
   const lostLabel =
     activePin && isLost ? t('tracking.signalLostAt', { time: lostAtLabel(activePin.updated_at) }) : null;
-  // Only the booking's own driver has this road.
-  const trailForMap = activePin && activePin.driver_id === driverId ? trail : [];
+  // A trip that is over shows no live position any more (the server shares a
+  // driver's position only during a trip in progress), but its road stays the
+  // company's: shown on its own then. While the trip runs, only the booking's
+  // own driver has this road.
+  const tripOver = booking?.status === 'completed' || booking?.status === 'cancelled';
+  const trailForMap = activePin ? (activePin.driver_id === driverId ? trail : []) : tripOver ? trail : [];
+  const offBadgeText = tripOver ? t('tracking.tripNotLive') : t('tracking.noSignal');
+  const offHintText = tripOver
+    ? trail.length > 1
+      ? t('tracking.tripNotLiveRoute')
+      : t('tracking.tripNotLiveNoRoute')
+    : t('tracking.noSignalHint');
+
+  // No live position: a finished trip's road is brought into view instead.
+  const historyKey = !activePin && tripOver && trail.length > 1 ? `${trail.length}:${trail[trail.length - 1].recorded_at}` : '';
+  useEffect(() => {
+    if (!historyKey || Platform.OS === 'web') return;
+    mapRef.current?.fitToCoordinates(
+      trail.map((p) => ({ latitude: p.latitude, longitude: p.longitude })),
+      { edgePadding: { top: 140, right: 48, bottom: 260, left: 48 }, animated: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the key stands for the road
+  }, [historyKey]);
   const isFleet = fleetIds.length > 1;
 
   const route = [booking?.from_location, booking?.to_location].filter(Boolean).join(' → ');
@@ -287,7 +308,7 @@ export default function CompanyTrackingScreen() {
     ) : (
       <View style={[styles.badge, styles.badgeOff]}>
         <View style={styles.dotOff} />
-        <Text style={[styles.badgeText, styles.textOff]}>{t('tracking.noSignal')}</Text>
+        <Text style={[styles.badgeText, styles.textOff]}>{offBadgeText}</Text>
       </View>
     );
 
@@ -416,7 +437,7 @@ export default function CompanyTrackingScreen() {
           ) : !loading ? (
             <View style={styles.noSignalWrap}>
               <Ionicons name="navigate-outline" size={28} color={COLORS.textMuted} />
-              <Text style={styles.noSignalText}>{t('tracking.noSignalHint')}</Text>
+              <Text style={styles.noSignalText}>{offHintText}</Text>
             </View>
           ) : null}
           {tourBooking ? <BookingOdometerSection booking={tourBooking} compact /> : null}
@@ -539,7 +560,7 @@ export default function CompanyTrackingScreen() {
         ) : (
           <View style={[styles.badge, styles.badgeOff]}>
             <View style={styles.dotOff} />
-            <Text style={[styles.badgeText, styles.textOff]}>{t('tracking.noSignal')}</Text>
+            <Text style={[styles.badgeText, styles.textOff]}>{offBadgeText}</Text>
           </View>
         )}
       </View>
@@ -596,7 +617,7 @@ export default function CompanyTrackingScreen() {
         ) : !loading ? (
           <View style={styles.noSignalWrap}>
             <Ionicons name="navigate-outline" size={28} color={COLORS.textMuted} />
-            <Text style={styles.noSignalText}>{t('tracking.noSignalHint')}</Text>
+            <Text style={styles.noSignalText}>{offHintText}</Text>
           </View>
         ) : null}
         {tourBooking ? <BookingOdometerSection booking={tourBooking} compact /> : null}
