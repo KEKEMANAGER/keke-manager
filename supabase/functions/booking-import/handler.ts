@@ -2903,6 +2903,10 @@ export async function handler(req: Request): Promise<Response> {
   } catch {
     return await failWith('error', 400, 'არასწორი მოთხოვნა', 'bad_request', 'bad_request');
   }
+  // "null", a number or a list are valid JSON too, but not a request.
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return await failWith('error', 400, 'არასწორი მოთხოვნა', 'bad_request', 'bad_request');
+  }
 
   // Only a company (or KEKE's admin) reads requests into bookings. The role is
   // the server's own record, which no client can change.

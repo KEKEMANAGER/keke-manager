@@ -699,3 +699,10 @@ Deno.test('template: the colon of a clock is not a label’s ("…10:00-ზე �
   assertEquals(parse('Pickup time: 10:00\nFrom: Hotel Stamba').from_location, 'Hotel Stamba');
   assertEquals(parse('Pickup time: 10:00').pickup_time ?? tb(parse('Date: 20.11.2026\nPickup time: 10:00').date_display), '2026-11-20 10:00');
 });
+
+Deno.test('a body that is JSON but not a request (null, a number, a list) is a bad request, not a crash', async () => {
+  for (const body of [null, 42, ['text']]) {
+    const r = await run(body);
+    assertEquals([r.status, r.json.code], [400, 'bad_request'], JSON.stringify(body));
+  }
+});
