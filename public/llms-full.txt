@@ -1,6 +1,6 @@
 # KEKE Manager — Full reference for AI systems
 
-> Generated: 2026-11-03
+> Generated: 2026-11-05
 > Canonical summary: https://kekemanager.com/llms.txt
 > Website: https://kekemanager.com
 
@@ -118,8 +118,10 @@ use KEKE Manager to source verified drivers.
 - [Corporate group transport coordination](https://kekemanager.com/services/corporate-transfer): Corporate Group Transport for Tour Companies | KEKE Manager
   Tour companies coordinate corporate groups and MICE transport with verified drivers on KEKE Manager. Fleet dashboard, vouchers, and GPS — B2B platform only.
 
-## Blog articles (47)
+## Blog articles (48)
 
+- [How to Optimize Driver Scheduling During Tourist Season in Georgia](https://kekemanager.com/blog/how-to-optimize-driver-scheduling-tourist-season-georgia) (2026-11-05)
+  Effective driver schedule management in tourist season — methods, pitfalls, and B2B platform role.
 - [How to Prepare Your Fleet for Winter Season in Georgia](https://kekemanager.com/blog/how-to-prepare-fleet-for-winter-season-georgia) (2026-11-03)
   Successful winter tourism season management: fleet preparation, driver training, and risk minimization in mountain regions.
 - [How to Prepare Your Driver Fleet for Autumn Tourism Season in Georgia](https://kekemanager.com/blog/how-to-prepare-driver-fleet-for-autumn-tourism-season-georgia-2) (2026-11-03)

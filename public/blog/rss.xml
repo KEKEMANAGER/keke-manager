@@ -5,8 +5,15 @@
     <link>https://kekemanager.com/blog</link>
     <description>Tourism transport insights for tour companies, drivers, and fleet owners in Georgia</description>
     <language>ka</language>
-    <lastBuildDate>Tue, 03 Nov 2026 07:22:04 GMT</lastBuildDate>
+    <lastBuildDate>Thu, 05 Nov 2026 07:04:36 GMT</lastBuildDate>
     <atom:link href="https://kekemanager.com/blog/rss.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title><![CDATA[როგორ ავმართოთ მძღოლთა გრაფიკი ტურისტულ სეზონზე საქართველოში]]></title>
+      <link>https://kekemanager.com/blog/how-to-optimize-driver-scheduling-tourist-season-georgia</link>
+      <guid isPermaLink="true">https://kekemanager.com/blog/how-to-optimize-driver-scheduling-tourist-season-georgia</guid>
+      <pubDate>Thu, 05 Nov 2026 00:00:00 GMT</pubDate>
+      <description><![CDATA[ტურსეზონზე მძღოლთა გრაფიკის ეფექტური მართვა — მეთოდები, ხარვეზები და B2B პლატფორმის როლი.]]></description>
+    </item>
     <item>
       <title><![CDATA[როგორ მოვამზადოთ ავტოპარკი ზამთრის სეზონისთვის საქართველოში]]></title>
       <link>https://kekemanager.com/blog/how-to-prepare-fleet-for-winter-season-georgia</link>
@@ -139,13 +146,6 @@
       <guid isPermaLink="true">https://kekemanager.com/blog/fleet-owner-guide-managing-drivers-georgia</guid>
       <pubDate>Sun, 20 Sep 2026 00:00:00 GMT</pubDate>
       <description><![CDATA[ფლოტის მფლობელთა პრაქტიკული გიდი: მძღოლების დაქირავება, ვერიფიკაცია, მოტივაცია და B2B პლატფორმების გამოყენება ტურისტულ ბიზნესში.]]></description>
-    </item>
-    <item>
-      <title><![CDATA[სვანეთში ზამთრის ტური: ტრანსპორტის სრული გიდი ტუროპერატორებისთვის]]></title>
-      <link>https://kekemanager.com/blog/svaneti-winter-tour-transport-guide</link>
-      <guid isPermaLink="true">https://kekemanager.com/blog/svaneti-winter-tour-transport-guide</guid>
-      <pubDate>Thu, 10 Sep 2026 00:00:00 GMT</pubDate>
-      <description><![CDATA[როგორ მოვამზადოთ და მოვაწყოთ უსაფრთხო, მომგებიანი ზამთრის ტური სვანეთში — ტრანსპორტის არჩევანი, მძღოლის მოთხოვნები და ლოგისტიკური გამოწვევები.]]></description>
     </item>
   </channel>
 </rss>
