@@ -54,18 +54,21 @@ function Tile({
   uri,
   kind,
   height,
+  wide,
   onOpen,
 }: {
   label: string;
   uri: string | null;
   kind: 'document' | 'photo';
   height: number;
+  /** Two to a row (documents) instead of five (car photos). */
+  wide?: boolean;
   onOpen: (p: Preview) => void;
 }) {
   const { t } = useTranslation();
   const has = !!uri && uri.trim().length > 0;
   return (
-    <View style={styles.tile}>
+    <View style={[styles.tile, wide ? styles.tileWide : styles.tileNarrow]}>
       {has ? (
         <Pressable
           onPress={() => onOpen({ uri: uri as string, title: label, kind })}
@@ -210,7 +213,7 @@ export function AdminFleetDriverPanel({ entry, driverEntries, onClose, onLanguag
         {editing ? (
           <View style={styles.editBox}>
             <LanguageMultiSelect
-              label={t('adminFleet.panel.languages')}
+              label={t('adminFleet.panel.editLanguages')}
               hint={t('adminFleet.panel.languagesHint')}
               value={draft}
               onChange={setDraft}
@@ -258,10 +261,10 @@ export function AdminFleetDriverPanel({ entry, driverEntries, onClose, onLanguag
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('adminFleet.panel.personalDocs')}</Text>
         <View style={styles.grid2}>
-          <Tile label={t('adminFleet.panel.idFront')} uri={d.id_front ?? d.id_photo} kind="document" height={96} onOpen={setPreview} />
-          <Tile label={t('adminFleet.panel.idBack')} uri={d.id_back} kind="document" height={96} onOpen={setPreview} />
-          <Tile label={t('adminFleet.panel.licenseFront')} uri={d.license_front ?? d.license_photo} kind="document" height={96} onOpen={setPreview} />
-          <Tile label={t('adminFleet.panel.licenseBack')} uri={d.license_back} kind="document" height={96} onOpen={setPreview} />
+          <Tile label={t('adminFleet.panel.idFront')} uri={d.id_front ?? d.id_photo} kind="document" height={96} wide onOpen={setPreview} />
+          <Tile label={t('adminFleet.panel.idBack')} uri={d.id_back} kind="document" height={96} wide onOpen={setPreview} />
+          <Tile label={t('adminFleet.panel.licenseFront')} uri={d.license_front ?? d.license_photo} kind="document" height={96} wide onOpen={setPreview} />
+          <Tile label={t('adminFleet.panel.licenseBack')} uri={d.license_back} kind="document" height={96} wide onOpen={setPreview} />
         </View>
         <Text style={styles.hint}>{t('adminFleet.panel.tapToEnlarge')}</Text>
       </View>
@@ -308,8 +311,8 @@ export function AdminFleetDriverPanel({ entry, driverEntries, onClose, onLanguag
               </View>
               <Text style={styles.subTitle}>{t('adminFleet.panel.techPassport')}</Text>
               <View style={styles.grid2}>
-                <Tile label={t('adminFleet.panel.techFront')} uri={v.tech_passport_front} kind="document" height={96} onOpen={setPreview} />
-                <Tile label={t('adminFleet.panel.techBack')} uri={v.tech_passport_back} kind="document" height={96} onOpen={setPreview} />
+                <Tile label={t('adminFleet.panel.techFront')} uri={v.tech_passport_front} kind="document" height={96} wide onOpen={setPreview} />
+                <Tile label={t('adminFleet.panel.techBack')} uri={v.tech_passport_back} kind="document" height={96} wide onOpen={setPreview} />
               </View>
             </View>
           );
@@ -444,7 +447,9 @@ const styles = StyleSheet.create({
   hint: { color: COLORS.textSecondary, fontSize: 12 },
   grid2: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   grid5: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  tile: { flexGrow: 1, flexBasis: 0, minWidth: 64, gap: 4 },
+  tile: { flexGrow: 1, gap: 4 },
+  tileWide: { flexBasis: '45%', minWidth: 120 },
+  tileNarrow: { flexBasis: '17%', minWidth: 56 },
   tileBox: {
     borderRadius: RADIUS.md,
     overflow: 'hidden',

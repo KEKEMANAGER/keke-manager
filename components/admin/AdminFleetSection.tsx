@@ -340,13 +340,11 @@ function FleetRow({ entry, selected, onPress }: { entry: FleetEntry; selected: b
         <FleetBadge label={t('adminFleet.docsShort', { ok: docsOk })} tone={docsOk === 3 ? 'success' : 'danger'} />
         <FleetBadge label={t('adminFleet.photosShort', { count: e.photosCount })} tone={e.photosCount === 5 ? 'success' : 'warn'} />
       </View>
-      {e.problems.filter((p) => p !== 'no_languages' && p !== 'no_seat_tier' && p !== 'photos_missing').length > 0 ? (
+      {/* Languages, seats, documents, photos and the status are on the chips above; only the
+          car's approval has no chip of its own. */}
+      {e.problems.includes('vehicle_not_approved') ? (
         <View style={styles.wrapRow}>
-          {e.problems
-            .filter((p) => p !== 'no_languages' && p !== 'no_seat_tier' && p !== 'photos_missing')
-            .map((p) => (
-              <FleetBadge key={p} label={t(`adminFleet.problems.${p}`)} tone={FLEET_PROBLEM_TONE[p]} />
-            ))}
+          <FleetBadge label={t('adminFleet.problems.vehicle_not_approved')} tone={FLEET_PROBLEM_TONE.vehicle_not_approved} />
         </View>
       ) : null}
     </Pressable>
