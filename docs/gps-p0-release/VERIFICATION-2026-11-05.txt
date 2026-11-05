@@ -1,0 +1,181 @@
+GPS P0 step 2 - verification on throwaway local databases (never Supabase), 2026-11-05 UTC
+Commit under test: bfac64a (branch gps-p0-fixes). No row content below: only check names, counts and md5s.
+
+### 1. Full runner, PostgreSQL 17.6 (production's version): supabase/tests/run_gps_p0_tests.sh
+== 1/7 production today: every GPS problem is there
+   GPS problems holding: P0-1 6, P0-2 13, P0-3 4 (expected 6 13 4)
+== 2/7 the three migrations, one at a time
+   GPS problems holding: P0-1 0, P0-2 13, P0-3 4 (expected 0 13 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 4 (expected 0 0 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+   each applied a second time:
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+== 3/7 the GPS suite
+   gps_p0.test.sql: 207 passed
+== 4/7 everything that was there still holds
+   p0_1_driver_decline.test.sql: 51 passed
+   p0_2_reminder_reassign.test.sql: 47 passed
+   p0_3_driver_eligibility.test.sql: 115 passed
+   p0_4_push_privacy.test.sql: 167 passed
+   p0_5_company_cancel.test.sql: 146 passed
+   p0_6_booking_ownership.test.sql: 129 passed
+   import_approval.test.sql: 23 passed
+   bookings_kind_day_tour.test.sql: 13 passed
+   vehicle_calendar.test.sql: 32 passed
+   fleet_invites.test.sql: 41 passed
+   company_profile_fix.test.sql: 25 passed
+   p0_6_bug_reproduction.sql: 0 BUG checks holding (expected 0)
+   p0_5_bug_reproduction.sql: 0 BUG checks holding (expected 0)
+   p0_4_bug_reproduction.sql: 6 BUG checks holding (expected 6)
+== 5/7 with the staged parts on top (P0-3 part B, P0-4 part B)
+   GPS problems holding: P0-1 6, P0-2 13, P0-3 4 (expected 6 13 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+   gps_p0.test.sql: 207 passed
+   p0_1_driver_decline.test.sql: 52 passed
+   p0_2_reminder_reassign.test.sql: 47 passed
+   p0_3_driver_eligibility.test.sql: 115 passed
+   p0_4_push_privacy.test.sql: 167 passed
+   p0_5_company_cancel.test.sql: 146 passed
+   p0_6_booking_ownership.test.sql: 129 passed
+   import_approval.test.sql: 23 passed
+   bookings_kind_day_tour.test.sql: 13 passed
+   vehicle_calendar.test.sql: 32 passed
+   fleet_invites.test.sql: 41 passed
+   company_profile_fix.test.sql: 25 passed
+   p0_4_bug_reproduction.sql: 0 BUG checks holding (expected 0)
+== 6/7 races
+   10 rounds: finishing a trip against its phone's reports - no error to the phone, nothing left after the end
+== 7/7 undo
+-- each undo alone brings back only its own problems:
+   GPS problems holding: P0-1 6, P0-2 0, P0-3 0 (expected 6 0 0)
+   GPS problems holding: P0-1 0, P0-2 13, P0-3 0 (expected 0 13 0)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 4 (expected 0 0 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+-- all three undone, newest first:
+   GPS problems holding: P0-1 6, P0-2 13, P0-3 4 (expected 6 13 4)
+   the GPS objects are exactly as production has them (rules, functions and execute rights, triggers, jobs, columns, indexes, constraints, tables and their rights)
+   p0_1_driver_decline.test.sql: 51 passed
+   p0_2_reminder_reassign.test.sql: 47 passed
+   p0_3_driver_eligibility.test.sql: 115 passed
+   p0_4_push_privacy.test.sql: 167 passed
+   p0_5_company_cancel.test.sql: 146 passed
+   p0_6_booking_ownership.test.sql: 129 passed
+   import_approval.test.sql: 23 passed
+   bookings_kind_day_tour.test.sql: 13 passed
+   vehicle_calendar.test.sql: 32 passed
+   fleet_invites.test.sql: 41 passed
+   company_profile_fix.test.sql: 25 passed
+-- applied again:
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+   gps_p0.test.sql: 207 passed
+== ALL GPS P0 CHECKS PASSED; EVERYTHING BEFORE STILL PASSING
+exit=0
+
+### 2. Full runner, PostgreSQL 16: same script, same result
+== 1/7 production today: every GPS problem is there
+   GPS problems holding: P0-1 6, P0-2 13, P0-3 4 (expected 6 13 4)
+== 2/7 the three migrations, one at a time
+   GPS problems holding: P0-1 0, P0-2 13, P0-3 4 (expected 0 13 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 4 (expected 0 0 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+== 3/7 the GPS suite
+   gps_p0.test.sql: 207 passed
+== 4/7 everything that was there still holds
+   p0_6_bug_reproduction.sql: 0 BUG checks holding (expected 0)
+   p0_5_bug_reproduction.sql: 0 BUG checks holding (expected 0)
+   p0_4_bug_reproduction.sql: 6 BUG checks holding (expected 6)
+== 5/7 with the staged parts on top (P0-3 part B, P0-4 part B)
+   GPS problems holding: P0-1 6, P0-2 13, P0-3 4 (expected 6 13 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+   gps_p0.test.sql: 207 passed
+   p0_4_bug_reproduction.sql: 0 BUG checks holding (expected 0)
+== 6/7 races
+== 7/7 undo
+   GPS problems holding: P0-1 6, P0-2 0, P0-3 0 (expected 6 0 0)
+   GPS problems holding: P0-1 0, P0-2 13, P0-3 0 (expected 0 13 0)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 4 (expected 0 0 4)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+   GPS problems holding: P0-1 6, P0-2 13, P0-3 4 (expected 6 13 4)
+   the GPS objects are exactly as production has them (rules, functions and execute rights, triggers, jobs, columns, indexes, constraints, tables and their rights)
+   GPS problems holding: P0-1 0, P0-2 0, P0-3 0 (expected 0 0 0)
+   gps_p0.test.sql: 207 passed
+== ALL GPS P0 CHECKS PASSED; EVERYTHING BEFORE STILL PASSING
+exit=0
+
+### 3. Release files (docs/gps-p0-release) on an exact copy of production of 2026-11-04
+== R1  in order, each twice, smoke, partial undo/redo, full undo
+   the copy before anything: SAME as production (backup fingerprint)
+   10_apply_gps_p0_1.sql: ok - GPS P0-1 applied|2026-11-04 22:28:37.094557+00
+   10_apply_gps_p0_1.sql: ok - docs/gps-p0-release/10_apply_gps_p0_1.sql:29: ERROR:  GPS P0-1 (before): the read rules
+   20_apply_gps_p0_2.sql: ok - GPS P0-2 applied (the tidy job runs within 5 minutes)|2026-11-04 22:28:37.162121+00
+   20_apply_gps_p0_2.sql: ok - docs/gps-p0-release/20_apply_gps_p0_2.sql:40: ERROR:  GPS P0-2 (before): road rules, po
+   30_apply_gps_p0_3.sql: ok - GPS P0-3 applied|2026-11-04 22:28:37.244914+00
+   30_apply_gps_p0_3.sql: ok - docs/gps-p0-release/30_apply_gps_p0_3.sql:30: ERROR:  GPS P0-3 (before): the GPS watch 
+   history: 20261104150000 gps_position_only_during_trip, 20261104150100 gps_stop_sharing_after_trip, 20261104150200 gps_watch_every_trip
+   rows unchanged by 10, 20, 30
+   90_smoke: 22 checks true; ALL SMOKE CHECKS PASSED
+   nothing left behind by the smoke (rows, bookings, users identical)
+   skip counts / clocks / admin grants left: 0/0/0
+   93_undo_gps_p0_3.sql: ok - GPS P0-3 undone|2026-11-04 22:28:37.489942+00
+   30_apply_gps_p0_3.sql: ok - GPS P0-3 applied|2026-11-04 22:28:37.52723+00
+   92_undo_gps_p0_2.sql: ok - GPS P0-2 undone|2026-11-04 22:28:37.564307+00
+   20_apply_gps_p0_2.sql: ok - GPS P0-2 applied (the tidy job runs within 5 minutes)|2026-11-04 22:28:37.609514+00
+   91_undo_gps_p0_1.sql: ok - GPS P0-1 undone|2026-11-04 22:28:37.65888+00
+   10_apply_gps_p0_1.sql: ok - GPS P0-1 applied|2026-11-04 22:28:37.699837+00
+   93_undo_gps_p0_3.sql: ok - GPS P0-3 undone|2026-11-04 22:28:37.737454+00
+   93_undo_gps_p0_3.sql: ok - docs/gps-p0-release/93_undo_gps_p0_3.sql:34: ERROR:  undo GPS P0-3 (before): the P0-3 o
+   92_undo_gps_p0_2.sql: ok - GPS P0-2 undone|2026-11-04 22:28:37.800752+00
+   92_undo_gps_p0_2.sql: ok - docs/gps-p0-release/92_undo_gps_p0_2.sql:51: ERROR:  undo GPS P0-2 (before): the P0-2 o
+   91_undo_gps_p0_1.sql: ok - GPS P0-1 undone|2026-11-04 22:28:37.875897+00
+   91_undo_gps_p0_1.sql: ok - docs/gps-p0-release/91_undo_gps_p0_1.sql:38: ERROR:  undo GPS P0-1 (before): the P0-1 r
+   history after the undo: none
+   rows unchanged
+   the road's id counter: never used before the smoke, 4 now (a rolled-back insert still uses up ids)
+   after 10, 20, 30, smoke, undo/redo, 93, 92, 91 (the id counter set back on this copy): SAME as production (backup fingerprint)
+== R1b without the smoke: 10, 20, 30, then 93, 92, 91 - nothing at all differs
+   after 10, 20, 30, 93, 92, 91: SAME as production (backup fingerprint)
+== R2  production with one more open rule than on 2026-11-04: 10 stops
+   10_apply_gps_p0_1.sql: ok - docs/gps-p0-release/10_apply_gps_p0_1.sql:29: ERROR:  GPS P0-1 (before): the read rules
+   P0-1 objects after the stop: 0 (expected 0); history: none
+== R3  an admin grant recorded, then 91: the record stays, 10 runs again
+   10_apply_gps_p0_1.sql: ok - GPS P0-1 applied|2026-11-04 22:28:38.690445+00
+   91_undo_gps_p0_1.sql: ok - GPS P0-1 undone|2026-11-04 22:28:38.752309+00
+   records kept: 1
+   10_apply_gps_p0_1.sql: ok - GPS P0-1 applied|2026-11-04 22:28:38.809978+00
+== R4  20 on a production that already has the cleanup changed: stops
+   20_apply_gps_p0_2.sql: ok - docs/gps-p0-release/20_apply_gps_p0_2.sql:40: ERROR:  GPS P0-2 (before): road rules, po
+== RELEASE FILES: ALL CHECKS PASSED
+release exit=0
+
+### 4. Backup drill (restore from the encrypted GPS backup of 2026-11-04)
+== A  rebuild from the backup alone
+   GPS tables left: 0
+   after 01 + 02 + 03: SAME as production
+== B  rollback on that copy of production: migrations, tidy, undo + 02 + 03
+   pins before the tidy: 29
+   tidy removed: 29 pins
+   with the migrations: DIFFERENT: rows.driver_locations; data.driver_locations (differs only where expected: structure.columns, structure.constraints, structure.cron, structure.functions, structure.indexes, structure.policies, structure.triggers, items.columns, items.constraints, items.cron, items.functions, items.indexes, items.triggers)
+   after undo only (pins still missing): DIFFERENT: rows.driver_locations; data.driver_locations
+   after undo + 02 + 03: SAME as production
+== C  the backup without the undo files (migrations applied, then 02 + 03)
+   02 + 03 without undo: SAME as production (differs only where expected: structure.columns, structure.constraints, structure.functions, structure.indexes, items.columns, items.constraints, items.functions, items.indexes)
+   new GPS triggers left: 0
+   trip-start note on bookings left (only notes when trips start; 92 removes it): 1
+   gps-tidy-pins job left: 0
+== D  03 keeps what is there, skips rows whose owner is gone, sends nothing
+   the moved pin kept its newer position: t
+   pin of the deleted driver put back: f
+   company e-mails queued by 03: 0
+   triggers on again after 03: 1 of 1
+== DRILL DONE
+drill exit=0
+
+### 5. App side
+node supabase/tests/gps_p0_client_check.cjs: all 47 passed
+npx tsc --noEmit -p .: tsc exit=0
+
+### 6. Production, read only (2026-11-05): still as the release files expect
+p1/p2/p3 'before' checks: all true (policy md5s and names, no new objects, jobs, watch md5 404c16209b42db87e6c4052a2091c143)
+history rows 2026110415*: 0; road points: 0; positions: 28; trips in progress: 0;
+convoy coordinator rows with a driver: 0; in-progress bookings with an unreadable day list: 0
