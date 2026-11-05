@@ -1,5 +1,5 @@
 -- KEKE GPS P0 - step 1 of 3: P0-1, who sees a driver
--- Source: supabase/migrations/20261104150000_gps_position_only_during_trip.sql (md5 7b347788a72bfb70d501f4e208c8d3e2)
+-- Source: supabase/migrations/20261104150000_gps_position_only_during_trip.sql (md5 a1fb4005137e280407cd7531fd33f7d0)
 -- Run as ONE call (Supabase SQL editor). It commits only if every check passes;
 -- otherwise it rolls back and nothing changes. No row is changed by this file.
 -- Built by docs/gps-p0-release/build.sh - do not edit by hand.
@@ -22,6 +22,9 @@ begin
   if to_regprocedure('public.gps_fleet_owner_sees(uuid)') is not null or to_regprocedure('public.gps_admin_open_access(uuid,text,integer)') is not null then
     raise exception '%: P0-1 objects exist already - stop', step;
   end if;
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 $state$;
 
@@ -58,6 +61,11 @@ create temp table _rows on commit drop as select (select count(*) || ':' || md5(
 --     app, and gps_admin_close_access(driver) ends it early;
 --   * the driver himself: always (unchanged).
 --
+-- A convoy's coordinator row (bookings.is_group_master) is never a trip here:
+-- it has no driver of its own - its cars do - and the booking rules let its
+-- company set its status itself, so a company could otherwise name any driver
+-- on one, mark it "in progress" and see him.
+--
 -- The road (driver_location_trail) - what is stored and who reads it - is
 -- P0-2's.
 --
@@ -78,7 +86,8 @@ create policy driver_locations_company_booking_read on public.driver_locations
     and exists (select 1 from public.bookings b
                  where b.company_id = auth.uid()
                    and b.driver_id = driver_locations.driver_id
-                   and b.status = 'in_progress')
+                   and b.status = 'in_progress'
+                   and b.is_group_master is not true)
   );
 
 -- the fleet owner -----------------------------------------------------------------
@@ -97,6 +106,7 @@ as $$
      and exists (select 1 from public.bookings b
                   where b.status = 'in_progress'
                     and b.driver_id = p_driver
+                    and b.is_group_master is not true
                     and (b.host_driver_id = auth.uid()
                          or exists (select 1 from public.driver_fleet f
                                      where f.host_driver_id = auth.uid()
@@ -193,7 +203,8 @@ create policy driver_locations_admin_read on public.driver_locations
   using (
     exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'admin')
     and (exists (select 1 from public.bookings b
-                  where b.status = 'in_progress' and b.driver_id = driver_locations.driver_id)
+                  where b.status = 'in_progress' and b.driver_id = driver_locations.driver_id
+                    and b.is_group_master is not true)
          or exists (select 1 from public.gps_admin_access g
                      where g.admin_id = auth.uid()
                        and g.driver_id = driver_locations.driver_id
@@ -206,7 +217,8 @@ do $after$
 declare step text := 'GPS P0-1 (after)';
 begin
   if (select count(*) from pg_policies q where q.schemaname = 'public'
-        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read') and q.qual like '%in_progress%') <> 2
+        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read')
+        and q.qual like '%in_progress%' and q.qual like '%is_group_master%') <> 2
      or not exists (select 1 from pg_policies q where q.schemaname = 'public' and q.policyname = 'driver_locations_fleet_host_read'
                      and q.qual like '%gps_fleet_owner_sees%')
      or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_locations')
@@ -215,7 +227,7 @@ begin
      or to_regprocedure('public.gps_admin_open_access(uuid,text,integer)') is null
      or to_regprocedure('public.gps_admin_close_access(uuid)') is null
      or to_regclass('public.gps_admin_access') is null
-     or not (select relrowsecurity from pg_class where oid = 'public.gps_admin_access'::regclass)
+     or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.gps_admin_access')), false)
      or has_function_privilege('anon', 'public.gps_admin_open_access(uuid,text,integer)', 'execute')
      or has_function_privilege('anon', 'public.gps_fleet_owner_sees(uuid)', 'execute')
      or has_table_privilege('anon', 'public.gps_admin_access', 'select')
@@ -230,6 +242,9 @@ begin
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x)) then
     raise exception '%: rows of the GPS tables changed - stop', step;
   end if;
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 $after$;
 

@@ -25,6 +25,11 @@
 --     app, and gps_admin_close_access(driver) ends it early;
 --   * the driver himself: always (unchanged).
 --
+-- A convoy's coordinator row (bookings.is_group_master) is never a trip here:
+-- it has no driver of its own - its cars do - and the booking rules let its
+-- company set its status itself, so a company could otherwise name any driver
+-- on one, mark it "in progress" and see him.
+--
 -- The road (driver_location_trail) - what is stored and who reads it - is
 -- P0-2's.
 --
@@ -45,7 +50,8 @@ create policy driver_locations_company_booking_read on public.driver_locations
     and exists (select 1 from public.bookings b
                  where b.company_id = auth.uid()
                    and b.driver_id = driver_locations.driver_id
-                   and b.status = 'in_progress')
+                   and b.status = 'in_progress'
+                   and b.is_group_master is not true)
   );
 
 -- the fleet owner -----------------------------------------------------------------
@@ -64,6 +70,7 @@ as $$
      and exists (select 1 from public.bookings b
                   where b.status = 'in_progress'
                     and b.driver_id = p_driver
+                    and b.is_group_master is not true
                     and (b.host_driver_id = auth.uid()
                          or exists (select 1 from public.driver_fleet f
                                      where f.host_driver_id = auth.uid()
@@ -160,7 +167,8 @@ create policy driver_locations_admin_read on public.driver_locations
   using (
     exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'admin')
     and (exists (select 1 from public.bookings b
-                  where b.status = 'in_progress' and b.driver_id = driver_locations.driver_id)
+                  where b.status = 'in_progress' and b.driver_id = driver_locations.driver_id
+                    and b.is_group_master is not true)
          or exists (select 1 from public.gps_admin_access g
                      where g.admin_id = auth.uid()
                        and g.driver_id = driver_locations.driver_id

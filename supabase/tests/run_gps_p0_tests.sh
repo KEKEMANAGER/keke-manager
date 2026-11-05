@@ -7,7 +7,7 @@
 # PGHOST/PGPORT/PGUSER at a local server you can drop databases on; PGUSER
 # must be "postgres" (the production snapshot trusts that session user).
 #
-#   1. production today: all 22 GPS problems are there (6 P0-1, 12 P0-2, 4 P0-3);
+#   1. production today: all 23 GPS problems are there (6 P0-1, 13 P0-2, 4 P0-3);
 #   2. the three migrations one at a time: each removes exactly its own
 #      problems; all three can run twice;
 #   3. the GPS suite (gps_p0.test.sql);
@@ -20,7 +20,8 @@
 #   6. races: finishing a trip against its phone's reports;
 #   7. undo: each undo alone brings back only its own problems; all three undone
 #      leave the GPS objects exactly as production has them (fingerprints of
-#      rules, function bodies and execute rights, triggers, jobs, columns); the
+#      rules, function bodies and execute rights, triggers, jobs, columns,
+#      indexes and constraints); the
 #      older suites pass in every state; applied again, everything passes.
 # As on Supabase, anon and authenticated may execute every new function in
 # public unless a migration revokes it; the runner sets that up before the
@@ -113,14 +114,23 @@ select 'function ' || p.oid::regprocedure::text || ' ' || md5(pg_get_functiondef
                      'gps_trip_accepts_point', 'driver_locations_trip_guard', 'driver_location_trail_keep_trip_points',
                      'driver_locations_server_time', 'driver_locations_device_clock', 'gps_admin_open_access',
                      'gps_admin_close_access', 'gps_fleet_owner_sees', 'gps_road_point_kind', 'gps_road_point_visible',
-                     'gps_count_skip', 'close_tour_day', 'complete_tour_booking_as_driver', 'tour_day_plan') order by 1;
+                     'gps_count_skip', 'gps_backfill_trip_check', 'gps_planned_start', 'gps_tour_days',
+                     'bookings_gps_trip_start', 'close_tour_day', 'complete_tour_booking_as_driver', 'tour_day_plan',
+                     'tour_day_count') order by 1;
+select 'indexes ' || coalesce(string_agg(i.indexrelid::regclass::text || ':' || md5(pg_get_indexdef(i.indexrelid)), ',' order by i.indexrelid::regclass::text), '')
+  from pg_index i where i.indrelid in ('public.driver_locations'::regclass, 'public.driver_location_trail'::regclass,
+                                       'public.trip_events'::regclass, 'public.trip_gps_watch'::regclass);
+select 'constraints ' || coalesce(string_agg(c.conrelid::regclass::text || '.' || c.conname || ':' || md5(pg_get_constraintdef(c.oid)), ',' order by c.conrelid::regclass::text, c.conname), '')
+  from pg_constraint c where c.conrelid in ('public.driver_locations'::regclass, 'public.driver_location_trail'::regclass,
+                                            'public.trip_events'::regclass, 'public.trip_gps_watch'::regclass);
 select 'tables ' || coalesce(string_agg(c.relname || ':' || coalesce(array_to_string(c.relacl, ','), 'default'), ' ' order by c.relname), '')
   from pg_class c where c.relnamespace = 'public'::regnamespace
    and c.relname in ('driver_locations', 'driver_location_trail', 'trip_events', 'trip_gps_watch', 'locations',
-                     'booking_day_logs', 'gps_device_clock', 'gps_admin_access', 'gps_skip_counts');
-select 'triggers ' || coalesce(string_agg(t.tgrelid::regclass::text || '.' || t.tgname, ',' order by 1), '')
+                     'booking_day_logs', 'gps_device_clock', 'gps_admin_access', 'gps_skip_counts', 'gps_trip_start');
+select 'triggers ' || coalesce(string_agg(t.tgrelid::regclass::text || '.' || t.tgname, ',' order by t.tgrelid::regclass::text, t.tgname), '')
   from pg_trigger t where t.tgrelid in ('public.driver_locations'::regclass, 'public.driver_location_trail'::regclass,
-                                        'public.trip_events'::regclass, 'public.trip_gps_watch'::regclass) and not t.tgisinternal;
+                                        'public.trip_events'::regclass, 'public.trip_gps_watch'::regclass,
+                                        'public.bookings'::regclass) and not t.tgisinternal;
 select 'jobs ' || string_agg(jobname || ' ' || schedule || ' ' || command, ' | ' order by jobname) from cron.job;
 select 'columns ' || table_name || ' ' || string_agg(column_name || ':' || data_type, ',' order by ordinal_position)
   from information_schema.columns where table_schema = 'public'
@@ -131,12 +141,12 @@ SQL
 
 echo "== 1/7 production today: every GPS problem is there"
 build "$DB"
-gps_held "6 12 4"
+gps_held "6 13 4"
 PROD_FP=$(fingerprint)
 baseline
 
 echo "== 2/7 the three migrations, one at a time"
-apply "$G1"; gps_held "0 12 4"
+apply "$G1"; gps_held "0 13 4"
 apply "$G2"; gps_held "0 0 4"
 apply "$G3"; gps_held "0 0 0"
 apply "$G1" "$G2" "$G3"; echo "   each applied a second time:"; gps_held "0 0 0"
@@ -153,7 +163,7 @@ SAVED="$DB"; DB="${SAVED}_staged"
 build "$DB" "$ROOT/supabase/staged/20261031180100_open_jobs_summary_only.sql" "$ROOT/supabase/staged/20261101090100_push_tokens_private.sql"
 declare -A MAIN_BEFORE; for f in $SUITES; do MAIN_BEFORE[$f]=${BEFORE[$f]}; done
 baseline
-gps_held "6 12 4"
+gps_held "6 13 4"
 apply "$G1" "$G2" "$G3"; gps_held "0 0 0"
 tap gps_p0.test.sql; suites
 held p0_4_bug_reproduction.sql 0
@@ -170,16 +180,16 @@ dropdb "$TPL"
 echo "== 7/7 undo"
 echo "-- each undo alone brings back only its own problems:"
 apply "$U1"; gps_held "6 0 0"; apply "$G1"
-apply "$U2"; gps_held "0 12 0"; apply "$G2"
+apply "$U2"; gps_held "0 13 0"; apply "$G2"
 apply "$U3"; gps_held "0 0 4"; apply "$G3"
 gps_held "0 0 0"
 echo "-- all three undone, newest first:"
 apply "$U3" "$U2" "$U1"
-gps_held "6 12 4"
+gps_held "6 13 4"
 if [ "$(fingerprint)" != "$PROD_FP" ]; then
   echo "   the GPS objects differ from production after the undo:"; diff <(echo "$PROD_FP") <(fingerprint) || true; exit 1
 fi
-echo "   the GPS objects are exactly as production has them (rules, functions and execute rights, triggers, jobs, columns, tables and their rights)"
+echo "   the GPS objects are exactly as production has them (rules, functions and execute rights, triggers, jobs, columns, indexes, constraints, tables and their rights)"
 suites
 echo "-- applied again:"
 apply "$G1" "$G2" "$G3"; gps_held "0 0 0"; tap gps_p0.test.sql

@@ -12,7 +12,8 @@ do $state$
 declare step text := 'undo GPS P0-1 (before)';
 begin
   if (select count(*) from pg_policies q where q.schemaname = 'public'
-        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read') and q.qual like '%in_progress%') <> 2
+        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read')
+        and q.qual like '%in_progress%' and q.qual like '%is_group_master%') <> 2
      or not exists (select 1 from pg_policies q where q.schemaname = 'public' and q.policyname = 'driver_locations_fleet_host_read'
                      and q.qual like '%gps_fleet_owner_sees%')
      or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_locations')
@@ -21,7 +22,7 @@ begin
      or to_regprocedure('public.gps_admin_open_access(uuid,text,integer)') is null
      or to_regprocedure('public.gps_admin_close_access(uuid)') is null
      or to_regclass('public.gps_admin_access') is null
-     or not (select relrowsecurity from pg_class where oid = 'public.gps_admin_access'::regclass)
+     or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.gps_admin_access')), false)
      or has_function_privilege('anon', 'public.gps_admin_open_access(uuid,text,integer)', 'execute')
      or has_function_privilege('anon', 'public.gps_fleet_owner_sees(uuid)', 'execute')
      or has_table_privilege('anon', 'public.gps_admin_access', 'select')
@@ -30,6 +31,9 @@ begin
      or has_table_privilege('authenticated', 'public.gps_admin_access', 'delete') then
     raise exception '%: the P0-1 rules are not as expected - stop', step;
   end if;
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 $state$;
 
@@ -109,6 +113,9 @@ begin
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x)) then
     raise exception '%: rows of the GPS tables changed - stop', step;
   end if;
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 $after$;
 

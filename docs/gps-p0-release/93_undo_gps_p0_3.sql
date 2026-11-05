@@ -1,5 +1,5 @@
 -- KEKE GPS P0 - UNDO P0-3 (undo files run newest first: 93, 92, 91)
--- Source: supabase/rollback/20261104150200_gps_watch_every_trip_undo.sql (md5 2b9dc35b52999a3150521bb0915e4b88)
+-- Source: supabase/rollback/20261104150200_gps_watch_every_trip_undo.sql (md5 57509bfe2807f1dc862ebefe580831f5)
 -- Run as ONE call (Supabase SQL editor). It commits only if every check passes;
 -- otherwise it rolls back and nothing changes. No row is changed by this file.
 -- Built by docs/gps-p0-release/build.sh - do not edit by hand.
@@ -15,12 +15,21 @@ begin
      or to_regprocedure('public.watch_trip_gps()') is not null
      or has_function_privilege('anon', 'public.watch_trip_gps(timestamptz)', 'execute')
      or has_function_privilege('authenticated', 'public.watch_trip_gps(timestamptz)', 'execute')
+     or to_regprocedure('public.gps_planned_start(text)') is null
+     or has_function_privilege('anon', 'public.gps_planned_start(text)', 'execute')
+     or has_function_privilege('authenticated', 'public.gps_planned_start(text)', 'execute')
+     or to_regprocedure('public.gps_tour_days(uuid)') is null
+     or has_function_privilege('anon', 'public.gps_tour_days(uuid)', 'execute')
+     or has_function_privilege('authenticated', 'public.gps_tour_days(uuid)', 'execute')
      or not exists (select 1 from pg_trigger where tgname = 'driver_locations_20_server_time' and tgenabled = 'O')
      or (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'trip_gps_watch'
-          and column_name in ('trip_seen_at', 'quiet_kind', 'trip_silent_total', 'trip_alert_total')) <> 4
+          and column_name in ('trip_seen_at', 'quiet_kind', 'trip_silent_total', 'trip_alert_total', 'count_day')) <> 5
      or (select command from cron.job where jobname = 'watch-trip-gps') is distinct from 'select public.watch_trip_gps();' then
     raise exception '%: the P0-3 objects are not as expected - stop', step;
   end if;
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 $state$;
 
@@ -42,6 +51,8 @@ drop trigger if exists driver_locations_20_server_time on public.driver_location
 drop function if exists public.driver_locations_server_time();
 
 drop function if exists public.watch_trip_gps(timestamptz);
+drop function if exists public.gps_planned_start(text);
+drop function if exists public.gps_tour_days(uuid);
 
 CREATE OR REPLACE FUNCTION public.watch_trip_gps()
  RETURNS integer
@@ -144,15 +155,18 @@ alter table public.trip_gps_watch
   drop column if exists trip_seen_at,
   drop column if exists quiet_kind,
   drop column if exists trip_silent_total,
-  drop column if exists trip_alert_total;
+  drop column if exists trip_alert_total,
+  drop column if exists count_day;
 -- ===== end =====
 
 do $after$
 declare step text := 'undo GPS P0-3 (after)';
 begin
   if to_regprocedure('public.watch_trip_gps()') is null
-     or md5(pg_get_functiondef('public.watch_trip_gps()'::regprocedure)) <> '404c16209b42db87e6c4052a2091c143'
+     or md5(pg_get_functiondef(to_regprocedure('public.watch_trip_gps()'))) is distinct from '404c16209b42db87e6c4052a2091c143'
      or to_regprocedure('public.watch_trip_gps(timestamptz)') is not null
+     or to_regprocedure('public.gps_planned_start(text)') is not null
+     or to_regprocedure('public.gps_tour_days(uuid)') is not null
      or exists (select 1 from pg_trigger where tgname = 'driver_locations_20_server_time')
      or (select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns
           where table_schema = 'public' and table_name = 'trip_gps_watch')
@@ -166,6 +180,9 @@ begin
     || '|' || (select count(*) || ':' || md5(coalesce(string_agg(to_jsonb(x)::text, ',' order by x.id), '')) from public.booking_day_logs x)) then
     raise exception '%: rows of the GPS tables changed - stop', step;
   end if;
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 $after$;
 

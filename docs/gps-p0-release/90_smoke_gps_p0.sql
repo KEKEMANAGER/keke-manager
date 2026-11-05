@@ -52,6 +52,11 @@ begin
   on conflict (driver_id, recorded_at) do nothing;
   get diagnostics n = row_count;
   insert into _smoke (check_name, ok) values ('during the trip: a road point is stored', n = 1);
+  insert into public.driver_location_trail (driver_id, booking_id, recorded_at, latitude, longitude)
+  values (d, b, now() - interval '1 hour', 41.69, 44.79)
+  on conflict (driver_id, recorded_at) do nothing;
+  get diagnostics n = row_count;
+  insert into _smoke (check_name, ok) values ('during the trip: a point the phone dates before the trip started is skipped', n = 0);
   execute 'reset role';
   insert into _smoke (check_name, ok)
   values ('the position carries the server''s time', (select updated_at = now() from public.driver_locations where driver_id = d)),
@@ -60,7 +65,8 @@ begin
          ('the phone''s clock was measured: right',
           (select abs(extract(epoch from skew)) < 120 from public.gps_device_clock where driver_id = d)),
          ('the road point says it came in during the trip',
-          (select trip_check = 'trip' from public.driver_location_trail where driver_id = d));
+          (select trip_check = 'trip' from public.driver_location_trail where driver_id = d)),
+         ('the server noted when the trip started', (select started_at = now() from public.gps_trip_start where booking_id = b));
 
   -- the company and the admin during the trip
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
@@ -72,6 +78,11 @@ begin
   execute 'set local role authenticated';
   insert into _smoke (check_name, ok) values ('during the trip: the admin sees the driver', exists (select 1 from public.driver_locations where driver_id = d));
   execute 'reset role';
+
+  -- the trip and its phone's reports have run for half an hour (inside one
+  -- transaction now() stands still, so that is noted here, on throwaway rows)
+  update public.gps_trip_start set started_at = now() - interval '30 minutes' where booking_id = b;
+  update public.gps_device_clock set ok_since = now() - interval '30 minutes' where driver_id = d;
 
   -- the trip ends (as KEKE would end it)
   update public.bookings set status = 'completed' where id = b;
@@ -119,6 +130,6 @@ end
 $smoke$;
 
 select n, check_name, ok from _smoke order by n;
-select case when bool_and(ok) and count(*) = 20 then 'ALL SMOKE CHECKS PASSED' else 'SMOKE FAILED - see the rows above' end as result
+select case when bool_and(ok) and count(*) = 22 then 'ALL SMOKE CHECKS PASSED' else 'SMOKE FAILED - see the rows above' end as result
   from _smoke;
 rollback;

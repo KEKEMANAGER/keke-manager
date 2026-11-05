@@ -10,6 +10,8 @@ drop trigger if exists driver_locations_20_server_time on public.driver_location
 drop function if exists public.driver_locations_server_time();
 
 drop function if exists public.watch_trip_gps(timestamptz);
+drop function if exists public.gps_planned_start(text);
+drop function if exists public.gps_tour_days(uuid);
 
 CREATE OR REPLACE FUNCTION public.watch_trip_gps()
  RETURNS integer
@@ -112,4 +114,5 @@ alter table public.trip_gps_watch
   drop column if exists trip_seen_at,
   drop column if exists quiet_kind,
   drop column if exists trip_silent_total,
-  drop column if exists trip_alert_total;
+  drop column if exists trip_alert_total,
+  drop column if exists count_day;

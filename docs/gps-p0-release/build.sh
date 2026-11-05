@@ -23,7 +23,11 @@ P2_ORIG="('driver_location_trail','driver_location_trail_company_read','f5bdff93
     ('driver_location_trail','driver_location_trail_fleet_host_read','9d6cc7b9d05fd40e122728721bad8077'),
     ('driver_location_trail','driver_location_trail_admin_read','21596870c5ee5a2a50a4de36d42ffa21')"
 TRAIL_CLEANUP_ORIG="delete from public.driver_location_trail where recorded_at < now() - interval ''30 days'';"
-TRAIL_CLEANUP_NEW="delete from public.driver_location_trail where created_at < now() - interval ''30 days'' and (trip_check is null or booking_id is null);"
+TRAIL_CLEANUP_NEW="delete from public.driver_location_trail where created_at < now() - interval ''30 days'';"
+# every function P0-2 adds (or added in an earlier draft): none may exist before it, and the apps may run none of them
+P2_FUNCS="'gps_count_skip', 'driver_locations_device_clock', 'gps_road_point_kind', 'gps_trip_accepts_point',
+                    'driver_location_trail_keep_trip_points', 'gps_backfill_trip_check', 'gps_road_point_visible',
+                    'driver_locations_trip_guard', 'gps_tidy_pins', 'bookings_gps_trip_start'"
 WATCH_ORIG_MD5=404c16209b42db87e6c4052a2091c143
 # every rule on the two tables, by name: an extra permissive rule would undo the release
 LOC_POLICIES="driver_locations_admin_read,driver_locations_company_booking_read,driver_locations_fleet_host_read,driver_locations_self"
@@ -36,7 +40,8 @@ P1_STATE_ORIG="  if (select count(*) from (values $P1_ORIG) v(t, p, h)
     raise exception '%: the read rules of driver positions are not production''s of 2026-11-04 - stop', step;
   end if;"
 P1_STATE_NEW="  if (select count(*) from pg_policies q where q.schemaname = 'public'
-        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read') and q.qual like '%in_progress%') <> 2
+        and q.policyname in ('driver_locations_company_booking_read', 'driver_locations_admin_read')
+        and q.qual like '%in_progress%' and q.qual like '%is_group_master%') <> 2
      or not exists (select 1 from pg_policies q where q.schemaname = 'public' and q.policyname = 'driver_locations_fleet_host_read'
                      and q.qual like '%gps_fleet_owner_sees%')
      or (select string_agg(policyname, ',' order by policyname) from pg_policies where schemaname = 'public' and tablename = 'driver_locations')
@@ -45,7 +50,7 @@ P1_STATE_NEW="  if (select count(*) from pg_policies q where q.schemaname = 'pub
      or to_regprocedure('public.gps_admin_open_access(uuid,text,integer)') is null
      or to_regprocedure('public.gps_admin_close_access(uuid)') is null
      or to_regclass('public.gps_admin_access') is null
-     or not (select relrowsecurity from pg_class where oid = 'public.gps_admin_access'::regclass)
+     or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.gps_admin_access')), false)
      or has_function_privilege('anon', 'public.gps_admin_open_access(uuid,text,integer)', 'execute')
      or has_function_privilege('anon', 'public.gps_fleet_owner_sees(uuid)', 'execute')
      or has_table_privilege('anon', 'public.gps_admin_access', 'select')
@@ -63,13 +68,18 @@ P2_STATE_ORIG="  if (select count(*) from (values $P2_ORIG) v(t, p, h)
                and tgname <> 'driver_locations_20_server_time')
      or to_regclass('public.gps_device_clock') is not null
      or to_regclass('public.gps_skip_counts') is not null
+     or to_regclass('public.gps_trip_start') is not null
+     or exists (select 1 from pg_trigger where tgname = 'bookings_gps_trip_start')
+     or to_regclass('public.driver_location_trail_created_idx') is not null
+     or exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ($P2_FUNCS))
      or exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'driver_location_trail' and column_name = 'trip_check')
      or exists (select 1 from cron.job where jobname = 'gps-tidy-pins')
      or (select command from cron.job where jobname = 'trail-cleanup') is distinct from '$TRAIL_CLEANUP_ORIG' then
     raise exception '%: road rules, positions, clock or jobs are not production''s of 2026-11-04 - stop', step;
   end if;"
 P2_STATE_NEW="  if (select count(*) from pg_trigger where not tgisinternal and tgenabled = 'O'
-        and tgname in ('driver_locations_05_device_clock', 'driver_locations_10_trip_guard', 'driver_location_trail_10_trip_points')) <> 3
+        and tgname in ('driver_locations_05_device_clock', 'driver_locations_10_trip_guard', 'driver_location_trail_10_trip_points',
+                       'bookings_gps_trip_start')) <> 4
      or (select count(*) from pg_policies q where q.schemaname = 'public' and q.tablename = 'driver_location_trail'
           and q.policyname in ('driver_location_trail_company_read', 'driver_location_trail_fleet_host_read', 'driver_location_trail_admin_read')
           and q.qual like '%gps_road_point_visible%') <> 3
@@ -77,22 +87,32 @@ P2_STATE_NEW="  if (select count(*) from pg_trigger where not tgisinternal and t
         is distinct from '$TRAIL_POLICIES'
      or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'driver_location_trail' and column_name = 'trip_check')
      or to_regclass('public.gps_device_clock') is null or to_regclass('public.gps_skip_counts') is null
-     or not (select relrowsecurity from pg_class where oid = 'public.gps_device_clock'::regclass)
-     or not (select relrowsecurity from pg_class where oid = 'public.gps_skip_counts'::regclass)
-     or exists (select 1 from unnest(array['public.gps_device_clock', 'public.gps_skip_counts']) t, unnest(array['anon', 'authenticated']) r,
+     or to_regclass('public.gps_trip_start') is null
+     or exists (select 1 from pg_class where oid in (to_regclass('public.gps_device_clock'), to_regclass('public.gps_skip_counts'),
+                                                     to_regclass('public.gps_trip_start')) and not relrowsecurity)
+     or exists (select 1 from unnest(array['public.gps_device_clock', 'public.gps_skip_counts', 'public.gps_trip_start']) t, unnest(array['anon', 'authenticated']) r,
                      unnest(array['select', 'insert', 'update', 'delete']) p where has_table_privilege(r, t, p))
+     or (select string_agg(f, ',' order by f collate \"C\")
+           from (select p.proname || '(' || oidvectortypes(p.proargtypes) || ')' as f from pg_proc p
+                  where p.pronamespace = 'public'::regnamespace and p.proname in ($P2_FUNCS)) x)
+        is distinct from 'bookings_gps_trip_start(),driver_location_trail_keep_trip_points(),driver_locations_device_clock(),driver_locations_trip_guard(),gps_count_skip(text, uuid),gps_road_point_kind(uuid, uuid, timestamp with time zone),gps_road_point_visible(text, bigint),gps_tidy_pins(timestamp with time zone)'
      or exists (select 1 from unnest(array['public.gps_road_point_kind(uuid,uuid,timestamptz)', 'public.driver_location_trail_keep_trip_points()',
                                         'public.driver_locations_trip_guard()', 'public.driver_locations_device_clock()',
-                                        'public.gps_tidy_pins(timestamptz)', 'public.gps_count_skip(text)']) f, unnest(array['anon', 'authenticated']) r
+                                        'public.gps_tidy_pins(timestamptz)', 'public.gps_count_skip(text,uuid)',
+                                        'public.bookings_gps_trip_start()']) f, unnest(array['anon', 'authenticated']) r
                  where has_function_privilege(r, f, 'execute'))
-     or has_function_privilege('anon', 'public.gps_road_point_visible(text,uuid,timestamptz,text)', 'execute')
+     or has_function_privilege('anon', 'public.gps_road_point_visible(text,bigint)', 'execute')
+     or not has_function_privilege('authenticated', 'public.gps_road_point_visible(text,bigint)', 'execute')
+     or to_regclass('public.driver_location_trail_created_idx') is null
      or (select schedule || ' ' || command from cron.job where jobname = 'gps-tidy-pins') is distinct from '*/5 * * * * select public.gps_tidy_pins();'
      or (select command from cron.job where jobname = 'trail-cleanup') is distinct from '$TRAIL_CLEANUP_NEW' then
     raise exception '%: the P0-2 objects are not as expected - stop', step;
   end if;"
 P3_STATE_ORIG="  if to_regprocedure('public.watch_trip_gps()') is null
-     or md5(pg_get_functiondef('public.watch_trip_gps()'::regprocedure)) <> '$WATCH_ORIG_MD5'
+     or md5(pg_get_functiondef(to_regprocedure('public.watch_trip_gps()'))) is distinct from '$WATCH_ORIG_MD5'
      or to_regprocedure('public.watch_trip_gps(timestamptz)') is not null
+     or to_regprocedure('public.gps_planned_start(text)') is not null
+     or to_regprocedure('public.gps_tour_days(uuid)') is not null
      or exists (select 1 from pg_trigger where tgname = 'driver_locations_20_server_time')
      or (select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns
           where table_schema = 'public' and table_name = 'trip_gps_watch')
@@ -104,9 +124,15 @@ P3_STATE_NEW="  if to_regprocedure('public.watch_trip_gps(timestamptz)') is null
      or to_regprocedure('public.watch_trip_gps()') is not null
      or has_function_privilege('anon', 'public.watch_trip_gps(timestamptz)', 'execute')
      or has_function_privilege('authenticated', 'public.watch_trip_gps(timestamptz)', 'execute')
+     or to_regprocedure('public.gps_planned_start(text)') is null
+     or has_function_privilege('anon', 'public.gps_planned_start(text)', 'execute')
+     or has_function_privilege('authenticated', 'public.gps_planned_start(text)', 'execute')
+     or to_regprocedure('public.gps_tour_days(uuid)') is null
+     or has_function_privilege('anon', 'public.gps_tour_days(uuid)', 'execute')
+     or has_function_privilege('authenticated', 'public.gps_tour_days(uuid)', 'execute')
      or not exists (select 1 from pg_trigger where tgname = 'driver_locations_20_server_time' and tgenabled = 'O')
      or (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'trip_gps_watch'
-          and column_name in ('trip_seen_at', 'quiet_kind', 'trip_silent_total', 'trip_alert_total')) <> 4
+          and column_name in ('trip_seen_at', 'quiet_kind', 'trip_silent_total', 'trip_alert_total', 'count_day')) <> 5
      or (select command from cron.job where jobname = 'watch-trip-gps') is distinct from 'select public.watch_trip_gps();' then
     raise exception '%: the P0-3 objects are not as expected - stop', step;
   end if;"
@@ -129,6 +155,9 @@ do \$state\$
 declare step text := '$4 (before)';
 begin
 $5
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 \$state\$;
 
@@ -147,6 +176,9 @@ $6
   if (select h from _rows) is distinct from ($ROWS_SQL) then
     raise exception '%: rows of the GPS tables changed - stop', step;
   end if;
+exception when others then
+  if sqlerrm like '%- stop' then raise; end if;
+  raise exception '%: not as expected (%) - stop', step, sqlerrm;
 end
 \$after\$;
 

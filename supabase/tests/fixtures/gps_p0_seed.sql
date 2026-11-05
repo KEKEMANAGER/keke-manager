@@ -473,6 +473,18 @@ select tests.gp('TOUR_9'), tests.gp('CB'), tests.gp('D9'), 'tour', 'in_progress'
   from (select (now() at time zone 'Asia/Tbilisi')::date d) t;
 insert into public.booking_day_logs (booking_id, day_index, day_date, driver_id, closed_at, odometer_value)
 select tests.gp('TOUR_9'), 1, (now() at time zone 'Asia/Tbilisi')::date - 2, tests.gp('D9'), now() - interval '30 hours', 10500;
+-- where the server notes when trips start (P0-2): when each of these started
+-- (the bookings were written just now, all at once)
+do $ts$ begin
+  if to_regclass('public.gps_trip_start') is not null then
+    execute $q$
+      insert into public.gps_trip_start (booking_id, started_at)
+      select tests.gp(b), now() - make_interval(mins => m)
+        from (values ('LIVE_A', 60), ('DONE_B', 1560), ('LIVE_B6', 45), ('LIVE_C7', 40), ('FLT_A', 30),
+                     ('DONE_A8', 150), ('DONE_S2', 130), ('TOUR_9', 2880)) as x(b, m)
+      on conflict (booking_id) do update set started_at = excluded.started_at$q$;
+  end if;
+end $ts$;
 
 -- positions (written past the triggers: the scene, not an app) --------------
 select tests.set_pin(tests.gp(x), mode, now() - make_interval(mins => age))

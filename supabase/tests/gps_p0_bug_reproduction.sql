@@ -1,12 +1,12 @@
 -- GPS P0: the problems the 2026-11-04 audit found, as checks. Each check
 -- passes ("ok ... BUG(P0-n): ...") while the problem is there. On production
--- as it is (the snapshot + the migrations production ran) all 22 hold; after
+-- as it is (the snapshot + the migrations production ran) all 23 hold; after
 -- 20261104150000 the P0-1 ones fail, after 20261104150100 the P0-2 ones,
 -- after 20261104150200 the P0-3 ones - which is what the runner expects.
 -- Fake data only (fixtures/gps_p0_seed.sql); everything is rolled back.
 begin;
 \ir fixtures/gps_p0_seed.sql
-select plan(22);
+select plan(23);
 
 -- P0-1: who reads where a driver is --------------------------------------------
 select ok(tests.pins_seen_by(tests.gp('CB')) ~ '(^|,)D1(,|$)',
@@ -62,6 +62,11 @@ select ok(tests.app_trail(tests.gp('D1'), tests.gp('LIVE_A'), now() - interval '
   'BUG(P0-2): the 30-day clean-up deletes a road point that reached the server today, because the phone''s clock said 40 days ago');
 select ok(tests.app_trail(tests.gp('H'), tests.gp('FLT_A'), now() - interval '2 minutes') = '1',
   'BUG(P0-2): fleet owner H''s own phone puts his position into the road of the trip his driver S drives');
+-- D6's phone, its clock a day behind, on his running trip
+select tests.app_report(tests.gp('D6'), 'foreground', 41.70, 44.80, now() - interval '1 day');
+select ok(tests.app_trail(tests.gp('D6'), tests.gp('LIVE_B6'), now() - interval '1 day') = '1'
+          and tests.trail_seen_by(tests.gp('CB')) ~ 'LIVE_B6:1',
+  'BUG(P0-2): a running trip''s road takes whatever time the phone gives - a point it dates a day back is stored, and CB reads it');
 
 -- P0-3: the watch -------------------------------------------------------------
 select tests.set_pin(tests.gp('D6'), 'foreground', now() - interval '30 minutes');
