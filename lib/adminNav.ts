@@ -4,6 +4,7 @@ import type { AdminTabId } from '../components/admin/AdminTabBar';
 /** Every admin panel tab, checked against the type so none can be forgotten. */
 const ADMIN_TABS: Record<AdminTabId, true> = {
   users: true,
+  fleet: true,
   verify: true,
   chats: true,
   bookings: true,

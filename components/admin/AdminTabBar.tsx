@@ -3,6 +3,7 @@ import { COLORS, RADIUS, SPACING } from '../../constants/theme';
 
 export type AdminTabId =
   | 'users'
+  | 'fleet'
   | 'verify'
   | 'chats'
   | 'bookings'

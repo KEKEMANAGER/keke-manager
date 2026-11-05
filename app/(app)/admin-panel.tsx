@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { AdminBookingsSection } from '../../components/admin/AdminBookingsSection';
 import { AdminChatsSection } from '../../components/admin/AdminChatsSection';
 import { AdminDispatchLogSection } from '../../components/admin/AdminDispatchLogSection';
+import { AdminFleetSection } from '../../components/admin/AdminFleetSection';
 import { AdminImportLogSection } from '../../components/admin/AdminImportLogSection';
 import { AdminRegionsSection } from '../../components/admin/AdminRegionsSection';
 import { AdminGpsSection } from '../../components/admin/AdminGpsSection';
@@ -59,6 +60,7 @@ function AdminSearchInput({
 
 const TAB_IDS: AdminTabId[] = [
   'users',
+  'fleet',
   'verify',
   'chats',
   'bookings',
@@ -107,6 +109,7 @@ export default function AdminPanelScreen() {
   const tabs = useMemo(
     () => [
       { id: 'users' as const, label: t('adminPanel.tabUsers') },
+      { id: 'fleet' as const, label: t('adminPanel.tabFleet') },
       { id: 'verify' as const, label: t('adminPanel.tabVerify') },
       { id: 'chats' as const, label: t('adminPanel.tabChats'), badge: chatTabBadge },
       { id: 'bookings' as const, label: t('adminPanel.tabBookings') },
@@ -169,6 +172,7 @@ export default function AdminPanelScreen() {
           <AdminUsersSection searchQuery={searchQuery} />
         </>
       ) : null}
+      {tab === 'fleet' ? <AdminFleetSection /> : null}
       {tab === 'verify' ? <AdminVerifyPanel /> : null}
       {tab === 'chats' ? <AdminChatsSection /> : null}
       {tab === 'bookings' ? <AdminBookingsSection /> : null}
