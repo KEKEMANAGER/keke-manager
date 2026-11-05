@@ -730,6 +730,26 @@ async function fetchPendingRowsForDriver(
   return { data: (legacy.data ?? []) as Record<string, unknown>[], error: null };
 }
 
+/**
+ * The open jobs this driver may see now, as the server decides them
+ * (`driver_matching_open_jobs`): by the same rule that decides who is pushed
+ * about a job — the exact matches at once, and the wider set (comfort cars for
+ * an economy job, a bigger seat tier, drivers who list no language) once that
+ * job's third wave has gone out — plus the jobs offered to him by name, as
+ * summaries. `null` when the server does not have that function yet.
+ */
+async function fetchMatchingOpenJobs(): Promise<{
+  data: Record<string, unknown>[];
+  error: Error | null;
+} | null> {
+  const { data, error } = await supabase.rpc('driver_matching_open_jobs');
+  if (!error) {
+    return { data: Array.isArray(data) ? (data as Record<string, unknown>[]) : [], error: null };
+  }
+  if (isMissingServerFunction(error)) return null;
+  return { data: [], error: new Error(error.message) };
+}
+
 /** True only when the server answers that the signed-in driver may not take jobs. */
 async function serverRefusesJobsToMe(): Promise<boolean> {
   const { data, error } = await supabase.rpc('current_driver_can_take_jobs');
@@ -753,9 +773,14 @@ async function fetchPendingBookingFields(
 }
 
 /**
- * Pending jobs matching this driver's active vehicle type/class.
+ * The open jobs this driver may see now, and the jobs offered to him by name.
  *
- * Matching priority:
+ * The server decides which ones (`driver_matching_open_jobs`), with the same
+ * rule as the new-booking pushes, so a driver finds here every job he was told
+ * about. Jobs on time his calendar has closed are then left out here as well.
+ *
+ * On a server without that function, the app's own filter, as before — by
+ * this driver's active vehicle type/class:
  *   1. All active vehicles in `vehicles` (is_active = true) — preferred.
  *   2. Fallback to `profiles.vehicle_type/class` for drivers who haven't
  *      set up vehicles yet (backwards-compatible).
@@ -789,6 +814,21 @@ export async function fetchOpenPendingBookingsForDriver(driverUserId: string): P
     return { data: [] as BookingRow[], error: null };
   }
 
+  const matching = await fetchMatchingOpenJobs();
+  if (matching) {
+    if (matching.error) {
+      return { data: [] as BookingRow[], error: matching.error };
+    }
+    // Empty because the server will not give this driver jobs yet (no
+    // approved car switched on): point him to his cars.
+    if (matching.data.length === 0 && (await serverRefusesJobsToMe())) {
+      return { data: [] as BookingRow[], error: null, hint: 'profile_vehicle_required' };
+    }
+    const open = await withoutBookingsOnBusyDays(id, matching.data);
+    return { data: hydrateBookingRows(open), error: null };
+  }
+
+  // A server without driver_matching_open_jobs: the app's own filter.
   const { data: driverUserRow } = await supabase
     .from('users')
     .select('is_guide_driver, is_hired_driver, languages')

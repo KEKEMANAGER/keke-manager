@@ -12,7 +12,6 @@ import {
   ensureAndroidNotificationChannel,
   notificationContentFromRequest,
 } from '../lib/notifications';
-import { driverProfileMatchesBooking } from '../lib/profiles';
 import { registerForPushNotificationsAsync } from '../lib/pushRegistration';
 import { getUserRole } from '../lib/role';
 import { voidSafe } from '../lib/voidSafe';
@@ -122,7 +121,7 @@ function chatPathForRole(role: ReturnType<typeof getUserRole>): '/(driver)/chat'
 
 export function PushNotificationListeners() {
   const { t } = useTranslation();
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const router = useRouter();
   const role = getUserRole(profile);
   const handledOpenRef = useRef<string | null>(null);
@@ -252,17 +251,11 @@ export function PushNotificationListeners() {
           return;
         }
 
-        if (data?.type === 'new_booking' && role === 'driver' && user?.id) {
-          const matches = await driverProfileMatchesBooking(
-            user.id,
-            (data as { vehicle_type?: string }).vehicle_type ?? '',
-            (data as { vehicle_class?: string }).vehicle_class ?? '',
-            (data as { capacity_tier?: string }).capacity_tier ?? null,
-            (data as { model_group?: string }).model_group ?? null,
-          );
-          if (!matches) return;
-        }
-
+        // A new job is pushed only to drivers the server lets hear about it
+        // (exact matches first, the wider set in its third wave), so it is
+        // shown as it comes. Re-checking it here against the app's own exact
+        // class and seat rule hid it from comfort and VIP drivers the server
+        // had chosen.
         const isBooking =
           data?.type === 'new_booking' ||
           data?.type === 'booking_confirmed' ||
@@ -333,7 +326,6 @@ export function PushNotificationListeners() {
     role,
     router,
     t,
-    user?.id,
   ]);
 
   return null;

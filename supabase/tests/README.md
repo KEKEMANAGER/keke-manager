@@ -15,6 +15,7 @@ PostgreSQL that is built from these fixtures:
 | `fixtures/prod_p0_4_snapshot_2026-10-31.sql` | Read-only snapshot of the production objects behind push notifications and new-booking dispatch: `messages`, `push_outbox` and `dispatch_log` with their rules and grants, the dispatch chain (`dispatch_new_booking_push` in both forms, the second wave, the one-minute fallback, `log_dispatch` and their helpers), `enqueue_booking_push`, `flush_push_outbox`, `create_user_notifications`, `user_may_notify`, `may_message_user`, and the triggers that touch push tokens. Load after the other three snapshots. |
 | `fixtures/p0_4_seed.sql` | Companies, an admin, approved drivers, a blocked one, two KEKE has not approved, a fleet owner with his driver and a pending invitation, a hired driver, open / offered / taken / cancelled / finished bookings, chat messages, and a fake phone token for every account (`ExponentPushToken[p04-<name>]`). Helpers count what reached the shim's `net.http_post`. |
 | `fixtures/p0_5_seed.sql` | Two companies, an admin, three approved drivers, a fleet owner with his driver, and C1's bookings in every state a cancellation meets: open, offered to one driver, accepted, given by a fleet owner to his driver, on the road, finished, cancelled, declined, another company's, and two convoys (one waiting, one with a car on the road). Helpers for the calendar, the change log and what reached `net.http_post`. |
+| `fixtures/smart_dispatch_seed.sql` | A company, an admin and 28 drivers whose cars, seat tiers, languages, towns, calendars, declines and account states cover every smart-dispatch rule (economy / comfort / business / VIP minivans, 3-5 and 6-8 seats, microbuses of 10-18 seats, no language, a fleet owner and his driver, a guide, a hired driver), and C1's open jobs, one offered by name. Helpers name who was told, who sees what, and make minutes go by (`tests.sd_advance`). Works before and after the migration. |
 
 The snapshot is a test fixture, not a migration and not the production
 baseline. Once the production baseline migration exists, build the test
@@ -235,3 +236,50 @@ and every database step uses a throwaway local database.
    company — accepts exactly that body and refuses it with the passengers,
    price, date or a tour day changed after approval; the same body without an
    approval (a booking typed into the form) goes in as before.
+
+## Smart dispatch — exact matches first, the wider set ten minutes on, one rule for pushes and the list
+
+```bash
+PGHOST=<local socket or host> PGPORT=<port> PGUSER=<superuser> supabase/tests/run_smart_dispatch_tests.sh
+node supabase/tests/smart_dispatch_client_check.cjs     # the app side, no server needed
+```
+
+`supabase/migrations/20261105120000_smart_dispatch.sql` on production as it
+is (the snapshots and every migration through the day-tour kind, plus the
+production `alert_undispatched_bookings`). `SMART_DISPATCH_TEMPLATE=<db>` runs
+it on a copy of a local production-like database instead. Nothing is sent
+anywhere. In order:
+
+1. `smart_dispatch_bug_reproduction.sql` on production as it is — 8 BUG
+   checks hold (an economy job's first wave reaches comfort, business and VIP
+   cars; drivers who list no language and bigger minivans never hear about a
+   job; the push shows the stored instant; a booking put back up never
+   alerts; the alert comes at five minutes), and every SAME check passes
+   (comfort and VIP jobs, tiers, guides, offers, the waves' timing for exact
+   matches, decliners, closed calendars, drivers who may not take jobs).
+2. The migration, twice: no BUG holds, SAME still passes, and
+   `smart_dispatch.test.sql` (142 pgTAP checks): the exact and widened sets
+   for every rule; waves 1 / 2 / 3 at 0, +3 and +10 minutes with their columns
+   and the dispatch log, for the server's waves and the app's ordered ones;
+   the open-jobs list of every driver equals what the push logic allows him
+   (before and after a job's third wave); the alert 20 minutes after each
+   launch, once per launch, for a booking put back up days later too; the
+   push text in Tbilisi time; the new columns refused to a company's direct
+   write; the rights.
+3. Every earlier suite with it in place (P0-1..P0-6, car calendar, import
+   approvals, day tours) and `smart_dispatch_concurrency.sh`: two third waves
+   at once, a driver taking the job during its third wave, a new launch during
+   it — nobody told twice, a taken job gets no later wave, the new launch keeps
+   its own third wave.
+4. The undo, twice: every public function (definition and rights), the
+   columns of `bookings` and `dispatch_log`, and the triggers and rules of
+   `bookings` are exactly as before; the 8 BUG checks hold again; the earlier
+   suites pass; the migration again and its suite again.
+
+`smart_dispatch_client_check.cjs` (18 checks) compiles the app's TypeScript
+with a recording Supabase client: the open-jobs list comes from
+`driver_matching_open_jobs` (an economy job the server shows a comfort driver
+stays), his closed calendar still hides an open job but not an offer by name,
+the "add a car" hint, a server error, the app's own filter on a server
+without the function, and that a new-job push is no longer re-checked against
+the app's class and seat rule.
