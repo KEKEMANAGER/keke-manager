@@ -112,7 +112,9 @@ select tests.act_as_owner();
 select is(tests.status_of(tests.p5('OPEN')), 'cancelled', 'OPEN is cancelled');
 select is((select cancelled_by from public.bookings where id = tests.p5('OPEN')), 'company', 'stamped: by the company');
 select ok((select cancelled_at is not null from public.bookings where id = tests.p5('OPEN')), 'with the time');
-select is((select count(*)::int from public.notifications), 0, 'nobody is told about a booking nobody had taken');
+-- (KEKE's admins hear about every booking since 20261106150000_admin_booking_feed: not counted here)
+select is((select count(*)::int from public.notifications n where n.type is distinct from 'admin_booking_feed'), 0,
+          'nobody is told about a booking nobody had taken');
 select is((select count(*)::int from public.booking_history h where h.booking_id = tests.p5('OPEN')), 1,
   'one line in its change log');
 select is((select h.changed_by from public.booking_history h where h.booking_id = tests.p5('OPEN')), tests.p5('C1'),
