@@ -26,6 +26,14 @@ FNS="('booking_dispatch_candidates(uuid)', '7bb06d17d6b8afd4ccff7288681f4b37', '
 NEW_FNS="'capacity_tier_max_seats(text)', 'booking_dispatch_pool(uuid,boolean,uuid)', 'booking_start_label_ka(text)',
     'booking_dispatch_launch(uuid)', 'dispatch_due_third_waves()', 'driver_matching_open_jobs(uuid)'"
 
+# The six functions the migration adds, with the migration's body md5 (same fingerprint).
+NEW_FN_MD5="('capacity_tier_max_seats(text)', 'd7e073f4630fb7e70d2b2f77acc4be22'),
+    ('booking_dispatch_pool(uuid,boolean,uuid)', 'cadf12a56cf79dfd58eceeeeb518cf83'),
+    ('booking_start_label_ka(text)', 'ca2325c1509bc88173daa3876713e286'),
+    ('booking_dispatch_launch(uuid)', '86792340bedd29da6d5e8fa0bd0b4b53'),
+    ('dispatch_due_third_waves()', 'ff3b7353e168b34fcee09f80256cb093'),
+    ('driver_matching_open_jobs(uuid)', 'bd3265456c63eee313073e64738ffdd3')"
+
 # Rows of what the migration must not touch, and the dispatch cron jobs: taken at the
 # start of the transaction and compared at the end (one snapshot: repeatable read).
 SNAP="(select count(*) || ':' || md5(coalesce(string_agg(x.id::text || '/' || coalesce(x.status, '-') || '/' || coalesce(x.driver_id::text, '-')
@@ -95,8 +103,11 @@ begin
       raise exception '%: public.% is not the migration''s (found %) - stop', step, f.sig, coalesce(got, 'nothing');
     end if;
   end loop;
-  foreach s in array array[$NEW_FNS] loop
-    if to_regprocedure('public.' || s) is null then raise exception '%: public.% is missing - stop', step, s; end if;
+  for f in select * from (values $NEW_FN_MD5) v(sig, after_md5) loop
+    select md5(replace(p.prosrc, E'\r', '')) into got from pg_proc p where p.oid = to_regprocedure('public.' || f.sig);
+    if got is distinct from f.after_md5 then
+      raise exception '%: public.% is missing or not the migration''s (found %) - stop', step, f.sig, coalesce(got, 'nothing');
+    end if;
   end loop;
   -- rights: the apps may call only these two; nobody signed out may call any
   foreach s in array array[$NEW_FNS, 'booking_dispatch_candidates(uuid)', 'booking_dispatch_message(uuid)',

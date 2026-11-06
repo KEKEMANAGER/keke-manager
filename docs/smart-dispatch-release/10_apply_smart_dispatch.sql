@@ -1057,9 +1057,16 @@ begin
       raise exception '%: public.% is not the migration''s (found %) - stop', step, f.sig, coalesce(got, 'nothing');
     end if;
   end loop;
-  foreach s in array array['capacity_tier_max_seats(text)', 'booking_dispatch_pool(uuid,boolean,uuid)', 'booking_start_label_ka(text)',
-    'booking_dispatch_launch(uuid)', 'dispatch_due_third_waves()', 'driver_matching_open_jobs(uuid)'] loop
-    if to_regprocedure('public.' || s) is null then raise exception '%: public.% is missing - stop', step, s; end if;
+  for f in select * from (values ('capacity_tier_max_seats(text)', 'd7e073f4630fb7e70d2b2f77acc4be22'),
+    ('booking_dispatch_pool(uuid,boolean,uuid)', 'cadf12a56cf79dfd58eceeeeb518cf83'),
+    ('booking_start_label_ka(text)', 'ca2325c1509bc88173daa3876713e286'),
+    ('booking_dispatch_launch(uuid)', '86792340bedd29da6d5e8fa0bd0b4b53'),
+    ('dispatch_due_third_waves()', 'ff3b7353e168b34fcee09f80256cb093'),
+    ('driver_matching_open_jobs(uuid)', 'bd3265456c63eee313073e64738ffdd3')) v(sig, after_md5) loop
+    select md5(replace(p.prosrc, E'\r', '')) into got from pg_proc p where p.oid = to_regprocedure('public.' || f.sig);
+    if got is distinct from f.after_md5 then
+      raise exception '%: public.% is missing or not the migration''s (found %) - stop', step, f.sig, coalesce(got, 'nothing');
+    end if;
   end loop;
   -- rights: the apps may call only these two; nobody signed out may call any
   foreach s in array array['capacity_tier_max_seats(text)', 'booking_dispatch_pool(uuid,boolean,uuid)', 'booking_start_label_ka(text)',
