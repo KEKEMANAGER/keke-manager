@@ -1,5 +1,5 @@
 -- KEKE admin booking feed release - step 1: apply
--- Source: supabase/migrations/20261106150000_admin_booking_feed.sql (md5 6db7d896a2638bc341750ca6763ed050)
+-- Source: supabase/migrations/20261106150000_admin_booking_feed.sql (md5 d85c5fc420365e005c7f0b0b68475ae2)
 -- Run as ONE call (Supabase SQL editor / MCP execute_sql). It commits only if every
 -- check passes; otherwise it rolls back and nothing changes. No existing row is changed
 -- and nobody is notified by running it.
@@ -76,8 +76,7 @@ create temp table _snap on commit drop as select (select count(*) || ':' || md5(
 -- does. A failure here never stops the booking itself: it is reported as a
 -- warning and the booking goes on.
 --
--- Telegram comes later through the same function (a second channel), once
--- KEKE has a bot.
+-- Only in the app (the founder does not want Telegram, 6 Nov 2026).
 --
 -- Changes no existing row. Undo: supabase/rollback/20261106150000_admin_booking_feed_undo.sql
 
@@ -283,7 +282,7 @@ end
 $after$;
 
 insert into supabase_migrations.schema_migrations (version, name, statements, created_by)
-values ('20261106150000', 'admin_booking_feed', array['-- applied from supabase/migrations/20261106150000_admin_booking_feed.sql (md5 6db7d896a2638bc341750ca6763ed050) by docs/admin-feed-release'], 'admin-feed-release');
+values ('20261106150000', 'admin_booking_feed', array['-- applied from supabase/migrations/20261106150000_admin_booking_feed.sql (md5 d85c5fc420365e005c7f0b0b68475ae2) by docs/admin-feed-release'], 'admin-feed-release');
 
 select 'admin booking feed applied' as result, now() as at,
        (select count(*) from public.users where role = 'admin') as admins_who_will_hear;

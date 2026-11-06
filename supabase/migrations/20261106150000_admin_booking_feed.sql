@@ -16,8 +16,7 @@
 -- does. A failure here never stops the booking itself: it is reported as a
 -- warning and the booking goes on.
 --
--- Telegram comes later through the same function (a second channel), once
--- KEKE has a bot.
+-- Only in the app (the founder does not want Telegram, 6 Nov 2026).
 --
 -- Changes no existing row. Undo: supabase/rollback/20261106150000_admin_booking_feed_undo.sql
 
