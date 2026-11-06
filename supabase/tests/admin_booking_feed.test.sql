@@ -67,10 +67,10 @@ select ok((select n.title = 'KEKE · ჯავშანი ისევ ღი�
 select tests.act_as(tests.sd('C1'));
 select lives_ok($$ update public.bookings set status = 'cancelled' where id = tests.sd('N_FMT') $$, 'the company cancels N_FMT');
 select tests.act_as_owner();
-select ok((select n.title = 'KEKE · ჯავშანი გაუქმდა' and n.body like 'SD-N_FMT · გააუქმა კომპანიამ (Test Tours SD) · Test Tours SD · %'
+select ok((select n.title = 'KEKE · ჯავშანი გაუქმდა' and n.body = 'SD-N_FMT · გააუქმა კომპანიამ (Test Tours SD) · Tbilisi airport → Kazbegi · 6 ნოემბერი, 10:00'
              from public.notifications n where n.user_id = tests.sd('ADM') and n.data ->> 'booking_id' = tests.sd('N_FMT')::text
               and n.data ->> 'event' = 'cancelled'),
-          'cancelled: by whom');
+          'cancelled: by whom (the company named once)');
 
 -- nothing else says anything
 update public.bookings set to_location = 'Tbilisi hotel 2', price_gel = 130 where id = tests.sd('N_OFF');

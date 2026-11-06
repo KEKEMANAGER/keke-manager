@@ -79,7 +79,7 @@ begin
   m := public.admin_booking_feed_message(b, 'cancelled', null);
   insert into _smoke (check_name, ok) values ('cancelled: by whom',
     m ->> 'title' = 'KEKE · ჯავშანი გაუქმდა'
-    and m ->> 'body' = head || ' · გააუქმა კომპანიამ (AF smoke tours) · AF smoke tours · ' || tail);
+    and m ->> 'body' = head || ' · გააუქმა კომპანიამ (AF smoke tours) · ' || tail);
 
   b.status := 'rejected'; b.cancelled_by := null;
   m := public.admin_booking_feed_message(b, 'rejected', null);

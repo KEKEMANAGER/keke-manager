@@ -1,5 +1,5 @@
 -- KEKE admin booking feed release - step 1: apply
--- Source: supabase/migrations/20261106150000_admin_booking_feed.sql (md5 64d619a1064df8fd249084ce71382936)
+-- Source: supabase/migrations/20261106150000_admin_booking_feed.sql (md5 6db7d896a2638bc341750ca6763ed050)
 -- Run as ONE call (Supabase SQL editor / MCP execute_sql). It commits only if every
 -- check passes; otherwise it rolls back and nothing changes. No existing row is changed
 -- and nobody is notified by running it.
@@ -156,7 +156,9 @@ begin
                when 'system'  then 'სისტემამ'
                else null end;
       v_title := 'KEKE · ჯავშანი გაუქმდა';
-      v_body  := concat_ws(' · ', v_code, case when who is not null then 'გააუქმა ' || who end, v_company, v_route, v_start);
+      v_body  := concat_ws(' · ', v_code, case when who is not null then 'გააუქმა ' || who end,
+                           case when lower(coalesce(b.cancelled_by, '')) = 'company' then null else v_company end,   -- named once
+                           v_route, v_start);
     when 'reopened' then
       v_title := 'KEKE · ჯავშანი ისევ ღიაა';
       v_body  := concat_ws(' · ', v_code, coalesce(v_driver, 'მძღოლი') || ' აღარ არის', v_company, v_route, v_start);
@@ -234,7 +236,7 @@ comment on function public.bookings_admin_feed() is
 do $after$
 declare step text := 'admin feed (after)'; f record; got text; s text;
 begin
-  for f in select * from (values ('admin_booking_feed_message(public.bookings,text,uuid)', 'c1235dff6ae92a30a340e4bcc3b95b2d'),
+  for f in select * from (values ('admin_booking_feed_message(public.bookings,text,uuid)', '7af832544914b83ece178a51881a1539'),
     ('bookings_admin_feed()', '301aa0311efa21024cbf95964768928e')) v(sig, want) loop
     select md5(replace(p.prosrc, E'\r', '')) into got from pg_proc p where p.oid = to_regprocedure('public.' || f.sig);
     if got is distinct from f.want then
@@ -281,7 +283,7 @@ end
 $after$;
 
 insert into supabase_migrations.schema_migrations (version, name, statements, created_by)
-values ('20261106150000', 'admin_booking_feed', array['-- applied from supabase/migrations/20261106150000_admin_booking_feed.sql (md5 64d619a1064df8fd249084ce71382936) by docs/admin-feed-release'], 'admin-feed-release');
+values ('20261106150000', 'admin_booking_feed', array['-- applied from supabase/migrations/20261106150000_admin_booking_feed.sql (md5 6db7d896a2638bc341750ca6763ed050) by docs/admin-feed-release'], 'admin-feed-release');
 
 select 'admin booking feed applied' as result, now() as at,
        (select count(*) from public.users where role = 'admin') as admins_who_will_hear;

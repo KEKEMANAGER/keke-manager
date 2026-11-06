@@ -96,7 +96,9 @@ begin
                when 'system'  then 'სისტემამ'
                else null end;
       v_title := 'KEKE · ჯავშანი გაუქმდა';
-      v_body  := concat_ws(' · ', v_code, case when who is not null then 'გააუქმა ' || who end, v_company, v_route, v_start);
+      v_body  := concat_ws(' · ', v_code, case when who is not null then 'გააუქმა ' || who end,
+                           case when lower(coalesce(b.cancelled_by, '')) = 'company' then null else v_company end,   -- named once
+                           v_route, v_start);
     when 'reopened' then
       v_title := 'KEKE · ჯავშანი ისევ ღიაა';
       v_body  := concat_ws(' · ', v_code, coalesce(v_driver, 'მძღოლი') || ' აღარ არის', v_company, v_route, v_start);

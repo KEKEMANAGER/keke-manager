@@ -12,7 +12,7 @@ set local statement_timeout = '120s';
 do $state$
 declare step text := 'undo admin feed (before)'; f record; got text;
 begin
-  for f in select * from (values ('admin_booking_feed_message(public.bookings,text,uuid)', 'c1235dff6ae92a30a340e4bcc3b95b2d'),
+  for f in select * from (values ('admin_booking_feed_message(public.bookings,text,uuid)', '7af832544914b83ece178a51881a1539'),
     ('bookings_admin_feed()', '301aa0311efa21024cbf95964768928e')) v(sig, want) loop
     select md5(replace(p.prosrc, E'\r', '')) into got from pg_proc p where p.oid = to_regprocedure('public.' || f.sig);
     if got is distinct from f.want then

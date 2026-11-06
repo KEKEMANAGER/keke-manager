@@ -25,7 +25,7 @@ DEPS="('deliver_notification(uuid,text,text,text,jsonb,text)', 'cc3e7c5df5c30bce
     ('send_web_push(uuid,text,text,jsonb)', '9219d7481ab3af8c15b7a943bdf6742f'),
     ('fetch_user_push_token(uuid)', '1a9696a1d05d91d05150c853e474e976')"
 # The two functions the migration adds, with its body md5 (same fingerprint).
-NEW_FN_MD5="('admin_booking_feed_message(public.bookings,text,uuid)', 'c1235dff6ae92a30a340e4bcc3b95b2d'),
+NEW_FN_MD5="('admin_booking_feed_message(public.bookings,text,uuid)', '7af832544914b83ece178a51881a1539'),
     ('bookings_admin_feed()', '301aa0311efa21024cbf95964768928e')"
 NEW_FNS="'admin_booking_feed_message(public.bookings,text,uuid)', 'bookings_admin_feed()'"
 TRG="CREATE TRIGGER bookings_admin_feed AFTER INSERT OR UPDATE OF status, driver_id ON public.bookings FOR EACH ROW EXECUTE FUNCTION bookings_admin_feed()"
