@@ -1,0 +1,3 @@
+4e9469c99ebadcd6705c1aff1c67b975  10_apply_vehicle_offroad.sql
+099ba6840adcae49ae9e9f738c47a887  90_smoke_vehicle_offroad.sql
+c2d39663e4d5a06dbecf35ad4030e6ae  91_undo_vehicle_offroad.sql
