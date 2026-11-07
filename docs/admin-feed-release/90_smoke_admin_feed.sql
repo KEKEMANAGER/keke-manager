@@ -27,10 +27,6 @@ declare
   head text := 'AF-SMOKE-1';
   tail text := 'Tbilisi airport → Kazbegi · 6 ნოემბერი, 10:00';
 begin
-  if to_regclass('net.http_request_queue') is not null then
-    execute 'select count(*) from net.http_request_queue' into queue_before;
-  end if;
-
   insert into auth.users (id, email) values
     (c, 'af-smoke-company@kekemanager.com'), (d1, 'af-smoke-driver1@kekemanager.com'), (d2, 'af-smoke-driver2@kekemanager.com');
   insert into public.users (id, role, full_name, company_name, email, is_verified, verification_status, is_blocked,
@@ -44,6 +40,11 @@ begin
     available_for_hire = excluded.available_for_hire, city = excluded.city, languages = excluded.languages;
   insert into public.vehicles (id, driver_id, type, class, capacity_tier, model, plate, verification_status, is_verified, is_active)
   values (car, d1, 'minivan', 'economy', 'minivan_3_5', 'AF smoke', 'AFSMOKE-1', 'approved', true, true);
+  -- counted after the throwaway accounts: a new account queues its welcome e-mail
+  -- (account-emails), which the rollback drops unsent; what is checked is the feed
+  if to_regclass('net.http_request_queue') is not null then
+    execute 'select count(*) from net.http_request_queue' into queue_before;
+  end if;
 
   -- the booking, in memory only
   b := jsonb_populate_record(null::public.bookings, jsonb_build_object(
